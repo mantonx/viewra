@@ -10,6 +10,7 @@ import (
 	"github.com/mantonx/viewra/internal/application/common"
 	"github.com/mantonx/viewra/internal/application/images"
 	"github.com/mantonx/viewra/internal/application/library"
+	"github.com/mantonx/viewra/internal/application/library/scan"
 	"github.com/mantonx/viewra/internal/application/media"
 	"github.com/mantonx/viewra/internal/application/movies"
 	"github.com/mantonx/viewra/internal/application/music"
@@ -145,7 +146,7 @@ func buildLibraryUseCases(
 	extractTrack := images.NewExtractMusicTrackImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
 
 	// Bundle media repositories
-	mediaRepos := &library.MediaRepositories{
+	mediaRepos := &scan.MediaRepositories{
 		Library: repos.Library,
 		Media:   repos.Media,
 		Movie:   repos.Movie,
@@ -154,14 +155,14 @@ func buildLibraryUseCases(
 	}
 
 	// Bundle scan repositories
-	scanRepos := &library.ScanRepositories{
+	scanRepos := &scan.ScanRepositories{
 		ScanJob:    repos.ScanJob,
 		Checkpoint: repos.Checkpoint,
 		ScanState:  repos.ScanState,
 	}
 
 	// Bundle scan configuration
-	scanConfig := library.ScanConfig{
+	scanConfig := scan.Config{
 		Timeout:          cfg.Media.ScanTimeout,
 		ParallelWalkers:  cfg.Media.ScanParallelWalkers,
 		ProgressInterval: cfg.Media.ScanProgressInterval,

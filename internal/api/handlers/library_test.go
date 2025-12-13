@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/application/library"
+	"github.com/mantonx/viewra/internal/application/library/scan"
 	domainLibrary "github.com/mantonx/viewra/internal/domain/library"
 	domainScanner "github.com/mantonx/viewra/internal/domain/scanner"
 )
@@ -62,45 +63,45 @@ func (m *mockLibraryService) Delete(ctx context.Context, id int64) error {
 }
 
 type mockScanLibraryExecutor struct {
-	startScanFunc      func(ctx context.Context, libraryID int64) (library.StartScanResponse, error)
-	getProgressFunc    func(ctx context.Context, jobID int64) (library.ScanProgressResponse, error)
-	getLatestScanFunc  func(ctx context.Context, libraryID int64) (library.ScanProgressResponse, error)
-	getScanHistoryFunc func(ctx context.Context, libraryID int64, limit int32) (library.ScanHistoryResponse, error)
+	startScanFunc      func(ctx context.Context, libraryID int64) (scan.StartScanResponse, error)
+	getProgressFunc    func(ctx context.Context, jobID int64) (scan.ScanProgressResponse, error)
+	getLatestScanFunc  func(ctx context.Context, libraryID int64) (scan.ScanProgressResponse, error)
+	getScanHistoryFunc func(ctx context.Context, libraryID int64, limit int32) (scan.ScanHistoryResponse, error)
 }
 
-func (m *mockScanLibraryExecutor) StartScan(ctx context.Context, libraryID int64) (library.StartScanResponse, error) {
+func (m *mockScanLibraryExecutor) StartScan(ctx context.Context, libraryID int64) (scan.StartScanResponse, error) {
 	if m.startScanFunc != nil {
 		return m.startScanFunc(ctx, libraryID)
 	}
-	return library.StartScanResponse{}, nil
+	return scan.StartScanResponse{}, nil
 }
 
-func (m *mockScanLibraryExecutor) GetProgress(ctx context.Context, jobID int64) (library.ScanProgressResponse, error) {
+func (m *mockScanLibraryExecutor) GetProgress(ctx context.Context, jobID int64) (scan.ScanProgressResponse, error) {
 	if m.getProgressFunc != nil {
 		return m.getProgressFunc(ctx, jobID)
 	}
-	return library.ScanProgressResponse{}, nil
+	return scan.ScanProgressResponse{}, nil
 }
 
 func (m *mockScanLibraryExecutor) GetLatestScan(
 	ctx context.Context,
 	libraryID int64,
-) (library.ScanProgressResponse, error) {
+) (scan.ScanProgressResponse, error) {
 	if m.getLatestScanFunc != nil {
 		return m.getLatestScanFunc(ctx, libraryID)
 	}
-	return library.ScanProgressResponse{}, nil
+	return scan.ScanProgressResponse{}, nil
 }
 
 func (m *mockScanLibraryExecutor) GetScanHistory(
 	ctx context.Context,
 	libraryID int64,
 	limit int32,
-) (library.ScanHistoryResponse, error) {
+) (scan.ScanHistoryResponse, error) {
 	if m.getScanHistoryFunc != nil {
 		return m.getScanHistoryFunc(ctx, libraryID, limit)
 	}
-	return library.ScanHistoryResponse{}, nil
+	return scan.ScanHistoryResponse{}, nil
 }
 
 // Test helper to create a test Gin context
@@ -616,14 +617,14 @@ func TestLibraryHandler_Scan(t *testing.T) {
 	tests := []struct {
 		name           string
 		libraryID      string
-		mockResponse   library.StartScanResponse
+		mockResponse   scan.StartScanResponse
 		mockError      error
 		expectedStatus int
 	}{
 		{
 			name:      "successful scan start",
 			libraryID: "1",
-			mockResponse: library.StartScanResponse{
+			mockResponse: scan.StartScanResponse{
 				JobID:     42,
 				LibraryID: 1,
 				Status:    "running",
@@ -635,21 +636,21 @@ func TestLibraryHandler_Scan(t *testing.T) {
 		{
 			name:           "invalid library ID",
 			libraryID:      "invalid",
-			mockResponse:   library.StartScanResponse{},
+			mockResponse:   scan.StartScanResponse{},
 			mockError:      nil,
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name:           "library not found",
 			libraryID:      "999",
-			mockResponse:   library.StartScanResponse{},
+			mockResponse:   scan.StartScanResponse{},
 			mockError:      domainLibrary.ErrLibraryNotFound,
 			expectedStatus: http.StatusNotFound,
 		},
 		{
 			name:           "scan already in progress",
 			libraryID:      "1",
-			mockResponse:   library.StartScanResponse{},
+			mockResponse:   scan.StartScanResponse{},
 			mockError:      domainScanner.ErrAlreadyRunning,
 			expectedStatus: http.StatusConflict,
 		},
@@ -658,7 +659,7 @@ func TestLibraryHandler_Scan(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockScan := &mockScanLibraryExecutor{
-				startScanFunc: func(_ context.Context, _ int64) (library.StartScanResponse, error) {
+				startScanFunc: func(_ context.Context, _ int64) (scan.StartScanResponse, error) {
 					return tt.mockResponse, tt.mockError
 				},
 			}
@@ -677,7 +678,7 @@ func TestLibraryHandler_Scan(t *testing.T) {
 			}
 
 			if tt.expectedStatus == http.StatusAccepted {
-				var responseBody library.StartScanResponse
+				var responseBody scan.StartScanResponse
 				if err := json.Unmarshal(w.Body.Bytes(), &responseBody); err != nil {
 					t.Fatalf("Failed to parse response body: %v", err)
 				}

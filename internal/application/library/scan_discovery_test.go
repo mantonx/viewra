@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mantonx/viewra/internal/application/library/scan"
+	"github.com/mantonx/viewra/internal/application/library/scan/discovery"
 	"github.com/mantonx/viewra/internal/domain/library"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
@@ -21,14 +23,14 @@ import (
 func TestScanLibraryUseCase_createWalker(t *testing.T) {
 	tests := []struct {
 		name                 string
-		config               ScanConfig
+		config               scan.Config
 		systemProfile        *system.Profile
 		expectedParallel     bool
 		expectedProgressLog  bool
 	}{
 		{
 			name: "creates walker with system profile recommendations",
-			config: ScanConfig{
+			config: scan.Config{
 				ParallelWalkers:  0,
 				ProgressInterval: 0,
 			},
@@ -46,7 +48,7 @@ func TestScanLibraryUseCase_createWalker(t *testing.T) {
 		},
 		{
 			name: "creates walker with config parallel walkers",
-			config: ScanConfig{
+			config: scan.Config{
 				ParallelWalkers:  4,
 				ProgressInterval: 0,
 			},
@@ -56,7 +58,7 @@ func TestScanLibraryUseCase_createWalker(t *testing.T) {
 		},
 		{
 			name: "creates walker with progress logging",
-			config: ScanConfig{
+			config: scan.Config{
 				ParallelWalkers:  0,
 				ProgressInterval: 100,
 			},
@@ -66,7 +68,7 @@ func TestScanLibraryUseCase_createWalker(t *testing.T) {
 		},
 		{
 			name: "creates walker with both parallel and progress",
-			config: ScanConfig{
+			config: scan.Config{
 				ParallelWalkers:  2,
 				ProgressInterval: 50,
 			},
@@ -76,7 +78,7 @@ func TestScanLibraryUseCase_createWalker(t *testing.T) {
 		},
 		{
 			name: "creates sequential walker by default",
-			config: ScanConfig{
+			config: scan.Config{
 				ParallelWalkers:  0,
 				ProgressInterval: 0,
 			},
@@ -151,17 +153,17 @@ func TestScanLibraryUseCase_phaseCountFiles(t *testing.T) {
 			scanJobRepo.WithJobs(job)
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob: scanJobRepo,
 				},
 				logger: discardLogger(),
 			}
 
 			dctx := &discoveryContext{
-				jobID:      100,
-				lib:        lib,
-				currentJob: job,
-				walker:     tt.setupWalker(t),
+				JobID:      100,
+				Lib:        lib,
+				CurrentJob: job,
+				Walker:     tt.setupWalker(t),
 			}
 
 			// This should not panic even with errors
@@ -185,10 +187,10 @@ func TestScanLibraryUseCase_phaseWalkDirectory_ContextCancellation(t *testing.T)
 		scanJobRepo.WithJobs(job)
 
 		uc := &ScanLibraryUseCase{
-			scanRepos: &ScanRepositories{
+			scanRepos: &scan.ScanRepositories{
 				ScanJob: scanJobRepo,
 			},
-			config: ScanConfig{
+			config: scan.Config{
 				DiscoveryBufferSize: 100,
 				DiscoveryLogEvery:   10,
 			},
@@ -196,10 +198,10 @@ func TestScanLibraryUseCase_phaseWalkDirectory_ContextCancellation(t *testing.T)
 		}
 
 		dctx := &discoveryContext{
-			jobID:      100,
-			lib:        &library.Library{ID: 1, Path: "/nonexistent"},
-			currentJob: job,
-			walker:     filesystem.NewWalker(filesystem.WithLogger(discardLogger())),
+			JobID:      100,
+			Lib:        &library.Library{ID: 1, Path: "/nonexistent"},
+			CurrentJob: job,
+			Walker:     filesystem.NewWalker(filesystem.WithLogger(discardLogger())),
 		}
 
 		// Cancel context immediately
@@ -236,10 +238,10 @@ func TestScanLibraryUseCase_phaseWalkDirectory_WithTempDir(t *testing.T) {
 		scanJobRepo.WithJobs(job)
 
 		uc := &ScanLibraryUseCase{
-			scanRepos: &ScanRepositories{
+			scanRepos: &scan.ScanRepositories{
 				ScanJob: scanJobRepo,
 			},
-			config: ScanConfig{
+			config: scan.Config{
 				DiscoveryBufferSize: 100,
 				DiscoveryLogEvery:   10,
 			},
@@ -247,10 +249,10 @@ func TestScanLibraryUseCase_phaseWalkDirectory_WithTempDir(t *testing.T) {
 		}
 
 		dctx := &discoveryContext{
-			jobID:      100,
-			lib:        &library.Library{ID: 1, Path: tmpDir},
-			currentJob: job,
-			walker:     filesystem.NewWalker(filesystem.WithLogger(discardLogger())),
+			JobID:      100,
+			Lib:        &library.Library{ID: 1, Path: tmpDir},
+			CurrentJob: job,
+			Walker:     filesystem.NewWalker(filesystem.WithLogger(discardLogger())),
 		}
 
 		files, err := uc.phaseWalkDirectory(context.Background(), dctx)
@@ -265,8 +267,8 @@ func TestScanLibraryUseCase_phaseWalkDirectory_WithTempDir(t *testing.T) {
 		}
 
 		// Verify stats were captured
-		if dctx.discoveryStats == nil {
-			t.Error("discoveryStats should be set")
+		if dctx.DiscoveryStats == nil {
+			t.Error("DiscoveryStats should be set")
 		}
 	})
 
@@ -290,10 +292,10 @@ func TestScanLibraryUseCase_phaseWalkDirectory_WithTempDir(t *testing.T) {
 		scanJobRepo.WithJobs(job)
 
 		uc := &ScanLibraryUseCase{
-			scanRepos: &ScanRepositories{
+			scanRepos: &scan.ScanRepositories{
 				ScanJob: scanJobRepo,
 			},
-			config: ScanConfig{
+			config: scan.Config{
 				DiscoveryBufferSize: 100,
 				DiscoveryLogEvery:   10, // Progress every 10 files
 			},
@@ -301,10 +303,10 @@ func TestScanLibraryUseCase_phaseWalkDirectory_WithTempDir(t *testing.T) {
 		}
 
 		dctx := &discoveryContext{
-			jobID:      100,
-			lib:        &library.Library{ID: 1, Path: tmpDir},
-			currentJob: job,
-			walker:     filesystem.NewWalker(filesystem.WithLogger(discardLogger())),
+			JobID:      100,
+			Lib:        &library.Library{ID: 1, Path: tmpDir},
+			CurrentJob: job,
+			Walker:     filesystem.NewWalker(filesystem.WithLogger(discardLogger())),
 		}
 
 		files, err := uc.phaseWalkDirectory(context.Background(), dctx)
@@ -336,10 +338,10 @@ func TestScanLibraryUseCase_phaseWalkDirectory_WithTempDir(t *testing.T) {
 		scanJobRepo.UpdateProgressErr = errors.New("database error")
 
 		uc := &ScanLibraryUseCase{
-			scanRepos: &ScanRepositories{
+			scanRepos: &scan.ScanRepositories{
 				ScanJob: scanJobRepo,
 			},
-			config: ScanConfig{
+			config: scan.Config{
 				DiscoveryBufferSize: 100,
 				DiscoveryLogEvery:   1, // Progress every file
 			},
@@ -347,10 +349,10 @@ func TestScanLibraryUseCase_phaseWalkDirectory_WithTempDir(t *testing.T) {
 		}
 
 		dctx := &discoveryContext{
-			jobID:      100,
-			lib:        &library.Library{ID: 1, Path: tmpDir},
-			currentJob: job,
-			walker:     filesystem.NewWalker(filesystem.WithLogger(discardLogger())),
+			JobID:      100,
+			Lib:        &library.Library{ID: 1, Path: tmpDir},
+			CurrentJob: job,
+			Walker:     filesystem.NewWalker(filesystem.WithLogger(discardLogger())),
 		}
 
 		// Should still succeed despite progress update errors
@@ -375,10 +377,10 @@ func TestScanLibraryUseCase_phaseWalkDirectory_WithTempDir(t *testing.T) {
 		scanJobRepo.WithJobs(job)
 
 		uc := &ScanLibraryUseCase{
-			scanRepos: &ScanRepositories{
+			scanRepos: &scan.ScanRepositories{
 				ScanJob: scanJobRepo,
 			},
-			config: ScanConfig{
+			config: scan.Config{
 				DiscoveryBufferSize: 100,
 				DiscoveryLogEvery:   10,
 			},
@@ -386,10 +388,10 @@ func TestScanLibraryUseCase_phaseWalkDirectory_WithTempDir(t *testing.T) {
 		}
 
 		dctx := &discoveryContext{
-			jobID:      100,
-			lib:        &library.Library{ID: 1, Path: "/nonexistent/path/that/does/not/exist"},
-			currentJob: job,
-			walker:     filesystem.NewWalker(filesystem.WithLogger(discardLogger())),
+			JobID:      100,
+			Lib:        &library.Library{ID: 1, Path: "/nonexistent/path/that/does/not/exist"},
+			CurrentJob: job,
+			Walker:     filesystem.NewWalker(filesystem.WithLogger(discardLogger())),
 		}
 
 		files, err := uc.phaseWalkDirectory(context.Background(), dctx)
@@ -422,11 +424,11 @@ func TestScanLibraryUseCase_phaseHashAndProcess_EmptyFiles(t *testing.T) {
 		scanJobRepo.WithJobs(job)
 
 		uc := &ScanLibraryUseCase{
-			scanRepos: &ScanRepositories{
+			scanRepos: &scan.ScanRepositories{
 				Checkpoint: checkpointRepo,
 				ScanJob:    scanJobRepo,
 			},
-			config: ScanConfig{
+			config: scan.Config{
 				CheckpointBatchSize:  10,
 				MaxRetries:           3,
 				WorkerTimeout:        5 * time.Minute,
@@ -436,9 +438,9 @@ func TestScanLibraryUseCase_phaseHashAndProcess_EmptyFiles(t *testing.T) {
 		}
 
 		dctx := &discoveryContext{
-			jobID: 100,
-			lib:   &library.Library{ID: 1, Path: "/media"},
-			discoveryStats: &filesystem.WalkStats{
+			JobID: 100,
+			Lib:   &library.Library{ID: 1, Path: "/media"},
+			DiscoveryStats: &filesystem.WalkStats{
 				FilesDiscovered: 0,
 			},
 		}
@@ -464,11 +466,11 @@ func TestScanLibraryUseCase_phaseHashAndProcess_EmptyFiles(t *testing.T) {
 		scanJobRepo.WithJobs(job)
 
 		uc := &ScanLibraryUseCase{
-			scanRepos: &ScanRepositories{
+			scanRepos: &scan.ScanRepositories{
 				Checkpoint: checkpointRepo,
 				ScanJob:    scanJobRepo,
 			},
-			config: ScanConfig{
+			config: scan.Config{
 				CheckpointBatchSize:  10,
 				MaxRetries:           3,
 				WorkerTimeout:        5 * time.Minute,
@@ -478,9 +480,9 @@ func TestScanLibraryUseCase_phaseHashAndProcess_EmptyFiles(t *testing.T) {
 		}
 
 		dctx := &discoveryContext{
-			jobID: 100,
-			lib:   &library.Library{ID: 1, Path: "/media"},
-			discoveryStats: &filesystem.WalkStats{
+			JobID: 100,
+			Lib:   &library.Library{ID: 1, Path: "/media"},
+			DiscoveryStats: &filesystem.WalkStats{
 				FilesDiscovered: 10,
 			},
 		}
@@ -512,11 +514,11 @@ func TestScanLibraryUseCase_phaseHashAndProcess_ErrorHandling(t *testing.T) {
 		scanJobRepo.WithJobs(job)
 
 		uc := &ScanLibraryUseCase{
-			scanRepos: &ScanRepositories{
+			scanRepos: &scan.ScanRepositories{
 				Checkpoint: checkpointRepo,
 				ScanJob:    scanJobRepo,
 			},
-			config: ScanConfig{
+			config: scan.Config{
 				CheckpointBatchSize:  10,
 				MaxRetries:           3,
 				WorkerTimeout:        5 * time.Minute,
@@ -526,9 +528,9 @@ func TestScanLibraryUseCase_phaseHashAndProcess_ErrorHandling(t *testing.T) {
 		}
 
 		dctx := &discoveryContext{
-			jobID: 100,
-			lib:   &library.Library{ID: 1, Path: "/nonexistent"},
-			discoveryStats: &filesystem.WalkStats{
+			JobID: 100,
+			Lib:   &library.Library{ID: 1, Path: "/nonexistent"},
+			DiscoveryStats: &filesystem.WalkStats{
 				FilesDiscovered: 1,
 			},
 		}
@@ -564,11 +566,11 @@ func TestScanLibraryUseCase_phaseHashAndProcess_ErrorHandling(t *testing.T) {
 		scanJobRepo.WithJobs(job)
 
 		uc := &ScanLibraryUseCase{
-			scanRepos: &ScanRepositories{
+			scanRepos: &scan.ScanRepositories{
 				Checkpoint: checkpointRepo,
 				ScanJob:    scanJobRepo,
 			},
-			config: ScanConfig{
+			config: scan.Config{
 				CheckpointBatchSize:  10,
 				MaxRetries:           3,
 				WorkerTimeout:        5 * time.Minute,
@@ -578,9 +580,9 @@ func TestScanLibraryUseCase_phaseHashAndProcess_ErrorHandling(t *testing.T) {
 		}
 
 		dctx := &discoveryContext{
-			jobID: 100,
-			lib:   &library.Library{ID: 1, Path: tmpDir},
-			discoveryStats: &filesystem.WalkStats{
+			JobID: 100,
+			Lib:   &library.Library{ID: 1, Path: tmpDir},
+			DiscoveryStats: &filesystem.WalkStats{
 				FilesDiscovered: 2,
 			},
 		}
@@ -621,11 +623,11 @@ func TestScanLibraryUseCase_phaseHashAndProcess_Metrics(t *testing.T) {
 		scanJobRepo.WithJobs(job)
 
 		uc := &ScanLibraryUseCase{
-			scanRepos: &ScanRepositories{
+			scanRepos: &scan.ScanRepositories{
 				Checkpoint: checkpointRepo,
 				ScanJob:    scanJobRepo,
 			},
-			config: ScanConfig{
+			config: scan.Config{
 				CheckpointBatchSize:  10,
 				MaxRetries:           3,
 				WorkerTimeout:        5 * time.Minute,
@@ -635,9 +637,9 @@ func TestScanLibraryUseCase_phaseHashAndProcess_Metrics(t *testing.T) {
 		}
 
 		dctx := &discoveryContext{
-			jobID: 100,
-			lib:   &library.Library{ID: 1, Path: tmpDir},
-			discoveryStats: &filesystem.WalkStats{
+			JobID: 100,
+			Lib:   &library.Library{ID: 1, Path: tmpDir},
+			DiscoveryStats: &filesystem.WalkStats{
 				FilesDiscovered: 5,
 				DirsScanned:     1,
 			},
@@ -687,11 +689,11 @@ func TestScanLibraryUseCase_phaseHashAndProcess_CheckpointCreationError(t *testi
 		checkpointRepo.CreateBatchErr = errors.New("database connection failed")
 
 		uc := &ScanLibraryUseCase{
-			scanRepos: &ScanRepositories{
+			scanRepos: &scan.ScanRepositories{
 				Checkpoint: checkpointRepo,
 				ScanJob:    scanJobRepo,
 			},
-			config: ScanConfig{
+			config: scan.Config{
 				CheckpointBatchSize:   10,
 				CheckpointBufferSize:  10,
 				MaxRetries:            3,
@@ -703,9 +705,9 @@ func TestScanLibraryUseCase_phaseHashAndProcess_CheckpointCreationError(t *testi
 		}
 
 		dctx := &discoveryContext{
-			jobID: 100,
-			lib:   &library.Library{ID: 1, Path: tmpDir},
-			discoveryStats: &filesystem.WalkStats{
+			JobID: 100,
+			Lib:   &library.Library{ID: 1, Path: tmpDir},
+			DiscoveryStats: &filesystem.WalkStats{
 				FilesDiscovered: 1,
 			},
 		}
@@ -738,7 +740,7 @@ func TestScanLibraryUseCase_runFreshScan(t *testing.T) {
 	tests := []struct {
 		name              string
 		setupTempDir      func(*testing.T) string
-		setupRepos        func(*testing.T) (*ScanRepositories, *IncrementalScanner)
+		setupRepos        func(*testing.T) (*scan.ScanRepositories, *discovery.IncrementalScanner)
 		jobID             int64
 		expectJobComplete bool
 		expectError       bool
@@ -756,7 +758,7 @@ func TestScanLibraryUseCase_runFreshScan(t *testing.T) {
 				}
 				return tmpDir
 			},
-			setupRepos: func(t *testing.T) (*ScanRepositories, *IncrementalScanner) {
+			setupRepos: func(t *testing.T) (*scan.ScanRepositories, *discovery.IncrementalScanner) {
 				scanJobRepo := mocks.NewScanJobRepository(t)
 				scanStateRepo := mocks.NewScanStateRepository(t)
 				checkpointRepo := mocks.NewCheckpointRepository(t)
@@ -769,13 +771,13 @@ func TestScanLibraryUseCase_runFreshScan(t *testing.T) {
 				}
 				scanJobRepo.WithJobs(job)
 
-				repos := &ScanRepositories{
+				repos := &scan.ScanRepositories{
 					ScanJob:    scanJobRepo,
 					ScanState:  scanStateRepo,
 					Checkpoint: checkpointRepo,
 				}
 
-				incScanner := NewIncrementalScanner(scanStateRepo, discardLogger())
+				incScanner := discovery.NewIncrementalScanner(scanStateRepo, discardLogger())
 
 				return repos, incScanner
 			},
@@ -790,7 +792,7 @@ func TestScanLibraryUseCase_runFreshScan(t *testing.T) {
 				// since we're testing the no-change detection logic
 				return t.TempDir()
 			},
-			setupRepos: func(t *testing.T) (*ScanRepositories, *IncrementalScanner) {
+			setupRepos: func(t *testing.T) (*scan.ScanRepositories, *discovery.IncrementalScanner) {
 				scanJobRepo := mocks.NewScanJobRepository(t)
 				scanStateRepo := mocks.NewScanStateRepository(t)
 				checkpointRepo := mocks.NewCheckpointRepository(t)
@@ -807,13 +809,13 @@ func TestScanLibraryUseCase_runFreshScan(t *testing.T) {
 				// (empty discovery = no changes, job should complete)
 				// We intentionally don't add any scan state
 
-				repos := &ScanRepositories{
+				repos := &scan.ScanRepositories{
 					ScanJob:    scanJobRepo,
 					ScanState:  scanStateRepo,
 					Checkpoint: checkpointRepo,
 				}
 
-				incScanner := NewIncrementalScanner(scanStateRepo, discardLogger())
+				incScanner := discovery.NewIncrementalScanner(scanStateRepo, discardLogger())
 
 				return repos, incScanner
 			},
@@ -832,7 +834,7 @@ func TestScanLibraryUseCase_runFreshScan(t *testing.T) {
 				}
 				return tmpDir
 			},
-			setupRepos: func(t *testing.T) (*ScanRepositories, *IncrementalScanner) {
+			setupRepos: func(t *testing.T) (*scan.ScanRepositories, *discovery.IncrementalScanner) {
 				scanJobRepo := mocks.NewScanJobRepository(t)
 				scanStateRepo := mocks.NewScanStateRepository(t)
 				checkpointRepo := mocks.NewCheckpointRepository(t)
@@ -854,13 +856,13 @@ func TestScanLibraryUseCase_runFreshScan(t *testing.T) {
 				}
 				scanStateRepo.WithStates(scanState)
 
-				repos := &ScanRepositories{
+				repos := &scan.ScanRepositories{
 					ScanJob:    scanJobRepo,
 					ScanState:  scanStateRepo,
 					Checkpoint: checkpointRepo,
 				}
 
-				incScanner := NewIncrementalScanner(scanStateRepo, discardLogger())
+				incScanner := discovery.NewIncrementalScanner(scanStateRepo, discardLogger())
 
 				return repos, incScanner
 			},
@@ -873,7 +875,7 @@ func TestScanLibraryUseCase_runFreshScan(t *testing.T) {
 			setupTempDir: func(t *testing.T) string {
 				return t.TempDir()
 			},
-			setupRepos: func(t *testing.T) (*ScanRepositories, *IncrementalScanner) {
+			setupRepos: func(t *testing.T) (*scan.ScanRepositories, *discovery.IncrementalScanner) {
 				scanJobRepo := mocks.NewScanJobRepository(t)
 				scanStateRepo := mocks.NewScanStateRepository(t)
 				checkpointRepo := mocks.NewCheckpointRepository(t)
@@ -881,13 +883,13 @@ func TestScanLibraryUseCase_runFreshScan(t *testing.T) {
 				// Inject error to fail initialization
 				scanJobRepo.GetErr = errors.New("database error")
 
-				repos := &ScanRepositories{
+				repos := &scan.ScanRepositories{
 					ScanJob:    scanJobRepo,
 					ScanState:  scanStateRepo,
 					Checkpoint: checkpointRepo,
 				}
 
-				incScanner := NewIncrementalScanner(scanStateRepo, discardLogger())
+				incScanner := discovery.NewIncrementalScanner(scanStateRepo, discardLogger())
 
 				return repos, incScanner
 			},
@@ -901,7 +903,7 @@ func TestScanLibraryUseCase_runFreshScan(t *testing.T) {
 				// Return non-existent path to trigger walk error
 				return "/nonexistent/path/that/does/not/exist"
 			},
-			setupRepos: func(t *testing.T) (*ScanRepositories, *IncrementalScanner) {
+			setupRepos: func(t *testing.T) (*scan.ScanRepositories, *discovery.IncrementalScanner) {
 				scanJobRepo := mocks.NewScanJobRepository(t)
 				scanStateRepo := mocks.NewScanStateRepository(t)
 				checkpointRepo := mocks.NewCheckpointRepository(t)
@@ -914,13 +916,13 @@ func TestScanLibraryUseCase_runFreshScan(t *testing.T) {
 				}
 				scanJobRepo.WithJobs(job)
 
-				repos := &ScanRepositories{
+				repos := &scan.ScanRepositories{
 					ScanJob:    scanJobRepo,
 					ScanState:  scanStateRepo,
 					Checkpoint: checkpointRepo,
 				}
 
-				incScanner := NewIncrementalScanner(scanStateRepo, discardLogger())
+				incScanner := discovery.NewIncrementalScanner(scanStateRepo, discardLogger())
 
 				return repos, incScanner
 			},
@@ -943,7 +945,7 @@ func TestScanLibraryUseCase_runFreshScan(t *testing.T) {
 			uc := &ScanLibraryUseCase{
 				scanRepos:          repos,
 				incrementalScanner: incScanner,
-				config: ScanConfig{
+				config: scan.Config{
 					DiscoveryBufferSize:  100,
 					DiscoveryLogEvery:    10,
 					CheckpointBatchSize:  10,
@@ -982,7 +984,7 @@ func TestScanLibraryUseCase_runFreshScan(t *testing.T) {
 func TestScanLibraryUseCase_initDiscoveryContext(t *testing.T) {
 	tests := []struct {
 		name           string
-		setupRepos     func(*testing.T) *ScanRepositories
+		setupRepos     func(*testing.T) *scan.ScanRepositories
 		jobID          int64
 		lib            *library.Library
 		expectError    bool
@@ -990,7 +992,7 @@ func TestScanLibraryUseCase_initDiscoveryContext(t *testing.T) {
 	}{
 		{
 			name: "initializes context successfully",
-			setupRepos: func(t *testing.T) *ScanRepositories {
+			setupRepos: func(t *testing.T) *scan.ScanRepositories {
 				scanJobRepo := mocks.NewScanJobRepository(t)
 				job := &scanner.ScanJob{
 					ID:             100,
@@ -1000,7 +1002,7 @@ func TestScanLibraryUseCase_initDiscoveryContext(t *testing.T) {
 				}
 				scanJobRepo.WithJobs(job)
 
-				return &ScanRepositories{
+				return &scan.ScanRepositories{
 					ScanJob: scanJobRepo,
 				}
 			},
@@ -1014,27 +1016,27 @@ func TestScanLibraryUseCase_initDiscoveryContext(t *testing.T) {
 				if dctx == nil {
 					t.Fatal("expected non-nil discoveryContext")
 				}
-				if dctx.jobID != 100 {
-					t.Errorf("expected jobID 100, got %d", dctx.jobID)
+				if dctx.JobID != 100 {
+					t.Errorf("expected JobID 100, got %d", dctx.JobID)
 				}
-				if dctx.lib.ID != 1 {
-					t.Errorf("expected library ID 1, got %d", dctx.lib.ID)
+				if dctx.Lib.ID != 1 {
+					t.Errorf("expected library ID 1, got %d", dctx.Lib.ID)
 				}
-				if dctx.currentJob == nil {
-					t.Error("expected non-nil currentJob")
+				if dctx.CurrentJob == nil {
+					t.Error("expected non-nil CurrentJob")
 				}
-				if dctx.walker == nil {
-					t.Error("expected non-nil walker")
+				if dctx.Walker == nil {
+					t.Error("expected non-nil Walker")
 				}
 			},
 		},
 		{
 			name: "handles job not found error",
-			setupRepos: func(t *testing.T) *ScanRepositories {
+			setupRepos: func(t *testing.T) *scan.ScanRepositories {
 				scanJobRepo := mocks.NewScanJobRepository(t)
 				// No jobs created - will return not found
 
-				return &ScanRepositories{
+				return &scan.ScanRepositories{
 					ScanJob: scanJobRepo,
 				}
 			},
@@ -1052,11 +1054,11 @@ func TestScanLibraryUseCase_initDiscoveryContext(t *testing.T) {
 		},
 		{
 			name: "handles repository error",
-			setupRepos: func(t *testing.T) *ScanRepositories {
+			setupRepos: func(t *testing.T) *scan.ScanRepositories {
 				scanJobRepo := mocks.NewScanJobRepository(t)
 				scanJobRepo.GetErr = errors.New("database connection failed")
 
-				return &ScanRepositories{
+				return &scan.ScanRepositories{
 					ScanJob: scanJobRepo,
 				}
 			},
@@ -1080,7 +1082,7 @@ func TestScanLibraryUseCase_initDiscoveryContext(t *testing.T) {
 
 			uc := &ScanLibraryUseCase{
 				scanRepos: repos,
-				config:    ScanConfig{},
+				config:    scan.Config{},
 				logger:    discardLogger(),
 			}
 
@@ -1106,15 +1108,15 @@ func TestScanLibraryUseCase_initDiscoveryContext(t *testing.T) {
 func TestScanLibraryUseCase_phaseDetermineChanges(t *testing.T) {
 	tests := []struct {
 		name            string
-		setupRepos      func(*testing.T) *ScanRepositories
-		setupIncScanner func(*testing.T, *ScanRepositories) *IncrementalScanner
+		setupRepos      func(*testing.T) *scan.ScanRepositories
+		setupIncScanner func(*testing.T, *scan.ScanRepositories) *discovery.IncrementalScanner
 		discoveredFiles []scanner.FileInfo
 		expectNil       bool // Expect nil diff when no changes
 		validateDiff    func(*testing.T, *scanner.ScanDiff)
 	}{
 		{
 			name: "detects new files",
-			setupRepos: func(t *testing.T) *ScanRepositories {
+			setupRepos: func(t *testing.T) *scan.ScanRepositories {
 				scanJobRepo := mocks.NewScanJobRepository(t)
 				scanStateRepo := mocks.NewScanStateRepository(t)
 
@@ -1124,13 +1126,13 @@ func TestScanLibraryUseCase_phaseDetermineChanges(t *testing.T) {
 				}
 				scanJobRepo.WithJobs(job)
 
-				return &ScanRepositories{
+				return &scan.ScanRepositories{
 					ScanJob:   scanJobRepo,
 					ScanState: scanStateRepo,
 				}
 			},
-			setupIncScanner: func(t *testing.T, repos *ScanRepositories) *IncrementalScanner {
-				return NewIncrementalScanner(repos.ScanState, discardLogger())
+			setupIncScanner: func(t *testing.T, repos *scan.ScanRepositories) *discovery.IncrementalScanner {
+				return discovery.NewIncrementalScanner(repos.ScanState, discardLogger())
 			},
 			discoveredFiles: []scanner.FileInfo{
 				{Path: "/media/new1.mp4", Size: 1000, ModTime: time.Now()},
@@ -1151,7 +1153,7 @@ func TestScanLibraryUseCase_phaseDetermineChanges(t *testing.T) {
 		},
 		{
 			name: "detects modified files",
-			setupRepos: func(t *testing.T) *ScanRepositories {
+			setupRepos: func(t *testing.T) *scan.ScanRepositories {
 				scanJobRepo := mocks.NewScanJobRepository(t)
 				scanStateRepo := mocks.NewScanStateRepository(t)
 
@@ -1170,13 +1172,13 @@ func TestScanLibraryUseCase_phaseDetermineChanges(t *testing.T) {
 				}
 				scanStateRepo.WithStates(scanState)
 
-				return &ScanRepositories{
+				return &scan.ScanRepositories{
 					ScanJob:   scanJobRepo,
 					ScanState: scanStateRepo,
 				}
 			},
-			setupIncScanner: func(t *testing.T, repos *ScanRepositories) *IncrementalScanner {
-				return NewIncrementalScanner(repos.ScanState, discardLogger())
+			setupIncScanner: func(t *testing.T, repos *scan.ScanRepositories) *discovery.IncrementalScanner {
+				return discovery.NewIncrementalScanner(repos.ScanState, discardLogger())
 			},
 			discoveredFiles: []scanner.FileInfo{
 				{Path: "/media/modified.mp4", Size: 2000, ModTime: time.Now()}, // Size changed
@@ -1193,7 +1195,7 @@ func TestScanLibraryUseCase_phaseDetermineChanges(t *testing.T) {
 		},
 		{
 			name: "detects no changes - marks job complete",
-			setupRepos: func(t *testing.T) *ScanRepositories {
+			setupRepos: func(t *testing.T) *scan.ScanRepositories {
 				scanJobRepo := mocks.NewScanJobRepository(t)
 				scanStateRepo := mocks.NewScanStateRepository(t)
 
@@ -1213,13 +1215,13 @@ func TestScanLibraryUseCase_phaseDetermineChanges(t *testing.T) {
 				}
 				scanStateRepo.WithStates(scanState)
 
-				return &ScanRepositories{
+				return &scan.ScanRepositories{
 					ScanJob:   scanJobRepo,
 					ScanState: scanStateRepo,
 				}
 			},
-			setupIncScanner: func(t *testing.T, repos *ScanRepositories) *IncrementalScanner {
-				return NewIncrementalScanner(repos.ScanState, discardLogger())
+			setupIncScanner: func(t *testing.T, repos *scan.ScanRepositories) *discovery.IncrementalScanner {
+				return discovery.NewIncrementalScanner(repos.ScanState, discardLogger())
 			},
 			discoveredFiles: []scanner.FileInfo{
 				{Path: "/media/unchanged.mp4", Size: 1000, ModTime: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)},
@@ -1233,7 +1235,7 @@ func TestScanLibraryUseCase_phaseDetermineChanges(t *testing.T) {
 		},
 		{
 			name: "falls back to full scan on incremental error",
-			setupRepos: func(t *testing.T) *ScanRepositories {
+			setupRepos: func(t *testing.T) *scan.ScanRepositories {
 				scanJobRepo := mocks.NewScanJobRepository(t)
 				scanStateRepo := mocks.NewScanStateRepository(t)
 
@@ -1246,13 +1248,13 @@ func TestScanLibraryUseCase_phaseDetermineChanges(t *testing.T) {
 				// Inject error to trigger fallback
 				scanStateRepo.GetLibraryStateErr = errors.New("database error")
 
-				return &ScanRepositories{
+				return &scan.ScanRepositories{
 					ScanJob:   scanJobRepo,
 					ScanState: scanStateRepo,
 				}
 			},
-			setupIncScanner: func(t *testing.T, repos *ScanRepositories) *IncrementalScanner {
-				return NewIncrementalScanner(repos.ScanState, discardLogger())
+			setupIncScanner: func(t *testing.T, repos *scan.ScanRepositories) *discovery.IncrementalScanner {
+				return discovery.NewIncrementalScanner(repos.ScanState, discardLogger())
 			},
 			discoveredFiles: []scanner.FileInfo{
 				{Path: "/media/file1.mp4", Size: 1000, ModTime: time.Now()},
@@ -1274,7 +1276,7 @@ func TestScanLibraryUseCase_phaseDetermineChanges(t *testing.T) {
 		},
 		{
 			name: "handles complete job error gracefully",
-			setupRepos: func(t *testing.T) *ScanRepositories {
+			setupRepos: func(t *testing.T) *scan.ScanRepositories {
 				scanJobRepo := mocks.NewScanJobRepository(t)
 				scanStateRepo := mocks.NewScanStateRepository(t)
 
@@ -1297,13 +1299,13 @@ func TestScanLibraryUseCase_phaseDetermineChanges(t *testing.T) {
 				}
 				scanStateRepo.WithStates(scanState)
 
-				return &ScanRepositories{
+				return &scan.ScanRepositories{
 					ScanJob:   scanJobRepo,
 					ScanState: scanStateRepo,
 				}
 			},
-			setupIncScanner: func(t *testing.T, repos *ScanRepositories) *IncrementalScanner {
-				return NewIncrementalScanner(repos.ScanState, discardLogger())
+			setupIncScanner: func(t *testing.T, repos *scan.ScanRepositories) *discovery.IncrementalScanner {
+				return discovery.NewIncrementalScanner(repos.ScanState, discardLogger())
 			},
 			discoveredFiles: []scanner.FileInfo{
 				{Path: "/media/unchanged.mp4", Size: 1000, ModTime: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)},
@@ -1329,8 +1331,8 @@ func TestScanLibraryUseCase_phaseDetermineChanges(t *testing.T) {
 			}
 
 			dctx := &discoveryContext{
-				jobID: 100,
-				lib:   &library.Library{ID: 1, Path: "/media"},
+				JobID: 100,
+				Lib:   &library.Library{ID: 1, Path: "/media"},
 			}
 
 			diff := uc.phaseDetermineChanges(context.Background(), dctx, tt.discoveredFiles)
@@ -1429,13 +1431,13 @@ func TestScanLibraryUseCase_logDiscoveryStats(t *testing.T) {
 func TestScanLibraryUseCase_phaseHandleDeleted(t *testing.T) {
 	tests := []struct {
 		name         string
-		setupRepos   func(*testing.T) *ScanRepositories
+		setupRepos   func(*testing.T) *scan.ScanRepositories
 		diff         *scanner.ScanDiff
-		validateRepo func(*testing.T, *ScanRepositories)
+		validateRepo func(*testing.T, *scan.ScanRepositories)
 	}{
 		{
 			name: "deletes scan state for deleted files",
-			setupRepos: func(t *testing.T) *ScanRepositories {
+			setupRepos: func(t *testing.T) *scan.ScanRepositories {
 				scanStateRepo := mocks.NewScanStateRepository(t)
 
 				// Pre-populate with states
@@ -1446,14 +1448,14 @@ func TestScanLibraryUseCase_phaseHandleDeleted(t *testing.T) {
 				}
 				scanStateRepo.WithStates(states...)
 
-				return &ScanRepositories{
+				return &scan.ScanRepositories{
 					ScanState: scanStateRepo,
 				}
 			},
 			diff: &scanner.ScanDiff{
 				DeletedFiles: []string{"/media/deleted1.mp4", "/media/deleted2.mp4"},
 			},
-			validateRepo: func(t *testing.T, repos *ScanRepositories) {
+			validateRepo: func(t *testing.T, repos *scan.ScanRepositories) {
 				// Verify deleted files are removed
 				_, err := repos.ScanState.GetByPath(context.Background(), 1, "/media/deleted1.mp4")
 				if !errors.Is(err, scanner.ErrNotFound) {
@@ -1474,7 +1476,7 @@ func TestScanLibraryUseCase_phaseHandleDeleted(t *testing.T) {
 		},
 		{
 			name: "handles empty deleted files list",
-			setupRepos: func(t *testing.T) *ScanRepositories {
+			setupRepos: func(t *testing.T) *scan.ScanRepositories {
 				scanStateRepo := mocks.NewScanStateRepository(t)
 
 				state := &scanner.ScanState{
@@ -1484,14 +1486,14 @@ func TestScanLibraryUseCase_phaseHandleDeleted(t *testing.T) {
 				}
 				scanStateRepo.WithStates(state)
 
-				return &ScanRepositories{
+				return &scan.ScanRepositories{
 					ScanState: scanStateRepo,
 				}
 			},
 			diff: &scanner.ScanDiff{
 				DeletedFiles: []string{},
 			},
-			validateRepo: func(t *testing.T, repos *ScanRepositories) {
+			validateRepo: func(t *testing.T, repos *scan.ScanRepositories) {
 				// Verify file still exists (nothing deleted)
 				_, err := repos.ScanState.GetByPath(context.Background(), 1, "/media/file.mp4")
 				if err != nil {
@@ -1501,7 +1503,7 @@ func TestScanLibraryUseCase_phaseHandleDeleted(t *testing.T) {
 		},
 		{
 			name: "handles deletion errors gracefully",
-			setupRepos: func(t *testing.T) *ScanRepositories {
+			setupRepos: func(t *testing.T) *scan.ScanRepositories {
 				scanStateRepo := mocks.NewScanStateRepository(t)
 
 				// Inject error
@@ -1514,21 +1516,21 @@ func TestScanLibraryUseCase_phaseHandleDeleted(t *testing.T) {
 				}
 				scanStateRepo.WithStates(state)
 
-				return &ScanRepositories{
+				return &scan.ScanRepositories{
 					ScanState: scanStateRepo,
 				}
 			},
 			diff: &scanner.ScanDiff{
 				DeletedFiles: []string{"/media/deleted.mp4"},
 			},
-			validateRepo: func(t *testing.T, repos *ScanRepositories) {
+			validateRepo: func(t *testing.T, repos *scan.ScanRepositories) {
 				// Function should not panic despite error
 				// Error is logged but doesn't stop execution
 			},
 		},
 		{
 			name: "handles multiple deleted files efficiently",
-			setupRepos: func(t *testing.T) *ScanRepositories {
+			setupRepos: func(t *testing.T) *scan.ScanRepositories {
 				scanStateRepo := mocks.NewScanStateRepository(t)
 
 				var states []*scanner.ScanState
@@ -1541,7 +1543,7 @@ func TestScanLibraryUseCase_phaseHandleDeleted(t *testing.T) {
 				}
 				scanStateRepo.WithStates(states...)
 
-				return &ScanRepositories{
+				return &scan.ScanRepositories{
 					ScanState: scanStateRepo,
 				}
 			},
@@ -1554,7 +1556,7 @@ func TestScanLibraryUseCase_phaseHandleDeleted(t *testing.T) {
 					return files
 				}(),
 			},
-			validateRepo: func(t *testing.T, repos *ScanRepositories) {
+			validateRepo: func(t *testing.T, repos *scan.ScanRepositories) {
 				// Verify all deleted files are removed
 				count, err := repos.ScanState.CountByLibrary(context.Background(), 1)
 				if err != nil {
@@ -1577,8 +1579,8 @@ func TestScanLibraryUseCase_phaseHandleDeleted(t *testing.T) {
 			}
 
 			dctx := &discoveryContext{
-				jobID: 100,
-				lib:   &library.Library{ID: 1, Path: "/media"},
+				JobID: 100,
+				Lib:   &library.Library{ID: 1, Path: "/media"},
 			}
 
 			// Execute - should not panic

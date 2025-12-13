@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mantonx/viewra/internal/application/library/scan"
+	"github.com/mantonx/viewra/internal/application/library/scan/status"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/testutil/mocks"
 )
@@ -143,7 +145,7 @@ func TestScanLibraryUseCase_GetScanStatus(t *testing.T) {
 		setupMocks func(*mocks.ScanJobRepository, *mockScanStateRepositoryForStatus, *mockCheckpointRepositoryForStatus)
 		wantErr    bool
 		checkErr   func(*testing.T, error)
-		checkResult func(*testing.T, *ScanStatusResult)
+		checkResult func(*testing.T, *status.Result)
 	}{
 		{
 			name:      "successful status retrieval with running scan",
@@ -168,7 +170,7 @@ func TestScanLibraryUseCase_GetScanStatus(t *testing.T) {
 				})
 			},
 			wantErr: false,
-			checkResult: func(t *testing.T, result *ScanStatusResult) {
+			checkResult: func(t *testing.T, result *status.Result) {
 				if result.JobID != 1 {
 					t.Errorf("JobID = %d, want 1", result.JobID)
 				}
@@ -221,7 +223,7 @@ func TestScanLibraryUseCase_GetScanStatus(t *testing.T) {
 				}
 			},
 			wantErr: false,
-			checkResult: func(t *testing.T, result *ScanStatusResult) {
+			checkResult: func(t *testing.T, result *status.Result) {
 				if result.Status != scanner.ScanStatusCompleted {
 					t.Errorf("Status = %v, want %v", result.Status, scanner.ScanStatusCompleted)
 				}
@@ -277,7 +279,7 @@ func TestScanLibraryUseCase_GetScanStatus(t *testing.T) {
 				}
 			},
 			wantErr: false,
-			checkResult: func(t *testing.T, result *ScanStatusResult) {
+			checkResult: func(t *testing.T, result *status.Result) {
 				// Should use scan_state counts, not job counts
 				if result.ErrorCount != 10 {
 					t.Errorf("ErrorCount = %d, want 10 (from scan_state)", result.ErrorCount)
@@ -322,7 +324,7 @@ func TestScanLibraryUseCase_GetScanStatus(t *testing.T) {
 				}
 			},
 			wantErr: false,
-			checkResult: func(t *testing.T, result *ScanStatusResult) {
+			checkResult: func(t *testing.T, result *status.Result) {
 				if result.ETASeconds == nil {
 					t.Error("ETASeconds should not be nil for running scan with stats")
 				} else {
@@ -353,7 +355,7 @@ func TestScanLibraryUseCase_GetScanStatus(t *testing.T) {
 				})
 			},
 			wantErr: false,
-			checkResult: func(t *testing.T, result *ScanStatusResult) {
+			checkResult: func(t *testing.T, result *status.Result) {
 				if result.ETASeconds != nil {
 					t.Errorf("ETASeconds should be nil for completed scan, got %v", *result.ETASeconds)
 				}
@@ -375,7 +377,7 @@ func TestScanLibraryUseCase_GetScanStatus(t *testing.T) {
 
 			// Create use case
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob:    jobRepo,
 					ScanState:  stateRepo,
 					Checkpoint: checkRepo,
@@ -416,9 +418,9 @@ func TestScanLibraryUseCase_enrichWithScanState(t *testing.T) {
 		name       string
 		libraryID  int64
 		job        *scanner.ScanJob
-		status     *ScanStatusResult
+		status     *status.Result
 		setupMocks func(*mockScanStateRepositoryForStatus)
-		checkResult func(*testing.T, *ScanStatusResult)
+		checkResult func(*testing.T, *status.Result)
 	}{
 		{
 			name:      "successful enrichment with all data",
@@ -431,7 +433,7 @@ func TestScanLibraryUseCase_enrichWithScanState(t *testing.T) {
 				ErrorCount:     1,
 				WarningCount:   2,
 			},
-			status: &ScanStatusResult{
+			status: &status.Result{
 				FilesFound:     100,
 				FilesProcessed: 40,
 				ErrorCount:     1,
@@ -449,7 +451,7 @@ func TestScanLibraryUseCase_enrichWithScanState(t *testing.T) {
 					return 60, nil
 				}
 			},
-			checkResult: func(t *testing.T, result *ScanStatusResult) {
+			checkResult: func(t *testing.T, result *status.Result) {
 				if result.ErrorCount != 5 {
 					t.Errorf("ErrorCount = %d, want 5", result.ErrorCount)
 				}
@@ -476,7 +478,7 @@ func TestScanLibraryUseCase_enrichWithScanState(t *testing.T) {
 				ErrorCount:     3,
 				WarningCount:   7,
 			},
-			status: &ScanStatusResult{
+			status: &status.Result{
 				FilesFound:     100,
 				FilesProcessed: 40,
 				ErrorCount:     3,
@@ -487,7 +489,7 @@ func TestScanLibraryUseCase_enrichWithScanState(t *testing.T) {
 					return nil, errors.New("database error")
 				}
 			},
-			checkResult: func(t *testing.T, result *ScanStatusResult) {
+			checkResult: func(t *testing.T, result *status.Result) {
 				// Should keep original job counts on error
 				if result.ErrorCount != 3 {
 					t.Errorf("ErrorCount = %d, want 3 (job count)", result.ErrorCount)
@@ -507,7 +509,7 @@ func TestScanLibraryUseCase_enrichWithScanState(t *testing.T) {
 				FilesProcessed: 40,
 				Progress:       40.0,
 			},
-			status: &ScanStatusResult{
+			status: &status.Result{
 				FilesFound:     100,
 				FilesProcessed: 40,
 				Progress:       40.0,
@@ -517,7 +519,7 @@ func TestScanLibraryUseCase_enrichWithScanState(t *testing.T) {
 					return 0, errors.New("database error")
 				}
 			},
-			checkResult: func(t *testing.T, result *ScanStatusResult) {
+			checkResult: func(t *testing.T, result *status.Result) {
 				// Should keep original job values on error
 				if result.FilesProcessed != 40 {
 					t.Errorf("FilesProcessed = %d, want 40 (job count)", result.FilesProcessed)
@@ -537,7 +539,7 @@ func TestScanLibraryUseCase_enrichWithScanState(t *testing.T) {
 				FilesProcessed: 0,
 				Progress:       0,
 			},
-			status: &ScanStatusResult{
+			status: &status.Result{
 				FilesFound:     0,
 				FilesProcessed: 0,
 				Progress:       0,
@@ -547,7 +549,7 @@ func TestScanLibraryUseCase_enrichWithScanState(t *testing.T) {
 					return 5, nil
 				}
 			},
-			checkResult: func(t *testing.T, result *ScanStatusResult) {
+			checkResult: func(t *testing.T, result *status.Result) {
 				// Progress should remain 0, not cause division by zero
 				if result.Progress != 0 {
 					t.Errorf("Progress = %f, want 0 (no files found)", result.Progress)
@@ -568,7 +570,7 @@ func TestScanLibraryUseCase_enrichWithScanState(t *testing.T) {
 
 			// Create use case
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanState: repo,
 				},
 				logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -592,15 +594,15 @@ func TestScanLibraryUseCase_enrichWithETA(t *testing.T) {
 		name        string
 		jobID       int64
 		filesFound  int64
-		status      *ScanStatusResult
+		status      *status.Result
 		setupMocks  func(*mockCheckpointRepositoryForStatus)
-		checkResult func(*testing.T, *ScanStatusResult)
+		checkResult func(*testing.T, *status.Result)
 	}{
 		{
 			name:       "successful ETA calculation",
 			jobID:      1,
 			filesFound: 100,
-			status:     &ScanStatusResult{},
+			status:     &status.Result{},
 			setupMocks: func(repo *mockCheckpointRepositoryForStatus) {
 				firstProcessed := now.Add(-60 * time.Second)
 				repo.getStatsFunc = func(ctx context.Context, jobID int64) (*scanner.CheckpointStats, error) {
@@ -613,7 +615,7 @@ func TestScanLibraryUseCase_enrichWithETA(t *testing.T) {
 					}, nil
 				}
 			},
-			checkResult: func(t *testing.T, result *ScanStatusResult) {
+			checkResult: func(t *testing.T, result *status.Result) {
 				if result.ETASeconds == nil {
 					t.Error("ETASeconds should not be nil")
 				} else {
@@ -630,13 +632,13 @@ func TestScanLibraryUseCase_enrichWithETA(t *testing.T) {
 			name:       "error getting stats - no ETA",
 			jobID:      1,
 			filesFound: 100,
-			status:     &ScanStatusResult{},
+			status:     &status.Result{},
 			setupMocks: func(repo *mockCheckpointRepositoryForStatus) {
 				repo.getStatsFunc = func(ctx context.Context, jobID int64) (*scanner.CheckpointStats, error) {
 					return nil, errors.New("database error")
 				}
 			},
-			checkResult: func(t *testing.T, result *ScanStatusResult) {
+			checkResult: func(t *testing.T, result *status.Result) {
 				if result.ETASeconds != nil {
 					t.Errorf("ETASeconds should be nil on error, got %v", *result.ETASeconds)
 				}
@@ -646,13 +648,13 @@ func TestScanLibraryUseCase_enrichWithETA(t *testing.T) {
 			name:       "nil stats - no ETA",
 			jobID:      1,
 			filesFound: 100,
-			status:     &ScanStatusResult{},
+			status:     &status.Result{},
 			setupMocks: func(repo *mockCheckpointRepositoryForStatus) {
 				repo.getStatsFunc = func(ctx context.Context, jobID int64) (*scanner.CheckpointStats, error) {
 					return nil, nil
 				}
 			},
-			checkResult: func(t *testing.T, result *ScanStatusResult) {
+			checkResult: func(t *testing.T, result *status.Result) {
 				if result.ETASeconds != nil {
 					t.Errorf("ETASeconds should be nil when stats are nil, got %v", *result.ETASeconds)
 				}
@@ -662,7 +664,7 @@ func TestScanLibraryUseCase_enrichWithETA(t *testing.T) {
 			name:       "stats with nil EstimateRemainingSeconds - no ETA",
 			jobID:      1,
 			filesFound: 100,
-			status:     &ScanStatusResult{},
+			status:     &status.Result{},
 			setupMocks: func(repo *mockCheckpointRepositoryForStatus) {
 				repo.getStatsFunc = func(ctx context.Context, jobID int64) (*scanner.CheckpointStats, error) {
 					// No FirstProcessedAt, so EstimateRemainingSeconds will return nil
@@ -673,7 +675,7 @@ func TestScanLibraryUseCase_enrichWithETA(t *testing.T) {
 					}, nil
 				}
 			},
-			checkResult: func(t *testing.T, result *ScanStatusResult) {
+			checkResult: func(t *testing.T, result *status.Result) {
 				if result.ETASeconds != nil {
 					t.Errorf("ETASeconds should be nil when EstimateRemainingSeconds returns nil, got %v", *result.ETASeconds)
 				}
@@ -693,7 +695,7 @@ func TestScanLibraryUseCase_enrichWithETA(t *testing.T) {
 
 			// Create use case
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					Checkpoint: repo,
 				},
 			}

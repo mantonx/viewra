@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/application/library/scan"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/testutil/mocks"
 )
@@ -74,7 +75,7 @@ func TestScanLibraryUseCase_StartScan(t *testing.T) {
 		setupMocks    func(*mockLibraryRepoForScan, *mockScanJobRepository)
 		wantErr       bool
 		checkErr      func(*testing.T, error)
-		checkResponse func(*testing.T, StartScanResponse)
+		checkResponse func(*testing.T, scan.StartScanResponse)
 	}{
 		{
 			name:      "successful scan start",
@@ -93,7 +94,7 @@ func TestScanLibraryUseCase_StartScan(t *testing.T) {
 				scanRepo.jobs = make(map[int64]*scanner.ScanJob)
 			},
 			wantErr: false,
-			checkResponse: func(t *testing.T, resp StartScanResponse) {
+			checkResponse: func(t *testing.T, resp scan.StartScanResponse) {
 				if resp.LibraryID != 1 {
 					t.Errorf("Expected LibraryID 1, got %d", resp.LibraryID)
 				}
@@ -178,7 +179,7 @@ func TestScanLibraryUseCase_StartScan(t *testing.T) {
 				}
 			},
 			wantErr: false,
-			checkResponse: func(t *testing.T, resp StartScanResponse) {
+			checkResponse: func(t *testing.T, resp scan.StartScanResponse) {
 				if resp.LibraryID != 2 {
 					t.Errorf("Expected LibraryID 2, got %d", resp.LibraryID)
 				}
@@ -215,7 +216,7 @@ func TestScanLibraryUseCase_StartScan(t *testing.T) {
 				}
 			},
 			wantErr: false,
-			checkResponse: func(t *testing.T, resp StartScanResponse) {
+			checkResponse: func(t *testing.T, resp scan.StartScanResponse) {
 				if resp.LibraryID != 1 {
 					t.Errorf("Expected LibraryID 1, got %d", resp.LibraryID)
 				}
@@ -240,14 +241,14 @@ func TestScanLibraryUseCase_StartScan(t *testing.T) {
 
 			// Create use case
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Library: libRepo,
 					Media:   mediaRepo,
 					Movie:   movieRepo,
 					TV:      tvRepo,
 					Music:   musicRepo,
 				},
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob: scanRepo,
 				},
 			}
@@ -308,14 +309,14 @@ func TestScanLibraryUseCase_StartScan_CreationError(t *testing.T) {
 	}
 
 	uc := &ScanLibraryUseCase{
-		mediaRepos: &MediaRepositories{
+		mediaRepos: &scan.MediaRepositories{
 			Library: libRepo,
 			Media:   mocks.NewMediaRepository(t),
 			Movie:   mocks.NewMovieRepository(t),
 			TV:      mocks.NewTVRepository(t),
 			Music:   mocks.NewMusicRepository(t),
 		},
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			ScanJob: scanRepo,
 		},
 	}
@@ -370,14 +371,14 @@ func TestScanLibraryUseCase_StartScan_ListRunningError(t *testing.T) {
 	}
 
 	uc := &ScanLibraryUseCase{
-		mediaRepos: &MediaRepositories{
+		mediaRepos: &scan.MediaRepositories{
 			Library: libRepo,
 			Media:   mocks.NewMediaRepository(t),
 			Movie:   mocks.NewMovieRepository(t),
 			TV:      mocks.NewTVRepository(t),
 			Music:   mocks.NewMusicRepository(t),
 		},
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			ScanJob: scanRepo,
 		},
 	}

@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/mantonx/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/application/library/scan"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
 	"github.com/mantonx/viewra/internal/testutil/mocks"
@@ -38,17 +39,17 @@ func createUseCaseWithRealCoordinator(
 	coord := filesystem.NewCoordinator(coordConfig)
 
 	return &ScanLibraryUseCase{
-		mediaRepos: &MediaRepositories{
+		mediaRepos: &scan.MediaRepositories{
 			Media: mediaRepo,
 			Movie: movieRepo,
 			TV:    tvRepo,
 			Music: musicRepo,
 		},
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			ScanState: scanStateRepo,
 		},
 		coordinator: coord,
-		config:      DefaultScanConfig(),
+		config:      scan.DefaultConfig(),
 		logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 }

@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/application/library/scan"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/testutil/mocks"
 )
@@ -684,16 +685,16 @@ func TestScanLibraryUseCase_processFileWithCheckpoint(t *testing.T) {
 
 			// Create use case
 			baseUC := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Media: mediaRepo,
 					Movie: movieRepo,
 					TV:    tvRepo,
 					Music: musicRepo,
 				},
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanState: scanStateRepo,
 				},
-				config: DefaultScanConfig(),
+				config: scan.DefaultConfig(),
 				logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 			}
 
@@ -753,16 +754,16 @@ func TestScanLibraryUseCase_processFileWithCheckpoint_FileStatError(t *testing.T
 	mockCoord := &mockCoordinator{}
 
 	baseUC := &ScanLibraryUseCase{
-		mediaRepos: &MediaRepositories{
+		mediaRepos: &scan.MediaRepositories{
 			Media: mediaRepo,
 			Movie: movieRepo,
 			TV:    tvRepo,
 			Music: musicRepo,
 		},
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			ScanState: scanStateRepo,
 		},
-		config: DefaultScanConfig(),
+		config: scan.DefaultConfig(),
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
@@ -834,16 +835,16 @@ func TestScanLibraryUseCase_processFileWithCheckpoint_ContextCancellation(t *tes
 	}
 
 	baseUC := &ScanLibraryUseCase{
-		mediaRepos: &MediaRepositories{
+		mediaRepos: &scan.MediaRepositories{
 			Media: mediaRepo,
 			Movie: movieRepo,
 			TV:    tvRepo,
 			Music: musicRepo,
 		},
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			ScanState: scanStateRepo,
 		},
-		config: DefaultScanConfig(),
+		config: scan.DefaultConfig(),
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 

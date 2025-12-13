@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	domainLibrary "github.com/mantonx/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/application/library/scan"
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/testutil/mocks"
@@ -419,7 +420,7 @@ func TestPersistMediaTracks_WithEnhancedMock(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Library: libraryRepo,
 					Media:   mediaRepo,
 				},

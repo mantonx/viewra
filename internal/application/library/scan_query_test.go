@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/application/library/scan"
 )
 
 // mockScanJobRepository is a mock implementation of scanner.ScanJobRepository
@@ -149,7 +150,7 @@ func TestScanLibraryUseCase_GetProgress(t *testing.T) {
 		jobID     int64
 		setupMock func(*mockScanJobRepository)
 		wantErr   bool
-		checkResp func(*testing.T, ScanProgressResponse)
+		checkResp func(*testing.T, scan.ScanProgressResponse)
 	}{
 		{
 			name:  "get progress for running scan",
@@ -170,7 +171,7 @@ func TestScanLibraryUseCase_GetProgress(t *testing.T) {
 				}
 			},
 			wantErr: false,
-			checkResp: func(t *testing.T, resp ScanProgressResponse) {
+			checkResp: func(t *testing.T, resp scan.ScanProgressResponse) {
 				if resp.JobID != 1 {
 					t.Errorf("JobID = %v, want 1", resp.JobID)
 				}
@@ -205,7 +206,7 @@ func TestScanLibraryUseCase_GetProgress(t *testing.T) {
 				}
 			},
 			wantErr: false,
-			checkResp: func(t *testing.T, resp ScanProgressResponse) {
+			checkResp: func(t *testing.T, resp scan.ScanProgressResponse) {
 				if resp.JobID != 2 {
 					t.Errorf("JobID = %v, want 2", resp.JobID)
 				}
@@ -246,7 +247,7 @@ func TestScanLibraryUseCase_GetProgress(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob: mockRepo,
 				},
 			}
@@ -281,7 +282,7 @@ func TestScanLibraryUseCase_GetLatestScan(t *testing.T) {
 		libraryID int64
 		setupMock func(*mockScanJobRepository)
 		wantErr   bool
-		checkResp func(*testing.T, ScanProgressResponse)
+		checkResp func(*testing.T, scan.ScanProgressResponse)
 	}{
 		{
 			name:      "get latest scan for library with multiple scans",
@@ -309,7 +310,7 @@ func TestScanLibraryUseCase_GetLatestScan(t *testing.T) {
 				}
 			},
 			wantErr: false,
-			checkResp: func(t *testing.T, resp ScanProgressResponse) {
+			checkResp: func(t *testing.T, resp scan.ScanProgressResponse) {
 				if resp.JobID != 2 {
 					t.Errorf("JobID = %v, want 2 (latest)", resp.JobID)
 				}
@@ -347,7 +348,7 @@ func TestScanLibraryUseCase_GetLatestScan(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob: mockRepo,
 				},
 			}
@@ -382,7 +383,7 @@ func TestScanLibraryUseCase_GetScanHistory(t *testing.T) {
 		limit     int32
 		setupMock func(*mockScanJobRepository)
 		wantErr   bool
-		checkResp func(*testing.T, ScanHistoryResponse)
+		checkResp func(*testing.T, scan.ScanHistoryResponse)
 	}{
 		{
 			name:      "get history with multiple scans",
@@ -400,7 +401,7 @@ func TestScanLibraryUseCase_GetScanHistory(t *testing.T) {
 				}
 			},
 			wantErr: false,
-			checkResp: func(t *testing.T, resp ScanHistoryResponse) {
+			checkResp: func(t *testing.T, resp scan.ScanHistoryResponse) {
 				if resp.Total != 3 {
 					t.Errorf("Total = %v, want 3", resp.Total)
 				}
@@ -423,7 +424,7 @@ func TestScanLibraryUseCase_GetScanHistory(t *testing.T) {
 				}
 			},
 			wantErr: false,
-			checkResp: func(t *testing.T, resp ScanHistoryResponse) {
+			checkResp: func(t *testing.T, resp scan.ScanHistoryResponse) {
 				if resp.Total != 0 {
 					t.Errorf("Total = %v, want 0", resp.Total)
 				}
@@ -447,7 +448,7 @@ func TestScanLibraryUseCase_GetScanHistory(t *testing.T) {
 				}
 			},
 			wantErr: false,
-			checkResp: func(t *testing.T, resp ScanHistoryResponse) {
+			checkResp: func(t *testing.T, resp scan.ScanHistoryResponse) {
 				if len(resp.Jobs) != 2 {
 					t.Errorf("Jobs length = %v, want 2 (limited)", len(resp.Jobs))
 				}
@@ -471,7 +472,7 @@ func TestScanLibraryUseCase_GetScanHistory(t *testing.T) {
 				}
 			},
 			wantErr: false,
-			checkResp: func(t *testing.T, resp ScanHistoryResponse) {
+			checkResp: func(t *testing.T, resp scan.ScanHistoryResponse) {
 				if len(resp.Jobs) != 3 {
 					t.Errorf("Jobs length = %v, want 3 (no limit)", len(resp.Jobs))
 				}
@@ -496,7 +497,7 @@ func TestScanLibraryUseCase_GetScanHistory(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob: mockRepo,
 				},
 			}

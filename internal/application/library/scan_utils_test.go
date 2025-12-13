@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/application/library/scan"
 	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
 	"github.com/mantonx/viewra/internal/infrastructure/system"
 	"github.com/mantonx/viewra/internal/testutil/mocks"
@@ -165,7 +166,7 @@ func TestScanLibraryUseCase_calculateProcessingTimeout(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				config: ScanConfig{
+				config: scan.Config{
 					BaseFileTimeout:      tt.baseFileTimeout,
 					RemoteStorageTimeout: tt.remoteTimeout,
 					MaxExtraTimeout:      tt.maxExtraTimeout,
@@ -319,7 +320,7 @@ func TestScanLibraryUseCase_validateDiscovery(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob: scanJobRepo,
 				},
 				logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -338,188 +339,292 @@ func TestScanLibraryUseCase_validateDiscovery(t *testing.T) {
 	}
 }
 
-func TestIsExtra(t *testing.T) {
-	tests := []struct {
-		name     string
-		filepath string
-		expected bool
-	}{
-		// Trailers
-		{"trailer with dash", "/movies/Movie (2023)/Movie (2023)-trailer.mp4", true},
-		{"trailer with underscore", "/movies/Movie (2023)/Movie (2023)_trailer.mp4", true},
-		{"trailer with dot", "/movies/Movie (2023)/Movie (2023).trailer.mp4", true},
+// Note: Tests for scanutil.IsExtra, scanutil.IsMediaFile, scanutil.IsAudioFile,
+// and scanmedia.IsConstraintError live in their respective sub-packages:
+// - scan/scanutil/utils_test.go
+// - scan/media/upsert_test.go
 
-		// Deleted scenes
-		{"deleted with dash", "/movies/Movie (2023)/Movie (2023)-deleted-scene.mp4", true},
-		{"deleted with underscore", "/movies/Movie (2023)/Movie (2023)_deleted_scene.mp4", true},
-		{"deleted with dot", "/movies/Movie (2023)/Movie (2023).deleted.mp4", true},
+func TestProgressUpdate_Builder(t *testing.T) {
+	t.Run("builds progress with all fields", func(t *testing.T) {
+		// Create mock repository
+		mockScanJob := mocks.NewScanJobRepository(t)
+		// Pre-populate with a job so UpdateProgress finds it
+		mockScanJob.WithJobs(&scanner.ScanJob{ID: 123})
 
-		// Featurettes
-		{"featurette with dash", "/movies/Movie (2023)/Movie (2023)-featurette.mp4", true},
-		{"featurette with underscore", "/movies/Movie (2023)/Making_featurette.mp4", true},
-		{"featurette with dot", "/movies/Movie (2023)/Making.featurette.mp4", true},
+		uc := &ScanLibraryUseCase{
+			scanRepos: &scan.ScanRepositories{ScanJob: mockScanJob},
+			logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}
 
-		// Extras
-		{"extra with dash", "/movies/Movie (2023)/Movie-extra.mp4", true},
-		{"extra with underscore", "/movies/Movie (2023)/Movie_extra.mp4", true},
-		{"extra with dot", "/movies/Movie (2023)/Movie.extra.mp4", true},
+		err := uc.NewProgressUpdate(123).
+			Phase(scanner.ScanPhaseProcessing).
+			FilesFound(100).
+			FilesProcessed(50).
+			Errors(5).
+			Warnings(10).
+			EstimatedTotal(200).
+			DiscoveryDone().
+			Update(context.Background())
 
-		// Bonus
-		{"bonus with dash", "/movies/Movie (2023)/Movie-bonus.mp4", true},
-		{"bonus with underscore", "/movies/Movie (2023)/Movie_bonus.mp4", true},
-		{"bonus with dot", "/movies/Movie (2023)/Movie.bonus.mp4", true},
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
-		// Case insensitivity
-		{"uppercase TRAILER", "/movies/Movie (2023)/Movie-TRAILER.mp4", true},
-		{"mixed case Trailer", "/movies/Movie (2023)/Movie-Trailer.mp4", true},
+		// Verify the job was updated
+		job, _ := mockScanJob.GetByID(context.Background(), 123)
+		if job.Phase != scanner.ScanPhaseProcessing {
+			t.Errorf("expected phase %v, got %v", scanner.ScanPhaseProcessing, job.Phase)
+		}
+		if job.FilesFound != 100 {
+			t.Errorf("expected FilesFound 100, got %d", job.FilesFound)
+		}
+		if job.FilesProcessed != 50 {
+			t.Errorf("expected FilesProcessed 50, got %d", job.FilesProcessed)
+		}
+		if job.ErrorCount != 5 {
+			t.Errorf("expected ErrorCount 5, got %d", job.ErrorCount)
+		}
+		if job.WarningCount != 10 {
+			t.Errorf("expected WarningCount 10, got %d", job.WarningCount)
+		}
+		if job.EstimatedTotal != 200 {
+			t.Errorf("expected EstimatedTotal 200, got %d", job.EstimatedTotal)
+		}
+		if !job.DiscoveryDone {
+			t.Error("expected DiscoveryDone to be true")
+		}
+	})
 
-		// Non-extras
-		{"regular movie", "/movies/Movie (2023)/Movie (2023).mkv", false},
-		{"movie with extra in name", "/movies/Extraordinary (2023)/Extraordinary (2023).mkv", false},
-		{"trailer folder", "/movies/Movie (2023)/Trailers/trailer.mp4", false}, // pattern needs separator
-		{"regular episode", "/tv/Show/S01/Show S01E01.mkv", false},
-	}
+	t.Run("FromCheckpointStats copies stats", func(t *testing.T) {
+		mockScanJob := mocks.NewScanJobRepository(t)
+		mockScanJob.WithJobs(&scanner.ScanJob{ID: 123})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := isExtra(tt.filepath)
-			if result != tt.expected {
-				t.Errorf("isExtra(%q) = %v, want %v", tt.filepath, result, tt.expected)
-			}
-		})
-	}
+		uc := &ScanLibraryUseCase{
+			scanRepos: &scan.ScanRepositories{ScanJob: mockScanJob},
+			logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}
+
+		stats := &scanner.CheckpointStats{
+			ProcessedFiles: 75,
+			FailedFiles:    3,
+			WarningFiles:   7,
+		}
+
+		err := uc.NewProgressUpdate(123).
+			FromCheckpointStats(stats).
+			Update(context.Background())
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		job, _ := mockScanJob.GetByID(context.Background(), 123)
+		if job.FilesProcessed != 75 {
+			t.Errorf("expected FilesProcessed 75, got %d", job.FilesProcessed)
+		}
+		if job.ErrorCount != 3 {
+			t.Errorf("expected ErrorCount 3, got %d", job.ErrorCount)
+		}
+		if job.WarningCount != 7 {
+			t.Errorf("expected WarningCount 7, got %d", job.WarningCount)
+		}
+	})
+
+	t.Run("FromJob copies job fields", func(t *testing.T) {
+		mockScanJob := mocks.NewScanJobRepository(t)
+		mockScanJob.WithJobs(&scanner.ScanJob{ID: 123})
+
+		uc := &ScanLibraryUseCase{
+			scanRepos: &scan.ScanRepositories{ScanJob: mockScanJob},
+			logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}
+
+		sourceJob := &scanner.ScanJob{
+			FilesFound:     500,
+			Phase:          scanner.ScanPhaseCompleted,
+			EstimatedTotal: 600,
+			DiscoveryDone:  true,
+		}
+
+		err := uc.NewProgressUpdate(123).
+			FromJob(sourceJob).
+			Update(context.Background())
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		job, _ := mockScanJob.GetByID(context.Background(), 123)
+		if job.FilesFound != 500 {
+			t.Errorf("expected FilesFound 500, got %d", job.FilesFound)
+		}
+		if job.Phase != scanner.ScanPhaseCompleted {
+			t.Errorf("expected phase %v, got %v", scanner.ScanPhaseCompleted, job.Phase)
+		}
+		if job.EstimatedTotal != 600 {
+			t.Errorf("expected EstimatedTotal 600, got %d", job.EstimatedTotal)
+		}
+		if !job.DiscoveryDone {
+			t.Error("expected DiscoveryDone to be true")
+		}
+	})
+
+	t.Run("handles nil stats gracefully", func(t *testing.T) {
+		mockScanJob := mocks.NewScanJobRepository(t)
+		mockScanJob.WithJobs(&scanner.ScanJob{ID: 123})
+
+		uc := &ScanLibraryUseCase{
+			scanRepos: &scan.ScanRepositories{ScanJob: mockScanJob},
+			logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}
+
+		err := uc.NewProgressUpdate(123).
+			FromCheckpointStats(nil).
+			FilesFound(100).
+			Update(context.Background())
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		job, _ := mockScanJob.GetByID(context.Background(), 123)
+		// Should have FilesFound but zero for stats fields
+		if job.FilesFound != 100 {
+			t.Errorf("expected FilesFound 100, got %d", job.FilesFound)
+		}
+		if job.FilesProcessed != 0 {
+			t.Errorf("expected FilesProcessed 0, got %d", job.FilesProcessed)
+		}
+	})
+
+	t.Run("handles nil job gracefully", func(t *testing.T) {
+		mockScanJob := mocks.NewScanJobRepository(t)
+		mockScanJob.WithJobs(&scanner.ScanJob{ID: 123})
+
+		uc := &ScanLibraryUseCase{
+			scanRepos: &scan.ScanRepositories{ScanJob: mockScanJob},
+			logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}
+
+		err := uc.NewProgressUpdate(123).
+			FromJob(nil).
+			FilesProcessed(50).
+			Update(context.Background())
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		job, _ := mockScanJob.GetByID(context.Background(), 123)
+		// Should have FilesProcessed but zero for job fields
+		if job.FilesProcessed != 50 {
+			t.Errorf("expected FilesProcessed 50, got %d", job.FilesProcessed)
+		}
+		if job.FilesFound != 0 {
+			t.Errorf("expected FilesFound 0, got %d", job.FilesFound)
+		}
+	})
 }
 
-func TestAudioExtensions(t *testing.T) {
-	// Test that audioExtensions is a proper subset of mediaExtensions
-	for ext := range audioExtensions {
-		if !mediaExtensions[ext] {
-			t.Errorf("audioExtensions contains %q which is not in mediaExtensions", ext)
+func TestCompleteJobSafely(t *testing.T) {
+	t.Run("successful completion", func(t *testing.T) {
+		// Pre-populate with a running job
+		existingJob := &scanner.ScanJob{
+			ID:     1,
+			Status: scanner.ScanStatusRunning,
 		}
-	}
+		scanJobRepo := mocks.NewScanJobRepository(t).WithJobs(existingJob)
+		uc := &ScanLibraryUseCase{
+			scanRepos: &scan.ScanRepositories{
+				ScanJob: scanJobRepo,
+			},
+			logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}
 
-	// Test known audio extensions are in audioExtensions
-	expectedAudio := []string{"mp3", "flac", "m4a", "aac", "ogg", "opus", "wav", "wma", "aiff"}
-	for _, ext := range expectedAudio {
-		if !audioExtensions[ext] {
-			t.Errorf("expected %q in audioExtensions", ext)
+		job := &scanner.ScanJob{
+			ID:     1,
+			Status: scanner.ScanStatusCompleted,
 		}
-	}
 
-	// Test video extensions are NOT in audioExtensions
-	videoOnly := []string{"mp4", "mkv", "avi", "mov", "m2ts"}
-	for _, ext := range videoOnly {
-		if audioExtensions[ext] {
-			t.Errorf("video extension %q should not be in audioExtensions", ext)
+		// Should not panic and should call Complete
+		uc.completeJobSafely(context.Background(), job)
+
+		// Verify the job was updated to completed
+		stored, err := scanJobRepo.GetByID(context.Background(), 1)
+		if err != nil {
+			t.Fatalf("expected job to be stored: %v", err)
 		}
-	}
+		if stored.Status != scanner.ScanStatusCompleted {
+			t.Errorf("expected status %s, got %s", scanner.ScanStatusCompleted, stored.Status)
+		}
+	})
+
+	t.Run("error is logged not returned", func(t *testing.T) {
+		scanJobRepo := mocks.NewScanJobRepository(t)
+		scanJobRepo.CompleteErr = fmt.Errorf("database error")
+
+		uc := &ScanLibraryUseCase{
+			scanRepos: &scan.ScanRepositories{
+				ScanJob: scanJobRepo,
+			},
+			logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}
+
+		job := &scanner.ScanJob{
+			ID:     1,
+			Status: scanner.ScanStatusFailed,
+		}
+
+		// Should not panic - error is logged, not returned
+		uc.completeJobSafely(context.Background(), job)
+	})
+
+	t.Run("deleted job is handled gracefully", func(t *testing.T) {
+		scanJobRepo := mocks.NewScanJobRepository(t)
+		// Error message matches deletedPatterns in scanner package
+		scanJobRepo.CompleteErr = fmt.Errorf("foreign key constraint violation")
+
+		uc := &ScanLibraryUseCase{
+			scanRepos: &scan.ScanRepositories{
+				ScanJob: scanJobRepo,
+			},
+			logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}
+
+		job := &scanner.ScanJob{
+			ID:     1,
+			Status: scanner.ScanStatusCompleted,
+		}
+
+		// Should not panic - deleted jobs are expected
+		uc.completeJobSafely(context.Background(), job)
+	})
 }
 
-func TestMediaExtensions(t *testing.T) {
-	// Test all expected media extensions exist
-	expectedVideo := []string{"mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "m2ts", "ts"}
-	for _, ext := range expectedVideo {
-		if !mediaExtensions[ext] {
-			t.Errorf("expected video extension %q in mediaExtensions", ext)
+func TestIsScanDeleted(t *testing.T) {
+	t.Run("returns true for foreign key constraint error", func(t *testing.T) {
+		err := fmt.Errorf("foreign key constraint violation")
+		if !scanner.IsScanJobDeleted(err) {
+			t.Error("expected true for foreign key constraint error")
 		}
-	}
+	})
 
-	expectedAudio := []string{"mp3", "flac", "m4a", "aac", "ogg", "opus", "wav"}
-	for _, ext := range expectedAudio {
-		if !mediaExtensions[ext] {
-			t.Errorf("expected audio extension %q in mediaExtensions", ext)
+	t.Run("returns true for no rows error", func(t *testing.T) {
+		err := fmt.Errorf("no rows in result set")
+		if !scanner.IsScanJobDeleted(err) {
+			t.Error("expected true for no rows error")
 		}
-	}
+	})
 
-	// Test non-media extensions are not present
-	nonMedia := []string{"txt", "jpg", "png", "srt", "ass", "nfo", "xml", "json"}
-	for _, ext := range nonMedia {
-		if mediaExtensions[ext] {
-			t.Errorf("non-media extension %q should not be in mediaExtensions", ext)
+	t.Run("returns false for other errors", func(t *testing.T) {
+		if scanner.IsScanJobDeleted(fmt.Errorf("some other error")) {
+			t.Error("expected false for other errors")
 		}
-	}
-}
+	})
 
-func TestIsConstraintError(t *testing.T) {
-	tests := []struct {
-		name     string
-		err      error
-		expected bool
-	}{
-		{
-			name:     "nil error",
-			err:      nil,
-			expected: false,
-		},
-		{
-			name:     "SQLite UNIQUE constraint error",
-			err:      fmt.Errorf("UNIQUE constraint failed: media.file_path"),
-			expected: true,
-		},
-		{
-			name:     "PostgreSQL duplicate key error",
-			err:      fmt.Errorf("duplicate key value violates unique constraint"),
-			expected: true,
-		},
-		{
-			name:     "wrapped SQLite error",
-			err:      fmt.Errorf("failed to create: %w", fmt.Errorf("UNIQUE constraint failed: media.file_path")),
-			expected: true,
-		},
-		{
-			name:     "wrapped PostgreSQL error",
-			err:      fmt.Errorf("database error: %w", fmt.Errorf("duplicate key value violates")),
-			expected: true,
-		},
-		{
-			name:     "generic database error",
-			err:      fmt.Errorf("some other database error"),
-			expected: false,
-		},
-		{
-			name:     "connection error",
-			err:      fmt.Errorf("connection refused"),
-			expected: false,
-		},
-		{
-			name:     "timeout error",
-			err:      context.DeadlineExceeded,
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := isConstraintError(tt.err)
-			if result != tt.expected {
-				t.Errorf("isConstraintError(%v) = %v, want %v", tt.err, result, tt.expected)
-			}
-		})
-	}
-}
-
-func BenchmarkIsMediaFile(b *testing.B) {
-	uc := &ScanLibraryUseCase{}
-	extensions := []string{"mp4", "mkv", "txt", "jpg", ".mp4", "MP4", "flac", "nfo"}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		ext := extensions[i%len(extensions)]
-		uc.isMediaFile(ext)
-	}
-}
-
-func BenchmarkIsExtra(b *testing.B) {
-	paths := []string{
-		"/movies/Movie (2023)/Movie (2023).mkv",
-		"/movies/Movie (2023)/Movie-trailer.mp4",
-		"/movies/Movie (2023)/Movie-featurette.mp4",
-		"/tv/Show/S01/Show S01E01.mkv",
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		path := paths[i%len(paths)]
-		isExtra(path)
-	}
+	t.Run("returns false for nil", func(t *testing.T) {
+		if scanner.IsScanJobDeleted(nil) {
+			t.Error("expected false for nil")
+		}
+	})
 }

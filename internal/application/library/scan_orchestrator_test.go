@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/mantonx/viewra/internal/application/library/scan/scanutil"
+	"github.com/mantonx/viewra/internal/application/library/scan"
 	"github.com/mantonx/viewra/internal/domain/library"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/infrastructure/system"
@@ -257,7 +259,7 @@ func TestScanLibraryUseCase_validateCheckpointCompleteness(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob:    scanRepo,
 					Checkpoint: checkpointRepo,
 				},
@@ -351,7 +353,7 @@ func TestScanLibraryUseCase_resumeScanFromCheckpoints(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob:    scanRepo,
 					Checkpoint: checkpointRepo,
 				},
@@ -387,7 +389,7 @@ func TestNewScanLibraryUseCase(t *testing.T) {
 	tests := []struct {
 		name          string
 		logger        *slog.Logger
-		config        ScanConfig
+		config        scan.Config
 		verifyLogger  bool
 		verifyConfig  bool
 		verifyScanner bool
@@ -395,7 +397,7 @@ func TestNewScanLibraryUseCase(t *testing.T) {
 		{
 			name:          "creates use case with all dependencies",
 			logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
-			config:        ScanConfig{CheckpointBatchSize: 50, Timeout: 3600},
+			config:        scan.Config{CheckpointBatchSize: 50, Timeout: 3600},
 			verifyLogger:  true,
 			verifyConfig:  true,
 			verifyScanner: true,
@@ -403,7 +405,7 @@ func TestNewScanLibraryUseCase(t *testing.T) {
 		{
 			name:          "creates use case with nil logger - uses no-op logger",
 			logger:        nil,
-			config:        ScanConfig{CheckpointBatchSize: 30},
+			config:        scan.Config{CheckpointBatchSize: 30},
 			verifyLogger:  true,
 			verifyConfig:  true,
 			verifyScanner: true,
@@ -411,7 +413,7 @@ func TestNewScanLibraryUseCase(t *testing.T) {
 		{
 			name:          "creates use case with empty config - applies defaults",
 			logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
-			config:        ScanConfig{},
+			config:        scan.Config{},
 			verifyLogger:  true,
 			verifyConfig:  true,
 			verifyScanner: true,
@@ -420,10 +422,10 @@ func TestNewScanLibraryUseCase(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mediaRepos := &MediaRepositories{
+			mediaRepos := &scan.MediaRepositories{
 				Library: mocks.NewLibraryRepository(t),
 			}
-			scanRepos := &ScanRepositories{
+			scanRepos := &scan.ScanRepositories{
 				ScanJob:    mocks.NewScanJobRepository(t),
 				Checkpoint: mocks.NewCheckpointRepository(t),
 			}
@@ -642,10 +644,10 @@ func TestScanLibraryUseCase_ResumeStuckScans(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Library: libRepo,
 				},
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob:    scanRepo,
 					Checkpoint: checkpointRepo,
 				},
@@ -803,10 +805,10 @@ func TestScanLibraryUseCase_handleStuckScan(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Library: libRepo,
 				},
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob:    scanRepo,
 					Checkpoint: checkpointRepo,
 				},
@@ -883,7 +885,7 @@ func TestScanLibraryUseCase_markStuckScanFailed(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob: scanRepo,
 				},
 				logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -975,7 +977,7 @@ func TestScanLibraryUseCase_markStuckScanCompleted(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob: scanRepo,
 				},
 				logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -1047,7 +1049,7 @@ func TestScanLibraryUseCase_markScanCompleted(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob: scanRepo,
 				},
 				logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -1165,7 +1167,7 @@ func TestScanLibraryUseCase_completeJobFromStats(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob: scanRepo,
 				},
 				logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -1334,13 +1336,13 @@ func TestScanLibraryUseCase_ResumeScan(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Library: libRepo,
 				},
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob: scanRepo,
 				},
-				config: ScanConfig{
+				config: scan.Config{
 					CheckpointBatchSize: 50,
 					Timeout:             3600,
 				},
@@ -1414,8 +1416,8 @@ func TestScanLibraryUseCase_initializeScanSession(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			uc := &ScanLibraryUseCase{
-				processedArtists: AtomicDeduplicator{},
-				processedShows:   AtomicDeduplicator{},
+				processedArtists: scanutil.AtomicDeduplicator{},
+				processedShows:   scanutil.AtomicDeduplicator{},
 				systemProfile:    tt.systemProfile,
 				logger:           slog.New(slog.NewTextHandler(io.Discard, nil)),
 			}
@@ -1556,7 +1558,7 @@ func TestScanLibraryUseCase_recoverFromPanic(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob: scanRepo,
 				},
 				logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -1697,7 +1699,7 @@ func TestScanLibraryUseCase_canResumeFromCheckpoints(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob:    scanRepo,
 					Checkpoint: checkpointRepo,
 				},

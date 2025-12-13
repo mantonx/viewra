@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mantonx/viewra/internal/application/library/scan"
 	"github.com/mantonx/viewra/internal/domain/library"
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/domain/scanner"
@@ -21,15 +22,15 @@ import (
 
 func createTestCheckpointProcessingContext(jobID int64, lib *library.Library, batchSize int, maxRetries int) *checkpointProcessingContext {
 	return &checkpointProcessingContext{
-		jobID:              jobID,
-		lib:                lib,
-		batchSize:          batchSize,
-		maxRetries:         maxRetries,
-		existingMediaCache: &sync.Map{},
-		foundFilesMu:       &sync.Mutex{},
-		foundFiles:         make(map[string]bool),
-		checkpointsChan:    make(chan *scanner.ScanCheckpoint, 10),
-		workerWg:           &sync.WaitGroup{},
+		JobID:              jobID,
+		Lib:                lib,
+		BatchSize:          batchSize,
+		MaxRetries:         maxRetries,
+		ExistingMediaCache: &sync.Map{},
+		FoundFilesMu:       &sync.Mutex{},
+		FoundFiles:         make(map[string]bool),
+		CheckpointsChan:    make(chan *scanner.ScanCheckpoint, 10),
+		WorkerWg:           &sync.WaitGroup{},
 	}
 }
 
@@ -100,12 +101,12 @@ func TestScanLibraryUseCase_startCheckpointWorkers(t *testing.T) {
 			lib := &library.Library{ID: 1, Path: "/test"}
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					Checkpoint: checkpointRepo,
 					ScanState:  scanStateRepo,
 				},
 				systemProfile: tt.systemProfile,
-				config:        DefaultScanConfig(),
+				config:        scan.DefaultConfig(),
 				logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
 			}
 
@@ -134,15 +135,15 @@ func TestScanLibraryUseCase_startCheckpointWorkers(t *testing.T) {
 						FilePath:  "/nonexistent/file.mp4",
 						Status:    scanner.CheckpointPending,
 					}
-					pctx.checkpointsChan <- cp
+					pctx.CheckpointsChan <- cp
 				}
-				close(pctx.checkpointsChan)
+				close(pctx.CheckpointsChan)
 			}()
 
 			// Wait for workers to complete
 			done := make(chan struct{})
 			go func() {
-				pctx.workerWg.Wait()
+				pctx.WorkerWg.Wait()
 				close(done)
 			}()
 
@@ -179,11 +180,11 @@ func TestScanLibraryUseCase_startCheckpointWorkers_recoversFromPanic(t *testing.
 	originalErr := checkpointRepo.UpdateStatusErr
 
 	uc := &ScanLibraryUseCase{
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			Checkpoint: checkpointRepo,
 			ScanState:  scanStateRepo,
 		},
-		config: DefaultScanConfig(),
+		config: scan.DefaultConfig(),
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
@@ -202,19 +203,19 @@ func TestScanLibraryUseCase_startCheckpointWorkers_recoversFromPanic(t *testing.
 
 	// Send a checkpoint that will fail
 	go func() {
-		pctx.checkpointsChan <- &scanner.ScanCheckpoint{
+		pctx.CheckpointsChan <- &scanner.ScanCheckpoint{
 			ID:        1,
 			ScanJobID: 100,
 			FilePath:  "/nonexistent/file.mp4",
 			Status:    scanner.CheckpointPending,
 		}
-		close(pctx.checkpointsChan)
+		close(pctx.CheckpointsChan)
 	}()
 
 	// Wait for workers to complete
 	done := make(chan struct{})
 	go func() {
-		pctx.workerWg.Wait()
+		pctx.WorkerWg.Wait()
 		close(done)
 	}()
 
@@ -312,10 +313,9 @@ func TestScanLibraryUseCase_getNumWorkers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			uc := &ScanLibraryUseCase{
-				systemProfile: tt.systemProfile,
-				logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
-			}
+			uc, _ := newTestUseCaseBuilder(t).
+				WithSystemProfile(tt.systemProfile).
+				Build()
 
 			workers := uc.getNumWorkers()
 
@@ -414,12 +414,12 @@ func TestScanLibraryUseCase_runCheckpointProcessingLoop(t *testing.T) {
 				tt.setupRepos(checkpointRepo, jobRepo)
 			}
 
-			config := DefaultScanConfig()
+			config := scan.DefaultConfig()
 			config.ProgressUpdateTick = 10 * time.Millisecond
 			config.CheckpointBatchSize = 10
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					Checkpoint: checkpointRepo,
 					ScanJob:    jobRepo,
 				},
@@ -481,12 +481,12 @@ func TestScanLibraryUseCase_runCheckpointProcessingLoop_WithBatches(t *testing.T
 		}
 		checkpointRepo.WithCheckpoints(checkpoints...)
 
-		config := DefaultScanConfig()
+		config := scan.DefaultConfig()
 		config.ProgressUpdateTick = 5 * time.Millisecond
 		config.CheckpointBatchSize = 10
 
 		uc := &ScanLibraryUseCase{
-			scanRepos: &ScanRepositories{
+			scanRepos: &scan.ScanRepositories{
 				Checkpoint: checkpointRepo,
 				ScanJob:    jobRepo,
 			},
@@ -502,7 +502,7 @@ func TestScanLibraryUseCase_runCheckpointProcessingLoop_WithBatches(t *testing.T
 		receivedCheckpoints := make([]*scanner.ScanCheckpoint, 0)
 		var receivedMu sync.Mutex
 		go func() {
-			for cp := range pctx.checkpointsChan {
+			for cp := range pctx.CheckpointsChan {
 				receivedMu.Lock()
 				receivedCheckpoints = append(receivedCheckpoints, cp)
 				receivedMu.Unlock()
@@ -533,7 +533,7 @@ func TestScanLibraryUseCase_runCheckpointProcessingLoop_WithBatches(t *testing.T
 		}
 
 		// Close the channel to stop the receiver
-		close(pctx.checkpointsChan)
+		close(pctx.CheckpointsChan)
 
 		// Verify checkpoints were sent (at least once - may loop multiple times)
 		receivedMu.Lock()
@@ -554,12 +554,12 @@ func TestScanLibraryUseCase_runCheckpointProcessingLoop_WithBatches(t *testing.T
 		})
 		// No checkpoints - empty batch
 
-		config := DefaultScanConfig()
+		config := scan.DefaultConfig()
 		config.ProgressUpdateTick = 5 * time.Millisecond
 		config.CheckpointBatchSize = 10
 
 		uc := &ScanLibraryUseCase{
-			scanRepos: &ScanRepositories{
+			scanRepos: &scan.ScanRepositories{
 				Checkpoint: checkpointRepo,
 				ScanJob:    jobRepo,
 			},
@@ -662,7 +662,7 @@ func TestScanLibraryUseCase_checkScanStatus(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob: jobRepo,
 				},
 				logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -696,7 +696,7 @@ func TestScanLibraryUseCase_updateProgressIfDue_tickerNotFired(t *testing.T) {
 	})
 
 	uc := &ScanLibraryUseCase{
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			Checkpoint: checkpointRepo,
 			ScanJob:    jobRepo,
 		},
@@ -751,7 +751,7 @@ func TestScanLibraryUseCase_updateProgressIfDue_tickerFired(t *testing.T) {
 	})
 
 	uc := &ScanLibraryUseCase{
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			Checkpoint: checkpointRepo,
 			ScanJob:    jobRepo,
 		},
@@ -893,7 +893,7 @@ func TestScanLibraryUseCase_updateProgressIfDue_progressCalculation(t *testing.T
 			})
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					Checkpoint: checkpointRepo,
 					ScanJob:    jobRepo,
 				},
@@ -937,7 +937,7 @@ func TestScanLibraryUseCase_updateProgressIfDue_GetByIDError(t *testing.T) {
 	jobRepo.GetErr = errors.New("database connection failed")
 
 	uc := &ScanLibraryUseCase{
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			Checkpoint: checkpointRepo,
 			ScanJob:    jobRepo,
 		},
@@ -966,7 +966,7 @@ func TestScanLibraryUseCase_updateProgressIfDue_GetByIDReturnsNil(t *testing.T) 
 	// Don't add any jobs - GetByID will return nil
 
 	uc := &ScanLibraryUseCase{
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			Checkpoint: checkpointRepo,
 			ScanJob:    jobRepo,
 		},
@@ -1008,7 +1008,7 @@ func TestScanLibraryUseCase_updateProgressIfDue_UpdateProgressError(t *testing.T
 	jobRepo.UpdateProgressErr = errors.New("failed to update progress")
 
 	uc := &ScanLibraryUseCase{
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			Checkpoint: checkpointRepo,
 			ScanJob:    jobRepo,
 		},
@@ -1044,7 +1044,7 @@ func TestScanLibraryUseCase_updateProgressIfDue_GetJobError(t *testing.T) {
 	jobRepo.GetErr = errors.New("job not found")
 
 	uc := &ScanLibraryUseCase{
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			Checkpoint: checkpointRepo,
 			ScanJob:    jobRepo,
 		},
@@ -1091,7 +1091,7 @@ func TestScanLibraryUseCase_updateProgressIfDue_GetStatsError(t *testing.T) {
 	checkpointRepo.GetStatsErr = errors.New("failed to get stats")
 
 	uc := &ScanLibraryUseCase{
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			Checkpoint: checkpointRepo,
 			ScanJob:    jobRepo,
 		},
@@ -1129,7 +1129,7 @@ func TestScanLibraryUseCase_updateProgressIfDue_preservesJobFields(t *testing.T)
 	jobRepo.WithJobs(originalJob)
 
 	uc := &ScanLibraryUseCase{
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			Checkpoint: checkpointRepo,
 			ScanJob:    jobRepo,
 		},
@@ -1336,11 +1336,11 @@ func TestScanLibraryUseCase_completeScan(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					Checkpoint: checkpointRepo,
 					ScanJob:    jobRepo,
 				},
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Media: mediaRepo,
 				},
 				logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -1348,7 +1348,7 @@ func TestScanLibraryUseCase_completeScan(t *testing.T) {
 
 			lib := &library.Library{ID: 1, Path: "/test"}
 			pctx := createTestCheckpointProcessingContext(100, lib, 10, 3)
-			pctx.foundFiles = tt.foundFiles
+			pctx.FoundFiles = tt.foundFiles
 
 			// Call completeScan
 			uc.completeScan(context.Background(), pctx, tt.discoveryStats)
@@ -1494,10 +1494,10 @@ func TestScanLibraryUseCase_buildCompletedJob(t *testing.T) {
 			scanJobRepo := mocks.NewScanJobRepository(t)
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Media: mediaRepo,
 				},
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					ScanJob: scanJobRepo,
 				},
 				logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -1698,7 +1698,7 @@ func TestScanLibraryUseCase_loadMediaCache(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Media: mediaRepo,
 				},
 				logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -1728,7 +1728,7 @@ func TestScanLibraryUseCase_loadMediaCache_concurrent(t *testing.T) {
 	)
 
 	uc := &ScanLibraryUseCase{
-		mediaRepos: &MediaRepositories{
+		mediaRepos: &scan.MediaRepositories{
 			Media: mediaRepo,
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -1803,7 +1803,7 @@ func TestScanLibraryUseCase_cleanupCheckpoints(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanRepos: &ScanRepositories{
+				scanRepos: &scan.ScanRepositories{
 					Checkpoint: checkpointRepo,
 				},
 				logger: slog.New(slog.NewTextHandler(io.Discard, nil)),

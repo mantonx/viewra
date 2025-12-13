@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/mantonx/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/application/library/scan"
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/testutil/mocks"
@@ -412,7 +413,7 @@ func TestScanLibraryUseCase_persistMediaTracks(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Library: libRepo,
 					Media:   mediaRepo,
 					Movie:   mocks.NewMovieRepository(t),
@@ -533,7 +534,7 @@ func TestScanLibraryUseCase_discoverExternalSubtitles(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Library: libRepo,
 					Media:   mediaRepo,
 					Movie:   mocks.NewMovieRepository(t),
@@ -574,7 +575,7 @@ func TestScanLibraryUseCase_discoverExternalSubtitles_PathHandling(t *testing.T)
 		})
 
 		uc := &ScanLibraryUseCase{
-			mediaRepos: &MediaRepositories{
+			mediaRepos: &scan.MediaRepositories{
 				Library: libRepo,
 				Media:   mediaRepo,
 				Movie:   mocks.NewMovieRepository(t),
@@ -610,7 +611,7 @@ func TestScanLibraryUseCase_discoverExternalSubtitles_PathHandling(t *testing.T)
 		})
 
 		uc := &ScanLibraryUseCase{
-			mediaRepos: &MediaRepositories{
+			mediaRepos: &scan.MediaRepositories{
 				Library: libRepo,
 				Media:   mediaRepo,
 				Movie:   mocks.NewMovieRepository(t),
@@ -653,7 +654,7 @@ func TestScanLibraryUseCase_persistMediaTracks_Commentary(t *testing.T) {
 		}
 
 		uc := &ScanLibraryUseCase{
-			mediaRepos: &MediaRepositories{
+			mediaRepos: &scan.MediaRepositories{
 				Library: libRepo,
 				Media:   mediaRepo,
 				Movie:   mocks.NewMovieRepository(t),
@@ -737,7 +738,7 @@ func TestScanLibraryUseCase_persistMediaTracks_Integration(t *testing.T) {
 		}
 
 		uc := &ScanLibraryUseCase{
-			mediaRepos: &MediaRepositories{
+			mediaRepos: &scan.MediaRepositories{
 				Library: libRepo,
 				Media:   mediaRepo,
 				Movie:   mocks.NewMovieRepository(t),
@@ -784,7 +785,7 @@ func TestScanLibraryUseCase_discoverExternalSubtitles_EdgeCases(t *testing.T) {
 		})
 
 		uc := &ScanLibraryUseCase{
-			mediaRepos: &MediaRepositories{
+			mediaRepos: &scan.MediaRepositories{
 				Library: libRepo,
 				Media:   mediaRepo,
 				Movie:   mocks.NewMovieRepository(t),
@@ -818,7 +819,7 @@ func TestScanLibraryUseCase_discoverExternalSubtitles_EdgeCases(t *testing.T) {
 		})
 
 		uc := &ScanLibraryUseCase{
-			mediaRepos: &MediaRepositories{
+			mediaRepos: &scan.MediaRepositories{
 				Library: libRepo,
 				Media:   mediaRepo,
 				Movie:   mocks.NewMovieRepository(t),

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	domainLibrary "github.com/mantonx/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/application/library/scan"
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/testutil/mocks"
@@ -194,7 +195,7 @@ func TestScanLibraryUseCase_processMovie(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Library: libraryRepo,
 					Media:   mediaRepo,
 					Movie:   movieRepo,
@@ -357,7 +358,7 @@ func TestScanLibraryUseCase_processTVEpisode(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Library: libraryRepo,
 					Media:   mediaRepo,
 					TV:      tvRepo,
@@ -638,7 +639,7 @@ func TestScanLibraryUseCase_processMusicTrack(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Library: libraryRepo,
 					Media:   mediaRepo,
 					Music:   musicRepo,
@@ -885,7 +886,7 @@ func TestScanLibraryUseCase_processMovie_Comprehensive(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Library: libraryRepo,
 					Media:   mediaRepo,
 					Movie:   movieRepo,
@@ -1187,7 +1188,7 @@ func TestScanLibraryUseCase_processTVEpisode_Comprehensive(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Library: libraryRepo,
 					Media:   mediaRepo,
 					TV:      tvRepo,
@@ -1493,7 +1494,7 @@ func TestScanLibraryUseCase_processMultiEpisodeFile(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Library: libraryRepo,
 					Media:   mediaRepo,
 					TV:      tvRepo,
@@ -1557,7 +1558,7 @@ func TestScanLibraryUseCase_processMultiEpisodeFile_ErrorPaths(t *testing.T) {
 		mediaRepo.UpdateErr = errors.New("database error")
 
 		uc := &ScanLibraryUseCase{
-			mediaRepos: &MediaRepositories{
+			mediaRepos: &scan.MediaRepositories{
 				Library: libraryRepo,
 				Media:   mediaRepo,
 				TV:      tvRepo,
@@ -1629,7 +1630,7 @@ func TestScanLibraryUseCase_processMultiEpisodeFile_ErrorPaths(t *testing.T) {
 		tvRepo.UpdateErr = errors.New("database error")
 
 		uc := &ScanLibraryUseCase{
-			mediaRepos: &MediaRepositories{
+			mediaRepos: &scan.MediaRepositories{
 				Library: libraryRepo,
 				Media:   mediaRepo,
 				TV:      tvRepo,
@@ -1683,7 +1684,7 @@ func TestScanLibraryUseCase_processMultiEpisodeFile_ErrorPaths(t *testing.T) {
 		tvRepo.CreateErr = errors.New("UNIQUE constraint failed: media.file_path")
 
 		uc := &ScanLibraryUseCase{
-			mediaRepos: &MediaRepositories{
+			mediaRepos: &scan.MediaRepositories{
 				Library: libraryRepo,
 				Media:   mediaRepo,
 				TV:      tvRepo,
@@ -1736,7 +1737,7 @@ func TestScanLibraryUseCase_processMultiEpisodeFile_ErrorPaths(t *testing.T) {
 		tvRepo.CreateErr = errors.New("database connection timeout")
 
 		uc := &ScanLibraryUseCase{
-			mediaRepos: &MediaRepositories{
+			mediaRepos: &scan.MediaRepositories{
 				Library: libraryRepo,
 				Media:   mediaRepo,
 				TV:      tvRepo,
@@ -2188,7 +2189,7 @@ func TestScanLibraryUseCase_enrichTVShowMetadataFromNFO(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					TV: tvRepo,
 				},
 				logger: discardLogger(),
@@ -2533,7 +2534,7 @@ func TestScanLibraryUseCase_processMovie_AdditionalCoverage(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Library: libraryRepo,
 					Media:   mediaRepo,
 					Movie:   movieRepo,
@@ -2925,7 +2926,7 @@ func TestScanLibraryUseCase_processTVEpisode_AdditionalCoverage(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Library: libraryRepo,
 					Media:   mediaRepo,
 					TV:      tvRepo,
@@ -3245,7 +3246,7 @@ func TestScanLibraryUseCase_processMusicTrack_AdditionalCoverage(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepos: &MediaRepositories{
+				mediaRepos: &scan.MediaRepositories{
 					Library: libraryRepo,
 					Media:   mediaRepo,
 					Music:   musicRepo,

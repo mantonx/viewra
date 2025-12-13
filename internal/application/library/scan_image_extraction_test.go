@@ -8,141 +8,15 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/mantonx/viewra/internal/application/library/scan/scanutil"
+	"github.com/mantonx/viewra/internal/application/library/scan"
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/testutil/mocks"
 )
 
-func TestAtomicDeduplicator_TryMark(t *testing.T) {
-	tests := []struct {
-		name           string
-		key            string
-		expectedFirst  bool
-		expectedSecond bool
-	}{
-		{
-			name:           "first call returns true",
-			key:            "key1",
-			expectedFirst:  true,
-			expectedSecond: false,
-		},
-		{
-			name:           "second call returns false",
-			key:            "key2",
-			expectedFirst:  true,
-			expectedSecond: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := &AtomicDeduplicator{}
-
-			// First call
-			result1 := d.TryMark(tt.key)
-			if result1 != tt.expectedFirst {
-				t.Errorf("First call: got %v, want %v", result1, tt.expectedFirst)
-			}
-
-			// Second call
-			result2 := d.TryMark(tt.key)
-			if result2 != tt.expectedSecond {
-				t.Errorf("Second call: got %v, want %v", result2, tt.expectedSecond)
-			}
-		})
-	}
-}
-
-func TestAtomicDeduplicator_TryMark_DifferentKeys(t *testing.T) {
-	d := &AtomicDeduplicator{}
-
-	// Different keys should both return true on first call
-	if !d.TryMark("key1") {
-		t.Error("First key should return true")
-	}
-	if !d.TryMark("key2") {
-		t.Error("Different key should return true")
-	}
-
-	// Same keys should return false
-	if d.TryMark("key1") {
-		t.Error("Repeated key1 should return false")
-	}
-	if d.TryMark("key2") {
-		t.Error("Repeated key2 should return false")
-	}
-}
-
-func TestAtomicDeduplicator_Reset(t *testing.T) {
-	d := &AtomicDeduplicator{}
-
-	// Mark a key
-	if !d.TryMark("key1") {
-		t.Error("First mark should return true")
-	}
-
-	// Verify it's marked
-	if d.TryMark("key1") {
-		t.Error("Second mark should return false")
-	}
-
-	// Reset
-	d.Reset()
-
-	// After reset, key should be unmarked
-	if !d.TryMark("key1") {
-		t.Error("After reset, mark should return true")
-	}
-}
-
-func TestAtomicDeduplicator_Concurrent(t *testing.T) {
-	d := &AtomicDeduplicator{}
-
-	const numGoroutines = 100
-	const key = "testKey"
-
-	var wg sync.WaitGroup
-	results := make(chan bool, numGoroutines)
-
-	// Launch concurrent goroutines trying to mark the same key
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			results <- d.TryMark(key)
-		}()
-	}
-
-	wg.Wait()
-	close(results)
-
-	// Count how many got true (should be exactly 1)
-	trueCount := 0
-	for result := range results {
-		if result {
-			trueCount++
-		}
-	}
-
-	if trueCount != 1 {
-		t.Errorf("Expected exactly 1 goroutine to get true, got %d", trueCount)
-	}
-}
-
-func BenchmarkAtomicDeduplicator_TryMark(b *testing.B) {
-	d := &AtomicDeduplicator{}
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		i := 0
-		for pb.Next() {
-			// Use different keys to avoid contention
-			key := string(rune('A' + (i % 26)))
-			d.TryMark(key)
-			i++
-		}
-	})
-}
+// Note: AtomicDeduplicator unit tests are in scan/scanutil/dedup_test.go
+// The tests below test the ScanLibraryUseCase methods that use AtomicDeduplicator.
 
 func TestScanLibraryUseCase_tryMarkArtistProcessed(t *testing.T) {
 	tests := []struct {
@@ -178,7 +52,7 @@ func TestScanLibraryUseCase_tryMarkArtistProcessed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			uc := &ScanLibraryUseCase{
-				processedArtists: AtomicDeduplicator{},
+				processedArtists: scanutil.AtomicDeduplicator{},
 				logger:           slog.New(slog.NewTextHandler(io.Discard, nil)),
 			}
 
@@ -209,7 +83,7 @@ func TestScanLibraryUseCase_tryMarkArtistProcessed(t *testing.T) {
 
 func TestScanLibraryUseCase_tryMarkArtistProcessed_concurrent(t *testing.T) {
 	uc := &ScanLibraryUseCase{
-		processedArtists: AtomicDeduplicator{},
+		processedArtists: scanutil.AtomicDeduplicator{},
 		logger:           slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
@@ -278,7 +152,7 @@ func TestScanLibraryUseCase_tryMarkShowMetadataProcessed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			uc := &ScanLibraryUseCase{
-				processedShows: AtomicDeduplicator{},
+				processedShows: scanutil.AtomicDeduplicator{},
 				logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
 			}
 
@@ -309,7 +183,7 @@ func TestScanLibraryUseCase_tryMarkShowMetadataProcessed(t *testing.T) {
 
 func TestScanLibraryUseCase_tryMarkShowMetadataProcessed_concurrent(t *testing.T) {
 	uc := &ScanLibraryUseCase{
-		processedShows: AtomicDeduplicator{},
+		processedShows: scanutil.AtomicDeduplicator{},
 		logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
@@ -371,7 +245,7 @@ func TestScanLibraryUseCase_extractImagesForTrack_nilExtractors(t *testing.T) {
 		trackImageExtractor:  nil,
 		albumImageExtractor:  nil,
 		artistImageExtractor: nil,
-		processedArtists:     AtomicDeduplicator{},
+		processedArtists:     scanutil.AtomicDeduplicator{},
 		logger:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
@@ -391,7 +265,7 @@ func TestScanLibraryUseCase_recordImageWarning(t *testing.T) {
 		})
 
 		uc := &ScanLibraryUseCase{
-			scanRepos: &ScanRepositories{
+			scanRepos: &scan.ScanRepositories{
 				ScanState: mockScanState,
 			},
 			logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -406,7 +280,7 @@ func TestScanLibraryUseCase_recordImageWarning(t *testing.T) {
 		mockScanState.SetWarningErr = errors.New("database error")
 
 		uc := &ScanLibraryUseCase{
-			scanRepos: &ScanRepositories{
+			scanRepos: &scan.ScanRepositories{
 				ScanState: mockScanState,
 			},
 			logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -420,7 +294,7 @@ func TestScanLibraryUseCase_recordImageWarning(t *testing.T) {
 // Benchmark for concurrent artist processing
 func BenchmarkTryMarkArtistProcessed(b *testing.B) {
 	uc := &ScanLibraryUseCase{
-		processedArtists: AtomicDeduplicator{},
+		processedArtists: scanutil.AtomicDeduplicator{},
 		logger:           slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
@@ -444,7 +318,7 @@ func TestScanLibraryUseCase_extractImagesForMovie_success(t *testing.T) {
 
 	uc := &ScanLibraryUseCase{
 		movieImageExtractor: mockExtractor,
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			ScanState: mockScanState,
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -476,7 +350,7 @@ func TestScanLibraryUseCase_extractImagesForMovie_error(t *testing.T) {
 
 	uc := &ScanLibraryUseCase{
 		movieImageExtractor: mockExtractor,
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			ScanState: mockScanState,
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -522,11 +396,11 @@ func TestScanLibraryUseCase_extractImagesForEpisode_success(t *testing.T) {
 		episodeImageExtractor: mockExtractor,
 		showImageExtractor:    mockShowExtractor,
 		seasonImageExtractor:  mockSeasonExtractor,
-		processedShows:        AtomicDeduplicator{},
-		mediaRepos: &MediaRepositories{
+		processedShows:        scanutil.AtomicDeduplicator{},
+		mediaRepos: &scan.MediaRepositories{
 			TV: mockTVRepo,
 		},
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			ScanState: mockScanState,
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -565,8 +439,8 @@ func TestScanLibraryUseCase_extractImagesForTrack_success(t *testing.T) {
 		trackImageExtractor:  mockTrackExtractor,
 		albumImageExtractor:  mockAlbumExtractor,
 		artistImageExtractor: mockArtistExtractor,
-		processedArtists:     AtomicDeduplicator{},
-		scanRepos: &ScanRepositories{
+		processedArtists:     scanutil.AtomicDeduplicator{},
+		scanRepos: &scan.ScanRepositories{
 			ScanState: mockScanState,
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -605,8 +479,8 @@ func TestScanLibraryUseCase_extractImagesForTrack_artistDedup(t *testing.T) {
 		trackImageExtractor:  mockTrackExtractor,
 		albumImageExtractor:  nil, // Skip album
 		artistImageExtractor: mockArtistExtractor,
-		processedArtists:     AtomicDeduplicator{},
-		scanRepos: &ScanRepositories{
+		processedArtists:     scanutil.AtomicDeduplicator{},
+		scanRepos: &scan.ScanRepositories{
 			ScanState: mockScanState,
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -646,8 +520,8 @@ func TestScanLibraryUseCase_extractImagesForTrack_noAlbumOrArtist(t *testing.T) 
 		trackImageExtractor:  mockTrackExtractor,
 		albumImageExtractor:  mockAlbumExtractor,
 		artistImageExtractor: mockArtistExtractor,
-		processedArtists:     AtomicDeduplicator{},
-		scanRepos: &ScanRepositories{
+		processedArtists:     scanutil.AtomicDeduplicator{},
+		scanRepos: &scan.ScanRepositories{
 			ScanState: mockScanState,
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -701,11 +575,11 @@ func TestScanLibraryUseCase_extractImagesForEpisode_error(t *testing.T) {
 		episodeImageExtractor: mockExtractor,
 		showImageExtractor:    mockShowExtractor,
 		seasonImageExtractor:  mockSeasonExtractor,
-		processedShows:        AtomicDeduplicator{},
-		mediaRepos: &MediaRepositories{
+		processedShows:        scanutil.AtomicDeduplicator{},
+		mediaRepos: &scan.MediaRepositories{
 			TV: mockTVRepo,
 		},
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			ScanState: mockScanState,
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -742,11 +616,11 @@ func TestScanLibraryUseCase_extractImagesForEpisode_seasonSubdir(t *testing.T) {
 		episodeImageExtractor: mockExtractor,
 		showImageExtractor:    mockShowExtractor,
 		seasonImageExtractor:  mockSeasonExtractor,
-		processedShows:        AtomicDeduplicator{},
-		mediaRepos: &MediaRepositories{
+		processedShows:        scanutil.AtomicDeduplicator{},
+		mediaRepos: &scan.MediaRepositories{
 			TV: mockTVRepo,
 		},
-		scanRepos: &ScanRepositories{
+		scanRepos: &scan.ScanRepositories{
 			ScanState: mockScanState,
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -787,8 +661,8 @@ func TestScanLibraryUseCase_extractImagesForTrack_trackError(t *testing.T) {
 		trackImageExtractor:  mockTrackExtractor,
 		albumImageExtractor:  nil,
 		artistImageExtractor: nil,
-		processedArtists:     AtomicDeduplicator{},
-		scanRepos: &ScanRepositories{
+		processedArtists:     scanutil.AtomicDeduplicator{},
+		scanRepos: &scan.ScanRepositories{
 			ScanState: mockScanState,
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -821,8 +695,8 @@ func TestScanLibraryUseCase_extractImagesForTrack_albumError(t *testing.T) {
 		trackImageExtractor:  mockTrackExtractor,
 		albumImageExtractor:  mockAlbumExtractor,
 		artistImageExtractor: nil,
-		processedArtists:     AtomicDeduplicator{},
-		scanRepos: &ScanRepositories{
+		processedArtists:     scanutil.AtomicDeduplicator{},
+		scanRepos: &scan.ScanRepositories{
 			ScanState: mockScanState,
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -853,8 +727,8 @@ func TestScanLibraryUseCase_extractImagesForTrack_artistError(t *testing.T) {
 		trackImageExtractor:  mockTrackExtractor,
 		albumImageExtractor:  nil,
 		artistImageExtractor: mockArtistExtractor,
-		processedArtists:     AtomicDeduplicator{},
-		scanRepos: &ScanRepositories{
+		processedArtists:     scanutil.AtomicDeduplicator{},
+		scanRepos: &scan.ScanRepositories{
 			ScanState: mockScanState,
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -883,8 +757,8 @@ func TestScanLibraryUseCase_extractTVShowAndSeasonImages_showNotFound(t *testing
 	uc := &ScanLibraryUseCase{
 		showImageExtractor:   mockShowExtractor,
 		seasonImageExtractor: mockSeasonExtractor,
-		processedShows:       AtomicDeduplicator{},
-		mediaRepos: &MediaRepositories{
+		processedShows:       scanutil.AtomicDeduplicator{},
+		mediaRepos: &scan.MediaRepositories{
 			TV: mockTVRepo,
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -911,8 +785,8 @@ func TestScanLibraryUseCase_extractTVShowAndSeasonImages_seasonNotFound(t *testi
 	uc := &ScanLibraryUseCase{
 		showImageExtractor:   mockShowExtractor,
 		seasonImageExtractor: mockSeasonExtractor,
-		processedShows:       AtomicDeduplicator{},
-		mediaRepos: &MediaRepositories{
+		processedShows:       scanutil.AtomicDeduplicator{},
+		mediaRepos: &scan.MediaRepositories{
 			TV: mockTVRepo,
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -945,8 +819,8 @@ func TestScanLibraryUseCase_extractTVShowAndSeasonImages_showExtractorError(t *t
 	uc := &ScanLibraryUseCase{
 		showImageExtractor:   mockShowExtractor,
 		seasonImageExtractor: mockSeasonExtractor,
-		processedShows:       AtomicDeduplicator{},
-		mediaRepos: &MediaRepositories{
+		processedShows:       scanutil.AtomicDeduplicator{},
+		mediaRepos: &scan.MediaRepositories{
 			TV: mockTVRepo,
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -978,8 +852,8 @@ func TestScanLibraryUseCase_extractTVShowAndSeasonImages_seasonExtractorError(t 
 	uc := &ScanLibraryUseCase{
 		showImageExtractor:   mockShowExtractor,
 		seasonImageExtractor: mockSeasonExtractor,
-		processedShows:       AtomicDeduplicator{},
-		mediaRepos: &MediaRepositories{
+		processedShows:       scanutil.AtomicDeduplicator{},
+		mediaRepos: &scan.MediaRepositories{
 			TV: mockTVRepo,
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -1007,8 +881,8 @@ func TestScanLibraryUseCase_extractTVShowAndSeasonImages_nilExtractors(t *testin
 	uc := &ScanLibraryUseCase{
 		showImageExtractor:   nil,
 		seasonImageExtractor: nil,
-		processedShows:       AtomicDeduplicator{},
-		mediaRepos: &MediaRepositories{
+		processedShows:       scanutil.AtomicDeduplicator{},
+		mediaRepos: &scan.MediaRepositories{
 			TV: mockTVRepo,
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
