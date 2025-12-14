@@ -3,44 +3,45 @@ package profile
 import (
 	"fmt"
 
+	"github.com/mantonx/viewra/internal/domain/streaming"
 	"github.com/mantonx/viewra/internal/domain/transcode"
 )
 
 // ABRLadder is the complete ABR ladder - single source of truth for all quality levels.
 // This defines every quality variant available in the system.
-var ABRLadder = []ABRVariant{
+var ABRLadder = []streaming.ABRVariant{
 	// Low quality - emergency fallback / very poor connections
-	{"360p", 800_000, 640, 360, "avc1.4d401e,mp4a.40.2"},
+	{ID: Quality360p, Bandwidth: 800_000, Width: 640, Height: 360, Codecs: "avc1.4d401e,mp4a.40.2"},
 
 	// SD quality - poor mobile connections
-	{"480p", 1_000_000, 854, 480, "avc1.4d401e,mp4a.40.2"},
+	{ID: Quality480p, Bandwidth: 1_000_000, Width: 854, Height: 480, Codecs: "avc1.4d401e,mp4a.40.2"},
 
 	// HD quality - standard mobile/tablet
-	{"720p-2m", 2_000_000, 1280, 720, "avc1.64001f,mp4a.40.2"},
-	{"720p-4m", 4_000_000, 1280, 720, "avc1.64001f,mp4a.40.2"},
+	{ID: Quality720p2m, Bandwidth: 2_000_000, Width: 1280, Height: 720, Codecs: "avc1.64001f,mp4a.40.2"},
+	{ID: Quality720p4m, Bandwidth: 4_000_000, Width: 1280, Height: 720, Codecs: "avc1.64001f,mp4a.40.2"},
 
 	// Full HD - desktop/TV
-	{"1080p-4m", 4_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
-	{"1080p-10m", 10_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
-	{"1080p-20m", 20_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
-	{"1080p-40m", 40_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
-	{"1080p-60m", 60_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
+	{ID: Quality1080p4m, Bandwidth: 4_000_000, Width: 1920, Height: 1080, Codecs: "avc1.640028,mp4a.40.2"},
+	{ID: Quality1080p10m, Bandwidth: 10_000_000, Width: 1920, Height: 1080, Codecs: "avc1.640028,mp4a.40.2"},
+	{ID: Quality1080p20m, Bandwidth: 20_000_000, Width: 1920, Height: 1080, Codecs: "avc1.640028,mp4a.40.2"},
+	{ID: Quality1080p40m, Bandwidth: 40_000_000, Width: 1920, Height: 1080, Codecs: "avc1.640028,mp4a.40.2"},
+	{ID: Quality1080p60m, Bandwidth: 60_000_000, Width: 1920, Height: 1080, Codecs: "avc1.640028,mp4a.40.2"},
 
 	// 4K - high-end displays
-	{"4k-15m", 15_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-	{"4k-20m", 20_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-	{"4k-25m", 25_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-	{"4k-40m", 40_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-	{"4k-60m", 60_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-	{"4k-100m", 100_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-	{"4k-200m", 200_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
+	{ID: Quality4k15m, Bandwidth: 15_000_000, Width: 3840, Height: 2160, Codecs: "avc1.640033,mp4a.40.2"},
+	{ID: Quality4k20m, Bandwidth: 20_000_000, Width: 3840, Height: 2160, Codecs: "avc1.640033,mp4a.40.2"},
+	{ID: Quality4k25m, Bandwidth: 25_000_000, Width: 3840, Height: 2160, Codecs: "avc1.640033,mp4a.40.2"},
+	{ID: Quality4k40m, Bandwidth: 40_000_000, Width: 3840, Height: 2160, Codecs: "avc1.640033,mp4a.40.2"},
+	{ID: Quality4k60m, Bandwidth: 60_000_000, Width: 3840, Height: 2160, Codecs: "avc1.640033,mp4a.40.2"},
+	{ID: Quality4k100m, Bandwidth: 100_000_000, Width: 3840, Height: 2160, Codecs: "avc1.640033,mp4a.40.2"},
+	{ID: Quality4k200m, Bandwidth: 200_000_000, Width: 3840, Height: 2160, Codecs: "avc1.640033,mp4a.40.2"},
 }
 
 // abrLadderMap provides O(1) lookup by quality ID
 var abrLadderMap = buildABRLadderMap()
 
-func buildABRLadderMap() map[string]ABRVariant {
-	m := make(map[string]ABRVariant, len(ABRLadder))
+func buildABRLadderMap() map[string]streaming.ABRVariant {
+	m := make(map[string]streaming.ABRVariant, len(ABRLadder))
 	for _, v := range ABRLadder {
 		m[v.ID] = v
 	}
@@ -48,39 +49,10 @@ func buildABRLadderMap() map[string]ABRVariant {
 }
 
 // GetABRVariant returns the ABR variant for a given quality ID.
-func GetABRVariant(qualityID string) (ABRVariant, bool) {
+func GetABRVariant(qualityID string) (streaming.ABRVariant, bool) {
 	v, ok := abrLadderMap[qualityID]
 	return v, ok
 }
-
-// Quality profile IDs - these match the ABRLadder IDs exactly
-const (
-	// 360p - Low quality fallback
-	Quality360p = "360p"
-
-	// 480p - SD quality
-	Quality480p = "480p"
-
-	// 720p - HD quality
-	Quality720p2m = "720p-2m"
-	Quality720p4m = "720p-4m"
-
-	// 1080p - Full HD
-	Quality1080p4m  = "1080p-4m"
-	Quality1080p10m = "1080p-10m"
-	Quality1080p20m = "1080p-20m"
-	Quality1080p40m = "1080p-40m"
-	Quality1080p60m = "1080p-60m"
-
-	// 4K - Ultra HD
-	Quality4k15m  = "4k-15m"
-	Quality4k20m  = "4k-20m"
-	Quality4k25m  = "4k-25m"
-	Quality4k40m  = "4k-40m"
-	Quality4k60m  = "4k-60m"
-	Quality4k100m = "4k-100m"
-	Quality4k200m = "4k-200m"
-)
 
 // profileBuilder helps construct AdaptiveProfile instances with calculated defaults
 type profileBuilder struct {

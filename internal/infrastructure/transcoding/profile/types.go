@@ -1,115 +1,70 @@
 // Package profile provides quality profile definitions and recommendations for adaptive streaming.
 //
 // The profile package is organized as follows:
-//   - types.go: Core type definitions (this file)
-//   - adaptive.go: AdaptiveProfile struct, ABR ladder, profile building
+//   - types.go: Type aliases from domain/streaming (this file)
+//   - adaptive.go: AdaptiveProfile building, ABR ladder, profile lookup
 //   - recommender.go: QualityRecommender for client-based quality selection
 package profile
 
+import (
+	"github.com/mantonx/viewra/internal/domain/streaming"
+)
+
+// Type aliases from domain/streaming - allows existing code to continue using profile.X
+
 // AdaptiveProfile defines granular bitrate-based quality profiles for adaptive streaming.
-// Format: "{resolution}-{bitrate}" (e.g., "1080p-8000k", "4k-40000k")
-// This gives users precise control over bandwidth vs quality tradeoff.
-type AdaptiveProfile struct {
-	// Identity
-	ID          string // "1080p-8000k", "4k-40000k"
-	DisplayName string // "1080p High (8 Mbps)", "4K Ultra (40 Mbps)"
-
-	// Resolution
-	Width  int
-	Height int
-
-	// Bitrate (specific values, not ranges)
-	VideoBitrate int // bits per second (e.g., 8_000_000 for 8 Mbps)
-	VideoMaxRate int // 110% of target for VBV
-	VideoBufSize int // 2x target for VBV
-
-	// Audio
-	AudioBitrate     int    // bits per second
-	AudioChannels    int    // Target channels (2=stereo, 6=5.1, 8=7.1)
-	AudioSampleRate  int
-	PreserveMultiCh  bool   // If true, keep original multi-channel audio (no downmix)
-	AudioCodec       string // Target audio codec: "aac", "ac3", "eac3", "opus"
-	MaxAudioChannels int    // Maximum channels to preserve (0 = no limit)
-
-	// Codec preferences
-	PreferredCodec string   // "h264", "h265", "vp9", "av1"
-	FallbackCodecs []string // For Phase 3 multi-codec support
-
-	// Encoding parameters
-	Preset          string // "ultrafast", "fast", "medium", "slow", "veryslow"
-	CRF             int    // Constant Rate Factor (quality: 15-28)
-	EnableHWAccel   bool
-	EnableFastStart bool
-
-	// HLS segments
-	SegmentDuration int
-	GOPSize         int
-
-	// Frame rate and aspect ratio
-	FrameRate   float64 // Target frame rate (24, 30, 60)
-	AspectRatio string  // "16:9", "21:9", "2.39:1", etc.
-	Is3D        bool    // Is this a 3D profile
-	StereoMode  string  // "sbs" (side-by-side), "tab" (top-and-bottom), "" (2D)
-
-	// Client requirements
-	MinNetworkMbps  float64
-	MinScreenWidth  int
-	MinScreenHeight int
-	RecommendedFor  []string // ["desktop", "tablet", "mobile", "tv"]
-
-	// Metadata
-	DataUsageMBPerHour int
-	Description        string
-	QualityTier        string // "low", "medium", "high", "ultra"
-}
+type AdaptiveProfile = streaming.AdaptiveProfile
 
 // ABRVariant represents a single quality variant in the ABR ladder.
-// This is the SINGLE SOURCE OF TRUTH for all quality levels.
-// Both master playlist generation and transcoding profiles use this.
-type ABRVariant struct {
-	// ID is the unique identifier used in URLs and profile lookups (e.g., "4k-20m")
-	ID string
-
-	// Bandwidth in bits per second
-	Bandwidth int
-
-	// Resolution
-	Width  int
-	Height int
-
-	// HLS codec string for EXT-X-STREAM-INF
-	Codecs string
-}
+type ABRVariant = streaming.ABRVariant
 
 // ClientCapabilities represents the detected capabilities of a client device.
-type ClientCapabilities struct {
-	// Network
-	NetworkSpeedMbps float64
-	ConnectionType   string // "wifi", "4g", "5g", "ethernet", etc.
-	IsMetered        bool   // True if on a metered connection (cellular)
-
-	// Device
-	DeviceType   string // "mobile", "tablet", "desktop", "tv"
-	ScreenWidth  int
-	ScreenHeight int
-	PixelRatio   float64
-
-	// Performance (optional, not used for quality selection)
-	CPUCores     int
-	MemoryGB     float64
-	LowPowerMode bool
-	BatteryLevel float64
-	IsCharging   bool
-
-	// Media capabilities
-	SupportedCodecs      []string
-	HardwareAcceleration bool
-	MaxDecodingProfile   string // e.g., "1080p-60fps", "4k-30fps"
-}
+type ClientCapabilities = streaming.ClientCapabilities
 
 // QualityRecommendation represents a recommended quality profile with score.
-type QualityRecommendation struct {
-	Profile *AdaptiveProfile
-	Score   float64
-	Reason  string
-}
+type QualityRecommendation = streaming.QualityRecommendation
+
+// Re-export quality constants from domain/streaming
+const (
+	// 360p - Low quality fallback
+	Quality360p = streaming.Quality360p
+
+	// 480p - SD quality
+	Quality480p = streaming.Quality480p
+
+	// 720p - HD quality
+	Quality720p2m = streaming.Quality720p2m
+	Quality720p4m = streaming.Quality720p4m
+
+	// 1080p - Full HD
+	Quality1080p4m  = streaming.Quality1080p4m
+	Quality1080p10m = streaming.Quality1080p10m
+	Quality1080p20m = streaming.Quality1080p20m
+	Quality1080p40m = streaming.Quality1080p40m
+	Quality1080p60m = streaming.Quality1080p60m
+
+	// 4K - Ultra HD
+	Quality4k15m  = streaming.Quality4k15m
+	Quality4k20m  = streaming.Quality4k20m
+	Quality4k25m  = streaming.Quality4k25m
+	Quality4k40m  = streaming.Quality4k40m
+	Quality4k60m  = streaming.Quality4k60m
+	Quality4k100m = streaming.Quality4k100m
+	Quality4k200m = streaming.Quality4k200m
+)
+
+// Re-export quality tier constants
+const (
+	QualityTierLow    = streaming.QualityTierLow
+	QualityTierMedium = streaming.QualityTierMedium
+	QualityTierHigh   = streaming.QualityTierHigh
+	QualityTierUltra  = streaming.QualityTierUltra
+)
+
+// Re-export device type constants
+const (
+	DeviceTypeMobile  = streaming.DeviceTypeMobile
+	DeviceTypeTablet  = streaming.DeviceTypeTablet
+	DeviceTypeDesktop = streaming.DeviceTypeDesktop
+	DeviceTypeTV      = streaming.DeviceTypeTV
+)

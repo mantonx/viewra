@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	domainstreaming "github.com/mantonx/viewra/internal/domain/streaming"
 )
 
-// ByteRange represents a requested byte range
-type ByteRange struct {
-	Start int64
-	End   int64
-}
+// ByteRange is an alias to domain/streaming.ByteRange for backwards compatibility.
+type ByteRange = domainstreaming.ByteRange
 
 // StreamRequest contains parameters for streaming a file
 type StreamRequest struct {

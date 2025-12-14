@@ -1,12 +1,41 @@
 package hls
 
 import (
+	"github.com/mantonx/viewra/internal/domain/streaming"
 	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/paths"
 )
 
 // Paths is an alias to the paths.Paths type for convenience.
 // This allows consumers to use hls.Paths instead of importing both packages.
 type Paths = paths.Paths
+
+// Type aliases from domain/streaming - allows existing code to continue using hls.X
+
+// VideoInfo contains video file metadata extracted via ffprobe.
+type VideoInfo = streaming.VideoInfo
+
+// VideoCodec represents supported video codecs for transcoding.
+type VideoCodec = streaming.VideoCodec
+
+// HardwareAccel represents hardware acceleration type.
+type HardwareAccel = streaming.HardwareAccel
+
+// Re-export codec constants from domain/streaming
+const (
+	CodecH264 = streaming.CodecH264
+	CodecH265 = streaming.CodecH265
+	CodecVP9  = streaming.CodecVP9
+	CodecAV1  = streaming.CodecAV1
+)
+
+// Re-export hardware acceleration constants from domain/streaming
+const (
+	AccelNone         = streaming.AccelNone
+	AccelVAAPI        = streaming.AccelVAAPI
+	AccelNVENC        = streaming.AccelNVENC
+	AccelQSV          = streaming.AccelQSV
+	AccelVideoToolbox = streaming.AccelVideoToolbox
+)
 
 // Options contains options for the transcode operation.
 type Options struct {
@@ -70,57 +99,6 @@ type Profile struct {
 	Is3D        bool
 	StereoMode  string
 }
-
-// VideoInfo contains video file metadata extracted via ffprobe.
-type VideoInfo struct {
-	Codec           string
-	Width           int
-	Height          int
-	Bitrate         int64
-	Duration        float64
-	AudioCodec      string
-	AudioBitrate    int64
-	AudioChannels   int
-	ContainerFormat string
-
-	// HDR and color space metadata
-	PixelFormat    string
-	ColorSpace     string
-	ColorPrimaries string
-	ColorTransfer  string
-	BitDepth       int
-	IsHDR          bool
-}
-
-// VideoCodec represents supported video codecs for transcoding.
-type VideoCodec string
-
-const (
-	CodecH264 VideoCodec = "h264"
-	CodecH265 VideoCodec = "h265"
-	CodecVP9  VideoCodec = "vp9"
-	CodecAV1  VideoCodec = "av1"
-)
-
-// HardwareAccel represents hardware acceleration type.
-type HardwareAccel string
-
-const (
-	// AccelNone uses software encoding (slowest, most compatible)
-	AccelNone HardwareAccel = "none"
-
-	// AccelVAAPI uses Intel/AMD GPU via VAAPI (Linux)
-	AccelVAAPI HardwareAccel = "vaapi"
-
-	// AccelNVENC uses NVIDIA GPU (Linux/Windows)
-	AccelNVENC HardwareAccel = "nvenc"
-
-	// AccelQSV uses Intel Quick Sync Video (Linux/Windows)
-	AccelQSV HardwareAccel = "qsv"
-
-	// AccelVideoToolbox uses Apple VideoToolbox (macOS)
-	AccelVideoToolbox HardwareAccel = "videotoolbox"
-)
 
 // Config holds transcoding configuration.
 type Config struct {
