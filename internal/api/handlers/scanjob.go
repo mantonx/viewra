@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	appLibrary "github.com/mantonx/viewra/internal/application/library"
+	"github.com/mantonx/viewra/internal/application/library/scan/status"
 	"github.com/mantonx/viewra/internal/application/scanjob"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 )
@@ -21,7 +21,7 @@ type ScanLibraryExecutor interface {
 
 // ScanStatusProvider defines the interface for getting enriched scan status.
 type ScanStatusProvider interface {
-	GetScanStatus(ctx context.Context, libraryID int64) (*appLibrary.ScanStatusResult, error)
+	GetScanStatus(ctx context.Context, libraryID int64) (*status.Result, error)
 }
 
 // ScanJobHandler handles scan job-related HTTP requests.

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/mantonx/viewra/internal/application/library"
+	"github.com/mantonx/viewra/internal/application/library/scan/cleanup"
 	"github.com/mantonx/viewra/internal/domain/images"
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/pkg/logger"
@@ -15,7 +15,7 @@ import (
 type DeleteMediaUseCase struct {
 	mediaRepo    media.Repository
 	imageRepo    images.Repository
-	imageCleanup library.ImageCleanupExecutor
+	imageCleanup cleanup.ImageCleanupExecutor
 	logger       *slog.Logger
 }
 
@@ -23,7 +23,7 @@ type DeleteMediaUseCase struct {
 func NewDeleteMediaUseCase(
 	mediaRepo media.Repository,
 	imageRepo images.Repository,
-	imageCleanup library.ImageCleanupExecutor,
+	imageCleanup cleanup.ImageCleanupExecutor,
 	log *slog.Logger,
 ) *DeleteMediaUseCase {
 	return &DeleteMediaUseCase{
@@ -41,7 +41,7 @@ func NewDeleteMediaUseCase(
 // Only cached/generated files (like image thumbnails, transcodes) are cleaned up.
 func (uc *DeleteMediaUseCase) Execute(ctx context.Context, mediaID int64) error {
 	// Collect image hashes before deletion for cache cleanup
-	hashes := library.CollectImageHashesForMedia(ctx, uc.imageRepo, mediaID)
+	hashes := cleanup.CollectImageHashesForMedia(ctx, uc.imageRepo, mediaID)
 
 	// Delete the media DATABASE RECORD (NOT the actual media file)
 	// This will CASCADE delete database records:

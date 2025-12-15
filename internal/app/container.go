@@ -25,6 +25,7 @@ type Container struct {
 	// Background services
 	Scheduler      *scheduler.Scheduler
 	TranscodeQueue *transcode.Queue
+	Services       *services.Services
 
 	// Use cases (exposed for startup tasks)
 	UseCases *usecases.UseCases
@@ -85,10 +86,20 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 	// Create HTTP server
 	server := api.NewServer(cfg.Server.ToAPIServerConfig(), logger, handlers)
 
+	// Start the enrichment pipeline manager (background workers)
+	if svcs.PipelineManager != nil {
+		if err := svcs.PipelineManager.Start(context.Background()); err != nil {
+			logger.Error("Failed to start enrichment pipeline", "error", err)
+		} else {
+			logger.Info("Enrichment pipeline manager started")
+		}
+	}
+
 	return &Container{
 		Server:         server,
 		Scheduler:      taskScheduler,
 		TranscodeQueue: svcs.TranscodeQueue,
+		Services:       svcs,
 		UseCases:       cases,
 	}
 }
@@ -102,9 +113,19 @@ func (c *Container) Shutdown(ctx context.Context) error {
 		c.TranscodeQueue.Stop()
 	}
 
+	// Stop enrichment pipeline manager
+	if c.Services != nil && c.Services.PipelineManager != nil {
+		c.Services.PipelineManager.Stop()
+	}
+
 	// Stop scheduler
 	if c.Scheduler != nil {
 		c.Scheduler.Stop()
+	}
+
+	// Close event bus (closes all subscriptions)
+	if c.Services != nil && c.Services.EventBus != nil {
+		c.Services.EventBus.Close()
 	}
 
 	// Shutdown server last

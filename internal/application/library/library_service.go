@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/application/common"
+	"github.com/mantonx/viewra/internal/application/library/scan/cleanup"
 	domainImages "github.com/mantonx/viewra/internal/domain/images"
 	"github.com/mantonx/viewra/internal/domain/library"
 )
@@ -18,7 +19,7 @@ import (
 type LibraryService struct {
 	repo         library.Repository
 	imageRepo    domainImages.Repository
-	imageCleanup ImageCleanupExecutor
+	imageCleanup cleanup.ImageCleanupExecutor
 	txManager    *common.TxManager
 	logger       *slog.Logger
 }
@@ -27,7 +28,7 @@ type LibraryService struct {
 func NewLibraryService(
 	repo library.Repository,
 	imageRepo domainImages.Repository,
-	imageCleanup ImageCleanupExecutor,
+	imageCleanup cleanup.ImageCleanupExecutor,
 	txManager *common.TxManager,
 	logger *slog.Logger,
 ) *LibraryService {

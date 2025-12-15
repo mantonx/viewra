@@ -106,6 +106,7 @@ type Album struct {
 	MusicBrainzAlbumID string
 	CoverArtPath string
 	SortTitle   string
+	Directory   string // Path to the album directory (for enrichment/artwork)
 	CreatedAt   string
 	UpdatedAt   string
 }
@@ -160,6 +161,7 @@ type Artist struct {
 	FormedYear           int
 	Genre                string // Primary genre
 	ImagePath            string // Artist photo/image
+	Directory            string // Path to the artist directory (for enrichment/artwork)
 	CreatedAt            string
 	UpdatedAt            string
 }

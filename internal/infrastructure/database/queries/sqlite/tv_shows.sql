@@ -6,11 +6,13 @@
 INSERT INTO tv_shows (
     library_id, title, original_title, sort_title, year, first_air_date,
     last_air_date, genre, plot, status, content_rating, maturity_rating,
-    network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id
+    network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id,
+    directory
 ) VALUES (
     ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?,
+    ?
 ) RETURNING *;
 
 -- name: GetTVShowByID :one
@@ -46,6 +48,7 @@ SET title = ?,
     imdb_id = ?,
     tmdb_id = ?,
     tvdb_id = ?,
+    directory = ?,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = ?;
 

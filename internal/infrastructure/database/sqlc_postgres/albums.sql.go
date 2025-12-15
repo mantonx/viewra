@@ -41,9 +41,10 @@ INSERT INTO music_albums (
     sort_title,
     created_at,
     updated_at,
-    artist_id
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-RETURNING id, library_id, title, album_artist, artist, year, release_date, genre, total_tracks, total_discs, record_label, release_type, compilation, musicbrainz_album_id, cover_art_path, sort_title, created_at, updated_at, artist_id
+    artist_id,
+    directory
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+RETURNING id, library_id, title, album_artist, artist, year, release_date, genre, total_tracks, total_discs, record_label, release_type, compilation, musicbrainz_album_id, cover_art_path, sort_title, created_at, updated_at, artist_id, directory
 `
 
 type CreateAlbumParams struct {
@@ -65,6 +66,7 @@ type CreateAlbumParams struct {
 	CreatedAt          sql.NullTime   `json:"created_at"`
 	UpdatedAt          sql.NullTime   `json:"updated_at"`
 	ArtistID           sql.NullInt32  `json:"artist_id"`
+	Directory          sql.NullString `json:"directory"`
 }
 
 func (q *Queries) CreateAlbum(ctx context.Context, arg CreateAlbumParams) (MusicAlbum, error) {
@@ -87,6 +89,7 @@ func (q *Queries) CreateAlbum(ctx context.Context, arg CreateAlbumParams) (Music
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.ArtistID,
+		arg.Directory,
 	)
 	var i MusicAlbum
 	err := row.Scan(
@@ -109,6 +112,7 @@ func (q *Queries) CreateAlbum(ctx context.Context, arg CreateAlbumParams) (Music
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ArtistID,
+		&i.Directory,
 	)
 	return i, err
 }
@@ -124,7 +128,7 @@ func (q *Queries) DeleteAlbum(ctx context.Context, id int32) error {
 }
 
 const findAlbumByTitle = `-- name: FindAlbumByTitle :one
-SELECT id, library_id, title, album_artist, artist, year, release_date, genre, total_tracks, total_discs, record_label, release_type, compilation, musicbrainz_album_id, cover_art_path, sort_title, created_at, updated_at, artist_id FROM music_albums
+SELECT id, library_id, title, album_artist, artist, year, release_date, genre, total_tracks, total_discs, record_label, release_type, compilation, musicbrainz_album_id, cover_art_path, sort_title, created_at, updated_at, artist_id, directory FROM music_albums
 WHERE library_id = $1 AND title = $2 AND album_artist = $3
 LIMIT 1
 `
@@ -158,12 +162,13 @@ func (q *Queries) FindAlbumByTitle(ctx context.Context, arg FindAlbumByTitlePara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ArtistID,
+		&i.Directory,
 	)
 	return i, err
 }
 
 const getAlbumByID = `-- name: GetAlbumByID :one
-SELECT id, library_id, title, album_artist, artist, year, release_date, genre, total_tracks, total_discs, record_label, release_type, compilation, musicbrainz_album_id, cover_art_path, sort_title, created_at, updated_at, artist_id FROM music_albums
+SELECT id, library_id, title, album_artist, artist, year, release_date, genre, total_tracks, total_discs, record_label, release_type, compilation, musicbrainz_album_id, cover_art_path, sort_title, created_at, updated_at, artist_id, directory FROM music_albums
 WHERE id = $1
 `
 
@@ -190,12 +195,13 @@ func (q *Queries) GetAlbumByID(ctx context.Context, id int32) (MusicAlbum, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ArtistID,
+		&i.Directory,
 	)
 	return i, err
 }
 
 const getAlbumByMusicBrainzID = `-- name: GetAlbumByMusicBrainzID :one
-SELECT id, library_id, title, album_artist, artist, year, release_date, genre, total_tracks, total_discs, record_label, release_type, compilation, musicbrainz_album_id, cover_art_path, sort_title, created_at, updated_at, artist_id FROM music_albums
+SELECT id, library_id, title, album_artist, artist, year, release_date, genre, total_tracks, total_discs, record_label, release_type, compilation, musicbrainz_album_id, cover_art_path, sort_title, created_at, updated_at, artist_id, directory FROM music_albums
 WHERE musicbrainz_album_id = $1
 `
 
@@ -222,12 +228,13 @@ func (q *Queries) GetAlbumByMusicBrainzID(ctx context.Context, musicbrainzAlbumI
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ArtistID,
+		&i.Directory,
 	)
 	return i, err
 }
 
 const listAlbumsByArtist = `-- name: ListAlbumsByArtist :many
-SELECT id, library_id, title, album_artist, artist, year, release_date, genre, total_tracks, total_discs, record_label, release_type, compilation, musicbrainz_album_id, cover_art_path, sort_title, created_at, updated_at, artist_id FROM music_albums
+SELECT id, library_id, title, album_artist, artist, year, release_date, genre, total_tracks, total_discs, record_label, release_type, compilation, musicbrainz_album_id, cover_art_path, sort_title, created_at, updated_at, artist_id, directory FROM music_albums
 WHERE library_id = $1 AND (album_artist = $2 OR artist = $3)
 ORDER BY year DESC, sort_title, title
 `
@@ -267,6 +274,7 @@ func (q *Queries) ListAlbumsByArtist(ctx context.Context, arg ListAlbumsByArtist
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ArtistID,
+			&i.Directory,
 		); err != nil {
 			return nil, err
 		}
@@ -282,7 +290,7 @@ func (q *Queries) ListAlbumsByArtist(ctx context.Context, arg ListAlbumsByArtist
 }
 
 const listAlbumsByLibrary = `-- name: ListAlbumsByLibrary :many
-SELECT id, library_id, title, album_artist, artist, year, release_date, genre, total_tracks, total_discs, record_label, release_type, compilation, musicbrainz_album_id, cover_art_path, sort_title, created_at, updated_at, artist_id FROM music_albums
+SELECT id, library_id, title, album_artist, artist, year, release_date, genre, total_tracks, total_discs, record_label, release_type, compilation, musicbrainz_album_id, cover_art_path, sort_title, created_at, updated_at, artist_id, directory FROM music_albums
 WHERE library_id = $1
 ORDER BY sort_title, title
 `
@@ -316,6 +324,7 @@ func (q *Queries) ListAlbumsByLibrary(ctx context.Context, libraryID int32) ([]M
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ArtistID,
+			&i.Directory,
 		); err != nil {
 			return nil, err
 		}
@@ -346,8 +355,9 @@ SET title = $1,
     musicbrainz_album_id = $12,
     cover_art_path = $13,
     sort_title = $14,
-    updated_at = $15
-WHERE id = $16
+    directory = $15,
+    updated_at = $16
+WHERE id = $17
 `
 
 type UpdateAlbumParams struct {
@@ -365,6 +375,7 @@ type UpdateAlbumParams struct {
 	MusicbrainzAlbumID sql.NullString `json:"musicbrainz_album_id"`
 	CoverArtPath       sql.NullString `json:"cover_art_path"`
 	SortTitle          sql.NullString `json:"sort_title"`
+	Directory          sql.NullString `json:"directory"`
 	UpdatedAt          sql.NullTime   `json:"updated_at"`
 	ID                 int32          `json:"id"`
 }
@@ -385,6 +396,7 @@ func (q *Queries) UpdateAlbum(ctx context.Context, arg UpdateAlbumParams) error 
 		arg.MusicbrainzAlbumID,
 		arg.CoverArtPath,
 		arg.SortTitle,
+		arg.Directory,
 		arg.UpdatedAt,
 		arg.ID,
 	)

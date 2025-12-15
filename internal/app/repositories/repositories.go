@@ -5,6 +5,7 @@ import (
 
 	analyticsRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/analytics"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
+	enrichmentRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/enrichment"
 	imageRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/image"
 	libraryRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/library"
 	mediaRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/media"
@@ -38,6 +39,12 @@ type Repositories struct {
 	Session        *userRepo.SessionRepository
 	SystemSettings *settingsRepo.SystemRepository
 	UserSettings   *settingsRepo.UserRepository
+
+	// Enrichment repositories
+	EnrichmentQueue      *enrichmentRepo.QueueRepository
+	EnrichmentStatus     *enrichmentRepo.StatusRepository
+	EnrichmentPipeline   *enrichmentRepo.PipelineRepository
+	EnrichmentExternalID *enrichmentRepo.ExternalIDRepository
 }
 
 // BuildRepositories creates and wires all repository instances using the provided database connection.
@@ -74,22 +81,32 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	systemSettingsRepository := settingsRepo.NewSystemRepository(db, driver)
 	userSettingsRepository := settingsRepo.NewUserRepository(db, driver)
 
+	// Create enrichment repositories
+	enrichmentQueueRepository := enrichmentRepo.NewQueueRepository(db, driver)
+	enrichmentStatusRepository := enrichmentRepo.NewStatusRepository(db, driver)
+	enrichmentPipelineRepository := enrichmentRepo.NewPipelineRepository(db, driver)
+	enrichmentExternalIDRepository := enrichmentRepo.NewExternalIDRepository(db, driver)
+
 	return &Repositories{
-		Library:        libraryRepository,
-		Media:          mediaRepository,
-		Progress:       progressRepository,
-		ScanJob:        scanJobRepository,
-		Checkpoint:     checkpointRepository,
-		ScanState:      scanStateRepository,
-		Transcode:      transcodeRepository,
-		Movie:          movieRepository,
-		TV:             tvRepository,
-		Music:          musicRepository,
-		Image:          imageRepository,
-		Analytics:      analyticsRepository,
-		User:           userRepository,
-		Session:        sessionRepository,
-		SystemSettings: systemSettingsRepository,
-		UserSettings:   userSettingsRepository,
+		Library:            libraryRepository,
+		Media:              mediaRepository,
+		Progress:           progressRepository,
+		ScanJob:            scanJobRepository,
+		Checkpoint:         checkpointRepository,
+		ScanState:          scanStateRepository,
+		Transcode:          transcodeRepository,
+		Movie:              movieRepository,
+		TV:                 tvRepository,
+		Music:              musicRepository,
+		Image:              imageRepository,
+		Analytics:          analyticsRepository,
+		User:               userRepository,
+		Session:            sessionRepository,
+		SystemSettings:     systemSettingsRepository,
+		UserSettings:       userSettingsRepository,
+		EnrichmentQueue:      enrichmentQueueRepository,
+		EnrichmentStatus:     enrichmentStatusRepository,
+		EnrichmentPipeline:   enrichmentPipelineRepository,
+		EnrichmentExternalID: enrichmentExternalIDRepository,
 	}
 }

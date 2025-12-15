@@ -182,6 +182,7 @@ func buildLibraryUseCases(
 			extractTrack,
 			repos.Image,
 			imageCleanup,
+			svcs.PipelineManager,
 			scanConfig,
 			cfg.SystemProfile,
 			logger,

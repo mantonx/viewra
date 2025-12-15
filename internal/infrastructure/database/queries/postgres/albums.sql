@@ -17,8 +17,9 @@ INSERT INTO music_albums (
     sort_title,
     created_at,
     updated_at,
-    artist_id
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+    artist_id,
+    directory
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 RETURNING *;
 
 -- name: GetAlbumByID :one
@@ -60,8 +61,9 @@ SET title = $1,
     musicbrainz_album_id = $12,
     cover_art_path = $13,
     sort_title = $14,
-    updated_at = $15
-WHERE id = $16;
+    directory = $15,
+    updated_at = $16
+WHERE id = $17;
 
 -- name: DeleteAlbum :exec
 DELETE FROM music_albums

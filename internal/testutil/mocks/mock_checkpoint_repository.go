@@ -15,6 +15,7 @@ type CheckpointRepository struct {
 	checkpoints  map[int64]*scanner.ScanCheckpoint // id -> checkpoint
 	nextID       int64
 	jobIDIndex   map[int64][]*scanner.ScanCheckpoint // jobID -> checkpoints
+	overrideStats *scanner.CheckpointStats // If set, GetStats returns this instead of calculating
 
 	// Error injection
 	CreateBatchErr      error
@@ -36,6 +37,14 @@ func NewCheckpointRepository(t testing.TB) *CheckpointRepository {
 		jobIDIndex:  make(map[int64][]*scanner.ScanCheckpoint),
 		nextID:      1,
 	}
+}
+
+// WithStats sets override stats that will be returned by GetStats instead of calculating from checkpoints.
+func (r *CheckpointRepository) WithStats(stats *scanner.CheckpointStats) *CheckpointRepository {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.overrideStats = stats
+	return r
 }
 
 // WithCheckpoints pre-populates the mock with checkpoints.
@@ -145,6 +154,11 @@ func (r *CheckpointRepository) GetStats(ctx context.Context, jobID int64) (*scan
 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
+	// Return override stats if set
+	if r.overrideStats != nil {
+		return r.overrideStats, nil
+	}
 
 	stats := &scanner.CheckpointStats{
 		ErrorsByCategory: make(map[scanner.ErrorCategory]int64),

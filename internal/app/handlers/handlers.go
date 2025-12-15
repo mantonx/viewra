@@ -139,6 +139,16 @@ func BuildHandlers(
 		settingsHandler = handlers.NewSettingsHandler(svcs.Settings)
 	}
 
+	// Enrichment handler
+	var enrichmentHandler *handlers.EnrichmentHandler
+	if svcs.PipelineManager != nil && svcs.EventBus != nil {
+		enrichmentHandler = handlers.NewEnrichmentHandler(
+			svcs.PipelineManager,
+			svcs.EventBus,
+			logger.With("handler", "enrichment"),
+		)
+	}
+
 	return &api.Handlers{
 		Health:        healthHandler,
 		Browser:       browserHandler,
@@ -159,6 +169,7 @@ func BuildHandlers(
 		Auth:          authHandler,
 		Users:         usersHandler,
 		Settings:      settingsHandler,
+		Enrichment:    enrichmentHandler,
 		AuthValidator: authService,
 	}
 }

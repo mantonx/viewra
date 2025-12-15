@@ -10,8 +10,9 @@ INSERT INTO music_artists (
     genre,
     image_path,
     created_at,
-    updated_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    updated_at,
+    directory
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: GetArtistByID :one
@@ -42,8 +43,9 @@ SET name = $1,
     formed_year = $6,
     genre = $7,
     image_path = $8,
-    updated_at = $9
-WHERE id = $10;
+    directory = $9,
+    updated_at = $10
+WHERE id = $11;
 
 -- name: DeleteArtist :exec
 DELETE FROM music_artists

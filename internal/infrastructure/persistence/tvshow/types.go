@@ -58,9 +58,16 @@ func mapEpisodeToDomain(row interface{}) *media.TVEpisode {
 // Handles both SQLite and PostgreSQL row types using reflection-based field getters
 func mapShowToDomain(row interface{}) media.TVShow {
 	return media.TVShow{
-		ID:        common.IntFieldGetter(row, "ID"),
-		LibraryID: common.IntFieldGetter(row, "LibraryID"),
-		Title:     common.StringFieldGetter(row, "Title"),
+		ID:            common.IntFieldGetter(row, "ID"),
+		LibraryID:    common.IntFieldGetter(row, "LibraryID"),
+		Title:        common.StringFieldGetter(row, "Title"),
+		Year:         int(common.ParseNullInt64(common.NullIntFieldGetter(row, "Year"))),
+		Genre:        parseGenres(common.ParseNullString(common.NullStringFieldGetter(row, "Genre"))),
+		Plot:         common.ParseNullString(common.NullStringFieldGetter(row, "Plot")),
+		IMDbID:       common.ParseNullString(common.NullStringFieldGetter(row, "ImdbID")),
+		TMDbID:       int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TmdbID"))),
+		ContentRating: common.ParseNullString(common.NullStringFieldGetter(row, "ContentRating")),
+		Directory:    common.ParseNullString(common.NullStringFieldGetter(row, "Directory")),
 	}
 }
 
@@ -254,7 +261,7 @@ func sqliteShowToDomain(row sqlc_sqlite.TvShow) media.TVShow {
 }
 
 // buildPostgresCreateTVShowParams builds CreateTVShowParams for PostgreSQL
-func buildPostgresCreateTVShowParams(libraryID int64, title string) sqlc_postgres.CreateTVShowParams {
+func buildPostgresCreateTVShowParams(libraryID int64, title, directory string) sqlc_postgres.CreateTVShowParams {
 	sortTitle := domainCommon.NormalizeSortTitle(title)
 	return sqlc_postgres.CreateTVShowParams{
 		LibraryID:        int32(libraryID),
@@ -275,11 +282,12 @@ func buildPostgresCreateTVShowParams(libraryID int64, title string) sqlc_postgre
 		ImdbID:           sql.NullString{Valid: false},
 		TmdbID:           sql.NullInt32{Valid: false},
 		TvdbID:           sql.NullInt32{Valid: false},
+		Directory:        sql.NullString{String: directory, Valid: directory != ""},
 	}
 }
 
 // buildSQLiteCreateTVShowParams builds CreateTVShowParams for SQLite
-func buildSQLiteCreateTVShowParams(libraryID int64, title string) sqlc_sqlite.CreateTVShowParams {
+func buildSQLiteCreateTVShowParams(libraryID int64, title, directory string) sqlc_sqlite.CreateTVShowParams {
 	sortTitle := domainCommon.NormalizeSortTitle(title)
 	return sqlc_sqlite.CreateTVShowParams{
 		LibraryID:        libraryID,
@@ -300,6 +308,7 @@ func buildSQLiteCreateTVShowParams(libraryID int64, title string) sqlc_sqlite.Cr
 		ImdbID:           sql.NullString{Valid: false},
 		TmdbID:           sql.NullInt64{Valid: false},
 		TvdbID:           sql.NullInt64{Valid: false},
+		Directory:        sql.NullString{String: directory, Valid: directory != ""},
 	}
 }
 

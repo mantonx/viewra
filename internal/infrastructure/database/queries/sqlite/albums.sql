@@ -17,8 +17,9 @@ INSERT INTO music_albums (
     sort_title,
     created_at,
     updated_at,
-    artist_id
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    artist_id,
+    directory
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: GetAlbumByID :one
@@ -60,6 +61,7 @@ SET title = ?,
     musicbrainz_album_id = ?,
     cover_art_path = ?,
     sort_title = ?,
+    directory = ?,
     updated_at = ?
 WHERE id = ?;
 

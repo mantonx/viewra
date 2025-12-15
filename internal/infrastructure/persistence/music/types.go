@@ -102,6 +102,7 @@ func mapAlbumToDomain(row interface{}) *media.Album {
 		MusicBrainzAlbumID: common.ParseNullString(common.NullStringFieldGetter(row, "MusicbrainzAlbumID")),
 		CoverArtPath:       common.ParseNullString(common.NullStringFieldGetter(row, "CoverArtPath")),
 		SortTitle:          common.ParseNullString(common.NullStringFieldGetter(row, "SortTitle")),
+		Directory:          common.ParseNullString(common.NullStringFieldGetter(row, "Directory")),
 		CreatedAt:          createdAtStr,
 		UpdatedAt:          updatedAtStr,
 	}
@@ -135,6 +136,7 @@ func mapArtistToDomain(row interface{}) *media.Artist {
 		Genre:               common.ParseNullString(common.NullStringFieldGetter(row, "Genre")),
 		MusicBrainzArtistID: common.ParseNullString(common.NullStringFieldGetter(row, "MusicbrainzArtistID")),
 		ImagePath:           common.ParseNullString(common.NullStringFieldGetter(row, "ImagePath")),
+		Directory:           common.ParseNullString(common.NullStringFieldGetter(row, "Directory")),
 		CreatedAt:           createdAtStr,
 		UpdatedAt:           updatedAtStr,
 	}
@@ -388,6 +390,7 @@ func buildSQLiteCreateAlbumParams(a *media.Album) sqlc_sqlite.CreateAlbumParams 
 		CreatedAt:          now,
 		UpdatedAt:          now,
 		ArtistID:           common.NullInt64(a.ArtistID),
+		Directory:          common.NullString(a.Directory),
 	}
 }
 
@@ -409,6 +412,7 @@ func buildSQLiteUpdateAlbumParams(a *media.Album) sqlc_sqlite.UpdateAlbumParams 
 		MusicbrainzAlbumID: params.MusicbrainzAlbumID,
 		CoverArtPath:       params.CoverArtPath,
 		SortTitle:          params.SortTitle,
+		Directory:          params.Directory,
 		UpdatedAt:          sql.NullTime{Time: time.Now().UTC(), Valid: true},
 		ID:                 a.ID,
 	}
@@ -433,6 +437,7 @@ func buildSQLiteCreateArtistParams(a *media.Artist) sqlc_sqlite.CreateArtistPara
 		ImagePath:           common.NullString(a.ImagePath),
 		CreatedAt:           sql.NullTime{Time: time.Now().UTC(), Valid: true},
 		UpdatedAt:           sql.NullTime{Time: time.Now().UTC(), Valid: true},
+		Directory:           common.NullString(a.Directory),
 	}
 }
 
@@ -447,6 +452,7 @@ func buildSQLiteUpdateArtistParams(a *media.Artist) sqlc_sqlite.UpdateArtistPara
 		FormedYear:          common.NullInt64(int64(a.FormedYear)),
 		Genre:               common.NullString(a.Genre),
 		ImagePath:           common.NullString(a.ImagePath),
+		Directory:           common.NullString(a.Directory),
 		UpdatedAt:           sql.NullTime{Time: time.Now().UTC(), Valid: true},
 		ID:                  a.ID,
 	}
@@ -576,6 +582,7 @@ func buildPostgresCreateAlbumParams(a *media.Album) sqlc_postgres.CreateAlbumPar
 		CreatedAt:          now,
 		UpdatedAt:          now,
 		ArtistID:           common.NullInt32FromInt64(a.ArtistID),
+		Directory:          common.NullString(a.Directory),
 	}
 }
 
@@ -629,6 +636,7 @@ func buildPostgresCreateArtistParams(a *media.Artist) sqlc_postgres.CreateArtist
 		ImagePath:           common.NullString(a.ImagePath),
 		CreatedAt:           sql.NullTime{Time: time.Now().UTC(), Valid: true},
 		UpdatedAt:           sql.NullTime{Time: time.Now().UTC(), Valid: true},
+		Directory:           common.NullString(a.Directory),
 	}
 }
 

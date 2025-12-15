@@ -88,7 +88,8 @@ type Handlers struct {
 	Music     *handlers.MusicHandler
 	Auth      *handlers.AuthHandler
 	Users     *handlers.UsersHandler
-	Settings  *handlers.SettingsHandler
+	Settings   *handlers.SettingsHandler
+	Enrichment *handlers.EnrichmentHandler
 
 	// AuthValidator is used by routes to set up auth middleware
 	AuthValidator middleware.AuthValidator
@@ -189,6 +190,9 @@ func (s *Server) setupRoutes() {
 
 	// Register settings routes (protected, with admin requirement for system settings)
 	routes.RegisterSettingsRoutes(protected, h.Settings, h.AuthValidator)
+
+	// Register enrichment routes (protected)
+	routes.RegisterEnrichmentRoutes(protected, h.Enrichment)
 
 	// Register image routes (protected via api group)
 	routes.RegisterImageRoutes(s.router, h.Images)

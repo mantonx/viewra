@@ -1,0 +1,129 @@
+syntax = "proto3";
+
+package viewra.plugin.v1;
+
+option go_package = "github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1";
+
+import "api/proto/plugin/common.proto";
+
+// PluginCore is the base interface all plugins must implement.
+// Provides identity, lifecycle, health, and configuration.
+service PluginCore {
+  // GetInfo returns plugin identity and capabilities.
+  rpc GetInfo(Empty) returns (PluginInfo);
+
+  // Initialize is called when the plugin is loaded.
+  rpc Initialize(InitRequest) returns (InitResponse);
+
+  // Shutdown is called before the plugin process is terminated.
+  rpc Shutdown(Empty) returns (Empty);
+
+  // HealthCheck returns the plugin's current health status.
+  rpc HealthCheck(Empty) returns (HealthStatus);
+
+  // GetSettingsSchema returns the JSON schema for plugin settings.
+  rpc GetSettingsSchema(Empty) returns (SettingsSchema);
+
+  // Configure applies settings to the plugin.
+  rpc Configure(Settings) returns (ConfigureResponse);
+
+  // GetSubscriptions returns event types this plugin wants to receive.
+  rpc GetSubscriptions(Empty) returns (EventSubscriptions);
+
+  // OnEvent delivers an event to the plugin.
+  rpc OnEvent(Event) returns (EventResponse);
+}
+
+// Empty is defined in common.proto
+
+message PluginInfo {
+  // Unique identifier for this plugin (e.g., "tmdb", "musicbrainz")
+  string id = 1;
+
+  // Human-readable name
+  string name = 2;
+
+  // Semantic version (e.g., "1.2.0")
+  string version = 3;
+
+  // Minimum ViewRA version required
+  string min_host_version = 4;
+
+  // Plugin author
+  string author = 5;
+
+  // License (e.g., "MIT", "Apache-2.0")
+  string license = 6;
+
+  // Categories this plugin implements (e.g., ["enricher"], ["notification_sink"])
+  repeated string categories = 7;
+
+  // Permissions this plugin requires
+  repeated string permissions = 8;
+}
+
+message InitRequest {
+  // Host version for compatibility checking
+  string host_version = 1;
+
+  // Path to plugin's data directory
+  string data_dir = 2;
+
+  // Initial configuration (if any)
+  bytes config = 3;
+}
+
+message InitResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message HealthStatus {
+  enum Status {
+    UNKNOWN = 0;
+    HEALTHY = 1;
+    DEGRADED = 2;
+    UNHEALTHY = 3;
+  }
+
+  Status status = 1;
+  string message = 2;
+
+  // Optional metrics
+  int64 requests_total = 3;
+  int64 errors_total = 4;
+  double avg_latency_ms = 5;
+}
+
+message SettingsSchema {
+  // JSON Schema for plugin settings
+  bytes json_schema = 1;
+}
+
+message Settings {
+  // JSON-encoded settings
+  bytes json = 1;
+}
+
+message ConfigureResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message EventSubscriptions {
+  // Event types to subscribe to (e.g., ["media.added", "playback.started"])
+  repeated string event_types = 1;
+}
+
+message Event {
+  string type = 1;
+  string source = 2;
+  int64 timestamp_unix = 3;
+  bytes payload = 4;  // JSON-encoded payload
+  string correlation_id = 5;
+}
+
+message EventResponse {
+  bool handled = 1;
+  string error = 2;
+}

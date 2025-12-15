@@ -872,9 +872,9 @@ Options considered:
 
 ### Built-in Plugins
 
-All built-in plugins:
+Built-in plugins are for **local file operations only**—parsing files on disk that require direct access to ViewRA's internal libraries:
 
-- Implement the same `Enricher` interface as third-party plugins
+- Implement the same `Enricher` interface as external plugins
 - Run **in-process** (no gRPC serialization overhead)
 - Can be disabled/reordered via pipeline configuration
 - Directly import ViewRA's internal libraries
@@ -883,27 +883,41 @@ All built-in plugins:
 |--------|----------|-------|
 | NFO | Enricher | Uses `internal/infrastructure/metadata/nfo/` directly |
 | Local Images | Enricher | Uses `internal/infrastructure/images/extractor/` directly |
-| TMDb | Enricher | Movies/TV (could be external in future) |
-| MusicBrainz | Enricher | Music (could be external in future) |
 
-### Third-Party Plugins
+### External Plugins (go-plugin)
 
-Community/third-party plugins:
+All plugins that make **network requests** or are **third-party contributed** run as external processes:
 
 - Run as **separate processes** via go-plugin
 - Communicate via gRPC (process isolation, crash protection)
 - Access data through Host Services only
 - Cannot import ViewRA internals
+- Crash/hang in plugin doesn't affect ViewRA host
+
+| Plugin | Category | Notes |
+|--------|----------|-------|
+| TMDb | Enricher | Movies/TV metadata from external API |
+| MusicBrainz | Enricher | Music metadata from external API |
+| Fanart.tv | Enricher | Additional artwork from external API |
+| Webhooks | NotificationSink | Send notifications to external services |
+
+**Why external for API-based enrichers?**
+
+1. **Isolation**: Network failures, timeouts, or API issues don't affect host stability
+2. **Rate limiting**: Each plugin manages its own rate limits independently
+3. **Restartable**: Plugin can be restarted without restarting ViewRA
+4. **Upgradeable**: Plugin binaries can be updated independently
+5. **Replaceable**: Community can contribute alternative implementations
 
 ```protobuf
-// Host Services available to third-party plugins
+// Host Services available to external plugins
 service HostData {
   rpc GetMedia(MediaQuery) returns (Media);
   rpc GetFilePath(MediaId) returns (FilePath);
 }
 
 service HostFileParser {
-  // If a third-party plugin needs NFO parsing, host provides it
+  // If an external plugin needs NFO parsing, host provides it
   rpc ParseNFO(ParseNFORequest) returns (NFOMetadata);
 }
 ```
@@ -1545,209 +1559,32 @@ After Phase 2, these become dead code and should be removed:
 3. **Regression test**: Ensure media items end up with same metadata as before (just async)
 4. **Performance test**: Verify scan completes faster (no blocking on NFO/images)
 
-### Phase 3: Remote Enrichers (4-5 days)
+### Phase 3: External Plugin Foundation (4-5 days)
 
 #### Phase 3 Overview
 
-This phase adds external API enrichers (TMDb, MusicBrainz) that fetch metadata from remote services. These use the same `Enricher` interface but with rate limiting and caching.
+This phase builds the go-plugin + gRPC infrastructure for **external plugins**. All plugins that make network requests (TMDb, MusicBrainz, Fanart.tv) run as separate processes for isolation and stability.
+
+**Key insight**: The go-plugin infrastructure must be built BEFORE any API-based enrichers, because those enrichers ARE external plugins.
 
 #### Prerequisites
 
-- Phase 2 complete (Enricher interface, pipeline wiring)
-- `media_external_ids` table for ID propagation
-- `media_metadata_sources` table for source tracking
-
-#### Implementation Tasks
-
-**3.1 TMDb Enricher** (`internal/application/enrichment/enrichers/tmdb/enricher.go`)
-
-```go
-package tmdb
-
-type Enricher struct {
-    client    *tmdb.Client
-    cache     *cache.Cache  // In-memory or Redis
-    rateLimit *rate.Limiter
-    logger    *slog.Logger
-}
-
-func (e *Enricher) Stage() string { return "tmdb" }
-
-func (e *Enricher) Capabilities() enrichment.EnricherCapabilities {
-    return enrichment.EnricherCapabilities{
-        MediaTypes: []enrichment.MediaType{
-            enrichment.MediaTypeMovie,
-            enrichment.MediaTypeTV,
-        },
-        Provides:  []string{"metadata", "artwork", "external_ids"},
-        IsLocal:   false,  // Remote API
-        RateLimit: 40,     // TMDb allows ~40 requests/10s
-        Requires:  nil,    // Can search by title/year, but prefers IMDB ID
-    }
-}
-
-func (e *Enricher) Enrich(ctx context.Context, req *enrichment.EnrichRequest) (*enrichment.EnrichResponse, error) {
-    // 1. Check cache first
-    if cached := e.cache.Get(cacheKey(req)); cached != nil {
-        return cached, nil
-    }
-
-    // 2. Rate limit
-    if err := e.rateLimit.Wait(ctx); err != nil {
-        return nil, fmt.Errorf("rate limit: %w", err)
-    }
-
-    // 3. Try lookup by external ID first (faster, more accurate)
-    if imdbID, ok := req.ExistingIDs["imdb"]; ok {
-        return e.lookupByIMDb(ctx, imdbID, req.MediaType)
-    }
-
-    // 4. Fall back to search by title/year
-    return e.searchByTitleYear(ctx, req)
-}
-```
-
-**3.2 MusicBrainz Enricher** (`internal/application/enrichment/enrichers/musicbrainz/enricher.go`)
-
-```go
-package musicbrainz
-
-type Enricher struct {
-    client    *musicbrainz.Client
-    cache     *cache.Cache
-    rateLimit *rate.Limiter  // MusicBrainz: 1 req/sec
-    logger    *slog.Logger
-}
-
-func (e *Enricher) Stage() string { return "musicbrainz" }
-
-func (e *Enricher) Capabilities() enrichment.EnricherCapabilities {
-    return enrichment.EnricherCapabilities{
-        MediaTypes: []enrichment.MediaType{enrichment.MediaTypeMusic},
-        Provides:   []string{"metadata", "external_ids"},
-        IsLocal:    false,
-        RateLimit:  1,  // MusicBrainz strict rate limit
-        Requires:   nil,
-    }
-}
-```
-
-**3.3 Caching Layer** (`internal/application/enrichment/cache/`)
-
-```go
-package cache
-
-// Cache provides enricher-specific caching with TTL
-type Cache struct {
-    store    map[string]*CacheEntry
-    mu       sync.RWMutex
-    ttl      time.Duration
-    maxSize  int
-}
-
-type CacheEntry struct {
-    Response  *enrichment.EnrichResponse
-    ExpiresAt time.Time
-}
-
-// Keys include media type + title + year OR external ID
-func CacheKey(mediaType enrichment.MediaType, identifiers ...string) string
-```
-
-**3.4 Rate Limiter Integration**
-
-Worker pools automatically configure rate limiters from `EnricherCapabilities.RateLimit`:
-
-```go
-// internal/application/enrichment/pipeline/worker.go
-func (w *Worker) processJob(ctx context.Context, job *enrichment.QueueJob) error {
-    enricher := w.manager.GetEnricher(job.Stage)
-    caps := enricher.Capabilities()
-
-    if caps.RateLimit > 0 {
-        // Per-stage rate limiter
-        if err := w.rateLimiter.Wait(ctx); err != nil {
-            return fmt.Errorf("rate limited: %w", err)
-        }
-    }
-
-    return enricher.Enrich(ctx, buildRequest(job))
-}
-```
-
-**3.5 Metadata Merging**
-
-After each enricher completes, merge results into the media record:
-
-```go
-// internal/application/enrichment/pipeline/merger.go
-func MergeEnrichResponse(ctx context.Context, repos *Repositories, mediaID int64, resp *EnrichResponse, stage string) error {
-    // 1. Update media record with non-nil metadata fields
-    if resp.Metadata != nil {
-        if err := updateMediaFields(ctx, repos, mediaID, resp.Metadata); err != nil {
-            return err
-        }
-    }
-
-    // 2. Store external IDs
-    for provider, id := range resp.DiscoveredIDs {
-        if err := repos.ExternalIDs.Upsert(ctx, mediaID, provider, id); err != nil {
-            return err
-        }
-    }
-
-    // 3. Track metadata sources
-    for field, value := range resp.Metadata.ToMap() {
-        if err := repos.MetadataSources.Upsert(ctx, mediaID, field, stage, value); err != nil {
-            return err
-        }
-    }
-
-    return nil
-}
-```
-
-#### Files to Create
-
-| File | Purpose |
-|------|---------|
-| `internal/application/enrichment/enrichers/tmdb/enricher.go` | TMDb enricher |
-| `internal/application/enrichment/enrichers/tmdb/client.go` | TMDb API client wrapper |
-| `internal/application/enrichment/enrichers/musicbrainz/enricher.go` | MusicBrainz enricher |
-| `internal/application/enrichment/enrichers/musicbrainz/client.go` | MusicBrainz API client |
-| `internal/application/enrichment/cache/cache.go` | Enricher-specific caching |
-| `internal/application/enrichment/pipeline/merger.go` | Metadata merging logic |
-
-#### Configuration
-
-```yaml
-# config.yaml
-enrichment:
-  tmdb:
-    api_key: "${TMDB_API_KEY}"
-    cache_ttl: 7d
-    rate_limit: 40  # per 10 seconds
-  musicbrainz:
-    cache_ttl: 30d
-    rate_limit: 1   # per second
-```
-
----
-
-### Phase 4: Third-Party Plugin Foundation (4-5 days)
-
-#### Phase 4 Overview
-
-This phase adds the go-plugin + gRPC foundation for third-party (out-of-process) plugins. Built-in enrichers continue to run in-process; this enables community plugins.
-
-#### Prerequisites
-
-- Phase 2-3 complete (Enricher interface, built-in enrichers working)
+- Phase 2 complete (Enricher interface, built-in enrichers working)
 - Protocol Buffers toolchain installed
 
+#### Why External Plugins for API Enrichers?
+
+| Concern | In-Process Problem | External Plugin Solution |
+|---------|-------------------|-------------------------|
+| Network failures | Can hang/block worker pools | Plugin timeout doesn't affect host |
+| API rate limits | Hard to manage across shared pool | Each plugin manages independently |
+| Crashes | Brings down ViewRA | Plugin restarts, host continues |
+| Updates | Requires ViewRA restart | Hot-swap plugin binary |
+| Community | Must fork ViewRA | Distribute standalone binary |
+
 #### Implementation Tasks
 
-**4.1 Proto Definitions** (`api/proto/plugin/`)
+**3.1 Proto Definitions** (`api/proto/plugin/`)
 
 ```protobuf
 // plugin_core.proto
@@ -1810,7 +1647,7 @@ message EnrichResponse {
 }
 ```
 
-**4.2 Plugin Manager** (`internal/infrastructure/plugins/manager.go`)
+**3.2 Plugin Manager** (`internal/infrastructure/plugins/manager.go`)
 
 ```go
 package plugins
@@ -1862,7 +1699,7 @@ func (m *Manager) LoadPlugin(path string) (*PluginInstance, error) {
 }
 ```
 
-**4.3 gRPC Enricher Wrapper** (`internal/infrastructure/plugins/grpc_enricher.go`)
+**3.3 gRPC Enricher Wrapper** (`internal/infrastructure/plugins/grpc_enricher.go`)
 
 ```go
 package plugins
@@ -1893,7 +1730,7 @@ func (e *GRPCEnricher) Enrich(ctx context.Context, req *enrichment.EnrichRequest
 }
 ```
 
-**4.4 Host Services** (`internal/infrastructure/plugins/host_services.go`)
+**3.4 Host Services** (`internal/infrastructure/plugins/host_services.go`)
 
 ```go
 package plugins
@@ -1920,7 +1757,7 @@ func (s *HostStorageServer) KVGet(ctx context.Context, req *pb.KVKey) (*pb.KVVal
 }
 ```
 
-**4.5 SDK Base Package** (`pkg/plugin/sdk/`)
+**3.5 SDK Base Package** (`pkg/plugin/sdk/`)
 
 ```go
 package sdk
@@ -1981,6 +1818,190 @@ data/plugins/
 
 ---
 
+### Phase 4: API-Based Enricher Plugins (4-5 days)
+
+#### Phase 4 Overview
+
+This phase implements the first external plugins: TMDb and MusicBrainz. These run as **separate go-plugin processes**, demonstrating the full plugin lifecycle.
+
+#### Prerequisites
+
+- Phase 3 complete (go-plugin infrastructure, SDK)
+- `media_external_ids` table for ID propagation
+- `media_metadata_sources` table for source tracking
+
+#### Implementation Tasks
+
+**4.1 TMDb Plugin** (`plugins/tmdb/`)
+
+This is a standalone Go binary that implements the Enricher gRPC service:
+
+```go
+// plugins/tmdb/main.go
+package main
+
+import (
+    "github.com/hashicorp/go-plugin"
+    "github.com/mantonx/viewra/pkg/plugin/sdk"
+)
+
+type TMDbPlugin struct {
+    sdk.Base
+    client    *tmdb.Client
+    cache     *cache.Cache
+}
+
+func (p *TMDbPlugin) Capabilities() *sdk.EnricherCapabilities {
+    return &sdk.EnricherCapabilities{
+        MediaTypes: []string{"movie", "tv"},
+        Provides:   []string{"metadata", "artwork", "external_ids"},
+        IsLocal:    false,
+        RateLimit:  40,  // TMDb: ~40 req/10s
+    }
+}
+
+func (p *TMDbPlugin) Enrich(ctx context.Context, req *sdk.EnrichRequest) (*sdk.EnrichResponse, error) {
+    // 1. Check local cache first
+    if cached := p.cache.Get(cacheKey(req)); cached != nil {
+        return cached, nil
+    }
+
+    // 2. Try lookup by IMDB ID (faster, more accurate)
+    if imdbID := req.GetExternalID("imdb"); imdbID != "" {
+        return p.lookupByIMDb(ctx, imdbID, req.MediaType)
+    }
+
+    // 3. Fall back to search by title/year
+    return p.searchByTitleYear(ctx, req)
+}
+
+func main() {
+    plugin.Serve(&plugin.ServeConfig{
+        HandshakeConfig: sdk.Handshake,
+        Plugins: map[string]plugin.Plugin{
+            "enricher": &sdk.EnricherGRPCPlugin{Impl: &TMDbPlugin{}},
+        },
+        GRPCServer: plugin.DefaultGRPCServer,
+    })
+}
+```
+
+**4.2 MusicBrainz Plugin** (`plugins/musicbrainz/`)
+
+```go
+// plugins/musicbrainz/main.go
+package main
+
+type MusicBrainzPlugin struct {
+    sdk.Base
+    client *musicbrainz.Client
+}
+
+func (p *MusicBrainzPlugin) Capabilities() *sdk.EnricherCapabilities {
+    return &sdk.EnricherCapabilities{
+        MediaTypes: []string{"music"},
+        Provides:   []string{"metadata", "external_ids"},
+        IsLocal:    false,
+        RateLimit:  1,  // MusicBrainz: strict 1 req/sec
+    }
+}
+
+func (p *MusicBrainzPlugin) Enrich(ctx context.Context, req *sdk.EnrichRequest) (*sdk.EnrichResponse, error) {
+    // Lookup by MusicBrainz ID, or search by artist/album/track
+    // ...
+}
+```
+
+**4.3 Plugin-Local Caching**
+
+Each plugin manages its own cache via the SQLite database provided by Host Services:
+
+```go
+// Plugin requests its database path from host
+dbPath, _ := p.HostStorage().GetDatabasePath(ctx, &pb.Empty{})
+
+// Plugin manages its own schema
+db, _ := sql.Open("sqlite3", dbPath.Path)
+db.Exec(`CREATE TABLE IF NOT EXISTS cache (
+    key TEXT PRIMARY KEY,
+    response BLOB,
+    expires_at INTEGER
+)`)
+```
+
+**4.4 Metadata Merging** (`internal/application/enrichment/pipeline/merger.go`)
+
+After each enricher completes, the host merges results:
+
+```go
+func MergeEnrichResponse(ctx context.Context, repos *Repositories, mediaID int64, resp *EnrichResponse, stage string) error {
+    // 1. Update media record with non-nil metadata fields
+    if resp.Metadata != nil {
+        if err := updateMediaFields(ctx, repos, mediaID, resp.Metadata); err != nil {
+            return err
+        }
+    }
+
+    // 2. Store external IDs for downstream stages
+    for provider, id := range resp.DiscoveredIDs {
+        if err := repos.ExternalIDs.Upsert(ctx, mediaID, provider, id); err != nil {
+            return err
+        }
+    }
+
+    // 3. Track metadata sources for transparency
+    for field := range resp.Metadata.NonNilFields() {
+        if err := repos.MetadataSources.Upsert(ctx, mediaID, field, stage); err != nil {
+            return err
+        }
+    }
+
+    return nil
+}
+```
+
+#### Files to Create
+
+| File | Purpose |
+|------|---------|
+| `plugins/tmdb/main.go` | TMDb plugin entry point |
+| `plugins/tmdb/client.go` | TMDb API client |
+| `plugins/tmdb/cache.go` | Local response caching |
+| `plugins/musicbrainz/main.go` | MusicBrainz plugin entry point |
+| `plugins/musicbrainz/client.go` | MusicBrainz API client |
+| `internal/application/enrichment/pipeline/merger.go` | Metadata merging logic |
+
+#### Build & Distribution
+
+```bash
+# Build plugins as separate binaries
+go build -o bin/plugins/tmdb ./plugins/tmdb
+go build -o bin/plugins/musicbrainz ./plugins/musicbrainz
+
+# Plugins are distributed alongside ViewRA
+bin/
+├── viewra
+├── subtitle-extractor
+└── plugins/
+    ├── tmdb
+    └── musicbrainz
+```
+
+#### Configuration
+
+```yaml
+# config.yaml
+plugins:
+  tmdb:
+    enabled: true
+    api_key: "${TMDB_API_KEY}"
+  musicbrainz:
+    enabled: true
+    # No API key needed for MusicBrainz
+```
+
+---
+
 ### Phase 5: Events & Notifications (3-4 days)
 
 #### Phase 5 Overview
@@ -1989,7 +2010,7 @@ This phase enables plugins to receive events and implements the NotificationSink
 
 #### Prerequisites
 
-- Phase 4 complete (plugin infrastructure)
+- Phase 3-4 complete (plugin infrastructure, example plugins working)
 - Event Bus from Phase 1
 
 #### Implementation Tasks
@@ -2578,7 +2599,7 @@ Simpler but no isolation—a buggy plugin crashes ViewRA.
 | 39 | Permissions | Explicit declarations, category defaults |
 | 40 | Language | Go SDK, protobuf as source of truth |
 | 41-42 | Distribution | Registry API, notify on updates |
-| 43 | Built-ins | NFO, TMDb, MusicBrainz (same interface) |
+| 43 | Built-ins | NFO, LocalImages only (TMDb/MusicBrainz are external plugins) |
 | 44 | Isolation | Process only (v1) |
 | 45 | Priority | Metadata + Notifications first |
 | 47-48 | Data access | Host-mediated, permission-gated |

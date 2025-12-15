@@ -53,9 +53,10 @@ INSERT INTO music_artists (
     genre,
     image_path,
     created_at,
-    updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, formed_year, genre, image_path, created_at, updated_at
+    updated_at,
+    directory
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, formed_year, genre, image_path, created_at, updated_at, directory
 `
 
 type CreateArtistParams struct {
@@ -70,6 +71,7 @@ type CreateArtistParams struct {
 	ImagePath           sql.NullString `json:"image_path"`
 	CreatedAt           sql.NullTime   `json:"created_at"`
 	UpdatedAt           sql.NullTime   `json:"updated_at"`
+	Directory           sql.NullString `json:"directory"`
 }
 
 func (q *Queries) CreateArtist(ctx context.Context, arg CreateArtistParams) (MusicArtist, error) {
@@ -85,6 +87,7 @@ func (q *Queries) CreateArtist(ctx context.Context, arg CreateArtistParams) (Mus
 		arg.ImagePath,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.Directory,
 	)
 	var i MusicArtist
 	err := row.Scan(
@@ -100,6 +103,7 @@ func (q *Queries) CreateArtist(ctx context.Context, arg CreateArtistParams) (Mus
 		&i.ImagePath,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Directory,
 	)
 	return i, err
 }
@@ -115,7 +119,7 @@ func (q *Queries) DeleteArtist(ctx context.Context, id int64) error {
 }
 
 const findArtistByName = `-- name: FindArtistByName :one
-SELECT id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, formed_year, genre, image_path, created_at, updated_at FROM music_artists
+SELECT id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, formed_year, genre, image_path, created_at, updated_at, directory FROM music_artists
 WHERE library_id = ? AND name = ?
 LIMIT 1
 `
@@ -141,12 +145,13 @@ func (q *Queries) FindArtistByName(ctx context.Context, arg FindArtistByNamePara
 		&i.ImagePath,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Directory,
 	)
 	return i, err
 }
 
 const getArtistByID = `-- name: GetArtistByID :one
-SELECT id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, formed_year, genre, image_path, created_at, updated_at FROM music_artists
+SELECT id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, formed_year, genre, image_path, created_at, updated_at, directory FROM music_artists
 WHERE id = ?
 `
 
@@ -166,12 +171,13 @@ func (q *Queries) GetArtistByID(ctx context.Context, id int64) (MusicArtist, err
 		&i.ImagePath,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Directory,
 	)
 	return i, err
 }
 
 const getArtistByMusicBrainzID = `-- name: GetArtistByMusicBrainzID :one
-SELECT id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, formed_year, genre, image_path, created_at, updated_at FROM music_artists
+SELECT id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, formed_year, genre, image_path, created_at, updated_at, directory FROM music_artists
 WHERE musicbrainz_artist_id = ?
 `
 
@@ -191,6 +197,7 @@ func (q *Queries) GetArtistByMusicBrainzID(ctx context.Context, musicbrainzArtis
 		&i.ImagePath,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Directory,
 	)
 	return i, err
 }
@@ -433,7 +440,7 @@ func (q *Queries) GetArtistsWithCountsByLibraryPaginatedDesc(ctx context.Context
 }
 
 const listArtistsByLibrary = `-- name: ListArtistsByLibrary :many
-SELECT id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, formed_year, genre, image_path, created_at, updated_at FROM music_artists
+SELECT id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, formed_year, genre, image_path, created_at, updated_at, directory FROM music_artists
 WHERE library_id = ?
 ORDER BY sort_name, name
 `
@@ -460,6 +467,7 @@ func (q *Queries) ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]
 			&i.ImagePath,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Directory,
 		); err != nil {
 			return nil, err
 		}
@@ -475,7 +483,7 @@ func (q *Queries) ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]
 }
 
 const searchArtistsByName = `-- name: SearchArtistsByName :many
-SELECT id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, formed_year, genre, image_path, created_at, updated_at FROM music_artists
+SELECT id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, formed_year, genre, image_path, created_at, updated_at, directory FROM music_artists
 WHERE library_id = ?
   AND (name LIKE ? OR sort_name LIKE ?)
 ORDER BY sort_name, name
@@ -518,6 +526,7 @@ func (q *Queries) SearchArtistsByName(ctx context.Context, arg SearchArtistsByNa
 			&i.ImagePath,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Directory,
 		); err != nil {
 			return nil, err
 		}
@@ -631,6 +640,7 @@ SET name = ?,
     formed_year = ?,
     genre = ?,
     image_path = ?,
+    directory = ?,
     updated_at = ?
 WHERE id = ?
 `
@@ -644,6 +654,7 @@ type UpdateArtistParams struct {
 	FormedYear          sql.NullInt64  `json:"formed_year"`
 	Genre               sql.NullString `json:"genre"`
 	ImagePath           sql.NullString `json:"image_path"`
+	Directory           sql.NullString `json:"directory"`
 	UpdatedAt           sql.NullTime   `json:"updated_at"`
 	ID                  int64          `json:"id"`
 }
@@ -658,6 +669,7 @@ func (q *Queries) UpdateArtist(ctx context.Context, arg UpdateArtistParams) erro
 		arg.FormedYear,
 		arg.Genre,
 		arg.ImagePath,
+		arg.Directory,
 		arg.UpdatedAt,
 		arg.ID,
 	)

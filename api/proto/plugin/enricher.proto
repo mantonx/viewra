@@ -1,0 +1,174 @@
+syntax = "proto3";
+
+package viewra.plugin.v1;
+
+option go_package = "github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1";
+
+import "api/proto/plugin/common.proto";
+
+// Enricher is the interface for metadata enrichment plugins.
+// Plugins that provide metadata (NFO, TMDb, MusicBrainz, etc.) implement this.
+service Enricher {
+  // GetCapabilities describes what this enricher provides and requires.
+  rpc GetCapabilities(Empty) returns (EnricherCapabilities);
+
+  // Enrich processes a single media item and returns enriched metadata.
+  rpc Enrich(EnrichRequest) returns (EnrichResponse);
+}
+
+message EnricherCapabilities {
+  // Media types this enricher supports (e.g., "movie", "tv", "music")
+  repeated string media_types = 1;
+
+  // What this enricher provides (e.g., "metadata", "artwork", "external_ids")
+  repeated string provides = 2;
+
+  // Whether this enricher operates locally (high concurrency) or remotely (rate limited)
+  bool is_local = 3;
+
+  // Requests per minute for remote enrichers (0 = unlimited)
+  int32 rate_limit = 4;
+
+  // External IDs this enricher requires (e.g., ["imdb", "tmdb"])
+  // If empty, enricher can work from title/year alone
+  repeated string requires = 5;
+
+  // Priority hint for ordering when capabilities overlap (higher = earlier)
+  int32 priority = 6;
+}
+
+message EnrichRequest {
+  // Media ID in ViewRA database
+  int64 media_id = 1;
+
+  // Media type: "movie", "tv", "music"
+  string media_type = 2;
+
+  // Full path to the media file
+  string file_path = 3;
+
+  // Title (from filename or previous enrichers)
+  string title = 4;
+
+  // Year (0 if unknown)
+  int32 year = 5;
+
+  // External IDs from previous stages (e.g., {"imdb": "tt0133093", "tmdb": "603"})
+  map<string, string> existing_ids = 6;
+
+  // TV-specific fields
+  TVMetadata tv = 7;
+
+  // Music-specific fields
+  MusicMetadata music = 8;
+}
+
+message TVMetadata {
+  string show_title = 1;
+  int32 season_number = 2;
+  int32 episode_number = 3;
+  string episode_title = 4;
+
+  // Show ID (for enriching episodes after show is matched)
+  int64 show_id = 5;
+}
+
+message MusicMetadata {
+  string artist = 1;
+  string album = 2;
+  string track_title = 3;
+  int32 track_number = 4;
+  int32 disc_number = 5;
+
+  // Album ID (for enriching tracks after album is matched)
+  int64 album_id = 6;
+}
+
+message EnrichResponse {
+  // Whether the enricher found a match
+  bool matched = 1;
+
+  // Enriched metadata (only non-null fields should be applied)
+  EnrichedMetadata metadata = 2;
+
+  // External IDs discovered by this enricher
+  map<string, string> discovered_ids = 3;
+
+  // Images discovered by this enricher
+  repeated EnrichedImage images = 4;
+
+  // Whether the enricher intentionally skipped this item
+  bool skipped = 5;
+
+  // Reason for skipping (e.g., "no NFO file found")
+  string skip_reason = 6;
+
+  // Confidence score (0.0 to 1.0) for the match
+  float confidence = 7;
+}
+
+message EnrichedMetadata {
+  // Common fields
+  optional string title = 1;
+  optional string original_title = 2;
+  optional string sort_title = 3;
+  optional int32 year = 4;
+  optional string plot = 5;
+  optional string tagline = 6;
+  repeated string genres = 7;
+  optional string content_rating = 8;
+  optional int32 runtime_minutes = 9;
+
+  // Ratings
+  optional float rating = 10;
+  optional int32 rating_votes = 11;
+
+  // People
+  repeated string directors = 12;
+  repeated string writers = 13;
+  repeated CastMember cast = 14;
+
+  // TV-specific
+  optional string network = 15;
+  optional string status = 16;  // "Continuing", "Ended"
+  optional string premiered = 17;  // Date string
+
+  // Music-specific
+  optional string record_label = 18;
+  optional string release_date = 19;
+
+  // Studio (movies) / Production companies
+  repeated string studios = 20;
+}
+
+message CastMember {
+  string name = 1;
+  string role = 2;
+  string thumb = 3;  // URL to actor thumbnail
+  int32 order = 4;   // Billing order
+}
+
+message EnrichedImage {
+  // Type of image: "poster", "fanart", "banner", "thumb", "logo", "clearart", "discart"
+  string type = 1;
+
+  // Local file path or remote URL
+  string path = 2;
+
+  // Whether path is a URL (needs download) or local file
+  bool is_remote = 3;
+
+  // Image dimensions (if known)
+  int32 width = 4;
+  int32 height = 5;
+
+  // Language code (e.g., "en", "de")
+  string language = 6;
+
+  // Rating/votes for this image (from sources like Fanart.tv)
+  float rating = 7;
+  int32 votes = 8;
+
+  // Season number (for season-specific artwork)
+  int32 season = 9;
+}

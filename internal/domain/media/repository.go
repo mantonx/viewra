@@ -159,6 +159,7 @@ type TVShow struct {
 	IMDbID        string
 	TMDbID        int
 	ContentRating string
+	Directory     string // Path to the show directory (for enrichment/artwork)
 }
 
 // TVShowWithCounts represents a TV show with aggregated season and episode counts

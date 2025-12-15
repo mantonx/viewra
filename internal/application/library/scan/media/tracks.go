@@ -1,0 +1,143 @@
+package media
+
+import (
+	"context"
+	"path/filepath"
+
+	"github.com/mantonx/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
+)
+
+// PersistMediaTracks saves audio and subtitle track metadata for a media item.
+// It deletes existing tracks and inserts new ones from the scan result,
+// then discovers and persists external subtitle files.
+func PersistMediaTracks(ctx context.Context, deps *Deps, mediaID int64, result *scanner.ScanResult) {
+	// Delete existing tracks (we'll re-add them)
+	if err := deps.MediaRepos.Media.DeleteAudioTracksByMediaID(ctx, mediaID); err != nil {
+		deps.Logger.Warn("Failed to delete existing audio tracks",
+			"media_id", mediaID,
+			"error", err)
+	}
+
+	if err := deps.MediaRepos.Media.DeleteSubtitleTracksByMediaID(ctx, mediaID); err != nil {
+		deps.Logger.Warn("Failed to delete existing subtitle tracks",
+			"media_id", mediaID,
+			"error", err)
+	}
+
+	// Insert audio tracks from embedded streams
+	for _, t := range result.AudioTracks {
+		audioTrack := &media.AudioTrack{
+			MediaID:       mediaID,
+			StreamIndex:   t.StreamIndex,
+			Codec:         t.Codec,
+			CodecProfile:  t.CodecProfile,
+			Channels:      t.Channels,
+			ChannelLayout: t.ChannelLayout,
+			SampleRate:    t.SampleRate,
+			BitRate:       t.BitRate,
+			Language:      t.Language,
+			Title:         t.Title,
+			IsDefault:     t.IsDefault,
+			IsCommentary:  t.IsCommentary,
+			IsDescriptive: t.IsDescriptive,
+		}
+		if err := deps.MediaRepos.Media.InsertAudioTrack(ctx, audioTrack); err != nil {
+			deps.Logger.Warn("Failed to insert audio track",
+				"media_id", mediaID,
+				"stream_index", t.StreamIndex,
+				"error", err)
+		}
+	}
+
+	// Insert embedded subtitle tracks
+	for _, t := range result.SubtitleTracks {
+		streamIndex := t.StreamIndex
+		subtitleTrack := &media.SubtitleTrack{
+			MediaID:      mediaID,
+			StreamIndex:  &streamIndex,
+			SourceType:   media.SubtitleSourceEmbedded,
+			Codec:        t.Codec,
+			Language:     t.Language,
+			Title:        t.Title,
+			IsDefault:    t.IsDefault,
+			IsForced:     t.IsForced,
+			IsSDH:        t.IsSDH,
+			IsCommentary: t.IsCommentary,
+			IsBitmap:     t.IsBitmap,
+		}
+		if err := deps.MediaRepos.Media.InsertSubtitleTrack(ctx, subtitleTrack); err != nil {
+			deps.Logger.Warn("Failed to insert subtitle track",
+				"media_id", mediaID,
+				"stream_index", t.StreamIndex,
+				"error", err)
+		}
+	}
+
+	// Discover and persist external subtitle files
+	DiscoverExternalSubtitles(ctx, deps, mediaID, result.FilePath)
+}
+
+// DiscoverExternalSubtitles finds and persists external subtitle files for a media item.
+func DiscoverExternalSubtitles(ctx context.Context, deps *Deps, mediaID int64, videoPath string) {
+	// Get the library to resolve the full path
+	mediaItem, err := deps.MediaRepos.Media.GetByID(ctx, mediaID)
+	if err != nil {
+		deps.Logger.Warn("Failed to get media for subtitle discovery",
+			"media_id", mediaID,
+			"error", err)
+		return
+	}
+
+	// Get library path to build full video path
+	library, err := deps.MediaRepos.Library.GetByID(ctx, mediaItem.LibraryID)
+	if err != nil {
+		deps.Logger.Warn("Failed to get library for subtitle discovery",
+			"library_id", mediaItem.LibraryID,
+			"error", err)
+		return
+	}
+
+	fullVideoPath := filepath.Join(library.Path, mediaItem.FilePath)
+
+	// Discover external subtitles
+	externalSubs := filesystem.DiscoverAllExternalSubtitles(fullVideoPath)
+	if len(externalSubs) == 0 {
+		return
+	}
+
+	// Persist each external subtitle
+	for _, sub := range externalSubs {
+		// Convert absolute path to relative path from library root
+		relPath, err := filepath.Rel(library.Path, sub.FilePath)
+		if err != nil {
+			deps.Logger.Warn("Failed to compute relative path for external subtitle",
+				"subtitle_path", sub.FilePath,
+				"library_path", library.Path,
+				"error", err)
+			continue
+		}
+
+		subtitleTrack := &media.SubtitleTrack{
+			MediaID:      mediaID,
+			SourceType:   media.SubtitleSourceExternal,
+			Codec:        sub.Codec,
+			Language:     sub.Language,
+			Title:        sub.Title,
+			FilePath:     &relPath,
+			IsDefault:    false, // External subtitles are not default by default
+			IsForced:     sub.IsForced,
+			IsSDH:        sub.IsSDH,
+			IsCommentary: sub.Title == "Commentary",
+			IsBitmap:     false, // External subtitles are typically text-based
+		}
+
+		if err := deps.MediaRepos.Media.InsertSubtitleTrack(ctx, subtitleTrack); err != nil {
+			deps.Logger.Warn("Failed to insert external subtitle track",
+				"media_id", mediaID,
+				"subtitle_path", relPath,
+				"error", err)
+		}
+	}
+}

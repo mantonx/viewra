@@ -1,0 +1,244 @@
+syntax = "proto3";
+
+package viewra.plugin.v1;
+
+option go_package = "github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1";
+
+import "api/proto/plugin/common.proto";
+
+// HostData provides read-only access to ViewRA's media data.
+// Plugins use this to query media information.
+service HostData {
+  // GetMedia retrieves a single media item by ID.
+  rpc GetMedia(MediaQuery) returns (Media);
+
+  // GetMediaByExternalId looks up media by external ID (e.g., IMDB, TMDB).
+  rpc GetMediaByExternalId(ExternalIdQuery) returns (Media);
+
+  // SearchMedia searches for media by title/year.
+  rpc SearchMedia(SearchQuery) returns (MediaList);
+
+  // GetLibrary retrieves library information.
+  rpc GetLibrary(LibraryId) returns (Library);
+
+  // GetFilePath returns the full file path for a media item.
+  rpc GetFilePath(MediaId) returns (FilePath);
+}
+
+// HostStorage provides plugin-scoped storage.
+// Each plugin gets its own isolated storage namespace.
+service HostStorage {
+  // KVGet retrieves a value from the plugin's key-value store.
+  rpc KVGet(KVKey) returns (KVValue);
+
+  // KVSet stores a value in the plugin's key-value store.
+  rpc KVSet(KVEntry) returns (Empty);
+
+  // KVDelete removes a value from the plugin's key-value store.
+  rpc KVDelete(KVKey) returns (Empty);
+
+  // KVList lists keys with an optional prefix.
+  rpc KVList(KVListRequest) returns (KVKeyList);
+
+  // GetDatabasePath returns the path to the plugin's SQLite database.
+  rpc GetDatabasePath(Empty) returns (DatabasePath);
+
+  // RegisterSchema registers a schema version for migration tracking.
+  rpc RegisterSchema(SchemaVersion) returns (Empty);
+
+  // GetDatabaseStats returns storage usage statistics.
+  rpc GetDatabaseStats(Empty) returns (DatabaseStats);
+}
+
+// HostUserMetadata provides per-user metadata storage for plugins.
+// Used by plugins that need to store user-specific data (e.g., Trakt watched status).
+service HostUserMetadata {
+  // Get retrieves plugin-specific data for a user.
+  rpc Get(UserMetadataKey) returns (UserMetadataValue);
+
+  // Set stores plugin-specific data for a user.
+  rpc Set(UserMetadataEntry) returns (Empty);
+
+  // Delete removes plugin-specific data for a user.
+  rpc Delete(UserMetadataKey) returns (Empty);
+
+  // ListKeys lists all keys for a user.
+  rpc ListKeys(UserId) returns (UserMetadataKeyList);
+}
+
+// HostFileParser exposes ViewRA's internal parsing capabilities.
+// Useful for external plugins that need to parse local files.
+service HostFileParser {
+  // ParseNFO parses an NFO file and returns its contents.
+  rpc ParseNFO(ParseNFORequest) returns (NFOMetadata);
+
+  // ExtractEmbeddedImages extracts images embedded in media files.
+  rpc ExtractEmbeddedImages(ExtractImagesRequest) returns (ExtractImagesResponse);
+}
+
+// HostData messages
+
+message MediaQuery {
+  int64 media_id = 1;
+}
+
+message MediaId {
+  int64 id = 1;
+}
+
+message ExternalIdQuery {
+  string provider = 1;  // e.g., "imdb", "tmdb", "musicbrainz"
+  string external_id = 2;
+}
+
+message SearchQuery {
+  string title = 1;
+  int32 year = 2;
+  string media_type = 3;  // "movie", "tv", "music"
+  int32 limit = 4;
+}
+
+message Media {
+  int64 id = 1;
+  string media_type = 2;
+  string title = 3;
+  int32 year = 4;
+  string file_path = 5;
+  int64 library_id = 6;
+  map<string, string> external_ids = 7;
+}
+
+message MediaList {
+  repeated Media items = 1;
+}
+
+message LibraryId {
+  int64 id = 1;
+}
+
+message Library {
+  int64 id = 1;
+  string name = 2;
+  string path = 3;
+  string media_type = 4;
+}
+
+message FilePath {
+  string path = 1;
+}
+
+// HostStorage messages
+
+message KVKey {
+  string key = 1;
+}
+
+message KVValue {
+  bytes value = 1;
+  bool exists = 2;
+}
+
+message KVEntry {
+  string key = 1;
+  bytes value = 2;
+  int64 ttl_seconds = 3;  // 0 = no expiration
+}
+
+message KVListRequest {
+  string prefix = 1;
+  int32 limit = 2;
+}
+
+message KVKeyList {
+  repeated string keys = 1;
+}
+
+message DatabasePath {
+  string path = 1;
+}
+
+message SchemaVersion {
+  int32 version = 1;
+  string migration_sql = 2;
+}
+
+message DatabaseStats {
+  int64 size_bytes = 1;
+  int64 quota_bytes = 2;
+  int32 table_count = 3;
+}
+
+// HostUserMetadata messages
+
+message UserId {
+  string user_id = 1;
+}
+
+message UserMetadataKey {
+  string user_id = 1;
+  string key = 2;
+}
+
+message UserMetadataValue {
+  bytes value = 1;
+  bool exists = 2;
+}
+
+message UserMetadataEntry {
+  string user_id = 1;
+  string key = 2;
+  bytes value = 3;
+}
+
+message UserMetadataKeyList {
+  repeated string keys = 1;
+}
+
+// HostFileParser messages
+
+message ParseNFORequest {
+  string file_path = 1;
+  string nfo_type = 2;  // "movie", "tvshow", "episode", "artist", "album"
+}
+
+message NFOMetadata {
+  bool found = 1;
+  string title = 2;
+  string original_title = 3;
+  int32 year = 4;
+  string plot = 5;
+  string tagline = 6;
+  repeated string genres = 7;
+  string content_rating = 8;
+  int32 runtime_minutes = 9;
+  float rating = 10;
+  map<string, string> external_ids = 11;
+  repeated string directors = 12;
+  repeated string writers = 13;
+  repeated NFOActor actors = 14;
+  repeated string studios = 15;
+}
+
+message NFOActor {
+  string name = 1;
+  string role = 2;
+  string thumb = 3;
+  int32 order = 4;
+}
+
+message ExtractImagesRequest {
+  string file_path = 1;
+  repeated string types = 2;  // e.g., ["poster", "fanart"]
+}
+
+message ExtractImagesResponse {
+  repeated ExtractedImage images = 1;
+}
+
+message ExtractedImage {
+  string type = 1;
+  string path = 2;  // Path where image was saved
+  int32 width = 3;
+  int32 height = 4;
+}
+

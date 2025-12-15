@@ -6,11 +6,13 @@
 INSERT INTO tv_shows (
     library_id, title, original_title, sort_title, year, first_air_date,
     last_air_date, genre, plot, status, content_rating, maturity_rating,
-    network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id
+    network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id,
+    directory
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11, $12,
-    $13, $14, $15, $16, $17, $18
+    $13, $14, $15, $16, $17, $18,
+    $19
 ) RETURNING *;
 
 -- name: GetTVShowByID :one
@@ -46,8 +48,9 @@ SET title = $1,
     imdb_id = $15,
     tmdb_id = $16,
     tvdb_id = $17,
+    directory = $18,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $18;
+WHERE id = $19;
 
 -- name: DeleteTVShow :exec
 DELETE FROM tv_shows

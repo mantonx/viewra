@@ -7,7 +7,49 @@ package sqlc_postgres
 import (
 	"database/sql"
 	"time"
+
+	"github.com/sqlc-dev/pqtype"
 )
+
+type EnrichmentPipeline struct {
+	ID         int32                 `json:"id"`
+	MediaType  string                `json:"media_type"`
+	PluginID   string                `json:"plugin_id"`
+	StageName  string                `json:"stage_name"`
+	Position   int32                 `json:"position"`
+	Enabled    sql.NullBool          `json:"enabled"`
+	ConfigJson pqtype.NullRawMessage `json:"config_json"`
+	CreatedAt  sql.NullTime          `json:"created_at"`
+	UpdatedAt  sql.NullTime          `json:"updated_at"`
+}
+
+type EnrichmentQueue struct {
+	ID            int32          `json:"id"`
+	MediaID       int32          `json:"media_id"`
+	Stage         string         `json:"stage"`
+	Priority      sql.NullInt32  `json:"priority"`
+	Status        sql.NullString `json:"status"`
+	Attempts      sql.NullInt32  `json:"attempts"`
+	MaxAttempts   sql.NullInt32  `json:"max_attempts"`
+	ErrorMessage  sql.NullString `json:"error_message"`
+	ErrorCategory sql.NullString `json:"error_category"`
+	NextRetryAt   sql.NullTime   `json:"next_retry_at"`
+	LockedBy      sql.NullString `json:"locked_by"`
+	LockedAt      sql.NullTime   `json:"locked_at"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
+	UpdatedAt     sql.NullTime   `json:"updated_at"`
+	MediaType     string         `json:"media_type"`
+}
+
+type EnrichmentStatus struct {
+	MediaID      int32                 `json:"media_id"`
+	Stage        string                `json:"stage"`
+	Status       sql.NullString        `json:"status"`
+	PluginID     sql.NullString        `json:"plugin_id"`
+	CompletedAt  sql.NullTime          `json:"completed_at"`
+	ErrorMessage sql.NullString        `json:"error_message"`
+	MetadataJson pqtype.NullRawMessage `json:"metadata_json"`
+}
 
 type Library struct {
 	ID                    int32          `json:"id"`
@@ -39,6 +81,14 @@ type MediaAudioTrack struct {
 	CreatedAt     sql.NullTime   `json:"created_at"`
 }
 
+type MediaExternalID struct {
+	MediaID    int32        `json:"media_id"`
+	Provider   string       `json:"provider"`
+	ExternalID string       `json:"external_id"`
+	CreatedAt  sql.NullTime `json:"created_at"`
+	UpdatedAt  sql.NullTime `json:"updated_at"`
+}
+
 type MediaImage struct {
 	ID             int32          `json:"id"`
 	MediaID        sql.NullInt32  `json:"media_id"`
@@ -58,6 +108,14 @@ type MediaImage struct {
 	Priority       sql.NullInt32  `json:"priority"`
 	CreatedAt      sql.NullTime   `json:"created_at"`
 	UpdatedAt      sql.NullTime   `json:"updated_at"`
+}
+
+type MediaMetadataSource struct {
+	MediaID   int32          `json:"media_id"`
+	FieldName string         `json:"field_name"`
+	PluginID  string         `json:"plugin_id"`
+	RawValue  sql.NullString `json:"raw_value"`
+	UpdatedAt sql.NullTime   `json:"updated_at"`
 }
 
 type MediaSubtitleTrack struct {
@@ -159,6 +217,7 @@ type MusicAlbum struct {
 	CreatedAt          sql.NullTime   `json:"created_at"`
 	UpdatedAt          sql.NullTime   `json:"updated_at"`
 	ArtistID           sql.NullInt32  `json:"artist_id"`
+	Directory          sql.NullString `json:"directory"`
 }
 
 type MusicArtist struct {
@@ -174,6 +233,7 @@ type MusicArtist struct {
 	ImagePath           sql.NullString `json:"image_path"`
 	CreatedAt           sql.NullTime   `json:"created_at"`
 	UpdatedAt           sql.NullTime   `json:"updated_at"`
+	Directory           sql.NullString `json:"directory"`
 }
 
 type MusicTrack struct {
@@ -234,6 +294,15 @@ type PlaybackSession struct {
 	DeviceType         sql.NullString `json:"device_type"`
 	ConnectionType     sql.NullString `json:"connection_type"`
 	CreatedAt          sql.NullTime   `json:"created_at"`
+}
+
+type PluginKv struct {
+	PluginID  string       `json:"plugin_id"`
+	Key       string       `json:"key"`
+	Value     []byte       `json:"value"`
+	ExpiresAt sql.NullTime `json:"expires_at"`
+	CreatedAt time.Time    `json:"created_at"`
+	UpdatedAt time.Time    `json:"updated_at"`
 }
 
 type QualitySwitchEvent struct {
@@ -418,6 +487,7 @@ type TvShow struct {
 	TvdbID           sql.NullInt32  `json:"tvdb_id"`
 	CreatedAt        sql.NullTime   `json:"created_at"`
 	UpdatedAt        sql.NullTime   `json:"updated_at"`
+	Directory        sql.NullString `json:"directory"`
 }
 
 type User struct {

@@ -159,12 +159,14 @@ const createTVShow = `-- name: CreateTVShow :one
 INSERT INTO tv_shows (
     library_id, title, original_title, sort_title, year, first_air_date,
     last_air_date, genre, plot, status, content_rating, maturity_rating,
-    network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id
+    network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id,
+    directory
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11, $12,
-    $13, $14, $15, $16, $17, $18
-) RETURNING id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at
+    $13, $14, $15, $16, $17, $18,
+    $19
+) RETURNING id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory
 `
 
 type CreateTVShowParams struct {
@@ -186,6 +188,7 @@ type CreateTVShowParams struct {
 	ImdbID           sql.NullString `json:"imdb_id"`
 	TmdbID           sql.NullInt32  `json:"tmdb_id"`
 	TvdbID           sql.NullInt32  `json:"tvdb_id"`
+	Directory        sql.NullString `json:"directory"`
 }
 
 // ============================================================================
@@ -211,6 +214,7 @@ func (q *Queries) CreateTVShow(ctx context.Context, arg CreateTVShowParams) (TvS
 		arg.ImdbID,
 		arg.TmdbID,
 		arg.TvdbID,
+		arg.Directory,
 	)
 	var i TvShow
 	err := row.Scan(
@@ -235,6 +239,7 @@ func (q *Queries) CreateTVShow(ctx context.Context, arg CreateTVShowParams) (TvS
 		&i.TvdbID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Directory,
 	)
 	return i, err
 }
@@ -645,7 +650,7 @@ func (q *Queries) GetTVSeasonByShowAndNumber(ctx context.Context, arg GetTVSeaso
 }
 
 const getTVShowByID = `-- name: GetTVShowByID :one
-SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at FROM tv_shows
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory FROM tv_shows
 WHERE id = $1
 `
 
@@ -674,12 +679,13 @@ func (q *Queries) GetTVShowByID(ctx context.Context, id int32) (TvShow, error) {
 		&i.TvdbID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Directory,
 	)
 	return i, err
 }
 
 const getTVShowByTitle = `-- name: GetTVShowByTitle :one
-SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at FROM tv_shows
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory FROM tv_shows
 WHERE library_id = $1 AND LOWER(title) = LOWER($2)
 LIMIT 1
 `
@@ -714,6 +720,7 @@ func (q *Queries) GetTVShowByTitle(ctx context.Context, arg GetTVShowByTitlePara
 		&i.TvdbID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Directory,
 	)
 	return i, err
 }
@@ -1604,7 +1611,7 @@ func (q *Queries) ListTVShowIDsByLibraryPaginatedDesc(ctx context.Context, arg L
 }
 
 const listTVShowsByLibrary = `-- name: ListTVShowsByLibrary :many
-SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at FROM tv_shows
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory FROM tv_shows
 WHERE library_id = $1
 ORDER BY sort_title, title
 `
@@ -1640,6 +1647,7 @@ func (q *Queries) ListTVShowsByLibrary(ctx context.Context, libraryID int32) ([]
 			&i.TvdbID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Directory,
 		); err != nil {
 			return nil, err
 		}
@@ -1655,7 +1663,7 @@ func (q *Queries) ListTVShowsByLibrary(ctx context.Context, libraryID int32) ([]
 }
 
 const listTVShowsByLibraryPaginated = `-- name: ListTVShowsByLibraryPaginated :many
-SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at FROM tv_shows
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory FROM tv_shows
 WHERE library_id = $1
 ORDER BY COALESCE(sort_title, title) ASC
 LIMIT $2 OFFSET $3
@@ -1698,6 +1706,7 @@ func (q *Queries) ListTVShowsByLibraryPaginated(ctx context.Context, arg ListTVS
 			&i.TvdbID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Directory,
 		); err != nil {
 			return nil, err
 		}
@@ -1713,7 +1722,7 @@ func (q *Queries) ListTVShowsByLibraryPaginated(ctx context.Context, arg ListTVS
 }
 
 const listTVShowsByLibraryPaginatedDesc = `-- name: ListTVShowsByLibraryPaginatedDesc :many
-SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at FROM tv_shows
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory FROM tv_shows
 WHERE library_id = $1
 ORDER BY COALESCE(sort_title, title) DESC
 LIMIT $2 OFFSET $3
@@ -1756,6 +1765,7 @@ func (q *Queries) ListTVShowsByLibraryPaginatedDesc(ctx context.Context, arg Lis
 			&i.TvdbID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Directory,
 		); err != nil {
 			return nil, err
 		}
@@ -1955,7 +1965,7 @@ func (q *Queries) SearchTVEpisodesByTitle(ctx context.Context, arg SearchTVEpiso
 }
 
 const searchTVShowsByTitle = `-- name: SearchTVShowsByTitle :many
-SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at FROM tv_shows
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory FROM tv_shows
 WHERE library_id = $1
   AND (title ILIKE $2 OR original_title ILIKE $3)
 ORDER BY sort_title, title
@@ -1998,6 +2008,7 @@ func (q *Queries) SearchTVShowsByTitle(ctx context.Context, arg SearchTVShowsByT
 			&i.TvdbID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Directory,
 		); err != nil {
 			return nil, err
 		}
@@ -2013,7 +2024,7 @@ func (q *Queries) SearchTVShowsByTitle(ctx context.Context, arg SearchTVShowsByT
 }
 
 const searchTVShowsByTitlePaginated = `-- name: SearchTVShowsByTitlePaginated :many
-SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at FROM tv_shows
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory FROM tv_shows
 WHERE library_id = $1
   AND (title ILIKE $2 OR original_title ILIKE $3)
 ORDER BY sort_title, title
@@ -2065,6 +2076,7 @@ func (q *Queries) SearchTVShowsByTitlePaginated(ctx context.Context, arg SearchT
 			&i.TvdbID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Directory,
 		); err != nil {
 			return nil, err
 		}
@@ -2281,8 +2293,9 @@ SET title = $1,
     imdb_id = $15,
     tmdb_id = $16,
     tvdb_id = $17,
+    directory = $18,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $18
+WHERE id = $19
 `
 
 type UpdateTVShowParams struct {
@@ -2303,6 +2316,7 @@ type UpdateTVShowParams struct {
 	ImdbID           sql.NullString `json:"imdb_id"`
 	TmdbID           sql.NullInt32  `json:"tmdb_id"`
 	TvdbID           sql.NullInt32  `json:"tvdb_id"`
+	Directory        sql.NullString `json:"directory"`
 	ID               int32          `json:"id"`
 }
 
@@ -2325,6 +2339,7 @@ func (q *Queries) UpdateTVShow(ctx context.Context, arg UpdateTVShowParams) erro
 		arg.ImdbID,
 		arg.TmdbID,
 		arg.TvdbID,
+		arg.Directory,
 		arg.ID,
 	)
 	return err

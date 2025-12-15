@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package viewra.plugin.v1;
+
+option go_package = "github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1";
+
+// Common messages shared across all plugin services.
+
+// Empty is the standard empty message for RPCs with no request/response body.
+message Empty {}

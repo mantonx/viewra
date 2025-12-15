@@ -9,10 +9,13 @@ import (
 
 	"github.com/mantonx/viewra/internal/app/config"
 	"github.com/mantonx/viewra/internal/app/repositories"
+	"github.com/mantonx/viewra/internal/application/enrichment/builtin"
+	"github.com/mantonx/viewra/internal/application/enrichment/pipeline"
 	"github.com/mantonx/viewra/internal/application/settings"
 	"github.com/mantonx/viewra/internal/application/transcode"
 	domaintranscode "github.com/mantonx/viewra/internal/domain/transcode"
 	"github.com/mantonx/viewra/internal/infrastructure/auth"
+	"github.com/mantonx/viewra/internal/infrastructure/events"
 	infraimages "github.com/mantonx/viewra/internal/infrastructure/images"
 	"github.com/mantonx/viewra/internal/infrastructure/pathbrowser"
 	"github.com/mantonx/viewra/internal/infrastructure/subtitles"
@@ -53,6 +56,12 @@ type Services struct {
 
 	// Settings service
 	Settings *settings.Service
+
+	// Event Bus for pub/sub messaging
+	EventBus *events.Bus
+
+	// Enrichment pipeline manager
+	PipelineManager *pipeline.Manager
 }
 
 // BuildServices creates and initializes all infrastructure services.
@@ -214,6 +223,32 @@ func BuildServices(
 	subtitleCacheDir := cfg.Media.TranscodeOutputDir // Reuse transcode output dir for subtitle cache
 	subtitleConverter := subtitles.NewConverter(subtitleCacheDir)
 
+	// Initialize Event Bus for pub/sub messaging
+	// Ring buffer size of 10000 provides ~10min of event history for replay
+	eventBus := events.NewBus(10000, logger)
+
+	// Initialize enrichment pipeline manager
+	pipelineLogger := logger.With("component", "enrichment-pipeline")
+	pipelineManager := pipeline.NewManager(
+		&pipeline.Deps{
+			QueueRepo:      repos.EnrichmentQueue,
+			StatusRepo:     repos.EnrichmentStatus,
+			PipelineRepo:   repos.EnrichmentPipeline,
+			ExternalIDRepo: repos.EnrichmentExternalID,
+			MediaRepo:      repos.Media,
+			EventBus:       eventBus,
+			Logger:         pipelineLogger,
+		},
+		&pipeline.TypedMediaRepos{
+			Movie: repos.Movie,
+			TV:    repos.TV,
+			Music: repos.Music,
+		},
+	)
+	// Register built-in enrichers
+	pipelineManager.RegisterEnricher(builtin.NewNFOEnricher())
+	pipelineManager.RegisterEnricher(builtin.NewLocalImagesEnricher())
+
 	return &Services{
 		ImageCache:        imageCacheService,
 		ImageTransformer:  imageTransformer,
@@ -227,6 +262,8 @@ func BuildServices(
 		PasswordHasher:    passwordHasher,
 		TokenService:      tokenService,
 		Settings:          settingsService,
+		EventBus:          eventBus,
+		PipelineManager:   pipelineManager,
 	}, nil
 }
 

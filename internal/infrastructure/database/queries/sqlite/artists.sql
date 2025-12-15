@@ -10,8 +10,9 @@ INSERT INTO music_artists (
     genre,
     image_path,
     created_at,
-    updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    updated_at,
+    directory
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: GetArtistByID :one
@@ -42,6 +43,7 @@ SET name = ?,
     formed_year = ?,
     genre = ?,
     image_path = ?,
+    directory = ?,
     updated_at = ?
 WHERE id = ?;
 

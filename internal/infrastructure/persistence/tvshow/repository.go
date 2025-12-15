@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	domainCommon "github.com/mantonx/viewra/internal/domain/common"
 	"github.com/mantonx/viewra/internal/domain/media"
@@ -188,14 +189,14 @@ func (r *Repository) SearchTVEpisodes(ctx context.Context, libraryID int64, quer
 // --- TV Show Methods ---
 
 // CreateTVShow adds a new TV show to the repository
-func (r *Repository) CreateTVShow(ctx context.Context, libraryID int64, title string) (media.TVShow, error) {
+func (r *Repository) CreateTVShow(ctx context.Context, libraryID int64, title, directory string) (media.TVShow, error) {
 	return common.QuerySingle(
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.TvShow, error) {
-			return r.Postgres().CreateTVShow(ctx, buildPostgresCreateTVShowParams(libraryID, title))
+			return r.Postgres().CreateTVShow(ctx, buildPostgresCreateTVShowParams(libraryID, title, directory))
 		},
 		func() (sqlc_sqlite.TvShow, error) {
-			return r.SQLite().CreateTVShow(ctx, buildSQLiteCreateTVShowParams(libraryID, title))
+			return r.SQLite().CreateTVShow(ctx, buildSQLiteCreateTVShowParams(libraryID, title, directory))
 		},
 		postgresShowToDomain,
 		sqliteShowToDomain,
@@ -569,7 +570,11 @@ func (r *Repository) ensureTVShowExists(ctx context.Context, episode *media.TVEp
 
 	// If not found, create it
 	if errors.Is(err, media.ErrMediaNotFound) {
-		return r.CreateTVShow(ctx, episode.LibraryID, episode.ShowTitle)
+		// Derive show directory from episode file path
+		// Structure: /library/Show Name/Season XX/episode.mkv
+		// Show directory is two levels up from the episode file
+		showDir := filepath.Dir(filepath.Dir(episode.Media.FilePath))
+		return r.CreateTVShow(ctx, episode.LibraryID, episode.ShowTitle, showDir)
 	}
 
 	return media.TVShow{}, err
