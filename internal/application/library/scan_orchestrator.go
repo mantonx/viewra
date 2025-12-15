@@ -98,6 +98,7 @@ func NewScanLibraryUseCase(
 		trackImageExtractor:   trackImageExtractor,
 		imageRepo:             imageRepo,
 		imageCleanup:          imageCleanup,
+		enrichmentEnqueuer:    enrichmentEnqueuer,
 		incrementalScanner:    incrementalScanner,
 		coordinator:           coordinator,
 		config:                config,
@@ -251,20 +252,21 @@ func (uc *ScanLibraryUseCase) GetScanStatus(ctx context.Context, libraryID int64
 
 func (uc *ScanLibraryUseCase) mediaDeps() *scanmedia.Deps {
 	return &scanmedia.Deps{
-		MediaRepos:       uc.mediaRepos,
-		ScanRepos:        uc.scanRepos,
-		ImageRepo:        uc.imageRepo,
-		MovieExtractor:   uc.movieImageExtractor,
-		EpisodeExtractor: uc.episodeImageExtractor,
-		ShowExtractor:    uc.showImageExtractor,
-		SeasonExtractor:  uc.seasonImageExtractor,
-		AlbumExtractor:   uc.albumImageExtractor,
-		ArtistExtractor:  uc.artistImageExtractor,
-		TrackExtractor:   uc.trackImageExtractor,
-		ProcessedArtists: &uc.processedArtists,
-		ProcessedShows:   &uc.processedShows,
-		Coordinator:      uc.coordinator,
-		Logger:           uc.logger,
+		MediaRepos:         uc.mediaRepos,
+		ScanRepos:          uc.scanRepos,
+		ImageRepo:          uc.imageRepo,
+		EnrichmentEnqueuer: uc.enrichmentEnqueuer,
+		MovieExtractor:     uc.movieImageExtractor,
+		EpisodeExtractor:   uc.episodeImageExtractor,
+		ShowExtractor:      uc.showImageExtractor,
+		SeasonExtractor:    uc.seasonImageExtractor,
+		AlbumExtractor:     uc.albumImageExtractor,
+		ArtistExtractor:    uc.artistImageExtractor,
+		TrackExtractor:     uc.trackImageExtractor,
+		ProcessedArtists:   &uc.processedArtists,
+		ProcessedShows:     &uc.processedShows,
+		Coordinator:        uc.coordinator,
+		Logger:             uc.logger,
 	}
 }
 
