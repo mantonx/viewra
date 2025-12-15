@@ -82,11 +82,14 @@ type MediaAudioTrack struct {
 }
 
 type MediaExternalID struct {
-	MediaID    int32        `json:"media_id"`
-	Provider   string       `json:"provider"`
-	ExternalID string       `json:"external_id"`
-	CreatedAt  sql.NullTime `json:"created_at"`
-	UpdatedAt  sql.NullTime `json:"updated_at"`
+	ID         int32         `json:"id"`
+	MediaID    sql.NullInt32 `json:"media_id"`
+	MediaType  interface{}   `json:"media_type"`
+	EntityID   int32         `json:"entity_id"`
+	Provider   string        `json:"provider"`
+	ExternalID string        `json:"external_id"`
+	CreatedAt  sql.NullTime  `json:"created_at"`
+	UpdatedAt  sql.NullTime  `json:"updated_at"`
 }
 
 type MediaImage struct {

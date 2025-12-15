@@ -51,6 +51,17 @@ type Repository interface {
 	// GetByHash retrieves all images with a specific file hash (for deduplication checks)
 	GetByHash(ctx context.Context, hash string) ([]*Image, error)
 
+	// GetByExternalURL retrieves an image by its external URL and media ID (for remote dedup)
+	GetByExternalURL(ctx context.Context, externalURL string, mediaID int64) (*Image, error)
+
 	// HasImagesForEntity checks if an entity has any images
 	HasImagesForEntity(ctx context.Context, mediaType MediaType, entityID int) (bool, error)
+
+	// DeleteOrphanedEntityImages removes images for entities that no longer exist.
+	// This handles polymorphic entity_id references (tv_show, tv_season, music_album, music_artist)
+	// that don't have foreign key constraints. Returns the number of deleted images.
+	DeleteOrphanedEntityImages(ctx context.Context) (int64, error)
+
+	// CountOrphanedEntityImages counts images for entities that no longer exist.
+	CountOrphanedEntityImages(ctx context.Context) (int64, error)
 }

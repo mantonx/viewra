@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 	appenrich "github.com/mantonx/viewra/internal/application/enrichment"
 	"github.com/mantonx/viewra/internal/domain/enrichment"
 	"github.com/mantonx/viewra/internal/infrastructure/events"
@@ -284,6 +285,15 @@ func (r *mockPipelineRepo) GetNextStage(ctx context.Context, mediaType enrichmen
 	return nil, nil
 }
 
+func (r *mockPipelineRepo) GetStageByName(ctx context.Context, mediaType enrichment.MediaType, stageName string) (*enrichment.PipelineStage, error) {
+	for _, s := range r.stages {
+		if s.MediaType == mediaType && s.StageName == stageName {
+			return s, nil
+		}
+	}
+	return nil, nil
+}
+
 func (r *mockPipelineRepo) Update(ctx context.Context, stage *enrichment.PipelineStage) error {
 	for i, s := range r.stages {
 		if s.ID == stage.ID {
@@ -350,14 +360,18 @@ func (e *mockEnricher) Stage() string {
 func (e *mockEnricher) Capabilities() appenrich.EnricherCapabilities {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return appenrich.EnricherCapabilities{
-		MediaTypes: e.mediaTypes,
+	mediaTypeStrings := make([]string, len(e.mediaTypes))
+	for i, mt := range e.mediaTypes {
+		mediaTypeStrings[i] = string(mt)
+	}
+	return appenrich.NewCapabilities(&pluginv1.EnricherCapabilities{
+		MediaTypes: mediaTypeStrings,
 		Provides:   []string{"metadata"},
 		IsLocal:    e.isLocal,
-	}
+	})
 }
 
-func (e *mockEnricher) Enrich(ctx context.Context, req *appenrich.EnrichRequest) (*appenrich.EnrichResponse, error) {
+func (e *mockEnricher) Enrich(ctx context.Context, req *pluginv1.EnrichRequest) (*pluginv1.EnrichResponse, error) {
 	e.mu.Lock()
 	e.enrichCalls++
 	delay := e.enrichDelay
@@ -729,7 +743,7 @@ func TestManager_getStageConfig_LocalEnrichers(t *testing.T) {
 	m := NewManager(deps, nil)
 
 	// Test with local enricher capabilities
-	localCaps := appenrich.EnricherCapabilities{IsLocal: true}
+	localCaps := appenrich.NewCapabilities(&pluginv1.EnricherCapabilities{IsLocal: true})
 	localStages := []string{"nfo", "local_images", "extract_metadata"}
 	for _, stage := range localStages {
 		config := m.getStageConfig(stage, localCaps)
@@ -754,7 +768,7 @@ func TestManager_getStageConfig_RemoteEnrichers(t *testing.T) {
 	m := NewManager(deps, nil)
 
 	// Test with remote enricher capabilities (IsLocal: false is default)
-	remoteCaps := appenrich.EnricherCapabilities{IsLocal: false}
+	remoteCaps := appenrich.NewCapabilities(&pluginv1.EnricherCapabilities{IsLocal: false})
 	remoteStages := []string{"tmdb", "musicbrainz", "unknown_stage"}
 	for _, stage := range remoteStages {
 		config := m.getStageConfig(stage, remoteCaps)

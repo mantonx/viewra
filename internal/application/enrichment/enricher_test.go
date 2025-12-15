@@ -3,16 +3,17 @@ package enrichment
 import (
 	"testing"
 
+	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 	"github.com/mantonx/viewra/internal/domain/enrichment"
 )
 
 func TestEnricherCapabilities_SupportsMediaType(t *testing.T) {
-	caps := EnricherCapabilities{
-		MediaTypes: []enrichment.MediaType{
-			enrichment.MediaTypeMovie,
-			enrichment.MediaTypeTV,
+	caps := NewCapabilities(&pluginv1.EnricherCapabilities{
+		MediaTypes: []string{
+			string(enrichment.MediaTypeMovie),
+			string(enrichment.MediaTypeTV),
 		},
-	}
+	})
 
 	tests := []struct {
 		name      string
@@ -37,22 +38,22 @@ func TestEnricherCapabilities_SupportsMediaType(t *testing.T) {
 }
 
 func TestEnricherCapabilities_SupportsMediaType_Empty(t *testing.T) {
-	caps := EnricherCapabilities{
+	caps := NewCapabilities(&pluginv1.EnricherCapabilities{
 		MediaTypes: nil,
-	}
+	})
 
 	if caps.SupportsMediaType(enrichment.MediaTypeMovie) {
 		t.Error("empty MediaTypes should not support any type")
 	}
 }
 
-func TestEnrichRequest_HasExternalID(t *testing.T) {
-	req := &EnrichRequest{
-		MediaID: 42,
-		ExistingIDs: map[string]string{
-			"imdb":  "tt0133093",
-			"tmdb":  "603",
-			"tvdb":  "12345",
+func TestHasExternalID(t *testing.T) {
+	req := &pluginv1.EnrichRequest{
+		MediaId: 42,
+		ExistingIds: map[string]string{
+			"imdb": "tt0133093",
+			"tmdb": "603",
+			"tvdb": "12345",
 		},
 	}
 
@@ -69,7 +70,7 @@ func TestEnrichRequest_HasExternalID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.provider, func(t *testing.T) {
-			got := req.HasExternalID(tt.provider)
+			got := HasExternalID(req, tt.provider)
 			if got != tt.expected {
 				t.Errorf("HasExternalID(%s) = %v, want %v", tt.provider, got, tt.expected)
 			}
@@ -77,21 +78,21 @@ func TestEnrichRequest_HasExternalID(t *testing.T) {
 	}
 }
 
-func TestEnrichRequest_HasExternalID_NilMap(t *testing.T) {
-	req := &EnrichRequest{
-		MediaID:     42,
-		ExistingIDs: nil,
+func TestHasExternalID_NilMap(t *testing.T) {
+	req := &pluginv1.EnrichRequest{
+		MediaId:     42,
+		ExistingIds: nil,
 	}
 
-	if req.HasExternalID("imdb") {
-		t.Error("nil ExistingIDs should return false")
+	if HasExternalID(req, "imdb") {
+		t.Error("nil ExistingIds should return false")
 	}
 }
 
-func TestEnrichRequest_GetExternalID(t *testing.T) {
-	req := &EnrichRequest{
-		MediaID: 42,
-		ExistingIDs: map[string]string{
+func TestGetExternalID(t *testing.T) {
+	req := &pluginv1.EnrichRequest{
+		MediaId: 42,
+		ExistingIds: map[string]string{
 			"imdb": "tt0133093",
 			"tmdb": "603",
 		},
@@ -109,7 +110,7 @@ func TestEnrichRequest_GetExternalID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.provider, func(t *testing.T) {
-			got := req.GetExternalID(tt.provider)
+			got := GetExternalID(req, tt.provider)
 			if got != tt.expected {
 				t.Errorf("GetExternalID(%s) = %q, want %q", tt.provider, got, tt.expected)
 			}
@@ -117,53 +118,53 @@ func TestEnrichRequest_GetExternalID(t *testing.T) {
 	}
 }
 
-func TestEnrichRequest_GetExternalID_NilMap(t *testing.T) {
-	req := &EnrichRequest{
-		MediaID:     42,
-		ExistingIDs: nil,
+func TestGetExternalID_NilMap(t *testing.T) {
+	req := &pluginv1.EnrichRequest{
+		MediaId:     42,
+		ExistingIds: nil,
 	}
 
-	got := req.GetExternalID("imdb")
+	got := GetExternalID(req, "imdb")
 	if got != "" {
 		t.Errorf("GetExternalID on nil map should return empty string, got %q", got)
 	}
 }
 
-func TestEnrichResponse_AddDiscoveredID(t *testing.T) {
-	resp := &EnrichResponse{}
+func TestAddDiscoveredID(t *testing.T) {
+	resp := &pluginv1.EnrichResponse{}
 
 	// First add should initialize the map
-	resp.AddDiscoveredID("imdb", "tt0133093")
+	AddDiscoveredID(resp, "imdb", "tt0133093")
 
-	if resp.DiscoveredIDs == nil {
-		t.Fatal("DiscoveredIDs should be initialized")
+	if resp.DiscoveredIds == nil {
+		t.Fatal("DiscoveredIds should be initialized")
 	}
-	if resp.DiscoveredIDs["imdb"] != "tt0133093" {
-		t.Errorf("DiscoveredIDs[imdb] = %q, want tt0133093", resp.DiscoveredIDs["imdb"])
+	if resp.DiscoveredIds["imdb"] != "tt0133093" {
+		t.Errorf("DiscoveredIds[imdb] = %q, want tt0133093", resp.DiscoveredIds["imdb"])
 	}
 
 	// Second add should work without re-initializing
-	resp.AddDiscoveredID("tmdb", "603")
-	if resp.DiscoveredIDs["tmdb"] != "603" {
-		t.Errorf("DiscoveredIDs[tmdb] = %q, want 603", resp.DiscoveredIDs["tmdb"])
+	AddDiscoveredID(resp, "tmdb", "603")
+	if resp.DiscoveredIds["tmdb"] != "603" {
+		t.Errorf("DiscoveredIds[tmdb] = %q, want 603", resp.DiscoveredIds["tmdb"])
 	}
 
 	// Overwrite existing
-	resp.AddDiscoveredID("imdb", "tt9999999")
-	if resp.DiscoveredIDs["imdb"] != "tt9999999" {
-		t.Errorf("DiscoveredIDs[imdb] = %q, want tt9999999", resp.DiscoveredIDs["imdb"])
+	AddDiscoveredID(resp, "imdb", "tt9999999")
+	if resp.DiscoveredIds["imdb"] != "tt9999999" {
+		t.Errorf("DiscoveredIds[imdb] = %q, want tt9999999", resp.DiscoveredIds["imdb"])
 	}
 }
 
-func TestEnrichResponse_AddImage(t *testing.T) {
-	resp := &EnrichResponse{}
+func TestAddImage(t *testing.T) {
+	resp := &pluginv1.EnrichResponse{}
 
-	img1 := EnrichedImage{
+	img1 := &pluginv1.EnrichedImage{
 		Type:     "poster",
 		Path:     "/path/to/poster.jpg",
 		IsRemote: false,
 	}
-	resp.AddImage(img1)
+	AddImage(resp, img1)
 
 	if len(resp.Images) != 1 {
 		t.Fatalf("expected 1 image, got %d", len(resp.Images))
@@ -172,12 +173,12 @@ func TestEnrichResponse_AddImage(t *testing.T) {
 		t.Errorf("Images[0].Type = %s, want poster", resp.Images[0].Type)
 	}
 
-	img2 := EnrichedImage{
+	img2 := &pluginv1.EnrichedImage{
 		Type:     "fanart",
 		Path:     "https://example.com/fanart.jpg",
 		IsRemote: true,
 	}
-	resp.AddImage(img2)
+	AddImage(resp, img2)
 
 	if len(resp.Images) != 2 {
 		t.Fatalf("expected 2 images, got %d", len(resp.Images))
@@ -221,155 +222,65 @@ func TestMatch(t *testing.T) {
 	if resp.Skipped {
 		t.Error("Skipped should be false")
 	}
-	if resp.DiscoveredIDs == nil {
-		t.Error("DiscoveredIDs should be initialized")
+	if resp.DiscoveredIds == nil {
+		t.Error("DiscoveredIds should be initialized")
 	}
 }
 
-func TestEnrichedMetadata_Fields(t *testing.T) {
-	title := "The Matrix"
-	year := 1999
-	rating := 8.7
-
-	meta := &EnrichedMetadata{
-		Title:  &title,
-		Year:   &year,
-		Rating: &rating,
-		Genre:  []string{"Action", "Sci-Fi"},
+func TestPtr(t *testing.T) {
+	strVal := Ptr("test")
+	if *strVal != "test" {
+		t.Errorf("Ptr(string) = %q, want 'test'", *strVal)
 	}
 
-	if *meta.Title != "The Matrix" {
-		t.Errorf("Title = %s, want 'The Matrix'", *meta.Title)
-	}
-	if *meta.Year != 1999 {
-		t.Errorf("Year = %d, want 1999", *meta.Year)
-	}
-	if *meta.Rating != 8.7 {
-		t.Errorf("Rating = %f, want 8.7", *meta.Rating)
-	}
-	if len(meta.Genre) != 2 {
-		t.Errorf("Genre length = %d, want 2", len(meta.Genre))
+	intVal := Ptr(42)
+	if *intVal != 42 {
+		t.Errorf("Ptr(int) = %d, want 42", *intVal)
 	}
 }
 
-func TestEnrichedImage_Fields(t *testing.T) {
-	img := EnrichedImage{
-		Type:     "poster",
-		Path:     "/path/to/poster.jpg",
-		IsRemote: false,
-		Language: "en",
-		Width:    1000,
-		Height:   1500,
-		Rating:   8.5,
-	}
-
-	if img.Type != "poster" {
-		t.Errorf("Type = %s, want poster", img.Type)
-	}
-	if img.Path != "/path/to/poster.jpg" {
-		t.Errorf("Path = %s, want /path/to/poster.jpg", img.Path)
-	}
-	if img.IsRemote {
-		t.Error("IsRemote should be false")
-	}
-	if img.Language != "en" {
-		t.Errorf("Language = %s, want en", img.Language)
-	}
-	if img.Width != 1000 {
-		t.Errorf("Width = %d, want 1000", img.Width)
-	}
-	if img.Height != 1500 {
-		t.Errorf("Height = %d, want 1500", img.Height)
-	}
-	if img.Rating != 8.5 {
-		t.Errorf("Rating = %f, want 8.5", img.Rating)
+func TestNewMetadata(t *testing.T) {
+	meta := NewMetadata()
+	if meta == nil {
+		t.Error("NewMetadata should return non-nil")
 	}
 }
 
-func TestEnrichRequest_Fields(t *testing.T) {
-	req := &EnrichRequest{
-		MediaID:       42,
-		MediaType:     enrichment.MediaTypeMovie,
-		FilePath:      "/movies/The Matrix (1999)/The Matrix.mkv",
-		LibraryID:     1,
-		Title:         "The Matrix",
-		Year:          1999,
-		OriginalTitle: "The Matrix",
-		ShowTitle:     "",
-		SeasonNumber:  0,
-		EpisodeNumber: 0,
-		Artist:        "",
-		Album:         "",
-		TrackNumber:   0,
-		ExistingIDs: map[string]string{
-			"imdb": "tt0133093",
-		},
-	}
-
-	if req.MediaID != 42 {
-		t.Errorf("MediaID = %d, want 42", req.MediaID)
-	}
-	if req.MediaType != enrichment.MediaTypeMovie {
-		t.Errorf("MediaType = %s, want movie", req.MediaType)
-	}
-	if req.Title != "The Matrix" {
-		t.Errorf("Title = %s, want 'The Matrix'", req.Title)
-	}
-	if req.Year != 1999 {
-		t.Errorf("Year = %d, want 1999", req.Year)
-	}
-}
-
-func TestEnrichResponse_Fields(t *testing.T) {
-	resp := &EnrichResponse{
-		Matched:         true,
-		Metadata:        &EnrichedMetadata{},
-		DiscoveredIDs:   map[string]string{"tmdb": "603"},
-		Images:          []EnrichedImage{{Type: "poster"}},
-		Skipped:         false,
-		SkipReason:      "",
-		ConfidenceScore: 95,
-	}
-
-	if !resp.Matched {
-		t.Error("Matched should be true")
-	}
-	if resp.Metadata == nil {
-		t.Error("Metadata should not be nil")
-	}
-	if resp.DiscoveredIDs["tmdb"] != "603" {
-		t.Errorf("DiscoveredIDs[tmdb] = %s, want 603", resp.DiscoveredIDs["tmdb"])
-	}
-	if len(resp.Images) != 1 {
-		t.Errorf("Images length = %d, want 1", len(resp.Images))
-	}
-	if resp.ConfidenceScore != 95 {
-		t.Errorf("ConfidenceScore = %d, want 95", resp.ConfidenceScore)
-	}
-}
-
-func TestEnricherCapabilities_Fields(t *testing.T) {
-	caps := EnricherCapabilities{
-		MediaTypes: []enrichment.MediaType{enrichment.MediaTypeMovie, enrichment.MediaTypeTV},
-		Provides:   []string{"metadata", "artwork", "external_ids"},
-		IsLocal:    true,
-		RateLimit:  0,
-		Requires:   []string{"imdb"},
-	}
+func TestCapabilitiesBuilder(t *testing.T) {
+	caps := NewCapabilitiesBuilder().
+		WithMediaTypes(enrichment.MediaTypeMovie, enrichment.MediaTypeTV).
+		WithProvides("metadata", "artwork").
+		AsLocal().
+		WithRequires("imdb").
+		Build()
 
 	if len(caps.MediaTypes) != 2 {
 		t.Errorf("MediaTypes length = %d, want 2", len(caps.MediaTypes))
 	}
-	if len(caps.Provides) != 3 {
-		t.Errorf("Provides length = %d, want 3", len(caps.Provides))
+	if !caps.SupportsMediaType(enrichment.MediaTypeMovie) {
+		t.Error("Should support movie")
 	}
-	if !caps.IsLocal {
-		t.Error("IsLocal should be true")
+	if !caps.IsLocalEnricher() {
+		t.Error("Should be local")
 	}
-	if caps.RateLimit != 0 {
-		t.Errorf("RateLimit = %d, want 0", caps.RateLimit)
+	if len(caps.Provides) != 2 {
+		t.Errorf("Provides length = %d, want 2", len(caps.Provides))
 	}
 	if len(caps.Requires) != 1 {
 		t.Errorf("Requires length = %d, want 1", len(caps.Requires))
+	}
+}
+
+func TestCapabilitiesBuilder_AsRemote(t *testing.T) {
+	caps := NewCapabilitiesBuilder().
+		WithMediaTypes(enrichment.MediaTypeMovie).
+		AsRemote(60).
+		Build()
+
+	if caps.IsLocalEnricher() {
+		t.Error("Should not be local")
+	}
+	if caps.GetRateLimitPerMinute() != 60 {
+		t.Errorf("RateLimit = %d, want 60", caps.GetRateLimitPerMinute())
 	}
 }

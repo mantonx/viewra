@@ -5,8 +5,9 @@ type TVEpisode struct {
 	Media // Embedded base media fields
 
 	// TV-specific fields
-	ShowTitle    string
-	SeasonID     int64 // Foreign key to tv_seasons
+	ShowID       int64  // Foreign key to tv_shows
+	ShowTitle    string // Populated from show lookup for display, not stored in tv_episodes
+	SeasonID     int64  // Foreign key to tv_seasons
 	Season       int
 	Episode      int
 	EpisodeTitle string // Different from Media.Title which is the filename

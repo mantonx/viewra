@@ -18,6 +18,10 @@ SELECT * FROM enrichment_pipelines WHERE id = ?;
 SELECT * FROM enrichment_pipelines
 WHERE media_type = ? AND plugin_id = ?;
 
+-- name: GetPipelineStageByName :one
+SELECT * FROM enrichment_pipelines
+WHERE media_type = ? AND stage_name = ?;
+
 -- name: GetEnabledPipelineStages :many
 SELECT * FROM enrichment_pipelines
 WHERE media_type = ? AND enabled = 1

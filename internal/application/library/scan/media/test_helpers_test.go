@@ -15,20 +15,14 @@ func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-// testDeps creates a Deps instance with the provided repositories and mock extractors.
+// testDeps creates a Deps instance with the provided repositories.
 // This is the standard way to set up dependencies for media processing tests.
+// Note: Image extraction is now handled by the enrichment pipeline, not the scanner.
 func testDeps(t *testing.T, mediaRepos *scan.MediaRepositories, scanRepos *scan.ScanRepositories) *Deps {
+	_ = mocks.NewImageRepository(t) // Keep reference to avoid unused import in tests
 	return &Deps{
 		MediaRepos:       mediaRepos,
 		ScanRepos:        scanRepos,
-		ImageRepo:        mocks.NewImageRepository(t),
-		MovieExtractor:   mocks.NewMovieImageExtractor(t),
-		EpisodeExtractor: mocks.NewEpisodeImageExtractor(t),
-		ShowExtractor:    mocks.NewShowImageExtractor(t),
-		SeasonExtractor:  mocks.NewSeasonImageExtractor(t),
-		AlbumExtractor:   mocks.NewAlbumImageExtractor(t),
-		ArtistExtractor:  mocks.NewArtistImageExtractor(t),
-		TrackExtractor:   mocks.NewTrackImageExtractor(t),
 		ProcessedArtists: &scanutil.AtomicDeduplicator{},
 		ProcessedShows:   &scanutil.AtomicDeduplicator{},
 		Logger:           testLogger(),

@@ -227,17 +227,34 @@ func BuildServices(
 	// Ring buffer size of 10000 provides ~10min of event history for replay
 	eventBus := events.NewBus(10000, logger)
 
+	// Initialize image downloader for remote images (TMDB, TVDB, etc.)
+	imageDownloader := infraimages.NewDownloader(infraimages.DownloaderConfig{
+		CacheDir:  cfg.Images.CacheDir,
+		RateLimit: 5.0, // 5 requests per second for API rate limiting
+		Logger:    logger.With("component", "image-downloader"),
+	})
+
+	// Create metadata extractor adapter that converts ImageInfo to ImageMetadata
+	metadataExtractor := infraimages.NewMetadataExtractor()
+	metadataAdapter := &metadataExtractorAdapter{extractor: metadataExtractor}
+
 	// Initialize enrichment pipeline manager
 	pipelineLogger := logger.With("component", "enrichment-pipeline")
 	pipelineManager := pipeline.NewManager(
 		&pipeline.Deps{
-			QueueRepo:      repos.EnrichmentQueue,
-			StatusRepo:     repos.EnrichmentStatus,
-			PipelineRepo:   repos.EnrichmentPipeline,
-			ExternalIDRepo: repos.EnrichmentExternalID,
-			MediaRepo:      repos.Media,
-			EventBus:       eventBus,
-			Logger:         pipelineLogger,
+			QueueRepo:          repos.EnrichmentQueue,
+			StatusRepo:         repos.EnrichmentStatus,
+			PipelineRepo:       repos.EnrichmentPipeline,
+			ExternalIDRepo:     repos.EnrichmentExternalID,
+			MetadataSourceRepo: repos.EnrichmentMetadataSource,
+			MediaRepo:          repos.Media,
+			ImageRepo:          repos.Image,
+			EventBus:           eventBus,
+			Logger:             pipelineLogger,
+			// Image processing dependencies
+			MetadataExtractor: metadataAdapter,
+			Transformer:       imageTransformer,
+			Downloader:        imageDownloader,
 		},
 		&pipeline.TypedMediaRepos{
 			Movie: repos.Movie,
@@ -247,7 +264,8 @@ func BuildServices(
 	)
 	// Register built-in enrichers
 	pipelineManager.RegisterEnricher(builtin.NewNFOEnricher())
-	pipelineManager.RegisterEnricher(builtin.NewLocalImagesEnricher())
+	imageExtractor := infraimages.NewExtractor()
+	pipelineManager.RegisterEnricher(builtin.NewLocalImagesEnricher(imageExtractor, logger))
 
 	return &Services{
 		ImageCache:        imageCacheService,
@@ -270,4 +288,25 @@ func BuildServices(
 // ensureDirectory creates a directory if it doesn't exist
 func ensureDirectory(path string) error {
 	return os.MkdirAll(path, 0755)
+}
+
+// metadataExtractorAdapter adapts infraimages.MetadataExtractor to pipeline.MetadataExtractor.
+// This bridges the infrastructure type (ImageInfo) to the pipeline interface type (ImageMetadata).
+type metadataExtractorAdapter struct {
+	extractor *infraimages.MetadataExtractor
+}
+
+// ExtractMetadata extracts metadata and converts to the pipeline's expected type.
+func (a *metadataExtractorAdapter) ExtractMetadata(imagePath string) (*pipeline.ImageMetadata, error) {
+	info, err := a.extractor.ExtractMetadata(imagePath)
+	if err != nil {
+		return nil, err
+	}
+	return &pipeline.ImageMetadata{
+		Width:         info.Width,
+		Height:        info.Height,
+		FileSizeBytes: info.FileSizeBytes,
+		MimeType:      info.MimeType,
+		FileHash:      info.FileHash,
+	}, nil
 }

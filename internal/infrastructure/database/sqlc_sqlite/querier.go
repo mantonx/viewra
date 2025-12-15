@@ -36,6 +36,8 @@ type Querier interface {
 	CountMediaInLibrary(ctx context.Context, libraryID int64) (int64, error)
 	CountMoviesByLibrary(ctx context.Context, libraryID int64) (int64, error)
 	CountMusicTracksByLibrary(ctx context.Context, libraryID int64) (int64, error)
+	// Count images for entities that no longer exist (for reporting before cleanup).
+	CountOrphanedEntityImages(ctx context.Context) (int64, error)
 	CountScanJobsByLibrary(ctx context.Context, libraryID int64) (int64, error)
 	CountSearchArtistsByName(ctx context.Context, arg CountSearchArtistsByNameParams) (int64, error)
 	CountSearchMoviesByTitle(ctx context.Context, arg CountSearchMoviesByTitleParams) (int64, error)
@@ -86,7 +88,10 @@ type Querier interface {
 	DeleteEnrichmentStatusByMedia(ctx context.Context, mediaID int64) error
 	DeleteExpiredSessions(ctx context.Context, expiresAt string) (int64, error)
 	DeleteExternalID(ctx context.Context, arg DeleteExternalIDParams) error
-	DeleteExternalIDsByMedia(ctx context.Context, mediaID int64) error
+	// Deletes by media_type and entity_id
+	DeleteExternalIDsByMedia(ctx context.Context, arg DeleteExternalIDsByMediaParams) error
+	// Legacy: deletes by media table ID
+	DeleteExternalIDsByMediaID(ctx context.Context, mediaID sql.NullInt64) error
 	DeleteExternalSubtitlesByMediaID(ctx context.Context, mediaID int64) error
 	DeleteImage(ctx context.Context, id int64) error
 	DeleteImagesByEntity(ctx context.Context, arg DeleteImagesByEntityParams) error
@@ -103,6 +108,9 @@ type Querier interface {
 	DeleteOldQualitySwitchEvents(ctx context.Context, timestamp int64) error
 	DeleteOldScanJobs(ctx context.Context, arg DeleteOldScanJobsParams) error
 	DeleteOldTaskExecutions(ctx context.Context, startedAt time.Time) error
+	// Delete images for entities that no longer exist (tv_show, tv_season, music_album, music_artist).
+	// This handles the polymorphic entity_id references that don't have foreign key constraints.
+	DeleteOrphanedEntityImages(ctx context.Context) (sql.Result, error)
 	DeletePipelineStage(ctx context.Context, id int64) error
 	DeletePipelineStagesByMediaType(ctx context.Context, mediaType string) error
 	DeleteScanCheckpointsByJobID(ctx context.Context, scanJobID int64) error
@@ -124,6 +132,10 @@ type Querier interface {
 	DeleteWatchProgressByMediaID(ctx context.Context, mediaID int64) error
 	DisablePipelineStage(ctx context.Context, id int64) error
 	EnablePipelineStage(ctx context.Context, id int64) error
+	// Enqueue a job for enrichment processing. On conflict:
+	// - If status is completed/skipped/failed: reset to pending for re-processing
+	// - If status is pending/processing: keep existing state (idempotent)
+	// Always returns the row (new or existing) to avoid "no rows" errors.
 	EnqueueEnrichmentJob(ctx context.Context, arg EnqueueEnrichmentJobParams) (EnrichmentQueue, error)
 	ExistsAnyUser(ctx context.Context) (int64, error)
 	FailEnrichmentJob(ctx context.Context, arg FailEnrichmentJobParams) error
@@ -155,11 +167,17 @@ type Querier interface {
 	GetEnrichmentStatus(ctx context.Context, arg GetEnrichmentStatusParams) (EnrichmentStatus, error)
 	GetEnrichmentStatusByMedia(ctx context.Context, mediaID int64) ([]EnrichmentStatus, error)
 	GetEnrichmentStatusByStage(ctx context.Context, arg GetEnrichmentStatusByStageParams) ([]EnrichmentStatus, error)
+	// Returns full entity info for external ID lookup
+	GetEntityByExternalID(ctx context.Context, arg GetEntityByExternalIDParams) (GetEntityByExternalIDRow, error)
 	GetExternalID(ctx context.Context, arg GetExternalIDParams) (MediaExternalID, error)
-	GetExternalIDsByMedia(ctx context.Context, mediaID int64) ([]MediaExternalID, error)
+	// Gets external IDs by media_type and entity_id (polymorphic)
+	GetExternalIDsByMedia(ctx context.Context, arg GetExternalIDsByMediaParams) ([]MediaExternalID, error)
+	// Legacy query: gets external IDs by media table ID (for backward compatibility)
+	GetExternalIDsByMediaID(ctx context.Context, mediaID sql.NullInt64) ([]MediaExternalID, error)
 	GetExternalSubtitlesByMediaID(ctx context.Context, mediaID int64) ([]MediaSubtitleTrack, error)
 	GetFilePathCache(ctx context.Context, libraryID int64) ([]GetFilePathCacheRow, error)
 	GetFirstPipelineStage(ctx context.Context, mediaType string) (EnrichmentPipeline, error)
+	GetImageByExternalURL(ctx context.Context, arg GetImageByExternalURLParams) (MediaImage, error)
 	GetImageByFilePath(ctx context.Context, filePath sql.NullString) (MediaImage, error)
 	GetImageByID(ctx context.Context, id int64) (MediaImage, error)
 	GetImageByTypeAndEntity(ctx context.Context, arg GetImageByTypeAndEntityParams) (MediaImage, error)
@@ -174,6 +192,7 @@ type Querier interface {
 	GetLibraryIssues(ctx context.Context, libraryID int64) ([]ScanState, error)
 	GetLibraryScanState(ctx context.Context, libraryID int64) ([]ScanState, error)
 	GetLibraryWarnings(ctx context.Context, libraryID int64) ([]ScanState, error)
+	// Returns entity_id for the given provider/external_id combination
 	GetMediaByExternalID(ctx context.Context, arg GetMediaByExternalIDParams) (int64, error)
 	GetMediaByFilePath(ctx context.Context, arg GetMediaByFilePathParams) (Medium, error)
 	GetMediaByID(ctx context.Context, id int64) (Medium, error)
@@ -186,6 +205,7 @@ type Querier interface {
 	GetNextPipelineStage(ctx context.Context, arg GetNextPipelineStageParams) (EnrichmentPipeline, error)
 	GetPendingScanCheckpoints(ctx context.Context, arg GetPendingScanCheckpointsParams) ([]ScanCheckpoint, error)
 	GetPipelineStage(ctx context.Context, id int64) (EnrichmentPipeline, error)
+	GetPipelineStageByName(ctx context.Context, arg GetPipelineStageByNameParams) (EnrichmentPipeline, error)
 	GetPipelineStageByPlugin(ctx context.Context, arg GetPipelineStageByPluginParams) (EnrichmentPipeline, error)
 	GetPlaybackSessionByID(ctx context.Context, sessionID string) (PlaybackSession, error)
 	GetQualitySwitchStats(ctx context.Context, mediaID int64) (GetQualitySwitchStatsRow, error)
@@ -346,6 +366,8 @@ type Querier interface {
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	UpdateWatchProgress(ctx context.Context, arg UpdateWatchProgressParams) (WatchProgress, error)
 	UpsertEnrichmentStatus(ctx context.Context, arg UpsertEnrichmentStatusParams) error
+	// Upserts an external ID for any entity type (movies, tv_shows, tv_seasons, etc.)
+	// Uses media_type + entity_id for polymorphic lookup
 	UpsertExternalID(ctx context.Context, arg UpsertExternalIDParams) error
 	UpsertMetadataSource(ctx context.Context, arg UpsertMetadataSourceParams) error
 	UpsertPlaybackSession(ctx context.Context, arg UpsertPlaybackSessionParams) (PlaybackSession, error)

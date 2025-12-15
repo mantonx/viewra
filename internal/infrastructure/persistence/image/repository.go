@@ -269,6 +269,27 @@ func (r *Repository) GetByHash(ctx context.Context, hash string) ([]*images.Imag
 	)
 }
 
+// GetByExternalURL retrieves an image by its external URL and media ID
+func (r *Repository) GetByExternalURL(ctx context.Context, externalURL string, mediaID int64) (*images.Image, error) {
+	return common.QuerySingle(
+		r.BaseRepository, ctx,
+		func() (sqlc_postgres.MediaImage, error) {
+			return r.Postgres().GetImageByExternalURL(ctx, sqlc_postgres.GetImageByExternalURLParams{
+				ExternalUrl: common.NullString(externalURL),
+				MediaID:     common.NullInt32FromInt64(mediaID),
+			})
+		},
+		func() (sqlc_sqlite.MediaImage, error) {
+			return r.SQLite().GetImageByExternalURL(ctx, sqlc_sqlite.GetImageByExternalURLParams{
+				ExternalUrl: common.NullString(externalURL),
+				MediaID:     common.NullInt64(mediaID),
+			})
+		},
+		postgresImageToDomain,
+		sqliteImageToDomain,
+	)
+}
+
 // HasImagesForEntity checks if an entity has any images
 func (r *Repository) HasImagesForEntity(ctx context.Context, mediaType images.MediaType, entityID int) (bool, error) {
 	imgs, err := r.GetByEntity(ctx, mediaType, entityID)
@@ -276,4 +297,40 @@ func (r *Repository) HasImagesForEntity(ctx context.Context, mediaType images.Me
 		return false, err
 	}
 	return len(imgs) > 0, nil
+}
+
+// DeleteOrphanedEntityImages removes images for entities that no longer exist.
+// This handles polymorphic entity_id references (tv_show, tv_season, music_album, music_artist)
+// that don't have foreign key constraints. Returns the number of deleted images.
+func (r *Repository) DeleteOrphanedEntityImages(ctx context.Context) (int64, error) {
+	return common.QueryScalar(
+		r.BaseRepository, ctx,
+		func() (int64, error) {
+			result, err := r.Postgres().DeleteOrphanedEntityImages(ctx)
+			if err != nil {
+				return 0, err
+			}
+			return result.RowsAffected()
+		},
+		func() (int64, error) {
+			result, err := r.SQLite().DeleteOrphanedEntityImages(ctx)
+			if err != nil {
+				return 0, err
+			}
+			return result.RowsAffected()
+		},
+	)
+}
+
+// CountOrphanedEntityImages counts images for entities that no longer exist.
+func (r *Repository) CountOrphanedEntityImages(ctx context.Context) (int64, error) {
+	return common.QueryScalar(
+		r.BaseRepository, ctx,
+		func() (int64, error) {
+			return r.Postgres().CountOrphanedEntityImages(ctx)
+		},
+		func() (int64, error) {
+			return r.SQLite().CountOrphanedEntityImages(ctx)
+		},
+	)
 }

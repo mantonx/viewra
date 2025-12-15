@@ -96,9 +96,8 @@ func ProcessMovie(
 			return nil
 		},
 		PostSave: func(ctx context.Context) {
-			ExtractImagesForMovie(ctx, deps, movie, result.FilePath)
 			PersistMediaTracks(ctx, deps, movie.Media.ID, result)
-			// Enqueue for enrichment if pipeline is configured
+			// Enqueue for enrichment - images are now extracted via the enrichment pipeline
 			enqueueForEnrichment(ctx, deps, movie.Media.ID, enrichment.MediaTypeMovie)
 		},
 	})

@@ -268,6 +268,33 @@ func (q *Queries) GetPipelineStage(ctx context.Context, id int32) (EnrichmentPip
 	return i, err
 }
 
+const getPipelineStageByName = `-- name: GetPipelineStageByName :one
+SELECT id, media_type, plugin_id, stage_name, position, enabled, config_json, created_at, updated_at FROM enrichment_pipelines
+WHERE media_type = $1 AND stage_name = $2
+`
+
+type GetPipelineStageByNameParams struct {
+	MediaType string `json:"media_type"`
+	StageName string `json:"stage_name"`
+}
+
+func (q *Queries) GetPipelineStageByName(ctx context.Context, arg GetPipelineStageByNameParams) (EnrichmentPipeline, error) {
+	row := q.db.QueryRowContext(ctx, getPipelineStageByName, arg.MediaType, arg.StageName)
+	var i EnrichmentPipeline
+	err := row.Scan(
+		&i.ID,
+		&i.MediaType,
+		&i.PluginID,
+		&i.StageName,
+		&i.Position,
+		&i.Enabled,
+		&i.ConfigJson,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getPipelineStageByPlugin = `-- name: GetPipelineStageByPlugin :one
 SELECT id, media_type, plugin_id, stage_name, position, enabled, config_json, created_at, updated_at FROM enrichment_pipelines
 WHERE media_type = $1 AND plugin_id = $2

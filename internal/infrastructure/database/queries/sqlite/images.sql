@@ -116,3 +116,27 @@ LIMIT 1;
 SELECT DISTINCT file_hash FROM media_images
 WHERE file_hash IS NOT NULL
 ORDER BY file_hash;
+
+-- name: GetImageByExternalURL :one
+SELECT * FROM media_images
+WHERE external_url = ? AND media_id = ?
+LIMIT 1;
+
+-- name: DeleteOrphanedEntityImages :execresult
+-- Delete images for entities that no longer exist (tv_show, tv_season, music_album, music_artist).
+-- This handles the polymorphic entity_id references that don't have foreign key constraints.
+DELETE FROM media_images
+WHERE
+    (media_type = 'tv_show' AND entity_id NOT IN (SELECT id FROM tv_shows))
+    OR (media_type = 'tv_season' AND entity_id NOT IN (SELECT id FROM tv_seasons))
+    OR (media_type = 'music_album' AND entity_id NOT IN (SELECT id FROM music_albums))
+    OR (media_type = 'music_artist' AND entity_id NOT IN (SELECT id FROM music_artists));
+
+-- name: CountOrphanedEntityImages :one
+-- Count images for entities that no longer exist (for reporting before cleanup).
+SELECT COUNT(*) FROM media_images
+WHERE
+    (media_type = 'tv_show' AND entity_id NOT IN (SELECT id FROM tv_shows))
+    OR (media_type = 'tv_season' AND entity_id NOT IN (SELECT id FROM tv_seasons))
+    OR (media_type = 'music_album' AND entity_id NOT IN (SELECT id FROM music_albums))
+    OR (media_type = 'music_artist' AND entity_id NOT IN (SELECT id FROM music_artists));

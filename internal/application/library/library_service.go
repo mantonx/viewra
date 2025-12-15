@@ -166,7 +166,8 @@ func (s *LibraryService) Update(ctx context.Context, id int64, req UpdateLibrary
 // What gets deleted:
 // - Library database record
 // - All media database records (CASCADE)
-// - All image database records (CASCADE)
+// - All image database records for media items (CASCADE via media_id FK)
+// - Entity images (tv_show, tv_season, music_album, music_artist) - explicit cleanup
 // - Image cache files (thumbnails, posters, etc.)
 // - Transcode job records (CASCADE)
 // - Watch progress records (CASCADE)
@@ -193,6 +194,22 @@ func (s *LibraryService) Delete(ctx context.Context, id int64) error {
 
 	if err != nil {
 		return err
+	}
+
+	// Clean up orphaned entity images (tv_show, tv_season, music_album, music_artist)
+	// These use polymorphic entity_id references without FK constraints, so CASCADE doesn't delete them
+	// Runs AFTER transaction commits (outside transaction)
+	if s.imageRepo != nil {
+		orphanCount, err := s.imageRepo.DeleteOrphanedEntityImages(ctx)
+		if err != nil {
+			s.logger.Warn("Failed to clean orphaned entity images after deleting library",
+				"library_id", id,
+				"error", err)
+		} else if orphanCount > 0 {
+			s.logger.Info("Cleaned orphaned entity images",
+				"library_id", id,
+				"deleted_count", orphanCount)
+		}
 	}
 
 	// Trigger image cache cleanup to remove orphaned cache files immediately

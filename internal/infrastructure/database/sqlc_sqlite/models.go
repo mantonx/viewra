@@ -80,7 +80,10 @@ type MediaAudioTrack struct {
 }
 
 type MediaExternalID struct {
-	MediaID    int64          `json:"media_id"`
+	ID         int64          `json:"id"`
+	MediaID    sql.NullInt64  `json:"media_id"`
+	MediaType  string         `json:"media_type"`
+	EntityID   int64          `json:"entity_id"`
 	Provider   string         `json:"provider"`
 	ExternalID string         `json:"external_id"`
 	CreatedAt  sql.NullString `json:"created_at"`

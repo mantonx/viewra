@@ -39,6 +39,23 @@ func (q *Queries) CountImagesByMediaID(ctx context.Context, mediaID sql.NullInt3
 	return count, err
 }
 
+const countOrphanedEntityImages = `-- name: CountOrphanedEntityImages :one
+SELECT COUNT(*) FROM media_images
+WHERE
+    (media_type = 'tv_show' AND entity_id NOT IN (SELECT id FROM tv_shows))
+    OR (media_type = 'tv_season' AND entity_id NOT IN (SELECT id FROM tv_seasons))
+    OR (media_type = 'music_album' AND entity_id NOT IN (SELECT id FROM music_albums))
+    OR (media_type = 'music_artist' AND entity_id NOT IN (SELECT id FROM music_artists))
+`
+
+// Count images for entities that no longer exist (for reporting before cleanup).
+func (q *Queries) CountOrphanedEntityImages(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOrphanedEntityImages)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createImage = `-- name: CreateImage :one
 INSERT INTO media_images (
     media_id,
@@ -180,6 +197,21 @@ func (q *Queries) DeleteImagesByMediaID(ctx context.Context, mediaID sql.NullInt
 	return err
 }
 
+const deleteOrphanedEntityImages = `-- name: DeleteOrphanedEntityImages :execresult
+DELETE FROM media_images
+WHERE
+    (media_type = 'tv_show' AND entity_id NOT IN (SELECT id FROM tv_shows))
+    OR (media_type = 'tv_season' AND entity_id NOT IN (SELECT id FROM tv_seasons))
+    OR (media_type = 'music_album' AND entity_id NOT IN (SELECT id FROM music_albums))
+    OR (media_type = 'music_artist' AND entity_id NOT IN (SELECT id FROM music_artists))
+`
+
+// Delete images for entities that no longer exist (tv_show, tv_season, music_album, music_artist).
+// This handles the polymorphic entity_id references that don't have foreign key constraints.
+func (q *Queries) DeleteOrphanedEntityImages(ctx context.Context) (sql.Result, error) {
+	return q.db.ExecContext(ctx, deleteOrphanedEntityImages)
+}
+
 const getAllFileHashes = `-- name: GetAllFileHashes :many
 SELECT DISTINCT file_hash FROM media_images
 WHERE file_hash IS NOT NULL
@@ -207,6 +239,43 @@ func (q *Queries) GetAllFileHashes(ctx context.Context) ([]sql.NullString, error
 		return nil, err
 	}
 	return items, nil
+}
+
+const getImageByExternalURL = `-- name: GetImageByExternalURL :one
+SELECT id, media_id, media_type, entity_id, image_type, source_type, file_path, external_url, local_cache_path, width, height, file_size_bytes, mime_type, file_hash, language, priority, created_at, updated_at FROM media_images
+WHERE external_url = $1 AND media_id = $2
+LIMIT 1
+`
+
+type GetImageByExternalURLParams struct {
+	ExternalUrl sql.NullString `json:"external_url"`
+	MediaID     sql.NullInt32  `json:"media_id"`
+}
+
+func (q *Queries) GetImageByExternalURL(ctx context.Context, arg GetImageByExternalURLParams) (MediaImage, error) {
+	row := q.db.QueryRowContext(ctx, getImageByExternalURL, arg.ExternalUrl, arg.MediaID)
+	var i MediaImage
+	err := row.Scan(
+		&i.ID,
+		&i.MediaID,
+		&i.MediaType,
+		&i.EntityID,
+		&i.ImageType,
+		&i.SourceType,
+		&i.FilePath,
+		&i.ExternalUrl,
+		&i.LocalCachePath,
+		&i.Width,
+		&i.Height,
+		&i.FileSizeBytes,
+		&i.MimeType,
+		&i.FileHash,
+		&i.Language,
+		&i.Priority,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getImageByFilePath = `-- name: GetImageByFilePath :one

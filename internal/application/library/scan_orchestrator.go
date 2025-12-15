@@ -40,15 +40,6 @@ type ScanLibraryUseCase struct {
 	systemProfile      *system.Profile
 	logger             *slog.Logger
 
-	// Image extractors
-	movieImageExtractor   MovieImageExtractor
-	episodeImageExtractor TVEpisodeImageExtractor
-	showImageExtractor    TVShowImageExtractor
-	seasonImageExtractor  TVSeasonImageExtractor
-	albumImageExtractor   MusicAlbumImageExtractor
-	artistImageExtractor  MusicArtistImageExtractor
-	trackImageExtractor   MusicTrackImageExtractor
-
 	// Enrichment - optional, if set, media is enqueued for enrichment after scanning
 	enrichmentEnqueuer scanmedia.EnrichmentEnqueuer
 
@@ -61,13 +52,6 @@ type ScanLibraryUseCase struct {
 func NewScanLibraryUseCase(
 	mediaRepos *scan.MediaRepositories,
 	scanRepos *scan.ScanRepositories,
-	movieImageExtractor MovieImageExtractor,
-	episodeImageExtractor TVEpisodeImageExtractor,
-	showImageExtractor TVShowImageExtractor,
-	seasonImageExtractor TVSeasonImageExtractor,
-	albumImageExtractor MusicAlbumImageExtractor,
-	artistImageExtractor MusicArtistImageExtractor,
-	trackImageExtractor MusicTrackImageExtractor,
 	imageRepo domainImages.Repository,
 	imageCleanup cleanup.ImageCleanupExecutor,
 	enrichmentEnqueuer scanmedia.EnrichmentEnqueuer,
@@ -87,23 +71,16 @@ func NewScanLibraryUseCase(
 	coordinator := filesystem.NewCoordinator(coordinatorConfig)
 
 	return &ScanLibraryUseCase{
-		mediaRepos:            mediaRepos,
-		scanRepos:             scanRepos,
-		movieImageExtractor:   movieImageExtractor,
-		episodeImageExtractor: episodeImageExtractor,
-		showImageExtractor:    showImageExtractor,
-		seasonImageExtractor:  seasonImageExtractor,
-		albumImageExtractor:   albumImageExtractor,
-		artistImageExtractor:  artistImageExtractor,
-		trackImageExtractor:   trackImageExtractor,
-		imageRepo:             imageRepo,
-		imageCleanup:          imageCleanup,
-		enrichmentEnqueuer:    enrichmentEnqueuer,
-		incrementalScanner:    incrementalScanner,
-		coordinator:           coordinator,
-		config:                config,
-		systemProfile:         systemProfile,
-		logger:                logger,
+		mediaRepos:         mediaRepos,
+		scanRepos:          scanRepos,
+		imageRepo:          imageRepo,
+		imageCleanup:       imageCleanup,
+		enrichmentEnqueuer: enrichmentEnqueuer,
+		incrementalScanner: incrementalScanner,
+		coordinator:        coordinator,
+		config:             config,
+		systemProfile:      systemProfile,
+		logger:             logger,
 	}
 }
 
@@ -254,15 +231,7 @@ func (uc *ScanLibraryUseCase) mediaDeps() *scanmedia.Deps {
 	return &scanmedia.Deps{
 		MediaRepos:         uc.mediaRepos,
 		ScanRepos:          uc.scanRepos,
-		ImageRepo:          uc.imageRepo,
 		EnrichmentEnqueuer: uc.enrichmentEnqueuer,
-		MovieExtractor:     uc.movieImageExtractor,
-		EpisodeExtractor:   uc.episodeImageExtractor,
-		ShowExtractor:      uc.showImageExtractor,
-		SeasonExtractor:    uc.seasonImageExtractor,
-		AlbumExtractor:     uc.albumImageExtractor,
-		ArtistExtractor:    uc.artistImageExtractor,
-		TrackExtractor:     uc.trackImageExtractor,
 		ProcessedArtists:   &uc.processedArtists,
 		ProcessedShows:     &uc.processedShows,
 		Coordinator:        uc.coordinator,

@@ -12,10 +12,13 @@ import (
 type MediaType string
 
 const (
-	MediaTypeMovie  MediaType = "movie"
-	MediaTypeTV     MediaType = "tv"      // TV episode
-	MediaTypeTVShow MediaType = "tv_show" // TV show (parent entity)
-	MediaTypeMusic  MediaType = "music"
+	MediaTypeMovie       MediaType = "movie"
+	MediaTypeTV          MediaType = "tv"           // TV episode
+	MediaTypeTVShow      MediaType = "tv_show"      // TV show (parent entity)
+	MediaTypeTVSeason    MediaType = "tv_season"    // TV season (parent entity)
+	MediaTypeMusic       MediaType = "music"        // Music track
+	MediaTypeMusicAlbum  MediaType = "music_album"  // Music album (parent entity)
+	MediaTypeMusicArtist MediaType = "music_artist" // Music artist (parent entity)
 )
 
 // JobStatus represents the status of an enrichment queue job.
@@ -111,11 +114,16 @@ type PipelineStage struct {
 	UpdatedAt  time.Time
 }
 
-// ExternalID represents an external provider's ID for a media item.
+// ExternalID represents an external provider's ID for a media entity.
+// Uses polymorphic association: MediaID is optional (only set for media table entries),
+// while MediaType + EntityID identify the entity regardless of which table it's in.
 type ExternalID struct {
-	MediaID    int64
-	Provider   string
-	ExternalID string
+	ID         int64      // Primary key
+	MediaID    *int64     // Optional FK to media.id (for movies, episodes, tracks)
+	MediaType  MediaType  // Entity type (movie, tv_show, tv_season, tv_episode, etc.)
+	EntityID   int64      // ID in the entity's table (tv_shows.id, media.id, etc.)
+	Provider   string     // External provider (imdb, tmdb, tvdb, etc.)
+	ExternalID string     // The external ID value
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
@@ -200,6 +208,10 @@ type PipelineRepository interface {
 	// GetNextStage returns the next enabled stage after the given position.
 	GetNextStage(ctx context.Context, mediaType MediaType, currentPosition int) (*PipelineStage, error)
 
+	// GetStageByName returns a stage by media type and stage name.
+	// Returns nil if no stage with that name exists.
+	GetStageByName(ctx context.Context, mediaType MediaType, stageName string) (*PipelineStage, error)
+
 	// Update modifies a pipeline stage.
 	Update(ctx context.Context, stage *PipelineStage) error
 
@@ -214,15 +226,29 @@ type PipelineRepository interface {
 // ExternalIDRepository defines operations for external IDs.
 type ExternalIDRepository interface {
 	// Upsert creates or updates an external ID.
+	// The ExternalID must have MediaType and EntityID set.
+	// MediaID is optional and only used for entities in the media table.
 	Upsert(ctx context.Context, id *ExternalID) error
 
-	// GetByMedia returns all external IDs for a media item.
+	// GetByEntity returns all external IDs for an entity by type and ID.
+	GetByEntity(ctx context.Context, mediaType MediaType, entityID int64) ([]*ExternalID, error)
+
+	// GetByMedia returns all external IDs for a media table entry (legacy).
+	// Prefer GetByEntity for new code.
 	GetByMedia(ctx context.Context, mediaID int64) ([]*ExternalID, error)
 
-	// GetMediaByExternalID finds a media item by provider and external ID.
+	// GetEntityByExternalID finds an entity by provider and external ID.
+	// Returns the media type and entity ID.
+	GetEntityByExternalID(ctx context.Context, provider, externalID string) (MediaType, int64, error)
+
+	// GetMediaByExternalID finds a media item by provider and external ID (legacy).
+	// Only returns entries that have a media_id set.
 	GetMediaByExternalID(ctx context.Context, provider, externalID string) (int64, error)
 
-	// DeleteByMedia removes all external IDs for a media item.
+	// DeleteByEntity removes all external IDs for an entity.
+	DeleteByEntity(ctx context.Context, mediaType MediaType, entityID int64) error
+
+	// DeleteByMedia removes all external IDs for a media table entry (legacy).
 	DeleteByMedia(ctx context.Context, mediaID int64) error
 }
 

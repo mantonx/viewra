@@ -80,18 +80,13 @@ type MusicUseCases struct {
 }
 
 // ImageUseCases holds image-related use cases
+// Note: Image extraction is now handled by the enrichment pipeline (local_images enricher)
 type ImageUseCases struct {
-	Get            *images.GetImageUseCase
-	GetMedia       *images.GetMediaImagesUseCase
-	GetEntity      *images.GetEntityImagesUseCase
-	GetBatch       *images.GetBatchMediaImagesUseCase
-	Cleanup        *images.CleanupUseCase
-	ExtractMovie   *images.ExtractMovieImagesUseCase
-	ExtractEpisode *images.ExtractTVEpisodeImagesUseCase
-	ExtractShow    *images.ExtractTVShowImagesUseCase
-	ExtractSeason  *images.ExtractTVSeasonImagesUseCase
-	ExtractAlbum   *images.ExtractMusicAlbumImagesUseCase
-	ExtractArtist  *images.ExtractMusicArtistImagesUseCase
+	Get      *images.GetImageUseCase
+	GetMedia *images.GetMediaImagesUseCase
+	GetEntity *images.GetEntityImagesUseCase
+	GetBatch *images.GetBatchMediaImagesUseCase
+	Cleanup  *images.CleanupUseCase
 }
 
 // TranscodeUseCases holds transcoding-related use cases
@@ -136,15 +131,6 @@ func buildLibraryUseCases(
 	// Image cleanup use case (needed for library delete and scan)
 	imageCleanup := images.NewCleanupUseCase(repos.Image, cfg.Images.CacheDir, logger)
 
-	// Image extraction use cases (passed directly to scanner - no adapter needed)
-	extractMovie := images.NewExtractMovieImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
-	extractEpisode := images.NewExtractTVEpisodeImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
-	extractShow := images.NewExtractTVShowImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
-	extractSeason := images.NewExtractTVSeasonImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
-	extractAlbum := images.NewExtractMusicAlbumImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
-	extractArtist := images.NewExtractMusicArtistImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
-	extractTrack := images.NewExtractMusicTrackImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
-
 	// Bundle media repositories
 	mediaRepos := &scan.MediaRepositories{
 		Library: repos.Library,
@@ -173,16 +159,9 @@ func buildLibraryUseCases(
 		Scan: library.NewScanLibraryUseCase(
 			mediaRepos,
 			scanRepos,
-			extractMovie,
-			extractEpisode,
-			extractShow,
-			extractSeason,
-			extractAlbum,
-			extractArtist,
-			extractTrack,
 			repos.Image,
 			imageCleanup,
-			svcs.PipelineManager,
+			svcs.PipelineManager, // Enrichment pipeline handles image extraction
 			scanConfig,
 			cfg.SystemProfile,
 			logger,
@@ -247,24 +226,19 @@ func buildMusicUseCases(repos *repositories.Repositories) *MusicUseCases {
 }
 
 // buildImageUseCases creates image use cases
+// Note: Image extraction is now handled by the enrichment pipeline (local_images enricher)
 func buildImageUseCases(
 	repos *repositories.Repositories,
-	svcs *services.Services,
+	_ *services.Services,
 	logger *slog.Logger,
 	imageCacheDir string,
 ) *ImageUseCases {
 	return &ImageUseCases{
-		Get:            images.NewGetImageUseCase(repos.Image),
-		GetMedia:       images.NewGetMediaImagesUseCase(repos.Image),
-		GetEntity:      images.NewGetEntityImagesUseCase(repos.Image),
-		GetBatch:       images.NewGetBatchMediaImagesUseCase(repos.Image),
-		Cleanup:        images.NewCleanupUseCase(repos.Image, imageCacheDir, logger),
-		ExtractMovie:   images.NewExtractMovieImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer),
-		ExtractEpisode: images.NewExtractTVEpisodeImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer),
-		ExtractShow:    images.NewExtractTVShowImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer),
-		ExtractSeason:  images.NewExtractTVSeasonImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer),
-		ExtractAlbum:   images.NewExtractMusicAlbumImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer),
-		ExtractArtist:  images.NewExtractMusicArtistImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer),
+		Get:       images.NewGetImageUseCase(repos.Image),
+		GetMedia:  images.NewGetMediaImagesUseCase(repos.Image),
+		GetEntity: images.NewGetEntityImagesUseCase(repos.Image),
+		GetBatch:  images.NewGetBatchMediaImagesUseCase(repos.Image),
+		Cleanup:   images.NewCleanupUseCase(repos.Image, imageCacheDir, logger),
 	}
 }
 

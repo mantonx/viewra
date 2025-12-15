@@ -345,3 +345,36 @@ func (r *ImageRepository) HasImagesForEntity(ctx context.Context, mediaType imag
 
 	return false, nil
 }
+
+func (r *ImageRepository) GetByExternalURL(ctx context.Context, externalURL string, mediaID int64) (*images.Image, error) {
+	if r.GetErr != nil {
+		return nil, r.GetErr
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, img := range r.imgs {
+		if img.ExternalURL != nil && *img.ExternalURL == externalURL && img.MediaID != nil && *img.MediaID == int(mediaID) {
+			return img, nil
+		}
+	}
+
+	return nil, sql.ErrNoRows
+}
+
+func (r *ImageRepository) DeleteOrphanedEntityImages(ctx context.Context) (int64, error) {
+	if r.DeleteErr != nil {
+		return 0, r.DeleteErr
+	}
+	// Mock doesn't track entity existence, so just return 0
+	return 0, nil
+}
+
+func (r *ImageRepository) CountOrphanedEntityImages(ctx context.Context) (int64, error) {
+	if r.GetErr != nil {
+		return 0, r.GetErr
+	}
+	// Mock doesn't track entity existence, so just return 0
+	return 0, nil
+}

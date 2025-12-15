@@ -177,6 +177,32 @@ func (r *PipelineRepository) GetNextStage(ctx context.Context, mediaType enrichm
 	return r.convertToPipelineStage(result), nil
 }
 
+// GetStageByName returns a stage by media type and stage name.
+func (r *PipelineRepository) GetStageByName(ctx context.Context, mediaType enrichment.MediaType, stageName string) (*enrichment.PipelineStage, error) {
+	result, err := r.router.Route(
+		func() (any, error) {
+			return r.postgres.GetPipelineStageByName(ctx, sqlc_postgres.GetPipelineStageByNameParams{
+				MediaType: string(mediaType),
+				StageName: stageName,
+			})
+		},
+		func() (any, error) {
+			return r.sqlite.GetPipelineStageByName(ctx, sqlc_sqlite.GetPipelineStageByNameParams{
+				MediaType: string(mediaType),
+				StageName: stageName,
+			})
+		},
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Stage not found
+		}
+		return nil, err
+	}
+
+	return r.convertToPipelineStage(result), nil
+}
+
 // Update modifies a pipeline stage.
 func (r *PipelineRepository) Update(ctx context.Context, stage *enrichment.PipelineStage) error {
 	return r.router.RouteVoid(

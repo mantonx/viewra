@@ -1,4 +1,8 @@
 -- name: EnqueueEnrichmentJob :one
+-- Enqueue a job for enrichment processing. On conflict:
+-- - If status is completed/skipped/failed: reset to pending for re-processing
+-- - If status is pending/processing: keep existing state (idempotent)
+-- Always returns the row (new or existing) to avoid "no rows" errors.
 INSERT INTO enrichment_queue (
     media_id,
     media_type,
@@ -11,10 +15,12 @@ INSERT INTO enrichment_queue (
     updated_at
 ) VALUES (?, ?, ?, ?, 'pending', 0, ?, datetime('now'), datetime('now'))
 ON CONFLICT(media_id, media_type, stage) DO UPDATE SET
-    priority = CASE WHEN enrichment_queue.status IN ('completed', 'skipped') THEN excluded.priority ELSE enrichment_queue.priority END,
-    status = CASE WHEN enrichment_queue.status IN ('completed', 'skipped') THEN 'pending' ELSE enrichment_queue.status END,
+    priority = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN excluded.priority ELSE enrichment_queue.priority END,
+    status = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN 'pending' ELSE enrichment_queue.status END,
+    attempts = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN 0 ELSE enrichment_queue.attempts END,
+    error_message = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN NULL ELSE enrichment_queue.error_message END,
+    error_category = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN NULL ELSE enrichment_queue.error_category END,
     updated_at = datetime('now')
-WHERE enrichment_queue.status IN ('completed', 'skipped', 'failed')
 RETURNING *;
 
 -- name: GetEnrichmentJob :one

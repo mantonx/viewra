@@ -63,13 +63,6 @@ func TestNewScanLibraryUseCase(t *testing.T) {
 			uc := NewScanLibraryUseCase(
 				mediaRepos,
 				scanRepos,
-				nil, // movieImageExtractor
-				nil, // episodeImageExtractor
-				nil, // showImageExtractor
-				nil, // seasonImageExtractor
-				nil, // albumImageExtractor
-				nil, // artistImageExtractor
-				nil, // trackImageExtractor
 				nil, // imageRepo
 				nil, // imageCleanup
 				nil, // enrichmentEnqueuer

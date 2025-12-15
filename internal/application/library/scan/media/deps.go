@@ -8,7 +8,6 @@ import (
 	"github.com/mantonx/viewra/internal/application/library/scan"
 	"github.com/mantonx/viewra/internal/application/library/scan/scanutil"
 	"github.com/mantonx/viewra/internal/domain/enrichment"
-	domainImages "github.com/mantonx/viewra/internal/domain/images"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
 )
@@ -21,21 +20,11 @@ type EnrichmentEnqueuer interface {
 
 // Deps bundles all dependencies needed by media processing functions.
 // This allows functions to be standalone (not methods) while receiving
-// all necessary dependencies for database access, image extraction, etc.
+// all necessary dependencies for database access and enrichment enqueueing.
 type Deps struct {
 	// Repositories
 	MediaRepos *scan.MediaRepositories
 	ScanRepos  *scan.ScanRepositories
-	ImageRepo  domainImages.Repository
-
-	// Image extractors - interfaces for testability
-	MovieExtractor   MovieImageExtractor
-	EpisodeExtractor TVEpisodeImageExtractor
-	ShowExtractor    TVShowImageExtractor
-	SeasonExtractor  TVSeasonImageExtractor
-	AlbumExtractor   MusicAlbumImageExtractor
-	ArtistExtractor  MusicArtistImageExtractor
-	TrackExtractor   MusicTrackImageExtractor
 
 	// Deduplication tracking (shared across scan session)
 	// These prevent redundant processing of artists and shows for enrichment

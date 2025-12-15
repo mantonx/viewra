@@ -38,6 +38,7 @@ func mapEpisodeToDomain(row interface{}) *media.TVEpisode {
 			CreatedAt:       common.ParseNullTime(common.TimeFieldGetter(row, "CreatedAt")),
 			UpdatedAt:       common.ParseNullTime(common.TimeFieldGetter(row, "UpdatedAt")),
 		},
+		ShowID:       common.IntFieldGetter(row, "ShowID"),
 		ShowTitle:    "", // Will be populated from show lookup if needed
 		SeasonID:     common.IntFieldGetter(row, "SeasonID"),
 		Season:       int(common.IntFieldGetter(row, "SeasonNumber")),
@@ -346,6 +347,7 @@ func buildPostgresUpdateTVShowParams(show media.TVShow) sqlc_postgres.UpdateTVSh
 		ImdbID:           toNullString(show.IMDbID),
 		TmdbID:           toNullInt32(show.TMDbID),
 		TvdbID:           sql.NullInt32{Valid: false}, // Not in domain struct yet
+		Directory:        toNullString(show.Directory),
 	}
 }
 
@@ -383,6 +385,7 @@ func buildSQLiteUpdateTVShowParams(show media.TVShow) sqlc_sqlite.UpdateTVShowPa
 		ImdbID:           toNullString(show.IMDbID),
 		TmdbID:           toNullInt64(show.TMDbID),
 		TvdbID:           sql.NullInt64{Valid: false}, // Not in domain struct yet
+		Directory:        toNullString(show.Directory),
 	}
 }
 

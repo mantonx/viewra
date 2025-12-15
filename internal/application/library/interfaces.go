@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/mantonx/viewra/internal/application/library/scan"
-	scanmedia "github.com/mantonx/viewra/internal/application/library/scan/media"
 )
 
 // LibraryService defines the interface for library CRUD operations
@@ -24,28 +23,3 @@ type ScanLibraryExecutor interface {
 	GetLatestScan(ctx context.Context, libraryID int64) (scan.ScanProgressResponse, error)
 	GetScanHistory(ctx context.Context, libraryID int64, limit int32) (scan.ScanHistoryResponse, error)
 }
-
-// Image extractor interfaces - re-exported from scan/media for backwards compatibility.
-// These allow mocking image extraction in unit tests without FFmpeg dependencies.
-type (
-	// MovieImageExtractor extracts images for movies
-	MovieImageExtractor = scanmedia.MovieImageExtractor
-
-	// TVEpisodeImageExtractor extracts images for TV episodes
-	TVEpisodeImageExtractor = scanmedia.TVEpisodeImageExtractor
-
-	// TVShowImageExtractor extracts images for TV shows
-	TVShowImageExtractor = scanmedia.TVShowImageExtractor
-
-	// TVSeasonImageExtractor extracts images for TV seasons
-	TVSeasonImageExtractor = scanmedia.TVSeasonImageExtractor
-
-	// MusicAlbumImageExtractor extracts images for music albums
-	MusicAlbumImageExtractor = scanmedia.MusicAlbumImageExtractor
-
-	// MusicArtistImageExtractor extracts images for music artists
-	MusicArtistImageExtractor = scanmedia.MusicArtistImageExtractor
-
-	// MusicTrackImageExtractor extracts embedded images from music track files
-	MusicTrackImageExtractor = scanmedia.MusicTrackImageExtractor
-)

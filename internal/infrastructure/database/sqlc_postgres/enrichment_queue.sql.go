@@ -114,10 +114,12 @@ INSERT INTO enrichment_queue (
     updated_at
 ) VALUES ($1, $2, $3, $4, 'pending', 0, $5, NOW(), NOW())
 ON CONFLICT(media_id, media_type, stage) DO UPDATE SET
-    priority = CASE WHEN enrichment_queue.status IN ('completed', 'skipped') THEN EXCLUDED.priority ELSE enrichment_queue.priority END,
-    status = CASE WHEN enrichment_queue.status IN ('completed', 'skipped') THEN 'pending' ELSE enrichment_queue.status END,
+    priority = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN EXCLUDED.priority ELSE enrichment_queue.priority END,
+    status = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN 'pending' ELSE enrichment_queue.status END,
+    attempts = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN 0 ELSE enrichment_queue.attempts END,
+    error_message = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN NULL ELSE enrichment_queue.error_message END,
+    error_category = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN NULL ELSE enrichment_queue.error_category END,
     updated_at = NOW()
-WHERE enrichment_queue.status IN ('completed', 'skipped', 'failed')
 RETURNING id, media_id, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, media_type
 `
 
@@ -129,6 +131,10 @@ type EnqueueEnrichmentJobParams struct {
 	MaxAttempts sql.NullInt32 `json:"max_attempts"`
 }
 
+// Enqueue a job for enrichment processing. On conflict:
+// - If status is completed/skipped/failed: reset to pending for re-processing
+// - If status is pending/processing: keep existing state (idempotent)
+// Always returns the row (new or existing) to avoid "no rows" errors.
 func (q *Queries) EnqueueEnrichmentJob(ctx context.Context, arg EnqueueEnrichmentJobParams) (EnrichmentQueue, error) {
 	row := q.db.QueryRowContext(ctx, enqueueEnrichmentJob,
 		arg.MediaID,

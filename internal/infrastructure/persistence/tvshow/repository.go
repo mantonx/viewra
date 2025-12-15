@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	domainCommon "github.com/mantonx/viewra/internal/domain/common"
 	"github.com/mantonx/viewra/internal/domain/media"
@@ -136,26 +137,40 @@ func (r *Repository) UpdateTVEpisode(ctx context.Context, episode *media.TVEpiso
 		return fmt.Errorf("failed to update base media record: %w", err)
 	}
 
-	// Get the show to find its ID
-	show, err := r.GetTVShowByTitle(ctx, episode.LibraryID, episode.ShowTitle)
-	if err != nil {
-		return fmt.Errorf("failed to find show: %w", err)
-	}
+	// Use the ShowID and SeasonID that are already stored in the episode record.
+	// These are populated when the episode is retrieved from the database.
+	// This avoids the need to look up the show/season by title, which fails
+	// when enrichment runs before the parent show/season metadata is populated.
+	showID := episode.ShowID
+	seasonID := episode.SeasonID
 
-	// Get the season to find its ID
-	season, err := r.GetTVSeasonByShowAndNumber(ctx, show.ID, int64(episode.Season))
-	if err != nil {
-		return fmt.Errorf("failed to find season: %w", err)
+	// If ShowID or SeasonID is 0, the episode struct was likely constructed fresh
+	// (e.g., during a scan update) without retrieving from DB first.
+	// In this case, we need to ensure the parent entities exist and get their IDs.
+	if showID == 0 || seasonID == 0 {
+		// Ensure the show exists (creates if needed)
+		show, err := r.ensureTVShowExists(ctx, episode)
+		if err != nil {
+			return fmt.Errorf("failed to ensure show exists for update: %w", err)
+		}
+		showID = show.ID
+
+		// Ensure the season exists (creates if needed)
+		season, err := r.ensureTVSeasonExists(ctx, showID, episode)
+		if err != nil {
+			return fmt.Errorf("failed to ensure season exists for update: %w", err)
+		}
+		seasonID = season.ID
 	}
 
 	// Update the episode record
 	return common.ExecuteCommand(
 		r.BaseRepository, ctx,
 		func() error {
-			return r.Postgres().UpdateTVEpisode(ctx, buildPostgresUpdateEpisodeParams(episode, show.ID, season.ID))
+			return r.Postgres().UpdateTVEpisode(ctx, buildPostgresUpdateEpisodeParams(episode, showID, seasonID))
 		},
 		func() error {
-			return r.SQLite().UpdateTVEpisode(ctx, buildSQLiteUpdateEpisodeParams(episode, show.ID, season.ID))
+			return r.SQLite().UpdateTVEpisode(ctx, buildSQLiteUpdateEpisodeParams(episode, showID, seasonID))
 		},
 	)
 }
@@ -290,6 +305,25 @@ func (r *Repository) CreateTVSeason(ctx context.Context, showID, seasonNumber in
 		postgresSeasonToDomain,
 		sqliteSeasonToDomain,
 	)
+}
+
+// GetTVSeasonByID retrieves a TV season by its ID
+func (r *Repository) GetTVSeasonByID(ctx context.Context, id int64) (media.TVSeason, error) {
+	season, err := common.QuerySingle(
+		r.BaseRepository, ctx,
+		func() (sqlc_postgres.TvSeason, error) {
+			return r.Postgres().GetTVSeasonByID(ctx, int32(id))
+		},
+		func() (sqlc_sqlite.TvSeason, error) {
+			return r.SQLite().GetTVSeasonByID(ctx, id)
+		},
+		postgresSeasonToDomain,
+		sqliteSeasonToDomain,
+	)
+	if err != nil {
+		return media.TVSeason{}, r.ConvertNotFoundError(err)
+	}
+	return season, nil
 }
 
 // GetTVSeasonByShowAndNumber retrieves a TV season by show ID and season number
@@ -560,24 +594,53 @@ func (r *Repository) ListTVShowIDsByLibraryPaginated(ctx context.Context, librar
 
 // --- Helper Methods ---
 
-// ensureTVShowExists creates a TV show if it doesn't exist, or returns the existing one
+// ensureTVShowExists creates a TV show if it doesn't exist, or returns the existing one.
+// If the show exists but has no directory set, it updates the directory.
 func (r *Repository) ensureTVShowExists(ctx context.Context, episode *media.TVEpisode) (media.TVShow, error) {
 	// Try to get existing show
 	show, err := r.GetTVShowByTitle(ctx, episode.LibraryID, episode.ShowTitle)
 	if err == nil {
+		// Show exists - check if directory needs to be populated
+		if show.Directory == "" {
+			showDir := deriveShowDirectory(episode.Media.FilePath)
+			if showDir != "" {
+				show.Directory = showDir
+				// Update the show with the directory
+				if updateErr := r.UpdateTVShow(ctx, show); updateErr != nil {
+					// Log but don't fail - show still exists
+					// The show record is valid, just missing directory
+				}
+			}
+		}
 		return show, nil
 	}
 
 	// If not found, create it
 	if errors.Is(err, media.ErrMediaNotFound) {
-		// Derive show directory from episode file path
-		// Structure: /library/Show Name/Season XX/episode.mkv
-		// Show directory is two levels up from the episode file
-		showDir := filepath.Dir(filepath.Dir(episode.Media.FilePath))
+		showDir := deriveShowDirectory(episode.Media.FilePath)
 		return r.CreateTVShow(ctx, episode.LibraryID, episode.ShowTitle, showDir)
 	}
 
 	return media.TVShow{}, err
+}
+
+// deriveShowDirectory extracts the show directory from an episode file path.
+// Handles both structures:
+// - /library/Show Name/Season XX/episode.mkv -> /library/Show Name
+// - /library/Show Name/episode.mkv -> /library/Show Name
+func deriveShowDirectory(episodePath string) string {
+	episodeDir := filepath.Dir(episodePath)
+	episodeDirName := filepath.Base(episodeDir)
+
+	// Check if episode is in a season subdirectory
+	if strings.HasPrefix(strings.ToLower(episodeDirName), "season") ||
+		strings.HasPrefix(strings.ToLower(episodeDirName), "specials") {
+		// Episode is in a season/specials subdirectory, go up one more level
+		return filepath.Dir(episodeDir)
+	}
+
+	// Episode is directly in show directory
+	return episodeDir
 }
 
 // ensureTVSeasonExists creates a TV season if it doesn't exist, or returns the existing one

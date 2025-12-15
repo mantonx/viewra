@@ -2,33 +2,50 @@ package builtin
 
 import (
 	"context"
-	"os"
+	"log/slog"
 	"path/filepath"
-	"strings"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 	appenrich "github.com/mantonx/viewra/internal/application/enrichment"
 	"github.com/mantonx/viewra/internal/domain/enrichment"
+	infraimages "github.com/mantonx/viewra/internal/infrastructure/images"
 )
 
 // LocalImagesEnricher discovers local image files (posters, fanart, etc.)
-// in the media directory structure.
-type LocalImagesEnricher struct{}
+// in the media directory structure using the infrastructure extractor.
+type LocalImagesEnricher struct {
+	extractor *infraimages.Extractor
+	logger    *slog.Logger
+}
 
 // NewLocalImagesEnricher creates a new local images enricher.
-func NewLocalImagesEnricher() *LocalImagesEnricher {
-	return &LocalImagesEnricher{}
+func NewLocalImagesEnricher(extractor *infraimages.Extractor, logger *slog.Logger) *LocalImagesEnricher {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &LocalImagesEnricher{
+		extractor: extractor,
+		logger:    logger.With(slog.String("enricher", "local_images")),
+	}
 }
 
 // Stage returns the stage name for this enricher.
 func (e *LocalImagesEnricher) Stage() string {
-	return "local_images"
+	return "local-images"
 }
 
 // Capabilities returns what this enricher provides.
 func (e *LocalImagesEnricher) Capabilities() appenrich.EnricherCapabilities {
 	return appenrich.NewCapabilitiesBuilder().
-		WithMediaTypes(enrichment.MediaTypeMovie, enrichment.MediaTypeTV, enrichment.MediaTypeMusic).
+		WithMediaTypes(
+			enrichment.MediaTypeMovie,
+			enrichment.MediaTypeTV,
+			enrichment.MediaTypeTVShow,
+			enrichment.MediaTypeTVSeason,
+			enrichment.MediaTypeMusic,
+			enrichment.MediaTypeMusicAlbum,
+			enrichment.MediaTypeMusicArtist,
+		).
 		WithProvides("artwork").
 		AsLocal().
 		Build()
@@ -36,47 +53,35 @@ func (e *LocalImagesEnricher) Capabilities() appenrich.EnricherCapabilities {
 
 // Enrich discovers local image files for a media item.
 func (e *LocalImagesEnricher) Enrich(ctx context.Context, req *pluginv1.EnrichRequest) (*pluginv1.EnrichResponse, error) {
-	dir := filepath.Dir(req.FilePath)
-
 	resp := appenrich.Match()
 	resp.Confidence = 1.0 // Local files are authoritative
 
-	// Discover images based on common naming conventions
-	// These patterns are used by Kodi, Plex, Jellyfin, etc.
-	imagePatterns := getImagePatterns(req.MediaType)
-
-	for imageType, patterns := range imagePatterns {
-		for _, pattern := range patterns {
-			// Check for pattern in media directory
-			imagePath := filepath.Join(dir, pattern)
-			if fileExists(imagePath) {
-				appenrich.AddImage(resp, &pluginv1.EnrichedImage{
-					Type:     imageType,
-					Path:     imagePath,
-					IsRemote: false,
-				})
-				break // Found one for this type, move on
-			}
-		}
+	if e.extractor == nil {
+		return appenrich.Skip("no image extractor configured"), nil
 	}
 
-	// Also check for images matching the media filename
-	// e.g., "Movie Name (2020)-poster.jpg" for "Movie Name (2020).mkv"
-	baseNameWithoutExt := strings.TrimSuffix(filepath.Base(req.FilePath), filepath.Ext(req.FilePath))
-	for imageType, suffixes := range getFilenameSuffixes() {
-		for _, suffix := range suffixes {
-			for _, ext := range []string{".jpg", ".jpeg", ".png", ".webp"} {
-				imagePath := filepath.Join(dir, baseNameWithoutExt+suffix+ext)
-				if fileExists(imagePath) {
-					appenrich.AddImage(resp, &pluginv1.EnrichedImage{
-						Type:     imageType,
-						Path:     imagePath,
-						IsRemote: false,
-					})
-					break
-				}
-			}
+	switch req.MediaType {
+	case string(enrichment.MediaTypeMovie):
+		e.extractMovieImages(req.FilePath, resp)
+	case string(enrichment.MediaTypeTV):
+		e.extractTVEpisodeImages(req.FilePath, resp)
+	case string(enrichment.MediaTypeTVShow):
+		e.extractTVShowImages(req.FilePath, resp)
+	case string(enrichment.MediaTypeTVSeason):
+		var seasonNum int32
+		if req.Tv != nil {
+			seasonNum = req.Tv.SeasonNumber
 		}
+		e.extractTVSeasonImages(req.FilePath, seasonNum, resp)
+	case string(enrichment.MediaTypeMusic):
+		e.extractMusicImages(req.FilePath, resp)
+	case string(enrichment.MediaTypeMusicAlbum):
+		e.extractMusicAlbumImages(req.FilePath, resp)
+	case string(enrichment.MediaTypeMusicArtist):
+		e.extractMusicArtistImages(req.FilePath, resp)
+	default:
+		e.logger.Warn("unknown media type for local images",
+			slog.String("media_type", req.MediaType))
 	}
 
 	if len(resp.Images) == 0 {
@@ -86,70 +91,164 @@ func (e *LocalImagesEnricher) Enrich(ctx context.Context, req *pluginv1.EnrichRe
 	return resp, nil
 }
 
-// getImagePatterns returns common image filenames for each type.
-func getImagePatterns(mediaType string) map[string][]string {
-	// Common patterns used by Kodi, Plex, Jellyfin
-	common := map[string][]string{
-		"poster": {
-			"poster.jpg", "poster.png", "poster.webp",
-			"folder.jpg", "folder.png",
-			"cover.jpg", "cover.png",
-		},
-		"fanart": {
-			"fanart.jpg", "fanart.png", "fanart.webp",
-			"backdrop.jpg", "backdrop.png",
-			"background.jpg", "background.png",
-		},
-		"banner": {
-			"banner.jpg", "banner.png",
-		},
-		"clearlogo": {
-			"clearlogo.png", "logo.png",
-		},
-		"thumb": {
-			"thumb.jpg", "thumb.png",
-			"landscape.jpg", "landscape.png",
-		},
+// extractMovieImages uses the infrastructure extractor for movies.
+func (e *LocalImagesEnricher) extractMovieImages(filePath string, resp *pluginv1.EnrichResponse) {
+	extracted, err := e.extractor.ExtractMovieImages(filePath)
+	if err != nil {
+		e.logger.Warn("failed to extract movie images",
+			slog.String("path", filePath),
+			slog.Any("error", err))
+		return
 	}
 
-	if mediaType == string(enrichment.MediaTypeMusic) {
-		// Music has different conventions
-		return map[string][]string{
-			"cover": {
-				"cover.jpg", "cover.png",
-				"folder.jpg", "folder.png",
-				"album.jpg", "album.png",
-				"front.jpg", "front.png",
-			},
-			"fanart": {
-				"fanart.jpg", "fanart.png",
-				"artist.jpg", "artist.png",
-			},
-			"discart": {
-				"disc.png", "cdart.png",
-			},
+	for _, img := range extracted.Images {
+		appenrich.AddImage(resp, &pluginv1.EnrichedImage{
+			Type:     string(img.Type),
+			Path:     img.Path,
+			IsRemote: false,
+		})
+	}
+}
+
+// extractTVEpisodeImages uses the infrastructure extractor for TV episodes.
+func (e *LocalImagesEnricher) extractTVEpisodeImages(filePath string, resp *pluginv1.EnrichResponse) {
+	extracted, err := e.extractor.ExtractTVEpisodeImages(filePath)
+	if err != nil {
+		e.logger.Warn("failed to extract episode images",
+			slog.String("path", filePath),
+			slog.Any("error", err))
+		return
+	}
+
+	for _, img := range extracted.Images {
+		appenrich.AddImage(resp, &pluginv1.EnrichedImage{
+			Type:     string(img.Type),
+			Path:     img.Path,
+			IsRemote: false,
+		})
+	}
+}
+
+// extractTVShowImages uses the infrastructure extractor for TV shows.
+func (e *LocalImagesEnricher) extractTVShowImages(filePath string, resp *pluginv1.EnrichResponse) {
+	// For TV shows, filePath is the show directory
+	extracted, err := e.extractor.ExtractTVShowImages(filePath)
+	if err != nil {
+		e.logger.Warn("failed to extract show images",
+			slog.String("path", filePath),
+			slog.Any("error", err))
+		return
+	}
+
+	for _, img := range extracted.Images {
+		appenrich.AddImage(resp, &pluginv1.EnrichedImage{
+			Type:     string(img.Type),
+			Path:     img.Path,
+			IsRemote: false,
+		})
+	}
+}
+
+// extractTVSeasonImages uses the infrastructure extractor for TV seasons.
+func (e *LocalImagesEnricher) extractTVSeasonImages(showDir string, seasonNumber int32, resp *pluginv1.EnrichResponse) {
+	extracted, err := e.extractor.ExtractTVSeasonImages(showDir, int(seasonNumber))
+	if err != nil {
+		e.logger.Warn("failed to extract season images",
+			slog.String("path", showDir),
+			slog.Int("season", int(seasonNumber)),
+			slog.Any("error", err))
+		return
+	}
+
+	for _, img := range extracted.Images {
+		appenrich.AddImage(resp, &pluginv1.EnrichedImage{
+			Type:     string(img.Type),
+			Path:     img.Path,
+			IsRemote: false,
+		})
+	}
+}
+
+// extractMusicImages extracts images for music tracks.
+// Uses album directory for cover art with fallback to embedded artwork.
+func (e *LocalImagesEnricher) extractMusicImages(filePath string, resp *pluginv1.EnrichResponse) {
+	// For music tracks, first try album directory images
+	albumDir := filepath.Dir(filePath)
+	extracted, err := e.extractor.ExtractMusicAlbumImages(albumDir)
+	if err != nil {
+		e.logger.Warn("failed to extract album images",
+			slog.String("path", albumDir),
+			slog.Any("error", err))
+	} else {
+		for _, img := range extracted.Images {
+			appenrich.AddImage(resp, &pluginv1.EnrichedImage{
+				Type:     string(img.Type),
+				Path:     img.Path,
+				IsRemote: false,
+			})
 		}
 	}
 
-	return common
-}
+	// If no cover found, try embedded artwork from the track itself
+	hasCover := false
+	for _, img := range resp.Images {
+		if img.Type == "cover" {
+			hasCover = true
+			break
+		}
+	}
 
-// getFilenameSuffixes returns suffixes to append to media filename.
-func getFilenameSuffixes() map[string][]string {
-	return map[string][]string{
-		"poster":    {"-poster", ".poster", "_poster"},
-		"fanart":    {"-fanart", ".fanart", "_fanart", "-backdrop"},
-		"thumb":     {"-thumb", ".thumb", "_thumb"},
-		"banner":    {"-banner", ".banner"},
-		"clearlogo": {"-clearlogo", "-logo"},
+	if !hasCover {
+		trackExtracted, err := e.extractor.ExtractMusicTrackImages(filePath)
+		if err != nil {
+			e.logger.Debug("no embedded artwork in track",
+				slog.String("path", filePath))
+		} else {
+			for _, img := range trackExtracted.Images {
+				appenrich.AddImage(resp, &pluginv1.EnrichedImage{
+					Type:     string(img.Type),
+					Path:     img.Path,
+					IsRemote: false,
+				})
+			}
+		}
 	}
 }
 
-// fileExists checks if a file exists and is not a directory.
-func fileExists(path string) bool {
-	info, err := os.Stat(path)
+// extractMusicAlbumImages uses the infrastructure extractor for music albums.
+func (e *LocalImagesEnricher) extractMusicAlbumImages(albumDir string, resp *pluginv1.EnrichResponse) {
+	extracted, err := e.extractor.ExtractMusicAlbumImages(albumDir)
 	if err != nil {
-		return false
+		e.logger.Warn("failed to extract album images",
+			slog.String("path", albumDir),
+			slog.Any("error", err))
+		return
 	}
-	return !info.IsDir()
+
+	for _, img := range extracted.Images {
+		appenrich.AddImage(resp, &pluginv1.EnrichedImage{
+			Type:     string(img.Type),
+			Path:     img.Path,
+			IsRemote: false,
+		})
+	}
+}
+
+// extractMusicArtistImages uses the infrastructure extractor for music artists.
+func (e *LocalImagesEnricher) extractMusicArtistImages(artistDir string, resp *pluginv1.EnrichResponse) {
+	extracted, err := e.extractor.ExtractMusicArtistImages(artistDir)
+	if err != nil {
+		e.logger.Warn("failed to extract artist images",
+			slog.String("path", artistDir),
+			slog.Any("error", err))
+		return
+	}
+
+	for _, img := range extracted.Images {
+		appenrich.AddImage(resp, &pluginv1.EnrichedImage{
+			Type:     string(img.Type),
+			Path:     img.Path,
+			IsRemote: false,
+		})
+	}
 }

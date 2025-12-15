@@ -140,12 +140,11 @@ func ProcessTVEpisode(
 			return nil
 		},
 		PostSave: func(ctx context.Context) {
-			// Extract and catalog images for the episode, show, and season
-			// NOTE: Image extraction also triggers show metadata enrichment from NFO files
-			ExtractImagesForEpisode(ctx, deps, episode, result.FilePath, libraryID)
 			PersistMediaTracks(ctx, deps, episode.Media.ID, result)
-			// Enqueue for enrichment if pipeline is configured
+			// Enqueue episode for enrichment - images are now extracted via the enrichment pipeline
 			enqueueForEnrichment(ctx, deps, episode.Media.ID, enrichment.MediaTypeTV)
+			// Enqueue parent entities (show/season) for enrichment
+			EnqueueTVParentEntities(ctx, deps, episode.ShowTitle, libraryID, result.FilePath, episode.Season)
 		},
 	})
 }
@@ -231,8 +230,12 @@ func ProcessMultiEpisodeFile(
 					"error", err)
 				continue
 			}
+			// Enqueue for enrichment after successful update
+			enqueueForEnrichment(ctx, deps, episode.Media.ID, enrichment.MediaTypeTV)
 			if firstMediaID == nil {
 				firstMediaID = &episode.Media.ID
+				// Enqueue parent entities for first episode only (they're shared)
+				EnqueueTVParentEntities(ctx, deps, showTitle, libraryID, result.FilePath, season)
 			}
 			continue
 		}
@@ -258,10 +261,13 @@ func ProcessMultiEpisodeFile(
 		// Cache the newly created episode
 		existingMediaCache.Store(filePath, episode.Media.ID)
 
+		// Enqueue for enrichment after successful creation
+		enqueueForEnrichment(ctx, deps, episode.Media.ID, enrichment.MediaTypeTV)
+
 		if firstMediaID == nil {
 			firstMediaID = &episode.Media.ID
-			// Extract images only for the first episode (they're shared anyway)
-			ExtractImagesForEpisode(ctx, deps, episode, result.FilePath, libraryID)
+			// Enqueue parent entities for first episode only (they're shared)
+			EnqueueTVParentEntities(ctx, deps, showTitle, libraryID, result.FilePath, season)
 		}
 	}
 

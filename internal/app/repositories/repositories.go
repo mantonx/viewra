@@ -41,10 +41,11 @@ type Repositories struct {
 	UserSettings   *settingsRepo.UserRepository
 
 	// Enrichment repositories
-	EnrichmentQueue      *enrichmentRepo.QueueRepository
-	EnrichmentStatus     *enrichmentRepo.StatusRepository
-	EnrichmentPipeline   *enrichmentRepo.PipelineRepository
-	EnrichmentExternalID *enrichmentRepo.ExternalIDRepository
+	EnrichmentQueue          *enrichmentRepo.QueueRepository
+	EnrichmentStatus         *enrichmentRepo.StatusRepository
+	EnrichmentPipeline       *enrichmentRepo.PipelineRepository
+	EnrichmentExternalID     *enrichmentRepo.ExternalIDRepository
+	EnrichmentMetadataSource *enrichmentRepo.MetadataSourceRepository
 }
 
 // BuildRepositories creates and wires all repository instances using the provided database connection.
@@ -86,6 +87,7 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	enrichmentStatusRepository := enrichmentRepo.NewStatusRepository(db, driver)
 	enrichmentPipelineRepository := enrichmentRepo.NewPipelineRepository(db, driver)
 	enrichmentExternalIDRepository := enrichmentRepo.NewExternalIDRepository(db, driver)
+	enrichmentMetadataSourceRepository := enrichmentRepo.NewMetadataSourceRepository(db, driver)
 
 	return &Repositories{
 		Library:            libraryRepository,
@@ -104,9 +106,10 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 		Session:            sessionRepository,
 		SystemSettings:     systemSettingsRepository,
 		UserSettings:       userSettingsRepository,
-		EnrichmentQueue:      enrichmentQueueRepository,
-		EnrichmentStatus:     enrichmentStatusRepository,
-		EnrichmentPipeline:   enrichmentPipelineRepository,
-		EnrichmentExternalID: enrichmentExternalIDRepository,
+		EnrichmentQueue:          enrichmentQueueRepository,
+		EnrichmentStatus:         enrichmentStatusRepository,
+		EnrichmentPipeline:       enrichmentPipelineRepository,
+		EnrichmentExternalID:     enrichmentExternalIDRepository,
+		EnrichmentMetadataSource: enrichmentMetadataSourceRepository,
 	}
 }

@@ -33,10 +33,11 @@ func TestScanLibraryUseCase_ProcessMovie(t *testing.T) {
 	uc := NewScanLibraryUseCase(
 		mediaRepos,
 		scanRepos,
-		nil, nil, nil, nil, nil, nil, nil,
-		nil, nil, nil,
+		nil, // imageRepo
+		nil, // imageCleanup
+		nil, // enrichmentEnqueuer
 		scan.Config{},
-		nil,
+		nil, // systemProfile
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)
 
@@ -87,10 +88,11 @@ func TestScanLibraryUseCase_ProcessTVEpisode(t *testing.T) {
 	uc := NewScanLibraryUseCase(
 		mediaRepos,
 		scanRepos,
-		nil, nil, nil, nil, nil, nil, nil,
-		nil, nil, nil,
+		nil, // imageRepo
+		nil, // imageCleanup
+		nil, // enrichmentEnqueuer
 		scan.Config{},
-		nil,
+		nil, // systemProfile
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)
 
@@ -142,10 +144,11 @@ func TestScanLibraryUseCase_ProcessMusicTrack(t *testing.T) {
 	uc := NewScanLibraryUseCase(
 		mediaRepos,
 		scanRepos,
-		nil, nil, nil, nil, nil, nil, nil,
-		nil, nil, nil,
+		nil, // imageRepo
+		nil, // imageCleanup
+		nil, // enrichmentEnqueuer
 		scan.Config{},
-		nil,
+		nil, // systemProfile
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)
 
@@ -314,13 +317,14 @@ func TestScanLibraryUseCase_runScan(t *testing.T) {
 			uc := NewScanLibraryUseCase(
 				mediaRepos,
 				scanRepos,
-				nil, nil, nil, nil, nil, nil, nil,
-				nil, nil, nil,
+				nil, // imageRepo
+				nil, // imageCleanup
+				nil, // enrichmentEnqueuer
 				scan.Config{
 					CheckpointBatchSize: 50,
 					Timeout:             time.Second * 2,
 				},
-				nil,
+				nil, // systemProfile
 				slog.New(slog.NewTextHandler(io.Discard, nil)),
 			)
 
