@@ -96,3 +96,13 @@ CREATE TABLE media_metadata_sources (
 
 -- Index for querying all sources for a media item
 CREATE INDEX idx_media_metadata_sources_media ON media_metadata_sources(media_id);
+
+-- Seed default pipeline configuration for built-in enrichers
+-- NFO parsing runs first (local metadata), then local image extraction
+INSERT INTO enrichment_pipelines (media_type, plugin_id, stage_name, position, enabled) VALUES
+    ('movie', 'builtin:nfo', 'nfo', 1, 1),
+    ('movie', 'builtin:local-images', 'local-images', 2, 1),
+    ('tv', 'builtin:nfo', 'nfo', 1, 1),
+    ('tv', 'builtin:local-images', 'local-images', 2, 1),
+    ('music', 'builtin:nfo', 'nfo', 1, 1),
+    ('music', 'builtin:local-images', 'local-images', 2, 1);
