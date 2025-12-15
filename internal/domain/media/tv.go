@@ -15,6 +15,11 @@ type TVEpisode struct {
 	IMDbID       string
 	AirDate      string // YYYY-MM-DD format
 	Description  string
+
+	// Ratings and runtime
+	RuntimeMinutes int     // Episode runtime in minutes
+	Rating         float32 // Average rating (0.0 - 10.0)
+	RatingVotes    int     // Number of votes
 }
 
 // IsValid validates the TV episode entity including base media validation

@@ -11,9 +11,11 @@ import (
 )
 
 type Querier interface {
+	AddMediaStudio(ctx context.Context, arg AddMediaStudioParams) error
 	ClaimEnrichmentJobs(ctx context.Context, arg ClaimEnrichmentJobsParams) ([]EnrichmentQueue, error)
 	ClearScanStateError(ctx context.Context, arg ClearScanStateErrorParams) error
 	ClearScanStateWarning(ctx context.Context, arg ClearScanStateWarningParams) error
+	ClearStudiosForEntity(ctx context.Context, arg ClearStudiosForEntityParams) error
 	CompleteEnrichmentJob(ctx context.Context, id int64) error
 	CompleteScanJob(ctx context.Context, arg CompleteScanJobParams) error
 	// ============================================================================
@@ -22,6 +24,7 @@ type Querier interface {
 	CountAlbumsByLibrary(ctx context.Context, libraryID int64) (int64, error)
 	CountAlbumsInLibrary(ctx context.Context, libraryID int64) (int64, error)
 	CountArtistsInLibrary(ctx context.Context, libraryID int64) (int64, error)
+	CountCreditsForEntity(ctx context.Context, arg CountCreditsForEntityParams) (int64, error)
 	CountEnrichmentStatusByStage(ctx context.Context, stage string) (CountEnrichmentStatusByStageRow, error)
 	CountFailedScanCheckpoints(ctx context.Context, scanJobID int64) (int64, error)
 	CountImagesByEntity(ctx context.Context, arg CountImagesByEntityParams) (int64, error)
@@ -51,12 +54,14 @@ type Querier interface {
 	CountUsers(ctx context.Context) (int64, error)
 	CreateAlbum(ctx context.Context, arg CreateAlbumParams) (MusicAlbum, error)
 	CreateArtist(ctx context.Context, arg CreateArtistParams) (MusicArtist, error)
+	CreateCredit(ctx context.Context, arg CreateCreditParams) (Credit, error)
 	CreateImage(ctx context.Context, arg CreateImageParams) (MediaImage, error)
 	// Library queries for SQLite
 	CreateLibrary(ctx context.Context, arg CreateLibraryParams) (Library, error)
 	CreateMedia(ctx context.Context, arg CreateMediaParams) (Medium, error)
 	CreateMovie(ctx context.Context, arg CreateMovieParams) error
 	CreateMusicTrack(ctx context.Context, arg CreateMusicTrackParams) error
+	CreatePerson(ctx context.Context, arg CreatePersonParams) (Person, error)
 	CreatePipelineStage(ctx context.Context, arg CreatePipelineStageParams) (EnrichmentPipeline, error)
 	CreateQualitySwitchEvent(ctx context.Context, arg CreateQualitySwitchEventParams) (QualitySwitchEvent, error)
 	CreateScanCheckpoint(ctx context.Context, arg CreateScanCheckpointParams) (ScanCheckpoint, error)
@@ -64,6 +69,7 @@ type Querier interface {
 	CreateScanJob(ctx context.Context, arg CreateScanJobParams) (ScanJob, error)
 	// Session queries for SQLite
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
+	CreateStudio(ctx context.Context, arg CreateStudioParams) (Studio, error)
 	// ============================================================================
 	// TV Episodes
 	// ============================================================================
@@ -84,6 +90,9 @@ type Querier interface {
 	DeleteAllUserSettings(ctx context.Context, userID string) error
 	DeleteArtist(ctx context.Context, id int64) error
 	DeleteAudioTracksByMediaID(ctx context.Context, mediaID int64) error
+	DeleteCredit(ctx context.Context, id int64) error
+	DeleteCreditsForEntity(ctx context.Context, arg DeleteCreditsForEntityParams) error
+	DeleteCreditsForEntityByType(ctx context.Context, arg DeleteCreditsForEntityByTypeParams) error
 	DeleteEnrichmentJobsByMedia(ctx context.Context, arg DeleteEnrichmentJobsByMediaParams) error
 	DeleteEnrichmentStatusByMedia(ctx context.Context, mediaID int64) error
 	DeleteExpiredSessions(ctx context.Context, expiresAt string) (int64, error)
@@ -111,6 +120,7 @@ type Querier interface {
 	// Delete images for entities that no longer exist (tv_show, tv_season, music_album, music_artist).
 	// This handles the polymorphic entity_id references that don't have foreign key constraints.
 	DeleteOrphanedEntityImages(ctx context.Context) (sql.Result, error)
+	DeletePerson(ctx context.Context, id int64) error
 	DeletePipelineStage(ctx context.Context, id int64) error
 	DeletePipelineStagesByMediaType(ctx context.Context, mediaType string) error
 	DeleteScanCheckpointsByJobID(ctx context.Context, scanJobID int64) error
@@ -119,6 +129,7 @@ type Querier interface {
 	DeleteScanStateByPath(ctx context.Context, arg DeleteScanStateByPathParams) error
 	DeleteSession(ctx context.Context, id int64) error
 	DeleteSessionsByUserID(ctx context.Context, userID int64) error
+	DeleteStudio(ctx context.Context, id int64) error
 	DeleteSubtitleTracksByMediaID(ctx context.Context, mediaID int64) error
 	DeleteSystemSetting(ctx context.Context, key string) error
 	DeleteTVEpisode(ctx context.Context, mediaID int64) error
@@ -158,6 +169,12 @@ type Querier interface {
 	GetArtistsWithCountsByLibraryPaginatedDesc(ctx context.Context, arg GetArtistsWithCountsByLibraryPaginatedDescParams) ([]GetArtistsWithCountsByLibraryPaginatedDescRow, error)
 	GetAudioTracksByMediaID(ctx context.Context, mediaID int64) ([]MediaAudioTrack, error)
 	GetBatchWatchProgressByMediaIDs(ctx context.Context, arg GetBatchWatchProgressByMediaIDsParams) ([]WatchProgress, error)
+	GetCastForEntity(ctx context.Context, arg GetCastForEntityParams) ([]GetCastForEntityRow, error)
+	GetCreatorsForEntity(ctx context.Context, arg GetCreatorsForEntityParams) ([]GetCreatorsForEntityRow, error)
+	GetCreditsForEntity(ctx context.Context, arg GetCreditsForEntityParams) ([]GetCreditsForEntityRow, error)
+	GetCreditsForEntityByType(ctx context.Context, arg GetCreditsForEntityByTypeParams) ([]GetCreditsForEntityByTypeRow, error)
+	GetCreditsForPerson(ctx context.Context, personID int64) ([]GetCreditsForPersonRow, error)
+	GetDirectorsForEntity(ctx context.Context, arg GetDirectorsForEntityParams) ([]GetDirectorsForEntityRow, error)
 	GetEmbeddedSubtitlesByMediaID(ctx context.Context, mediaID int64) ([]MediaSubtitleTrack, error)
 	GetEnabledPipelineStages(ctx context.Context, mediaType string) ([]EnrichmentPipeline, error)
 	GetEnrichmentJob(ctx context.Context, id int64) (EnrichmentQueue, error)
@@ -204,6 +221,10 @@ type Querier interface {
 	GetNextPipelinePosition(ctx context.Context, mediaType string) (int64, error)
 	GetNextPipelineStage(ctx context.Context, arg GetNextPipelineStageParams) (EnrichmentPipeline, error)
 	GetPendingScanCheckpoints(ctx context.Context, arg GetPendingScanCheckpointsParams) ([]ScanCheckpoint, error)
+	GetPersonByID(ctx context.Context, id int64) (Person, error)
+	GetPersonByIMDbID(ctx context.Context, imdbID sql.NullString) (Person, error)
+	GetPersonByName(ctx context.Context, name string) (Person, error)
+	GetPersonByTMDbID(ctx context.Context, tmdbID sql.NullInt64) (Person, error)
 	GetPipelineStage(ctx context.Context, id int64) (EnrichmentPipeline, error)
 	GetPipelineStageByName(ctx context.Context, arg GetPipelineStageByNameParams) (EnrichmentPipeline, error)
 	GetPipelineStageByPlugin(ctx context.Context, arg GetPipelineStageByPluginParams) (EnrichmentPipeline, error)
@@ -223,6 +244,10 @@ type Querier interface {
 	GetSessionByPublicID(ctx context.Context, publicID string) (Session, error)
 	GetSessionByTokenHash(ctx context.Context, refreshTokenHash string) (Session, error)
 	GetSessionsByUserID(ctx context.Context, userID int64) ([]Session, error)
+	GetStudioByID(ctx context.Context, id int64) (Studio, error)
+	GetStudioByName(ctx context.Context, name string) (Studio, error)
+	GetStudioByTMDbID(ctx context.Context, tmdbID sql.NullInt64) (Studio, error)
+	GetStudiosForEntity(ctx context.Context, arg GetStudiosForEntityParams) ([]Studio, error)
 	GetSubtitleTracksByMediaID(ctx context.Context, mediaID int64) ([]MediaSubtitleTrack, error)
 	// Settings queries for SQLite
 	GetSystemSetting(ctx context.Context, key string) (SystemSetting, error)
@@ -251,6 +276,7 @@ type Querier interface {
 	GetWatchProgressByID(ctx context.Context, id int64) (WatchProgress, error)
 	GetWatchProgressByMediaID(ctx context.Context, mediaID int64) (WatchProgress, error)
 	GetWatchProgressByMediaIDAndUserID(ctx context.Context, arg GetWatchProgressByMediaIDAndUserIDParams) (WatchProgress, error)
+	GetWritersForEntity(ctx context.Context, arg GetWritersForEntityParams) ([]GetWritersForEntityRow, error)
 	IncrementSeasonEpisodeCount(ctx context.Context, id int64) error
 	// Audio and subtitle track queries for multi-language support
 	InsertAudioTrack(ctx context.Context, arg InsertAudioTrackParams) (InsertAudioTrackRow, error)
@@ -293,12 +319,14 @@ type Querier interface {
 	// This query returns all images for validation in application code
 	// The application will check if files actually exist
 	ListOrphanImages(ctx context.Context) ([]MediaImage, error)
+	ListPeople(ctx context.Context, arg ListPeopleParams) ([]Person, error)
 	ListPlaybackSessionsByMediaID(ctx context.Context, arg ListPlaybackSessionsByMediaIDParams) ([]PlaybackSession, error)
 	ListProcessingTranscodeJobs(ctx context.Context) ([]TranscodeJob, error)
 	ListQualitySwitchEventsBySessionID(ctx context.Context, sessionID string) ([]QualitySwitchEvent, error)
 	ListQueuedTranscodeJobs(ctx context.Context, limit int64) ([]TranscodeJob, error)
 	ListRunningScanJobs(ctx context.Context) ([]ScanJob, error)
 	ListScanJobsByLibrary(ctx context.Context, arg ListScanJobsByLibraryParams) ([]ScanJob, error)
+	ListStudios(ctx context.Context) ([]Studio, error)
 	ListTVEpisodesByLibrary(ctx context.Context, libraryID int64) ([]ListTVEpisodesByLibraryRow, error)
 	ListTVEpisodesBySeason(ctx context.Context, seasonID int64) ([]ListTVEpisodesBySeasonRow, error)
 	ListTVEpisodesByShow(ctx context.Context, showID int64) ([]ListTVEpisodesByShowRow, error)
@@ -328,6 +356,7 @@ type Querier interface {
 	PluginKVSet(ctx context.Context, arg PluginKVSetParams) error
 	PluginKVTotalSize(ctx context.Context, pluginID string) (interface{}, error)
 	ReleaseStuckEnrichmentJobs(ctx context.Context, dollar_1 sql.NullString) error
+	RemoveMediaStudio(ctx context.Context, arg RemoveMediaStudioParams) error
 	ResetEnrichmentJobForRetry(ctx context.Context, id int64) error
 	ResetFailedScanCheckpoints(ctx context.Context, scanJobID int64) error
 	SearchArtistsByName(ctx context.Context, arg SearchArtistsByNameParams) ([]MusicArtist, error)
@@ -335,6 +364,7 @@ type Querier interface {
 	SearchMoviesByTitle(ctx context.Context, arg SearchMoviesByTitleParams) ([]SearchMoviesByTitleRow, error)
 	SearchMoviesByTitlePaginated(ctx context.Context, arg SearchMoviesByTitlePaginatedParams) ([]SearchMoviesByTitlePaginatedRow, error)
 	SearchMusicTracks(ctx context.Context, arg SearchMusicTracksParams) ([]SearchMusicTracksRow, error)
+	SearchPeopleByName(ctx context.Context, arg SearchPeopleByNameParams) ([]Person, error)
 	SearchTVEpisodesByTitle(ctx context.Context, arg SearchTVEpisodesByTitleParams) ([]SearchTVEpisodesByTitleRow, error)
 	SearchTVShowsByTitle(ctx context.Context, arg SearchTVShowsByTitleParams) ([]TvShow, error)
 	SearchTVShowsByTitlePaginated(ctx context.Context, arg SearchTVShowsByTitlePaginatedParams) ([]TvShow, error)
@@ -349,6 +379,7 @@ type Querier interface {
 	UpdateMedia(ctx context.Context, arg UpdateMediaParams) (Medium, error)
 	UpdateMovie(ctx context.Context, arg UpdateMovieParams) error
 	UpdateMusicTrack(ctx context.Context, arg UpdateMusicTrackParams) error
+	UpdatePerson(ctx context.Context, arg UpdatePersonParams) error
 	UpdatePipelineStage(ctx context.Context, arg UpdatePipelineStageParams) error
 	UpdatePipelineStagePosition(ctx context.Context, arg UpdatePipelineStagePositionParams) error
 	UpdateScanCheckpointRetryCount(ctx context.Context, arg UpdateScanCheckpointRetryCountParams) error
@@ -356,6 +387,7 @@ type Querier interface {
 	UpdateScanJobProgress(ctx context.Context, arg UpdateScanJobProgressParams) error
 	UpdateScanJobStatus(ctx context.Context, arg UpdateScanJobStatusParams) error
 	UpdateSessionLastUsed(ctx context.Context, arg UpdateSessionLastUsedParams) error
+	UpdateStudio(ctx context.Context, arg UpdateStudioParams) error
 	UpdateTVEpisode(ctx context.Context, arg UpdateTVEpisodeParams) error
 	UpdateTVSeason(ctx context.Context, arg UpdateTVSeasonParams) error
 	UpdateTVShow(ctx context.Context, arg UpdateTVShowParams) error

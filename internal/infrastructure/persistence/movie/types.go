@@ -26,6 +26,7 @@ func postgresMovieToDomain(row sqlc_postgres.GetMovieByMediaIDRow) *media.Movie 
 		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
 		row.ImdbID, common.ConvertInt32ToInt64(row.TmdbID), common.ConvertInt32ToInt64(row.RuntimeMinutes), row.Budget,
 		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
+		row.Rating, common.ConvertInt32ToInt64(row.RatingVotes),
 	)
 }
 
@@ -41,6 +42,7 @@ func postgresListMovieToDomain(row sqlc_postgres.ListMoviesByLibraryRow) *media.
 		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
 		row.ImdbID, common.ConvertInt32ToInt64(row.TmdbID), common.ConvertInt32ToInt64(row.RuntimeMinutes), row.Budget,
 		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
+		row.Rating, common.ConvertInt32ToInt64(row.RatingVotes),
 	)
 }
 
@@ -56,6 +58,7 @@ func postgresSearchMovieToDomain(row sqlc_postgres.SearchMoviesByTitleRow) *medi
 		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
 		row.ImdbID, common.ConvertInt32ToInt64(row.TmdbID), common.ConvertInt32ToInt64(row.RuntimeMinutes), row.Budget,
 		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
+		row.Rating, common.ConvertInt32ToInt64(row.RatingVotes),
 	)
 }
 
@@ -71,6 +74,7 @@ func postgresGenreMovieToDomain(row sqlc_postgres.ListMoviesByGenreRow) *media.M
 		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
 		row.ImdbID, common.ConvertInt32ToInt64(row.TmdbID), common.ConvertInt32ToInt64(row.RuntimeMinutes), row.Budget,
 		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
+		row.Rating, common.ConvertInt32ToInt64(row.RatingVotes),
 	)
 }
 
@@ -86,6 +90,7 @@ func postgresYearMovieToDomain(row sqlc_postgres.ListMoviesByYearRow) *media.Mov
 		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
 		row.ImdbID, common.ConvertInt32ToInt64(row.TmdbID), common.ConvertInt32ToInt64(row.RuntimeMinutes), row.Budget,
 		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
+		row.Rating, common.ConvertInt32ToInt64(row.RatingVotes),
 	)
 }
 
@@ -105,6 +110,7 @@ func sqliteMovieToDomain(row sqlc_sqlite.GetMovieByMediaIDRow) *media.Movie {
 		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
 		row.ImdbID, row.TmdbID, row.RuntimeMinutes, row.Budget,
 		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
+		row.Rating, row.RatingVotes,
 	)
 }
 
@@ -120,6 +126,7 @@ func sqliteListMovieToDomain(row sqlc_sqlite.ListMoviesByLibraryRow) *media.Movi
 		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
 		row.ImdbID, row.TmdbID, row.RuntimeMinutes, row.Budget,
 		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
+		row.Rating, row.RatingVotes,
 	)
 }
 
@@ -135,6 +142,7 @@ func sqliteSearchMovieToDomain(row sqlc_sqlite.SearchMoviesByTitleRow) *media.Mo
 		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
 		row.ImdbID, row.TmdbID, row.RuntimeMinutes, row.Budget,
 		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
+		row.Rating, row.RatingVotes,
 	)
 }
 
@@ -150,6 +158,7 @@ func sqliteGenreMovieToDomain(row sqlc_sqlite.ListMoviesByGenreRow) *media.Movie
 		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
 		row.ImdbID, row.TmdbID, row.RuntimeMinutes, row.Budget,
 		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
+		row.Rating, row.RatingVotes,
 	)
 }
 
@@ -165,12 +174,13 @@ func sqliteYearMovieToDomain(row sqlc_sqlite.ListMoviesByYearRow) *media.Movie {
 		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
 		row.ImdbID, row.TmdbID, row.RuntimeMinutes, row.Budget,
 		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
+		row.Rating, row.RatingVotes,
 	)
 }
 
 // toMovieDomain is the single source of truth for converting database fields to domain Movie.
 // All row-specific converters delegate to this function.
-// NOTE: This function has 35 parameters - this is unavoidable due to sqlc generating separate
+// NOTE: This function has 37 parameters - this is unavoidable due to sqlc generating separate
 // types for each query. The thin wrapper functions above keep repository code clean.
 func toMovieDomain(
 	// Media fields (17 parameters)
@@ -179,13 +189,14 @@ func toMovieDomain(
 	width, height sql.NullInt64, codec, audioCodec sql.NullString,
 	bitRate sql.NullInt64, frameRate sql.NullFloat64, isExtra bool,
 	createdAt, updatedAt sql.NullTime,
-	// Movie-specific fields (18 parameters)
+	// Movie-specific fields (20 parameters)
 	year sql.NullInt64, releaseDate sql.NullTime,
 	genre, director, cast, contentRating sql.NullString,
 	maturityRating sql.NullInt64, contentAdvisories sql.NullString,
 	plot, tagline, originalTitle, sortTitle, imdbID sql.NullString,
 	tmdbID, runtimeMinutes, budget, revenue sql.NullInt64,
 	originalLanguage, countryOfOrigin, awardsSummary sql.NullString,
+	rating sql.NullFloat64, ratingVotes sql.NullInt64,
 ) *media.Movie {
 	return &media.Movie{
 		Media: media.Media{
@@ -227,6 +238,8 @@ func toMovieDomain(
 		OriginalLanguage:  common.ParseNullString(originalLanguage),
 		CountryOfOrigin:   common.ParseNullString(countryOfOrigin),
 		AwardsSummary:     common.ParseNullString(awardsSummary),
+		Rating:            float32(common.ParseNullFloat64(rating)),
+		RatingVotes:       int(common.ParseNullInt64(ratingVotes)),
 	}
 }
 
@@ -258,6 +271,8 @@ func buildPostgresCreateMovieParams(m *media.Movie) sqlc_postgres.CreateMoviePar
 		OriginalLanguage:  common.NullString(m.OriginalLanguage),
 		CountryOfOrigin:   common.NullString(m.CountryOfOrigin),
 		AwardsSummary:     common.NullString(m.AwardsSummary),
+		Rating:            common.NullFloat64FromFloat32(m.Rating),
+		RatingVotes:       common.NullInt32FromInt64(int64(m.RatingVotes)),
 	}
 }
 
@@ -285,6 +300,8 @@ func buildPostgresUpdateMovieParams(m *media.Movie) sqlc_postgres.UpdateMoviePar
 		OriginalLanguage:  params.OriginalLanguage,
 		CountryOfOrigin:   params.CountryOfOrigin,
 		AwardsSummary:     params.AwardsSummary,
+		Rating:            params.Rating,
+		RatingVotes:       params.RatingVotes,
 		MediaID:           int32(m.Media.ID),
 	}
 }
@@ -317,6 +334,8 @@ func buildSQLiteCreateMovieParams(m *media.Movie) sqlc_sqlite.CreateMovieParams 
 		OriginalLanguage:  common.NullString(m.OriginalLanguage),
 		CountryOfOrigin:   common.NullString(m.CountryOfOrigin),
 		AwardsSummary:     common.NullString(m.AwardsSummary),
+		Rating:            common.NullFloat64FromFloat32(m.Rating),
+		RatingVotes:       common.NullInt64(int64(m.RatingVotes)),
 	}
 }
 
@@ -344,6 +363,8 @@ func buildSQLiteUpdateMovieParams(m *media.Movie) sqlc_sqlite.UpdateMovieParams 
 		OriginalLanguage:  params.OriginalLanguage,
 		CountryOfOrigin:   params.CountryOfOrigin,
 		AwardsSummary:     params.AwardsSummary,
+		Rating:            params.Rating,
+		RatingVotes:       params.RatingVotes,
 		MediaID:           m.Media.ID,
 	}
 }

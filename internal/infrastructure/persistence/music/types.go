@@ -586,6 +586,34 @@ func buildPostgresCreateAlbumParams(a *media.Album) sqlc_postgres.CreateAlbumPar
 	}
 }
 
+// buildPostgresUpdateAlbumParams builds UpdateAlbumParams for PostgreSQL from a domain Album entity
+func buildPostgresUpdateAlbumParams(a *media.Album) sqlc_postgres.UpdateAlbumParams {
+	sortTitle := a.SortTitle
+	if sortTitle == "" {
+		sortTitle = domainCommon.NormalizeSortTitle(a.Title)
+	}
+
+	return sqlc_postgres.UpdateAlbumParams{
+		ID:                 int32(a.ID),
+		Title:              a.Title,
+		AlbumArtist:        common.NullString(a.AlbumArtist),
+		Artist:             common.NullString(a.Artist),
+		Year:               common.NullInt32FromInt64(int64(a.Year)),
+		ReleaseDate:        common.ParseDateString(a.ReleaseDate),
+		Genre:              common.NullString(a.Genre),
+		TotalTracks:        common.NullInt32FromInt64(int64(a.TotalTracks)),
+		TotalDiscs:         common.NullInt32FromInt64(int64(a.TotalDiscs)),
+		RecordLabel:        common.NullString(a.RecordLabel),
+		ReleaseType:        common.NullString(a.ReleaseType),
+		Compilation:        common.NullBool(a.Compilation),
+		MusicbrainzAlbumID: common.NullString(a.MusicBrainzAlbumID),
+		CoverArtPath:       common.NullString(a.CoverArtPath),
+		SortTitle:          common.NullString(sortTitle),
+		Directory:          common.NullString(a.Directory),
+		UpdatedAt:          sql.NullTime{Time: time.Now().UTC(), Valid: true},
+	}
+}
+
 // buildPostgresCreateMediaParams builds CreateMediaParams for PostgreSQL from a domain Media entity
 func buildPostgresCreateMediaParams(m *media.Media) sqlc_postgres.CreateMediaParams {
 	return sqlc_postgres.CreateMediaParams{
@@ -637,6 +665,23 @@ func buildPostgresCreateArtistParams(a *media.Artist) sqlc_postgres.CreateArtist
 		CreatedAt:           sql.NullTime{Time: time.Now().UTC(), Valid: true},
 		UpdatedAt:           sql.NullTime{Time: time.Now().UTC(), Valid: true},
 		Directory:           common.NullString(a.Directory),
+	}
+}
+
+// buildPostgresUpdateArtistParams builds UpdateArtistParams for PostgreSQL from a domain Artist entity
+func buildPostgresUpdateArtistParams(a *media.Artist) sqlc_postgres.UpdateArtistParams {
+	return sqlc_postgres.UpdateArtistParams{
+		ID:                  int32(a.ID),
+		Name:                a.Name,
+		SortName:            common.NullString(a.SortName),
+		MusicbrainzArtistID: common.NullString(a.MusicBrainzArtistID),
+		Bio:                 common.NullString(a.Bio),
+		Country:             common.NullString(a.Country),
+		FormedYear:          common.NullInt32FromInt64(int64(a.FormedYear)),
+		Genre:               common.NullString(a.Genre),
+		ImagePath:           common.NullString(a.ImagePath),
+		Directory:           common.NullString(a.Directory),
+		UpdatedAt:           sql.NullTime{Time: time.Now().UTC(), Valid: true},
 	}
 }
 

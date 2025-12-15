@@ -106,6 +106,11 @@ func BuildHandlers(
 		cases.Music.SearchTracks,
 		cases.Music.ListArtistIDs,
 	)
+	peopleHandler := handlers.NewPeopleHandler(
+		cases.People.GetPerson,
+		cases.People.GetCreditsForEntity,
+		cases.People.GetCreditsForPerson,
+	)
 
 	// Auth handlers
 	var authHandler *handlers.AuthHandler
@@ -166,6 +171,7 @@ func BuildHandlers(
 		Movies:        moviesHandler,
 		TV:            tvHandler,
 		Music:         musicHandler,
+		People:        peopleHandler,
 		Auth:          authHandler,
 		Users:         usersHandler,
 		Settings:      settingsHandler,

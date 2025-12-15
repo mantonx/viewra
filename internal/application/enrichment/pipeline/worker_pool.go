@@ -37,6 +37,8 @@ func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMed
 	// Create the component chain
 	logger := deps.Logger.With(slog.String("stage", config.Stage))
 	metadataApplier := NewMetadataApplier(typedRepos, logger)
+	creditsApplier := NewCreditsApplier(deps.PeopleRepo, logger)
+	studiosApplier := NewStudiosApplier(deps.StudioRepo, logger)
 
 	// Build ImageProcessor with optional dependencies
 	var imgOpts []ImageProcessorOption
@@ -52,7 +54,7 @@ func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMed
 	imageProcessor := NewImageProcessor(deps.ImageRepo, logger, imgOpts...)
 
 	requestBuilder := NewRequestBuilder(deps, typedRepos, logger)
-	responseApplier := NewResponseApplier(deps, metadataApplier, imageProcessor, logger)
+	responseApplier := NewResponseApplier(deps, metadataApplier, creditsApplier, studiosApplier, imageProcessor, logger)
 	jobProcessor := NewJobProcessor(deps, enricher, requestBuilder, responseApplier, config, logger)
 
 	return &WorkerPool{

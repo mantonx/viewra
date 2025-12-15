@@ -3,12 +3,14 @@ INSERT INTO movies (
     media_id, year, release_date, genre, director, "cast",
     content_rating, maturity_rating, content_advisories, plot, tagline,
     original_title, sort_title, imdb_id, tmdb_id, runtime_minutes,
-    budget, revenue, original_language, country_of_origin, awards_summary
+    budget, revenue, original_language, country_of_origin, awards_summary,
+    rating, rating_votes
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11,
     $12, $13, $14, $15, $16,
-    $17, $18, $19, $20, $21
+    $17, $18, $19, $20, $21,
+    $22, $23
 );
 
 -- name: GetMovieByMediaID :one
@@ -118,8 +120,10 @@ SET year = $1,
     revenue = $17,
     original_language = $18,
     country_of_origin = $19,
-    awards_summary = $20
-WHERE media_id = $21;
+    awards_summary = $20,
+    rating = $21,
+    rating_votes = $22
+WHERE media_id = $23;
 
 -- name: SearchMoviesByTitle :many
 SELECT

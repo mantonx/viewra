@@ -7,12 +7,12 @@ INSERT INTO tv_shows (
     library_id, title, original_title, sort_title, year, first_air_date,
     last_air_date, genre, plot, status, content_rating, maturity_rating,
     network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id,
-    directory
+    directory, rating, rating_votes, tagline
 ) VALUES (
     ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?,
-    ?
+    ?, ?, ?, ?
 ) RETURNING *;
 
 -- name: GetTVShowByID :one
@@ -49,6 +49,9 @@ SET title = ?,
     tmdb_id = ?,
     tvdb_id = ?,
     directory = ?,
+    rating = ?,
+    rating_votes = ?,
+    tagline = ?,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = ?;
 
@@ -115,11 +118,13 @@ WHERE id = ?;
 INSERT INTO tv_episodes (
     media_id, show_id, season_id, season_number, episode_number,
     absolute_number, dvd_season, dvd_episode, episode_title, original_title,
-    air_date, plot, content_rating, maturity_rating, imdb_id, tmdb_id, tvdb_id
+    air_date, plot, content_rating, maturity_rating, imdb_id, tmdb_id, tvdb_id,
+    rating, rating_votes, runtime_minutes
 ) VALUES (
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?,
+    ?, ?, ?
 );
 
 -- name: GetTVEpisodeByMediaID :one
@@ -356,7 +361,10 @@ SET show_id = ?,
     maturity_rating = ?,
     imdb_id = ?,
     tmdb_id = ?,
-    tvdb_id = ?
+    tvdb_id = ?,
+    rating = ?,
+    rating_votes = ?,
+    runtime_minutes = ?
 WHERE media_id = ?;
 
 -- name: DeleteTVEpisode :exec

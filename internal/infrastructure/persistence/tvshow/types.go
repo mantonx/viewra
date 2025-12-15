@@ -38,16 +38,19 @@ func mapEpisodeToDomain(row interface{}) *media.TVEpisode {
 			CreatedAt:       common.ParseNullTime(common.TimeFieldGetter(row, "CreatedAt")),
 			UpdatedAt:       common.ParseNullTime(common.TimeFieldGetter(row, "UpdatedAt")),
 		},
-		ShowID:       common.IntFieldGetter(row, "ShowID"),
-		ShowTitle:    "", // Will be populated from show lookup if needed
-		SeasonID:     common.IntFieldGetter(row, "SeasonID"),
-		Season:       int(common.IntFieldGetter(row, "SeasonNumber")),
-		Episode:      int(common.IntFieldGetter(row, "EpisodeNumber")),
-		EpisodeTitle: common.ParseNullString(common.NullStringFieldGetter(row, "EpisodeTitle")),
-		TVDbID:       int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TvdbID"))),
-		IMDbID:       common.ParseNullString(common.NullStringFieldGetter(row, "ImdbID")),
-		AirDate:      common.FormatNullDate(common.TimeFieldGetter(row, "AirDate")),
-		Description:  common.ParseNullString(common.NullStringFieldGetter(row, "Plot")),
+		ShowID:         common.IntFieldGetter(row, "ShowID"),
+		ShowTitle:      "", // Will be populated from show lookup if needed
+		SeasonID:       common.IntFieldGetter(row, "SeasonID"),
+		Season:         int(common.IntFieldGetter(row, "SeasonNumber")),
+		Episode:        int(common.IntFieldGetter(row, "EpisodeNumber")),
+		EpisodeTitle:   common.ParseNullString(common.NullStringFieldGetter(row, "EpisodeTitle")),
+		TVDbID:         int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TvdbID"))),
+		IMDbID:         common.ParseNullString(common.NullStringFieldGetter(row, "ImdbID")),
+		AirDate:        common.FormatNullDate(common.TimeFieldGetter(row, "AirDate")),
+		Description:    common.ParseNullString(common.NullStringFieldGetter(row, "Plot")),
+		RuntimeMinutes: int(common.ParseNullInt64(common.NullIntFieldGetter(row, "RuntimeMinutes"))),
+		Rating:         float32(common.Float64FieldGetter(row, "Rating")),
+		RatingVotes:    int(common.ParseNullInt64(common.NullIntFieldGetter(row, "RatingVotes"))),
 	}
 }
 
@@ -59,16 +62,28 @@ func mapEpisodeToDomain(row interface{}) *media.TVEpisode {
 // Handles both SQLite and PostgreSQL row types using reflection-based field getters
 func mapShowToDomain(row interface{}) media.TVShow {
 	return media.TVShow{
-		ID:            common.IntFieldGetter(row, "ID"),
-		LibraryID:    common.IntFieldGetter(row, "LibraryID"),
-		Title:        common.StringFieldGetter(row, "Title"),
-		Year:         int(common.ParseNullInt64(common.NullIntFieldGetter(row, "Year"))),
-		Genre:        parseGenres(common.ParseNullString(common.NullStringFieldGetter(row, "Genre"))),
-		Plot:         common.ParseNullString(common.NullStringFieldGetter(row, "Plot")),
-		IMDbID:       common.ParseNullString(common.NullStringFieldGetter(row, "ImdbID")),
-		TMDbID:       int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TmdbID"))),
-		ContentRating: common.ParseNullString(common.NullStringFieldGetter(row, "ContentRating")),
-		Directory:    common.ParseNullString(common.NullStringFieldGetter(row, "Directory")),
+		ID:               common.IntFieldGetter(row, "ID"),
+		LibraryID:        common.IntFieldGetter(row, "LibraryID"),
+		Title:            common.StringFieldGetter(row, "Title"),
+		OriginalTitle:    common.ParseNullString(common.NullStringFieldGetter(row, "OriginalTitle")),
+		SortTitle:        common.ParseNullString(common.NullStringFieldGetter(row, "SortTitle")),
+		Year:             int(common.ParseNullInt64(common.NullIntFieldGetter(row, "Year"))),
+		FirstAirDate:     common.FormatNullDate(common.TimeFieldGetter(row, "FirstAirDate")),
+		LastAirDate:      common.FormatNullDate(common.TimeFieldGetter(row, "LastAirDate")),
+		Genre:            parseGenres(common.ParseNullString(common.NullStringFieldGetter(row, "Genre"))),
+		Plot:             common.ParseNullString(common.NullStringFieldGetter(row, "Plot")),
+		Status:           common.ParseNullString(common.NullStringFieldGetter(row, "Status")),
+		ContentRating:    common.ParseNullString(common.NullStringFieldGetter(row, "ContentRating")),
+		Network:          common.ParseNullString(common.NullStringFieldGetter(row, "Network")),
+		OriginalLanguage: common.ParseNullString(common.NullStringFieldGetter(row, "OriginalLanguage")),
+		CountryOfOrigin:  common.ParseNullString(common.NullStringFieldGetter(row, "CountryOfOrigin")),
+		IMDbID:           common.ParseNullString(common.NullStringFieldGetter(row, "ImdbID")),
+		TMDbID:           int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TmdbID"))),
+		TVDbID:           int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TvdbID"))),
+		Directory:        common.ParseNullString(common.NullStringFieldGetter(row, "Directory")),
+		Tagline:         common.ParseNullString(common.NullStringFieldGetter(row, "Tagline")),
+		Rating:          float32(common.Float64FieldGetter(row, "Rating")),
+		RatingVotes:     int(common.ParseNullInt64(common.NullIntFieldGetter(row, "RatingVotes"))),
 	}
 }
 
@@ -142,6 +157,9 @@ func buildSQLiteCreateEpisodeParams(e *media.TVEpisode, showID, seasonID int64) 
 		ImdbID:         common.NullString(e.IMDbID),
 		TmdbID:         sql.NullInt64{},                         // TODO: Add TMDbID to domain.TVEpisode
 		TvdbID:         common.NullInt64(int64(e.TVDbID)),
+		Rating:         common.NullFloat64FromFloat32(e.Rating),
+		RatingVotes:    common.NullInt64(int64(e.RatingVotes)),
+		RuntimeMinutes: common.NullInt64(int64(e.RuntimeMinutes)),
 	}
 }
 
@@ -165,6 +183,9 @@ func buildSQLiteUpdateEpisodeParams(e *media.TVEpisode, showID, seasonID int64) 
 		ImdbID:         params.ImdbID,
 		TmdbID:         params.TmdbID,
 		TvdbID:         params.TvdbID,
+		Rating:         params.Rating,
+		RatingVotes:    params.RatingVotes,
+		RuntimeMinutes: params.RuntimeMinutes,
 		MediaID:        e.Media.ID,
 	}
 }
@@ -220,6 +241,9 @@ func buildPostgresCreateEpisodeParams(e *media.TVEpisode, showID, seasonID int64
 		ImdbID:         common.NullString(e.IMDbID),
 		TmdbID:         sql.NullInt32{},
 		TvdbID:         common.NullInt32FromInt64(int64(e.TVDbID)),
+		Rating:         common.NullFloat64FromFloat32(e.Rating),
+		RatingVotes:    common.NullInt32FromInt64(int64(e.RatingVotes)),
+		RuntimeMinutes: common.NullInt32FromInt64(int64(e.RuntimeMinutes)),
 	}
 }
 
@@ -243,6 +267,9 @@ func buildPostgresUpdateEpisodeParams(e *media.TVEpisode, showID, seasonID int64
 		ImdbID:         params.ImdbID,
 		TmdbID:         params.TmdbID,
 		TvdbID:         params.TvdbID,
+		Rating:         params.Rating,
+		RatingVotes:    params.RatingVotes,
+		RuntimeMinutes: params.RuntimeMinutes,
 		MediaID:        int32(e.Media.ID),
 	}
 }
@@ -284,6 +311,9 @@ func buildPostgresCreateTVShowParams(libraryID int64, title, directory string) s
 		TmdbID:           sql.NullInt32{Valid: false},
 		TvdbID:           sql.NullInt32{Valid: false},
 		Directory:        sql.NullString{String: directory, Valid: directory != ""},
+		Rating:           sql.NullFloat64{Valid: false},
+		RatingVotes:      sql.NullInt32{Valid: false},
+		Tagline:          sql.NullString{Valid: false},
 	}
 }
 
@@ -310,6 +340,9 @@ func buildSQLiteCreateTVShowParams(libraryID int64, title, directory string) sql
 		TmdbID:           sql.NullInt64{Valid: false},
 		TvdbID:           sql.NullInt64{Valid: false},
 		Directory:        sql.NullString{String: directory, Valid: directory != ""},
+		Rating:           sql.NullFloat64{Valid: false},
+		RatingVotes:      sql.NullInt64{Valid: false},
+		Tagline:          sql.NullString{Valid: false},
 	}
 }
 
@@ -331,23 +364,26 @@ func buildPostgresUpdateTVShowParams(show media.TVShow) sqlc_postgres.UpdateTVSh
 	return sqlc_postgres.UpdateTVShowParams{
 		ID:               int32(show.ID),
 		Title:            show.Title,
-		OriginalTitle:    sql.NullString{Valid: false}, // Not in domain struct yet
-		SortTitle:        sql.NullString{Valid: false}, // Not in domain struct yet
+		OriginalTitle:    toNullString(show.OriginalTitle),
+		SortTitle:        toNullString(show.SortTitle),
 		Year:             toNullInt32(show.Year),
-		FirstAirDate:     sql.NullTime{Valid: false}, // Not in domain struct yet
-		LastAirDate:      sql.NullTime{Valid: false}, // Not in domain struct yet
+		FirstAirDate:     common.ParseDateString(show.FirstAirDate),
+		LastAirDate:      common.ParseDateString(show.LastAirDate),
 		Genre:            toNullString(genreStr),
 		Plot:             toNullString(show.Plot),
-		Status:           sql.NullString{Valid: false}, // Not in domain struct yet
+		Status:           toNullString(show.Status),
 		ContentRating:    toNullString(show.ContentRating),
-		MaturityRating:   sql.NullInt32{Valid: false}, // Not in domain struct yet
-		Network:          sql.NullString{Valid: false}, // Not in domain struct yet
-		OriginalLanguage: sql.NullString{Valid: false}, // Not in domain struct yet
-		CountryOfOrigin:  sql.NullString{Valid: false}, // Not in domain struct yet
+		MaturityRating:   sql.NullInt32{Valid: false}, // Not exposed via enrichment proto
+		Network:          toNullString(show.Network),
+		OriginalLanguage: toNullString(show.OriginalLanguage),
+		CountryOfOrigin:  toNullString(show.CountryOfOrigin),
 		ImdbID:           toNullString(show.IMDbID),
 		TmdbID:           toNullInt32(show.TMDbID),
-		TvdbID:           sql.NullInt32{Valid: false}, // Not in domain struct yet
+		TvdbID:           toNullInt32(show.TVDbID),
 		Directory:        toNullString(show.Directory),
+		Rating:           common.NullFloat64FromFloat32(show.Rating),
+		RatingVotes:      toNullInt32(show.RatingVotes),
+		Tagline:          toNullString(show.Tagline),
 	}
 }
 
@@ -369,23 +405,26 @@ func buildSQLiteUpdateTVShowParams(show media.TVShow) sqlc_sqlite.UpdateTVShowPa
 	return sqlc_sqlite.UpdateTVShowParams{
 		ID:               show.ID,
 		Title:            show.Title,
-		OriginalTitle:    sql.NullString{Valid: false}, // Not in domain struct yet
-		SortTitle:        sql.NullString{Valid: false}, // Not in domain struct yet
+		OriginalTitle:    toNullString(show.OriginalTitle),
+		SortTitle:        toNullString(show.SortTitle),
 		Year:             toNullInt64(show.Year),
-		FirstAirDate:     sql.NullTime{Valid: false}, // Not in domain struct yet
-		LastAirDate:      sql.NullTime{Valid: false}, // Not in domain struct yet
+		FirstAirDate:     common.ParseDateString(show.FirstAirDate),
+		LastAirDate:      common.ParseDateString(show.LastAirDate),
 		Genre:            toNullString(genreStr),
 		Plot:             toNullString(show.Plot),
-		Status:           sql.NullString{Valid: false}, // Not in domain struct yet
+		Status:           toNullString(show.Status),
 		ContentRating:    toNullString(show.ContentRating),
-		MaturityRating:   sql.NullInt64{Valid: false}, // Not in domain struct yet
-		Network:          sql.NullString{Valid: false}, // Not in domain struct yet
-		OriginalLanguage: sql.NullString{Valid: false}, // Not in domain struct yet
-		CountryOfOrigin:  sql.NullString{Valid: false}, // Not in domain struct yet
+		MaturityRating:   sql.NullInt64{Valid: false}, // Not exposed via enrichment proto
+		Network:          toNullString(show.Network),
+		OriginalLanguage: toNullString(show.OriginalLanguage),
+		CountryOfOrigin:  toNullString(show.CountryOfOrigin),
 		ImdbID:           toNullString(show.IMDbID),
 		TmdbID:           toNullInt64(show.TMDbID),
-		TvdbID:           sql.NullInt64{Valid: false}, // Not in domain struct yet
+		TvdbID:           toNullInt64(show.TVDbID),
 		Directory:        toNullString(show.Directory),
+		Rating:           common.NullFloat64FromFloat32(show.Rating),
+		RatingVotes:      toNullInt64(show.RatingVotes),
+		Tagline:          toNullString(show.Tagline),
 	}
 }
 

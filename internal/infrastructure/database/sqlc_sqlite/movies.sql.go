@@ -52,37 +52,41 @@ INSERT INTO movies (
     media_id, year, release_date, genre, director, cast,
     content_rating, maturity_rating, content_advisories, plot, tagline,
     original_title, sort_title, imdb_id, tmdb_id, runtime_minutes,
-    budget, revenue, original_language, country_of_origin, awards_summary
+    budget, revenue, original_language, country_of_origin, awards_summary,
+    rating, rating_votes
 ) VALUES (
     ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?,
+    ?, ?
 )
 `
 
 type CreateMovieParams struct {
-	MediaID           int64          `json:"media_id"`
-	Year              sql.NullInt64  `json:"year"`
-	ReleaseDate       sql.NullTime   `json:"release_date"`
-	Genre             sql.NullString `json:"genre"`
-	Director          sql.NullString `json:"director"`
-	Cast              sql.NullString `json:"cast"`
-	ContentRating     sql.NullString `json:"content_rating"`
-	MaturityRating    sql.NullInt64  `json:"maturity_rating"`
-	ContentAdvisories sql.NullString `json:"content_advisories"`
-	Plot              sql.NullString `json:"plot"`
-	Tagline           sql.NullString `json:"tagline"`
-	OriginalTitle     sql.NullString `json:"original_title"`
-	SortTitle         sql.NullString `json:"sort_title"`
-	ImdbID            sql.NullString `json:"imdb_id"`
-	TmdbID            sql.NullInt64  `json:"tmdb_id"`
-	RuntimeMinutes    sql.NullInt64  `json:"runtime_minutes"`
-	Budget            sql.NullInt64  `json:"budget"`
-	Revenue           sql.NullInt64  `json:"revenue"`
-	OriginalLanguage  sql.NullString `json:"original_language"`
-	CountryOfOrigin   sql.NullString `json:"country_of_origin"`
-	AwardsSummary     sql.NullString `json:"awards_summary"`
+	MediaID           int64           `json:"media_id"`
+	Year              sql.NullInt64   `json:"year"`
+	ReleaseDate       sql.NullTime    `json:"release_date"`
+	Genre             sql.NullString  `json:"genre"`
+	Director          sql.NullString  `json:"director"`
+	Cast              sql.NullString  `json:"cast"`
+	ContentRating     sql.NullString  `json:"content_rating"`
+	MaturityRating    sql.NullInt64   `json:"maturity_rating"`
+	ContentAdvisories sql.NullString  `json:"content_advisories"`
+	Plot              sql.NullString  `json:"plot"`
+	Tagline           sql.NullString  `json:"tagline"`
+	OriginalTitle     sql.NullString  `json:"original_title"`
+	SortTitle         sql.NullString  `json:"sort_title"`
+	ImdbID            sql.NullString  `json:"imdb_id"`
+	TmdbID            sql.NullInt64   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
+	Budget            sql.NullInt64   `json:"budget"`
+	Revenue           sql.NullInt64   `json:"revenue"`
+	OriginalLanguage  sql.NullString  `json:"original_language"`
+	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
+	AwardsSummary     sql.NullString  `json:"awards_summary"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
 }
 
 func (q *Queries) CreateMovie(ctx context.Context, arg CreateMovieParams) error {
@@ -108,6 +112,8 @@ func (q *Queries) CreateMovie(ctx context.Context, arg CreateMovieParams) error 
 		arg.OriginalLanguage,
 		arg.CountryOfOrigin,
 		arg.AwardsSummary,
+		arg.Rating,
+		arg.RatingVotes,
 	)
 	return err
 }
@@ -124,7 +130,7 @@ func (q *Queries) DeleteMovie(ctx context.Context, mediaID int64) error {
 
 const getMovieByMediaID = `-- name: GetMovieByMediaID :one
 SELECT
-    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary,
+    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary, m.rating, m.rating_votes,
     med.id as media_id,
     med.library_id,
     med.title,
@@ -187,6 +193,8 @@ type GetMovieByMediaIDRow struct {
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
 	MediaID_2         int64           `json:"media_id_2"`
 	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
@@ -249,6 +257,8 @@ func (q *Queries) GetMovieByMediaID(ctx context.Context, mediaID int64) (GetMovi
 		&i.OriginalLanguage,
 		&i.CountryOfOrigin,
 		&i.AwardsSummary,
+		&i.Rating,
+		&i.RatingVotes,
 		&i.MediaID_2,
 		&i.LibraryID,
 		&i.Title,
@@ -368,7 +378,7 @@ func (q *Queries) ListMovieIDsByLibraryPaginatedDesc(ctx context.Context, arg Li
 
 const listMoviesByGenre = `-- name: ListMoviesByGenre :many
 SELECT
-    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary,
+    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary, m.rating, m.rating_votes,
     med.id as media_id,
     med.library_id,
     med.title,
@@ -439,6 +449,8 @@ type ListMoviesByGenreRow struct {
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
 	MediaID_2         int64           `json:"media_id_2"`
 	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
@@ -507,6 +519,8 @@ func (q *Queries) ListMoviesByGenre(ctx context.Context, arg ListMoviesByGenrePa
 			&i.OriginalLanguage,
 			&i.CountryOfOrigin,
 			&i.AwardsSummary,
+			&i.Rating,
+			&i.RatingVotes,
 			&i.MediaID_2,
 			&i.LibraryID,
 			&i.Title,
@@ -558,7 +572,7 @@ func (q *Queries) ListMoviesByGenre(ctx context.Context, arg ListMoviesByGenrePa
 
 const listMoviesByLibrary = `-- name: ListMoviesByLibrary :many
 SELECT
-    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary,
+    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary, m.rating, m.rating_votes,
     med.id as media_id,
     med.library_id,
     med.title,
@@ -623,6 +637,8 @@ type ListMoviesByLibraryRow struct {
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
 	MediaID_2         int64           `json:"media_id_2"`
 	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
@@ -691,6 +707,8 @@ func (q *Queries) ListMoviesByLibrary(ctx context.Context, libraryID int64) ([]L
 			&i.OriginalLanguage,
 			&i.CountryOfOrigin,
 			&i.AwardsSummary,
+			&i.Rating,
+			&i.RatingVotes,
 			&i.MediaID_2,
 			&i.LibraryID,
 			&i.Title,
@@ -742,7 +760,7 @@ func (q *Queries) ListMoviesByLibrary(ctx context.Context, libraryID int64) ([]L
 
 const listMoviesByLibraryPaginated = `-- name: ListMoviesByLibraryPaginated :many
 SELECT
-    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary,
+    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary, m.rating, m.rating_votes,
     med.id as media_id,
     med.library_id,
     med.title,
@@ -814,6 +832,8 @@ type ListMoviesByLibraryPaginatedRow struct {
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
 	MediaID_2         int64           `json:"media_id_2"`
 	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
@@ -882,6 +902,8 @@ func (q *Queries) ListMoviesByLibraryPaginated(ctx context.Context, arg ListMovi
 			&i.OriginalLanguage,
 			&i.CountryOfOrigin,
 			&i.AwardsSummary,
+			&i.Rating,
+			&i.RatingVotes,
 			&i.MediaID_2,
 			&i.LibraryID,
 			&i.Title,
@@ -933,7 +955,7 @@ func (q *Queries) ListMoviesByLibraryPaginated(ctx context.Context, arg ListMovi
 
 const listMoviesByLibraryPaginatedDesc = `-- name: ListMoviesByLibraryPaginatedDesc :many
 SELECT
-    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary,
+    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary, m.rating, m.rating_votes,
     med.id as media_id,
     med.library_id,
     med.title,
@@ -1005,6 +1027,8 @@ type ListMoviesByLibraryPaginatedDescRow struct {
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
 	MediaID_2         int64           `json:"media_id_2"`
 	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
@@ -1073,6 +1097,8 @@ func (q *Queries) ListMoviesByLibraryPaginatedDesc(ctx context.Context, arg List
 			&i.OriginalLanguage,
 			&i.CountryOfOrigin,
 			&i.AwardsSummary,
+			&i.Rating,
+			&i.RatingVotes,
 			&i.MediaID_2,
 			&i.LibraryID,
 			&i.Title,
@@ -1124,7 +1150,7 @@ func (q *Queries) ListMoviesByLibraryPaginatedDesc(ctx context.Context, arg List
 
 const listMoviesByYear = `-- name: ListMoviesByYear :many
 SELECT
-    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary,
+    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary, m.rating, m.rating_votes,
     med.id as media_id,
     med.library_id,
     med.title,
@@ -1195,6 +1221,8 @@ type ListMoviesByYearRow struct {
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
 	MediaID_2         int64           `json:"media_id_2"`
 	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
@@ -1263,6 +1291,8 @@ func (q *Queries) ListMoviesByYear(ctx context.Context, arg ListMoviesByYearPara
 			&i.OriginalLanguage,
 			&i.CountryOfOrigin,
 			&i.AwardsSummary,
+			&i.Rating,
+			&i.RatingVotes,
 			&i.MediaID_2,
 			&i.LibraryID,
 			&i.Title,
@@ -1314,7 +1344,7 @@ func (q *Queries) ListMoviesByYear(ctx context.Context, arg ListMoviesByYearPara
 
 const searchMoviesByTitle = `-- name: SearchMoviesByTitle :many
 SELECT
-    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary,
+    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary, m.rating, m.rating_votes,
     med.id as media_id,
     med.library_id,
     med.title,
@@ -1386,6 +1416,8 @@ type SearchMoviesByTitleRow struct {
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
 	MediaID_2         int64           `json:"media_id_2"`
 	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
@@ -1454,6 +1486,8 @@ func (q *Queries) SearchMoviesByTitle(ctx context.Context, arg SearchMoviesByTit
 			&i.OriginalLanguage,
 			&i.CountryOfOrigin,
 			&i.AwardsSummary,
+			&i.Rating,
+			&i.RatingVotes,
 			&i.MediaID_2,
 			&i.LibraryID,
 			&i.Title,
@@ -1505,7 +1539,7 @@ func (q *Queries) SearchMoviesByTitle(ctx context.Context, arg SearchMoviesByTit
 
 const searchMoviesByTitlePaginated = `-- name: SearchMoviesByTitlePaginated :many
 SELECT
-    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary,
+    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary, m.rating, m.rating_votes,
     med.id as media_id,
     med.library_id,
     med.title,
@@ -1580,6 +1614,8 @@ type SearchMoviesByTitlePaginatedRow struct {
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
 	MediaID_2         int64           `json:"media_id_2"`
 	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
@@ -1654,6 +1690,8 @@ func (q *Queries) SearchMoviesByTitlePaginated(ctx context.Context, arg SearchMo
 			&i.OriginalLanguage,
 			&i.CountryOfOrigin,
 			&i.AwardsSummary,
+			&i.Rating,
+			&i.RatingVotes,
 			&i.MediaID_2,
 			&i.LibraryID,
 			&i.Title,
@@ -1724,32 +1762,36 @@ SET year = ?,
     revenue = ?,
     original_language = ?,
     country_of_origin = ?,
-    awards_summary = ?
+    awards_summary = ?,
+    rating = ?,
+    rating_votes = ?
 WHERE media_id = ?
 `
 
 type UpdateMovieParams struct {
-	Year              sql.NullInt64  `json:"year"`
-	ReleaseDate       sql.NullTime   `json:"release_date"`
-	Genre             sql.NullString `json:"genre"`
-	Director          sql.NullString `json:"director"`
-	Cast              sql.NullString `json:"cast"`
-	ContentRating     sql.NullString `json:"content_rating"`
-	MaturityRating    sql.NullInt64  `json:"maturity_rating"`
-	ContentAdvisories sql.NullString `json:"content_advisories"`
-	Plot              sql.NullString `json:"plot"`
-	Tagline           sql.NullString `json:"tagline"`
-	OriginalTitle     sql.NullString `json:"original_title"`
-	SortTitle         sql.NullString `json:"sort_title"`
-	ImdbID            sql.NullString `json:"imdb_id"`
-	TmdbID            sql.NullInt64  `json:"tmdb_id"`
-	RuntimeMinutes    sql.NullInt64  `json:"runtime_minutes"`
-	Budget            sql.NullInt64  `json:"budget"`
-	Revenue           sql.NullInt64  `json:"revenue"`
-	OriginalLanguage  sql.NullString `json:"original_language"`
-	CountryOfOrigin   sql.NullString `json:"country_of_origin"`
-	AwardsSummary     sql.NullString `json:"awards_summary"`
-	MediaID           int64          `json:"media_id"`
+	Year              sql.NullInt64   `json:"year"`
+	ReleaseDate       sql.NullTime    `json:"release_date"`
+	Genre             sql.NullString  `json:"genre"`
+	Director          sql.NullString  `json:"director"`
+	Cast              sql.NullString  `json:"cast"`
+	ContentRating     sql.NullString  `json:"content_rating"`
+	MaturityRating    sql.NullInt64   `json:"maturity_rating"`
+	ContentAdvisories sql.NullString  `json:"content_advisories"`
+	Plot              sql.NullString  `json:"plot"`
+	Tagline           sql.NullString  `json:"tagline"`
+	OriginalTitle     sql.NullString  `json:"original_title"`
+	SortTitle         sql.NullString  `json:"sort_title"`
+	ImdbID            sql.NullString  `json:"imdb_id"`
+	TmdbID            sql.NullInt64   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
+	Budget            sql.NullInt64   `json:"budget"`
+	Revenue           sql.NullInt64   `json:"revenue"`
+	OriginalLanguage  sql.NullString  `json:"original_language"`
+	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
+	AwardsSummary     sql.NullString  `json:"awards_summary"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	MediaID           int64           `json:"media_id"`
 }
 
 func (q *Queries) UpdateMovie(ctx context.Context, arg UpdateMovieParams) error {
@@ -1774,6 +1816,8 @@ func (q *Queries) UpdateMovie(ctx context.Context, arg UpdateMovieParams) error 
 		arg.OriginalLanguage,
 		arg.CountryOfOrigin,
 		arg.AwardsSummary,
+		arg.Rating,
+		arg.RatingVotes,
 		arg.MediaID,
 	)
 	return err

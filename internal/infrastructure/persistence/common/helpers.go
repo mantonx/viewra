@@ -102,6 +102,12 @@ func NullFloat64(value float64) sql.NullFloat64 {
 	return sql.NullFloat64{Float64: value, Valid: value != 0}
 }
 
+// NullFloat64FromFloat32 creates a sql.NullFloat64 from a float32 value.
+// Valid is true if value is non-zero.
+func NullFloat64FromFloat32(value float32) sql.NullFloat64 {
+	return sql.NullFloat64{Float64: float64(value), Valid: value != 0}
+}
+
 // NullString creates a sql.NullString from a string value.
 // Valid is true if value is non-empty.
 func NullString(value string) sql.NullString {

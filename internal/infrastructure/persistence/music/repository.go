@@ -499,6 +499,19 @@ func (r *Repository) GetAlbumByID(ctx context.Context, id int64) (*media.Album, 
 	return album, r.ConvertNotFoundError(err)
 }
 
+// UpdateAlbum updates an existing album in the database
+func (r *Repository) UpdateAlbum(ctx context.Context, album *media.Album) error {
+	return common.ExecuteCommand(
+		r.BaseRepository, ctx,
+		func() error {
+			return r.Postgres().UpdateAlbum(ctx, buildPostgresUpdateAlbumParams(album))
+		},
+		func() error {
+			return r.SQLite().UpdateAlbum(ctx, buildSQLiteUpdateAlbumParams(album))
+		},
+	)
+}
+
 // FindAlbumByTitle finds an album by library, title, and album artist
 func (r *Repository) FindAlbumByTitle(ctx context.Context, libraryID int64, title, albumArtist string) (*media.Album, error) {
 	album, err := common.QuerySingle(
@@ -599,6 +612,19 @@ func (r *Repository) GetArtistByID(ctx context.Context, id int64) (*media.Artist
 		},
 		postgresArtistToDomain,
 		sqliteArtistToDomain,
+	)
+}
+
+// UpdateArtist updates an existing artist in the database
+func (r *Repository) UpdateArtist(ctx context.Context, artist *media.Artist) error {
+	return common.ExecuteCommand(
+		r.BaseRepository, ctx,
+		func() error {
+			return r.Postgres().UpdateArtist(ctx, buildPostgresUpdateArtistParams(artist))
+		},
+		func() error {
+			return r.SQLite().UpdateArtist(ctx, buildSQLiteUpdateArtistParams(artist))
+		},
 	)
 }
 

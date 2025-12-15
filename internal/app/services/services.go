@@ -255,6 +255,10 @@ func BuildServices(
 			MetadataExtractor: metadataAdapter,
 			Transformer:       imageTransformer,
 			Downloader:        imageDownloader,
+			// People/credits dependencies
+			PeopleRepo: repos.People,
+			// Studios dependencies
+			StudioRepo: repos.Studios,
 		},
 		&pipeline.TypedMediaRepos{
 			Movie: repos.Movie,

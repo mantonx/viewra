@@ -131,14 +131,69 @@ message EnrichedMetadata {
   // TV-specific
   optional string network = 15;
   optional string status = 16;  // "Continuing", "Ended"
-  optional string premiered = 17;  // Date string
+  optional string premiered = 17;  // Date string (first_air_date)
 
   // Music-specific
   optional string record_label = 18;
-  optional string release_date = 19;
+  optional string release_date = 19;  // YYYY-MM-DD format
 
   // Studio (movies) / Production companies
   repeated string studios = 20;
+
+  // Movie-specific production details
+  optional int64 budget = 21;
+  optional int64 revenue = 22;
+
+  // Common production details
+  optional string original_language = 23;
+  optional string country_of_origin = 24;
+
+  // TV-specific additional fields
+  optional string last_air_date = 25;  // YYYY-MM-DD format
+  repeated string creators = 26;       // Show creators
+
+  // Music-specific fields (for applying to tracks)
+  optional string artist = 27;
+  optional string album = 28;
+  optional string album_artist = 29;
+  optional int32 track_number = 30;
+  optional int32 disc_number = 31;
+  optional int32 total_tracks = 32;
+  optional int32 total_discs = 33;
+
+  // Album-specific metadata (for MediaTypeMusicAlbum)
+  AlbumMetadata album_metadata = 34;
+
+  // Artist-specific metadata (for MediaTypeMusicArtist)
+  ArtistMetadata artist_metadata = 35;
+}
+
+// AlbumMetadata contains fields specific to music albums.
+message AlbumMetadata {
+  optional string title = 1;
+  optional string album_artist = 2;
+  optional string artist = 3;         // Fallback if album_artist not set
+  optional int32 year = 4;
+  optional string release_date = 5;   // YYYY-MM-DD
+  optional string genre = 6;
+  optional int32 total_tracks = 7;
+  optional int32 total_discs = 8;
+  optional string record_label = 9;
+  optional string release_type = 10;  // album, single, ep, compilation, live, remix, soundtrack
+  optional bool compilation = 11;
+  optional string musicbrainz_album_id = 12;
+  optional string sort_title = 13;
+}
+
+// ArtistMetadata contains fields specific to music artists.
+message ArtistMetadata {
+  optional string name = 1;
+  optional string sort_name = 2;
+  optional string musicbrainz_artist_id = 3;
+  optional string bio = 4;            // Artist biography
+  optional string country = 5;
+  optional int32 formed_year = 6;
+  optional string genre = 7;          // Primary genre
 }
 
 message CastMember {

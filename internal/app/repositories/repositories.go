@@ -18,6 +18,8 @@ import (
 	transcodeRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/transcode"
 	tvRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/tvshow"
 	userRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/user"
+	peopleRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/people"
+	studiosRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/studios"
 )
 
 // Repositories holds all data access layer implementations.
@@ -46,6 +48,12 @@ type Repositories struct {
 	EnrichmentPipeline       *enrichmentRepo.PipelineRepository
 	EnrichmentExternalID     *enrichmentRepo.ExternalIDRepository
 	EnrichmentMetadataSource *enrichmentRepo.MetadataSourceRepository
+
+	// People and credits
+	People *peopleRepo.Repository
+
+	// Studios (production companies)
+	Studios *studiosRepo.Repository
 }
 
 // BuildRepositories creates and wires all repository instances using the provided database connection.
@@ -89,6 +97,12 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	enrichmentExternalIDRepository := enrichmentRepo.NewExternalIDRepository(db, driver)
 	enrichmentMetadataSourceRepository := enrichmentRepo.NewMetadataSourceRepository(db, driver)
 
+	// Create people/credits repository
+	peopleRepository := peopleRepo.NewRepository(baseRepo)
+
+	// Create studios repository
+	studiosRepository := studiosRepo.NewRepository(baseRepo)
+
 	return &Repositories{
 		Library:            libraryRepository,
 		Media:              mediaRepository,
@@ -111,5 +125,7 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 		EnrichmentPipeline:       enrichmentPipelineRepository,
 		EnrichmentExternalID:     enrichmentExternalIDRepository,
 		EnrichmentMetadataSource: enrichmentMetadataSourceRepository,
+		People:                   peopleRepository,
+		Studios:                  studiosRepository,
 	}
 }

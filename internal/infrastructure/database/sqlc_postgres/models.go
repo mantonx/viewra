@@ -11,6 +11,19 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type Credit struct {
+	ID            int32          `json:"id"`
+	PersonID      int32          `json:"person_id"`
+	MediaType     interface{}    `json:"media_type"`
+	EntityID      int32          `json:"entity_id"`
+	CreditType    interface{}    `json:"credit_type"`
+	CharacterName sql.NullString `json:"character_name"`
+	Department    sql.NullString `json:"department"`
+	Job           sql.NullString `json:"job"`
+	BillingOrder  sql.NullInt32  `json:"billing_order"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
+}
+
 type EnrichmentPipeline struct {
 	ID         int32                 `json:"id"`
 	MediaType  string                `json:"media_type"`
@@ -121,6 +134,12 @@ type MediaMetadataSource struct {
 	UpdatedAt sql.NullTime   `json:"updated_at"`
 }
 
+type MediaStudio struct {
+	MediaType interface{} `json:"media_type"`
+	EntityID  int32       `json:"entity_id"`
+	StudioID  int32       `json:"studio_id"`
+}
+
 type MediaSubtitleTrack struct {
 	ID           int32          `json:"id"`
 	MediaID      int32          `json:"media_id"`
@@ -177,27 +196,29 @@ type Medium struct {
 }
 
 type Movie struct {
-	MediaID           int32          `json:"media_id"`
-	Year              sql.NullInt32  `json:"year"`
-	ReleaseDate       sql.NullTime   `json:"release_date"`
-	Genre             sql.NullString `json:"genre"`
-	Director          sql.NullString `json:"director"`
-	Cast              sql.NullString `json:"cast"`
-	ContentRating     sql.NullString `json:"content_rating"`
-	MaturityRating    sql.NullInt32  `json:"maturity_rating"`
-	ContentAdvisories sql.NullString `json:"content_advisories"`
-	Plot              sql.NullString `json:"plot"`
-	Tagline           sql.NullString `json:"tagline"`
-	OriginalTitle     sql.NullString `json:"original_title"`
-	SortTitle         sql.NullString `json:"sort_title"`
-	ImdbID            sql.NullString `json:"imdb_id"`
-	TmdbID            sql.NullInt32  `json:"tmdb_id"`
-	RuntimeMinutes    sql.NullInt32  `json:"runtime_minutes"`
-	Budget            sql.NullInt64  `json:"budget"`
-	Revenue           sql.NullInt64  `json:"revenue"`
-	OriginalLanguage  sql.NullString `json:"original_language"`
-	CountryOfOrigin   sql.NullString `json:"country_of_origin"`
-	AwardsSummary     sql.NullString `json:"awards_summary"`
+	MediaID           int32           `json:"media_id"`
+	Year              sql.NullInt32   `json:"year"`
+	ReleaseDate       sql.NullTime    `json:"release_date"`
+	Genre             sql.NullString  `json:"genre"`
+	Director          sql.NullString  `json:"director"`
+	Cast              sql.NullString  `json:"cast"`
+	ContentRating     sql.NullString  `json:"content_rating"`
+	MaturityRating    sql.NullInt32   `json:"maturity_rating"`
+	ContentAdvisories sql.NullString  `json:"content_advisories"`
+	Plot              sql.NullString  `json:"plot"`
+	Tagline           sql.NullString  `json:"tagline"`
+	OriginalTitle     sql.NullString  `json:"original_title"`
+	SortTitle         sql.NullString  `json:"sort_title"`
+	ImdbID            sql.NullString  `json:"imdb_id"`
+	TmdbID            sql.NullInt32   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt32   `json:"runtime_minutes"`
+	Budget            sql.NullInt64   `json:"budget"`
+	Revenue           sql.NullInt64   `json:"revenue"`
+	OriginalLanguage  sql.NullString  `json:"original_language"`
+	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
+	AwardsSummary     sql.NullString  `json:"awards_summary"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt32   `json:"rating_votes"`
 }
 
 type MusicAlbum struct {
@@ -264,6 +285,18 @@ type MusicTrack struct {
 	SortTitle           sql.NullString `json:"sort_title"`
 	AlbumID             sql.NullInt32  `json:"album_id"`
 	ArtistID            sql.NullInt32  `json:"artist_id"`
+}
+
+type Person struct {
+	ID        int32          `json:"id"`
+	Name      string         `json:"name"`
+	SortName  sql.NullString `json:"sort_name"`
+	PhotoPath sql.NullString `json:"photo_path"`
+	PhotoUrl  sql.NullString `json:"photo_url"`
+	ImdbID    sql.NullString `json:"imdb_id"`
+	TmdbID    sql.NullInt32  `json:"tmdb_id"`
+	CreatedAt sql.NullTime   `json:"created_at"`
+	UpdatedAt sql.NullTime   `json:"updated_at"`
 }
 
 type PlaybackQualityEvent struct {
@@ -402,6 +435,14 @@ type Session struct {
 	ID               int32          `json:"id"`
 }
 
+type Studio struct {
+	ID        int32          `json:"id"`
+	Name      string         `json:"name"`
+	LogoPath  sql.NullString `json:"logo_path"`
+	TmdbID    sql.NullInt32  `json:"tmdb_id"`
+	CreatedAt sql.NullTime   `json:"created_at"`
+}
+
 type SystemSetting struct {
 	Key         string         `json:"key"`
 	Value       string         `json:"value"`
@@ -436,23 +477,26 @@ type TranscodeJob struct {
 }
 
 type TvEpisode struct {
-	MediaID        int32          `json:"media_id"`
-	ShowID         int32          `json:"show_id"`
-	SeasonID       int32          `json:"season_id"`
-	SeasonNumber   int32          `json:"season_number"`
-	EpisodeNumber  int32          `json:"episode_number"`
-	AbsoluteNumber sql.NullInt32  `json:"absolute_number"`
-	DvdSeason      sql.NullInt32  `json:"dvd_season"`
-	DvdEpisode     sql.NullInt32  `json:"dvd_episode"`
-	EpisodeTitle   sql.NullString `json:"episode_title"`
-	OriginalTitle  sql.NullString `json:"original_title"`
-	AirDate        sql.NullTime   `json:"air_date"`
-	Plot           sql.NullString `json:"plot"`
-	ContentRating  sql.NullString `json:"content_rating"`
-	MaturityRating sql.NullInt32  `json:"maturity_rating"`
-	ImdbID         sql.NullString `json:"imdb_id"`
-	TmdbID         sql.NullInt32  `json:"tmdb_id"`
-	TvdbID         sql.NullInt32  `json:"tvdb_id"`
+	MediaID        int32           `json:"media_id"`
+	ShowID         int32           `json:"show_id"`
+	SeasonID       int32           `json:"season_id"`
+	SeasonNumber   int32           `json:"season_number"`
+	EpisodeNumber  int32           `json:"episode_number"`
+	AbsoluteNumber sql.NullInt32   `json:"absolute_number"`
+	DvdSeason      sql.NullInt32   `json:"dvd_season"`
+	DvdEpisode     sql.NullInt32   `json:"dvd_episode"`
+	EpisodeTitle   sql.NullString  `json:"episode_title"`
+	OriginalTitle  sql.NullString  `json:"original_title"`
+	AirDate        sql.NullTime    `json:"air_date"`
+	Plot           sql.NullString  `json:"plot"`
+	ContentRating  sql.NullString  `json:"content_rating"`
+	MaturityRating sql.NullInt32   `json:"maturity_rating"`
+	ImdbID         sql.NullString  `json:"imdb_id"`
+	TmdbID         sql.NullInt32   `json:"tmdb_id"`
+	TvdbID         sql.NullInt32   `json:"tvdb_id"`
+	Rating         sql.NullFloat64 `json:"rating"`
+	RatingVotes    sql.NullInt32   `json:"rating_votes"`
+	RuntimeMinutes sql.NullInt32   `json:"runtime_minutes"`
 }
 
 type TvSeason struct {
@@ -469,28 +513,31 @@ type TvSeason struct {
 }
 
 type TvShow struct {
-	ID               int32          `json:"id"`
-	LibraryID        int32          `json:"library_id"`
-	Title            string         `json:"title"`
-	OriginalTitle    sql.NullString `json:"original_title"`
-	SortTitle        sql.NullString `json:"sort_title"`
-	Year             sql.NullInt32  `json:"year"`
-	FirstAirDate     sql.NullTime   `json:"first_air_date"`
-	LastAirDate      sql.NullTime   `json:"last_air_date"`
-	Genre            sql.NullString `json:"genre"`
-	Plot             sql.NullString `json:"plot"`
-	Status           sql.NullString `json:"status"`
-	ContentRating    sql.NullString `json:"content_rating"`
-	MaturityRating   sql.NullInt32  `json:"maturity_rating"`
-	Network          sql.NullString `json:"network"`
-	OriginalLanguage sql.NullString `json:"original_language"`
-	CountryOfOrigin  sql.NullString `json:"country_of_origin"`
-	ImdbID           sql.NullString `json:"imdb_id"`
-	TmdbID           sql.NullInt32  `json:"tmdb_id"`
-	TvdbID           sql.NullInt32  `json:"tvdb_id"`
-	CreatedAt        sql.NullTime   `json:"created_at"`
-	UpdatedAt        sql.NullTime   `json:"updated_at"`
-	Directory        sql.NullString `json:"directory"`
+	ID               int32           `json:"id"`
+	LibraryID        int32           `json:"library_id"`
+	Title            string          `json:"title"`
+	OriginalTitle    sql.NullString  `json:"original_title"`
+	SortTitle        sql.NullString  `json:"sort_title"`
+	Year             sql.NullInt32   `json:"year"`
+	FirstAirDate     sql.NullTime    `json:"first_air_date"`
+	LastAirDate      sql.NullTime    `json:"last_air_date"`
+	Genre            sql.NullString  `json:"genre"`
+	Plot             sql.NullString  `json:"plot"`
+	Status           sql.NullString  `json:"status"`
+	ContentRating    sql.NullString  `json:"content_rating"`
+	MaturityRating   sql.NullInt32   `json:"maturity_rating"`
+	Network          sql.NullString  `json:"network"`
+	OriginalLanguage sql.NullString  `json:"original_language"`
+	CountryOfOrigin  sql.NullString  `json:"country_of_origin"`
+	ImdbID           sql.NullString  `json:"imdb_id"`
+	TmdbID           sql.NullInt32   `json:"tmdb_id"`
+	TvdbID           sql.NullInt32   `json:"tvdb_id"`
+	CreatedAt        sql.NullTime    `json:"created_at"`
+	UpdatedAt        sql.NullTime    `json:"updated_at"`
+	Directory        sql.NullString  `json:"directory"`
+	Rating           sql.NullFloat64 `json:"rating"`
+	RatingVotes      sql.NullInt32   `json:"rating_votes"`
+	Tagline          sql.NullString  `json:"tagline"`
 }
 
 type User struct {

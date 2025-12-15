@@ -150,16 +150,30 @@ type TVRepository interface {
 
 // TVShow represents a TV show for use in repository operations
 type TVShow struct {
-	ID            int64
-	LibraryID     int64
-	Title         string
-	Year          int
-	Genre         []string
-	Plot          string
-	IMDbID        string
-	TMDbID        int
-	ContentRating string
-	Directory     string // Path to the show directory (for enrichment/artwork)
+	ID               int64
+	LibraryID        int64
+	Title            string
+	OriginalTitle    string
+	SortTitle        string
+	Year             int
+	FirstAirDate     string // YYYY-MM-DD format (premiere date)
+	LastAirDate      string // YYYY-MM-DD format
+	Genre            []string
+	Plot             string
+	Tagline          string
+	Status           string // "Returning Series", "Planned", "In Production", "Ended", "Cancelled", "Pilot"
+	ContentRating    string
+	Network          string
+	OriginalLanguage string
+	CountryOfOrigin  string
+	IMDbID           string
+	TMDbID           int
+	TVDbID           int
+	Directory        string // Path to the show directory (for enrichment/artwork)
+
+	// Ratings
+	Rating      float32 // Average rating (0.0 - 10.0)
+	RatingVotes int     // Number of votes
 }
 
 // TVShowWithCounts represents a TV show with aggregated season and episode counts

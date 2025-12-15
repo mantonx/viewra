@@ -52,32 +52,37 @@ const createTVEpisode = `-- name: CreateTVEpisode :exec
 INSERT INTO tv_episodes (
     media_id, show_id, season_id, season_number, episode_number,
     absolute_number, dvd_season, dvd_episode, episode_title, original_title,
-    air_date, plot, content_rating, maturity_rating, imdb_id, tmdb_id, tvdb_id
+    air_date, plot, content_rating, maturity_rating, imdb_id, tmdb_id, tvdb_id,
+    rating, rating_votes, runtime_minutes
 ) VALUES (
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?,
+    ?, ?, ?
 )
 `
 
 type CreateTVEpisodeParams struct {
-	MediaID        int64          `json:"media_id"`
-	ShowID         int64          `json:"show_id"`
-	SeasonID       int64          `json:"season_id"`
-	SeasonNumber   int64          `json:"season_number"`
-	EpisodeNumber  int64          `json:"episode_number"`
-	AbsoluteNumber sql.NullInt64  `json:"absolute_number"`
-	DvdSeason      sql.NullInt64  `json:"dvd_season"`
-	DvdEpisode     sql.NullInt64  `json:"dvd_episode"`
-	EpisodeTitle   sql.NullString `json:"episode_title"`
-	OriginalTitle  sql.NullString `json:"original_title"`
-	AirDate        sql.NullTime   `json:"air_date"`
-	Plot           sql.NullString `json:"plot"`
-	ContentRating  sql.NullString `json:"content_rating"`
-	MaturityRating sql.NullInt64  `json:"maturity_rating"`
-	ImdbID         sql.NullString `json:"imdb_id"`
-	TmdbID         sql.NullInt64  `json:"tmdb_id"`
-	TvdbID         sql.NullInt64  `json:"tvdb_id"`
+	MediaID        int64           `json:"media_id"`
+	ShowID         int64           `json:"show_id"`
+	SeasonID       int64           `json:"season_id"`
+	SeasonNumber   int64           `json:"season_number"`
+	EpisodeNumber  int64           `json:"episode_number"`
+	AbsoluteNumber sql.NullInt64   `json:"absolute_number"`
+	DvdSeason      sql.NullInt64   `json:"dvd_season"`
+	DvdEpisode     sql.NullInt64   `json:"dvd_episode"`
+	EpisodeTitle   sql.NullString  `json:"episode_title"`
+	OriginalTitle  sql.NullString  `json:"original_title"`
+	AirDate        sql.NullTime    `json:"air_date"`
+	Plot           sql.NullString  `json:"plot"`
+	ContentRating  sql.NullString  `json:"content_rating"`
+	MaturityRating sql.NullInt64   `json:"maturity_rating"`
+	ImdbID         sql.NullString  `json:"imdb_id"`
+	TmdbID         sql.NullInt64   `json:"tmdb_id"`
+	TvdbID         sql.NullInt64   `json:"tvdb_id"`
+	Rating         sql.NullFloat64 `json:"rating"`
+	RatingVotes    sql.NullInt64   `json:"rating_votes"`
+	RuntimeMinutes sql.NullInt64   `json:"runtime_minutes"`
 }
 
 // ============================================================================
@@ -102,6 +107,9 @@ func (q *Queries) CreateTVEpisode(ctx context.Context, arg CreateTVEpisodeParams
 		arg.ImdbID,
 		arg.TmdbID,
 		arg.TvdbID,
+		arg.Rating,
+		arg.RatingVotes,
+		arg.RuntimeMinutes,
 	)
 	return err
 }
@@ -160,35 +168,38 @@ INSERT INTO tv_shows (
     library_id, title, original_title, sort_title, year, first_air_date,
     last_air_date, genre, plot, status, content_rating, maturity_rating,
     network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id,
-    directory
+    directory, rating, rating_votes, tagline
 ) VALUES (
     ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?,
-    ?
-) RETURNING id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory
+    ?, ?, ?, ?
+) RETURNING id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline
 `
 
 type CreateTVShowParams struct {
-	LibraryID        int64          `json:"library_id"`
-	Title            string         `json:"title"`
-	OriginalTitle    sql.NullString `json:"original_title"`
-	SortTitle        sql.NullString `json:"sort_title"`
-	Year             sql.NullInt64  `json:"year"`
-	FirstAirDate     sql.NullTime   `json:"first_air_date"`
-	LastAirDate      sql.NullTime   `json:"last_air_date"`
-	Genre            sql.NullString `json:"genre"`
-	Plot             sql.NullString `json:"plot"`
-	Status           sql.NullString `json:"status"`
-	ContentRating    sql.NullString `json:"content_rating"`
-	MaturityRating   sql.NullInt64  `json:"maturity_rating"`
-	Network          sql.NullString `json:"network"`
-	OriginalLanguage sql.NullString `json:"original_language"`
-	CountryOfOrigin  sql.NullString `json:"country_of_origin"`
-	ImdbID           sql.NullString `json:"imdb_id"`
-	TmdbID           sql.NullInt64  `json:"tmdb_id"`
-	TvdbID           sql.NullInt64  `json:"tvdb_id"`
-	Directory        sql.NullString `json:"directory"`
+	LibraryID        int64           `json:"library_id"`
+	Title            string          `json:"title"`
+	OriginalTitle    sql.NullString  `json:"original_title"`
+	SortTitle        sql.NullString  `json:"sort_title"`
+	Year             sql.NullInt64   `json:"year"`
+	FirstAirDate     sql.NullTime    `json:"first_air_date"`
+	LastAirDate      sql.NullTime    `json:"last_air_date"`
+	Genre            sql.NullString  `json:"genre"`
+	Plot             sql.NullString  `json:"plot"`
+	Status           sql.NullString  `json:"status"`
+	ContentRating    sql.NullString  `json:"content_rating"`
+	MaturityRating   sql.NullInt64   `json:"maturity_rating"`
+	Network          sql.NullString  `json:"network"`
+	OriginalLanguage sql.NullString  `json:"original_language"`
+	CountryOfOrigin  sql.NullString  `json:"country_of_origin"`
+	ImdbID           sql.NullString  `json:"imdb_id"`
+	TmdbID           sql.NullInt64   `json:"tmdb_id"`
+	TvdbID           sql.NullInt64   `json:"tvdb_id"`
+	Directory        sql.NullString  `json:"directory"`
+	Rating           sql.NullFloat64 `json:"rating"`
+	RatingVotes      sql.NullInt64   `json:"rating_votes"`
+	Tagline          sql.NullString  `json:"tagline"`
 }
 
 // ============================================================================
@@ -215,6 +226,9 @@ func (q *Queries) CreateTVShow(ctx context.Context, arg CreateTVShowParams) (TvS
 		arg.TmdbID,
 		arg.TvdbID,
 		arg.Directory,
+		arg.Rating,
+		arg.RatingVotes,
+		arg.Tagline,
 	)
 	var i TvShow
 	err := row.Scan(
@@ -240,6 +254,9 @@ func (q *Queries) CreateTVShow(ctx context.Context, arg CreateTVShowParams) (TvS
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Directory,
+		&i.Rating,
+		&i.RatingVotes,
+		&i.Tagline,
 	)
 	return i, err
 }
@@ -276,7 +293,7 @@ func (q *Queries) DeleteTVShow(ctx context.Context, id int64) error {
 
 const getTVEpisodeByMediaID = `-- name: GetTVEpisodeByMediaID :one
 SELECT
-    e.media_id, e.show_id, e.season_id, e.season_number, e.episode_number, e.absolute_number, e.dvd_season, e.dvd_episode, e.episode_title, e.original_title, e.air_date, e.plot, e.content_rating, e.maturity_rating, e.imdb_id, e.tmdb_id, e.tvdb_id,
+    e.media_id, e.show_id, e.season_id, e.season_number, e.episode_number, e.absolute_number, e.dvd_season, e.dvd_episode, e.episode_title, e.original_title, e.air_date, e.plot, e.content_rating, e.maturity_rating, e.imdb_id, e.tmdb_id, e.tvdb_id, e.rating, e.rating_votes, e.runtime_minutes,
     med.id as media_id,
     med.library_id,
     med.title,
@@ -335,6 +352,9 @@ type GetTVEpisodeByMediaIDRow struct {
 	ImdbID            sql.NullString  `json:"imdb_id"`
 	TmdbID            sql.NullInt64   `json:"tmdb_id"`
 	TvdbID            sql.NullInt64   `json:"tvdb_id"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
 	MediaID_2         int64           `json:"media_id_2"`
 	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
@@ -393,6 +413,9 @@ func (q *Queries) GetTVEpisodeByMediaID(ctx context.Context, mediaID int64) (Get
 		&i.ImdbID,
 		&i.TmdbID,
 		&i.TvdbID,
+		&i.Rating,
+		&i.RatingVotes,
+		&i.RuntimeMinutes,
 		&i.MediaID_2,
 		&i.LibraryID,
 		&i.Title,
@@ -434,7 +457,7 @@ func (q *Queries) GetTVEpisodeByMediaID(ctx context.Context, mediaID int64) (Get
 
 const getTVEpisodeByShowSeasonEpisode = `-- name: GetTVEpisodeByShowSeasonEpisode :one
 SELECT
-    e.media_id, e.show_id, e.season_id, e.season_number, e.episode_number, e.absolute_number, e.dvd_season, e.dvd_episode, e.episode_title, e.original_title, e.air_date, e.plot, e.content_rating, e.maturity_rating, e.imdb_id, e.tmdb_id, e.tvdb_id,
+    e.media_id, e.show_id, e.season_id, e.season_number, e.episode_number, e.absolute_number, e.dvd_season, e.dvd_episode, e.episode_title, e.original_title, e.air_date, e.plot, e.content_rating, e.maturity_rating, e.imdb_id, e.tmdb_id, e.tvdb_id, e.rating, e.rating_votes, e.runtime_minutes,
     med.id as media_id,
     med.library_id,
     med.title,
@@ -500,6 +523,9 @@ type GetTVEpisodeByShowSeasonEpisodeRow struct {
 	ImdbID            sql.NullString  `json:"imdb_id"`
 	TmdbID            sql.NullInt64   `json:"tmdb_id"`
 	TvdbID            sql.NullInt64   `json:"tvdb_id"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
 	MediaID_2         int64           `json:"media_id_2"`
 	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
@@ -558,6 +584,9 @@ func (q *Queries) GetTVEpisodeByShowSeasonEpisode(ctx context.Context, arg GetTV
 		&i.ImdbID,
 		&i.TmdbID,
 		&i.TvdbID,
+		&i.Rating,
+		&i.RatingVotes,
+		&i.RuntimeMinutes,
 		&i.MediaID_2,
 		&i.LibraryID,
 		&i.Title,
@@ -650,7 +679,7 @@ func (q *Queries) GetTVSeasonByShowAndNumber(ctx context.Context, arg GetTVSeaso
 }
 
 const getTVShowByID = `-- name: GetTVShowByID :one
-SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory FROM tv_shows
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
 WHERE id = ?
 `
 
@@ -680,12 +709,15 @@ func (q *Queries) GetTVShowByID(ctx context.Context, id int64) (TvShow, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Directory,
+		&i.Rating,
+		&i.RatingVotes,
+		&i.Tagline,
 	)
 	return i, err
 }
 
 const getTVShowByTitle = `-- name: GetTVShowByTitle :one
-SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory FROM tv_shows
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
 WHERE library_id = ? AND LOWER(title) = LOWER(?)
 LIMIT 1
 `
@@ -721,6 +753,9 @@ func (q *Queries) GetTVShowByTitle(ctx context.Context, arg GetTVShowByTitlePara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Directory,
+		&i.Rating,
+		&i.RatingVotes,
+		&i.Tagline,
 	)
 	return i, err
 }
@@ -970,7 +1005,7 @@ func (q *Queries) IncrementSeasonEpisodeCount(ctx context.Context, id int64) err
 
 const listTVEpisodesByLibrary = `-- name: ListTVEpisodesByLibrary :many
 SELECT
-    e.media_id, e.show_id, e.season_id, e.season_number, e.episode_number, e.absolute_number, e.dvd_season, e.dvd_episode, e.episode_title, e.original_title, e.air_date, e.plot, e.content_rating, e.maturity_rating, e.imdb_id, e.tmdb_id, e.tvdb_id,
+    e.media_id, e.show_id, e.season_id, e.season_number, e.episode_number, e.absolute_number, e.dvd_season, e.dvd_episode, e.episode_title, e.original_title, e.air_date, e.plot, e.content_rating, e.maturity_rating, e.imdb_id, e.tmdb_id, e.tvdb_id, e.rating, e.rating_votes, e.runtime_minutes,
     med.id as media_id,
     med.library_id,
     med.title,
@@ -1031,6 +1066,9 @@ type ListTVEpisodesByLibraryRow struct {
 	ImdbID            sql.NullString  `json:"imdb_id"`
 	TmdbID            sql.NullInt64   `json:"tmdb_id"`
 	TvdbID            sql.NullInt64   `json:"tvdb_id"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
 	MediaID_2         int64           `json:"media_id_2"`
 	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
@@ -1095,6 +1133,9 @@ func (q *Queries) ListTVEpisodesByLibrary(ctx context.Context, libraryID int64) 
 			&i.ImdbID,
 			&i.TmdbID,
 			&i.TvdbID,
+			&i.Rating,
+			&i.RatingVotes,
+			&i.RuntimeMinutes,
 			&i.MediaID_2,
 			&i.LibraryID,
 			&i.Title,
@@ -1146,7 +1187,7 @@ func (q *Queries) ListTVEpisodesByLibrary(ctx context.Context, libraryID int64) 
 
 const listTVEpisodesBySeason = `-- name: ListTVEpisodesBySeason :many
 SELECT
-    e.media_id, e.show_id, e.season_id, e.season_number, e.episode_number, e.absolute_number, e.dvd_season, e.dvd_episode, e.episode_title, e.original_title, e.air_date, e.plot, e.content_rating, e.maturity_rating, e.imdb_id, e.tmdb_id, e.tvdb_id,
+    e.media_id, e.show_id, e.season_id, e.season_number, e.episode_number, e.absolute_number, e.dvd_season, e.dvd_episode, e.episode_title, e.original_title, e.air_date, e.plot, e.content_rating, e.maturity_rating, e.imdb_id, e.tmdb_id, e.tvdb_id, e.rating, e.rating_votes, e.runtime_minutes,
     med.id as media_id,
     med.library_id,
     med.title,
@@ -1207,6 +1248,9 @@ type ListTVEpisodesBySeasonRow struct {
 	ImdbID            sql.NullString  `json:"imdb_id"`
 	TmdbID            sql.NullInt64   `json:"tmdb_id"`
 	TvdbID            sql.NullInt64   `json:"tvdb_id"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
 	MediaID_2         int64           `json:"media_id_2"`
 	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
@@ -1271,6 +1315,9 @@ func (q *Queries) ListTVEpisodesBySeason(ctx context.Context, seasonID int64) ([
 			&i.ImdbID,
 			&i.TmdbID,
 			&i.TvdbID,
+			&i.Rating,
+			&i.RatingVotes,
+			&i.RuntimeMinutes,
 			&i.MediaID_2,
 			&i.LibraryID,
 			&i.Title,
@@ -1322,7 +1369,7 @@ func (q *Queries) ListTVEpisodesBySeason(ctx context.Context, seasonID int64) ([
 
 const listTVEpisodesByShow = `-- name: ListTVEpisodesByShow :many
 SELECT
-    e.media_id, e.show_id, e.season_id, e.season_number, e.episode_number, e.absolute_number, e.dvd_season, e.dvd_episode, e.episode_title, e.original_title, e.air_date, e.plot, e.content_rating, e.maturity_rating, e.imdb_id, e.tmdb_id, e.tvdb_id,
+    e.media_id, e.show_id, e.season_id, e.season_number, e.episode_number, e.absolute_number, e.dvd_season, e.dvd_episode, e.episode_title, e.original_title, e.air_date, e.plot, e.content_rating, e.maturity_rating, e.imdb_id, e.tmdb_id, e.tvdb_id, e.rating, e.rating_votes, e.runtime_minutes,
     med.id as media_id,
     med.library_id,
     med.title,
@@ -1383,6 +1430,9 @@ type ListTVEpisodesByShowRow struct {
 	ImdbID            sql.NullString  `json:"imdb_id"`
 	TmdbID            sql.NullInt64   `json:"tmdb_id"`
 	TvdbID            sql.NullInt64   `json:"tvdb_id"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
 	MediaID_2         int64           `json:"media_id_2"`
 	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
@@ -1447,6 +1497,9 @@ func (q *Queries) ListTVEpisodesByShow(ctx context.Context, showID int64) ([]Lis
 			&i.ImdbID,
 			&i.TmdbID,
 			&i.TvdbID,
+			&i.Rating,
+			&i.RatingVotes,
+			&i.RuntimeMinutes,
 			&i.MediaID_2,
 			&i.LibraryID,
 			&i.Title,
@@ -1611,7 +1664,7 @@ func (q *Queries) ListTVShowIDsByLibraryPaginatedDesc(ctx context.Context, arg L
 }
 
 const listTVShowsByLibrary = `-- name: ListTVShowsByLibrary :many
-SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory FROM tv_shows
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
 WHERE library_id = ?
 ORDER BY sort_title, title
 `
@@ -1648,6 +1701,9 @@ func (q *Queries) ListTVShowsByLibrary(ctx context.Context, libraryID int64) ([]
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Directory,
+			&i.Rating,
+			&i.RatingVotes,
+			&i.Tagline,
 		); err != nil {
 			return nil, err
 		}
@@ -1663,7 +1719,7 @@ func (q *Queries) ListTVShowsByLibrary(ctx context.Context, libraryID int64) ([]
 }
 
 const listTVShowsByLibraryPaginated = `-- name: ListTVShowsByLibraryPaginated :many
-SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory FROM tv_shows
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
 WHERE library_id = ?
 ORDER BY COALESCE(sort_title, title) COLLATE NOCASE ASC
 LIMIT ? OFFSET ?
@@ -1707,6 +1763,9 @@ func (q *Queries) ListTVShowsByLibraryPaginated(ctx context.Context, arg ListTVS
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Directory,
+			&i.Rating,
+			&i.RatingVotes,
+			&i.Tagline,
 		); err != nil {
 			return nil, err
 		}
@@ -1722,7 +1781,7 @@ func (q *Queries) ListTVShowsByLibraryPaginated(ctx context.Context, arg ListTVS
 }
 
 const listTVShowsByLibraryPaginatedDesc = `-- name: ListTVShowsByLibraryPaginatedDesc :many
-SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory FROM tv_shows
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
 WHERE library_id = ?
 ORDER BY COALESCE(sort_title, title) COLLATE NOCASE DESC
 LIMIT ? OFFSET ?
@@ -1766,6 +1825,9 @@ func (q *Queries) ListTVShowsByLibraryPaginatedDesc(ctx context.Context, arg Lis
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Directory,
+			&i.Rating,
+			&i.RatingVotes,
+			&i.Tagline,
 		); err != nil {
 			return nil, err
 		}
@@ -1782,7 +1844,7 @@ func (q *Queries) ListTVShowsByLibraryPaginatedDesc(ctx context.Context, arg Lis
 
 const searchTVEpisodesByTitle = `-- name: SearchTVEpisodesByTitle :many
 SELECT
-    e.media_id, e.show_id, e.season_id, e.season_number, e.episode_number, e.absolute_number, e.dvd_season, e.dvd_episode, e.episode_title, e.original_title, e.air_date, e.plot, e.content_rating, e.maturity_rating, e.imdb_id, e.tmdb_id, e.tvdb_id,
+    e.media_id, e.show_id, e.season_id, e.season_number, e.episode_number, e.absolute_number, e.dvd_season, e.dvd_episode, e.episode_title, e.original_title, e.air_date, e.plot, e.content_rating, e.maturity_rating, e.imdb_id, e.tmdb_id, e.tvdb_id, e.rating, e.rating_votes, e.runtime_minutes,
     med.id as media_id,
     med.library_id,
     med.title,
@@ -1851,6 +1913,9 @@ type SearchTVEpisodesByTitleRow struct {
 	ImdbID            sql.NullString  `json:"imdb_id"`
 	TmdbID            sql.NullInt64   `json:"tmdb_id"`
 	TvdbID            sql.NullInt64   `json:"tvdb_id"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
 	MediaID_2         int64           `json:"media_id_2"`
 	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
@@ -1915,6 +1980,9 @@ func (q *Queries) SearchTVEpisodesByTitle(ctx context.Context, arg SearchTVEpiso
 			&i.ImdbID,
 			&i.TmdbID,
 			&i.TvdbID,
+			&i.Rating,
+			&i.RatingVotes,
+			&i.RuntimeMinutes,
 			&i.MediaID_2,
 			&i.LibraryID,
 			&i.Title,
@@ -1965,7 +2033,7 @@ func (q *Queries) SearchTVEpisodesByTitle(ctx context.Context, arg SearchTVEpiso
 }
 
 const searchTVShowsByTitle = `-- name: SearchTVShowsByTitle :many
-SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory FROM tv_shows
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
 WHERE library_id = ?
   AND (title LIKE ? OR original_title LIKE ?)
 ORDER BY sort_title, title
@@ -2009,6 +2077,9 @@ func (q *Queries) SearchTVShowsByTitle(ctx context.Context, arg SearchTVShowsByT
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Directory,
+			&i.Rating,
+			&i.RatingVotes,
+			&i.Tagline,
 		); err != nil {
 			return nil, err
 		}
@@ -2024,7 +2095,7 @@ func (q *Queries) SearchTVShowsByTitle(ctx context.Context, arg SearchTVShowsByT
 }
 
 const searchTVShowsByTitlePaginated = `-- name: SearchTVShowsByTitlePaginated :many
-SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory FROM tv_shows
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
 WHERE library_id = ?
   AND (title LIKE ? OR original_title LIKE ?)
 ORDER BY sort_title, title
@@ -2077,6 +2148,9 @@ func (q *Queries) SearchTVShowsByTitlePaginated(ctx context.Context, arg SearchT
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Directory,
+			&i.Rating,
+			&i.RatingVotes,
+			&i.Tagline,
 		); err != nil {
 			return nil, err
 		}
@@ -2195,28 +2269,34 @@ SET show_id = ?,
     maturity_rating = ?,
     imdb_id = ?,
     tmdb_id = ?,
-    tvdb_id = ?
+    tvdb_id = ?,
+    rating = ?,
+    rating_votes = ?,
+    runtime_minutes = ?
 WHERE media_id = ?
 `
 
 type UpdateTVEpisodeParams struct {
-	ShowID         int64          `json:"show_id"`
-	SeasonID       int64          `json:"season_id"`
-	SeasonNumber   int64          `json:"season_number"`
-	EpisodeNumber  int64          `json:"episode_number"`
-	AbsoluteNumber sql.NullInt64  `json:"absolute_number"`
-	DvdSeason      sql.NullInt64  `json:"dvd_season"`
-	DvdEpisode     sql.NullInt64  `json:"dvd_episode"`
-	EpisodeTitle   sql.NullString `json:"episode_title"`
-	OriginalTitle  sql.NullString `json:"original_title"`
-	AirDate        sql.NullTime   `json:"air_date"`
-	Plot           sql.NullString `json:"plot"`
-	ContentRating  sql.NullString `json:"content_rating"`
-	MaturityRating sql.NullInt64  `json:"maturity_rating"`
-	ImdbID         sql.NullString `json:"imdb_id"`
-	TmdbID         sql.NullInt64  `json:"tmdb_id"`
-	TvdbID         sql.NullInt64  `json:"tvdb_id"`
-	MediaID        int64          `json:"media_id"`
+	ShowID         int64           `json:"show_id"`
+	SeasonID       int64           `json:"season_id"`
+	SeasonNumber   int64           `json:"season_number"`
+	EpisodeNumber  int64           `json:"episode_number"`
+	AbsoluteNumber sql.NullInt64   `json:"absolute_number"`
+	DvdSeason      sql.NullInt64   `json:"dvd_season"`
+	DvdEpisode     sql.NullInt64   `json:"dvd_episode"`
+	EpisodeTitle   sql.NullString  `json:"episode_title"`
+	OriginalTitle  sql.NullString  `json:"original_title"`
+	AirDate        sql.NullTime    `json:"air_date"`
+	Plot           sql.NullString  `json:"plot"`
+	ContentRating  sql.NullString  `json:"content_rating"`
+	MaturityRating sql.NullInt64   `json:"maturity_rating"`
+	ImdbID         sql.NullString  `json:"imdb_id"`
+	TmdbID         sql.NullInt64   `json:"tmdb_id"`
+	TvdbID         sql.NullInt64   `json:"tvdb_id"`
+	Rating         sql.NullFloat64 `json:"rating"`
+	RatingVotes    sql.NullInt64   `json:"rating_votes"`
+	RuntimeMinutes sql.NullInt64   `json:"runtime_minutes"`
+	MediaID        int64           `json:"media_id"`
 }
 
 func (q *Queries) UpdateTVEpisode(ctx context.Context, arg UpdateTVEpisodeParams) error {
@@ -2237,6 +2317,9 @@ func (q *Queries) UpdateTVEpisode(ctx context.Context, arg UpdateTVEpisodeParams
 		arg.ImdbID,
 		arg.TmdbID,
 		arg.TvdbID,
+		arg.Rating,
+		arg.RatingVotes,
+		arg.RuntimeMinutes,
 		arg.MediaID,
 	)
 	return err
@@ -2294,30 +2377,36 @@ SET title = ?,
     tmdb_id = ?,
     tvdb_id = ?,
     directory = ?,
+    rating = ?,
+    rating_votes = ?,
+    tagline = ?,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 `
 
 type UpdateTVShowParams struct {
-	Title            string         `json:"title"`
-	OriginalTitle    sql.NullString `json:"original_title"`
-	SortTitle        sql.NullString `json:"sort_title"`
-	Year             sql.NullInt64  `json:"year"`
-	FirstAirDate     sql.NullTime   `json:"first_air_date"`
-	LastAirDate      sql.NullTime   `json:"last_air_date"`
-	Genre            sql.NullString `json:"genre"`
-	Plot             sql.NullString `json:"plot"`
-	Status           sql.NullString `json:"status"`
-	ContentRating    sql.NullString `json:"content_rating"`
-	MaturityRating   sql.NullInt64  `json:"maturity_rating"`
-	Network          sql.NullString `json:"network"`
-	OriginalLanguage sql.NullString `json:"original_language"`
-	CountryOfOrigin  sql.NullString `json:"country_of_origin"`
-	ImdbID           sql.NullString `json:"imdb_id"`
-	TmdbID           sql.NullInt64  `json:"tmdb_id"`
-	TvdbID           sql.NullInt64  `json:"tvdb_id"`
-	Directory        sql.NullString `json:"directory"`
-	ID               int64          `json:"id"`
+	Title            string          `json:"title"`
+	OriginalTitle    sql.NullString  `json:"original_title"`
+	SortTitle        sql.NullString  `json:"sort_title"`
+	Year             sql.NullInt64   `json:"year"`
+	FirstAirDate     sql.NullTime    `json:"first_air_date"`
+	LastAirDate      sql.NullTime    `json:"last_air_date"`
+	Genre            sql.NullString  `json:"genre"`
+	Plot             sql.NullString  `json:"plot"`
+	Status           sql.NullString  `json:"status"`
+	ContentRating    sql.NullString  `json:"content_rating"`
+	MaturityRating   sql.NullInt64   `json:"maturity_rating"`
+	Network          sql.NullString  `json:"network"`
+	OriginalLanguage sql.NullString  `json:"original_language"`
+	CountryOfOrigin  sql.NullString  `json:"country_of_origin"`
+	ImdbID           sql.NullString  `json:"imdb_id"`
+	TmdbID           sql.NullInt64   `json:"tmdb_id"`
+	TvdbID           sql.NullInt64   `json:"tvdb_id"`
+	Directory        sql.NullString  `json:"directory"`
+	Rating           sql.NullFloat64 `json:"rating"`
+	RatingVotes      sql.NullInt64   `json:"rating_votes"`
+	Tagline          sql.NullString  `json:"tagline"`
+	ID               int64           `json:"id"`
 }
 
 func (q *Queries) UpdateTVShow(ctx context.Context, arg UpdateTVShowParams) error {
@@ -2340,6 +2429,9 @@ func (q *Queries) UpdateTVShow(ctx context.Context, arg UpdateTVShowParams) erro
 		arg.TmdbID,
 		arg.TvdbID,
 		arg.Directory,
+		arg.Rating,
+		arg.RatingVotes,
+		arg.Tagline,
 		arg.ID,
 	)
 	return err

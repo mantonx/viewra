@@ -86,6 +86,7 @@ type Handlers struct {
 	Movies    *handlers.MoviesHandler
 	TV        *handlers.TVHandler
 	Music     *handlers.MusicHandler
+	People    *handlers.PeopleHandler
 	Auth      *handlers.AuthHandler
 	Users     *handlers.UsersHandler
 	Settings   *handlers.SettingsHandler
@@ -184,6 +185,7 @@ func (s *Server) setupRoutes() {
 	routes.RegisterMoviesRoutes(protected, h.Movies)
 	routes.RegisterTVRoutes(protected, h.TV)
 	routes.RegisterMusicRoutes(protected, h.Music)
+	routes.RegisterPeopleRoutes(protected, h.People)
 
 	// Register analytics routes (protected)
 	routes.RegisterAnalyticsRoutes(protected, h.Analytics)

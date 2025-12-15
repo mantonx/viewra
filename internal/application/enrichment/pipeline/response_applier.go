@@ -13,15 +13,19 @@ import (
 type ResponseApplier struct {
 	deps            *Deps
 	metadataApplier *MetadataApplier
+	creditsApplier  *CreditsApplier
+	studiosApplier  *StudiosApplier
 	imageProcessor  *ImageProcessor
 	logger          *slog.Logger
 }
 
 // NewResponseApplier creates a new ResponseApplier.
-func NewResponseApplier(deps *Deps, metadataApplier *MetadataApplier, imageProcessor *ImageProcessor, logger *slog.Logger) *ResponseApplier {
+func NewResponseApplier(deps *Deps, metadataApplier *MetadataApplier, creditsApplier *CreditsApplier, studiosApplier *StudiosApplier, imageProcessor *ImageProcessor, logger *slog.Logger) *ResponseApplier {
 	return &ResponseApplier{
 		deps:            deps,
 		metadataApplier: metadataApplier,
+		creditsApplier:  creditsApplier,
+		studiosApplier:  studiosApplier,
 		imageProcessor:  imageProcessor,
 		logger:          logger,
 	}
@@ -36,6 +40,28 @@ func (a *ResponseApplier) Apply(ctx context.Context, job *enrichment.QueueJob, m
 	if resp.Metadata != nil && a.metadataApplier != nil {
 		if err := a.metadataApplier.Apply(ctx, mediaID, mediaType, resp.Metadata); err != nil {
 			return fmt.Errorf("apply metadata: %w", err)
+		}
+	}
+
+	// Apply credits (cast, directors, writers, creators)
+	if resp.Metadata != nil && a.creditsApplier != nil {
+		if err := a.creditsApplier.Apply(ctx, mediaID, mediaType, resp.Metadata); err != nil {
+			// Log but don't fail - credits are supplementary data
+			a.logger.Warn("failed to apply credits",
+				slog.Int64("media_id", mediaID),
+				slog.String("media_type", string(mediaType)),
+				slog.Any("error", err))
+		}
+	}
+
+	// Apply studios (production companies)
+	if resp.Metadata != nil && a.studiosApplier != nil {
+		if err := a.studiosApplier.Apply(ctx, mediaID, mediaType, resp.Metadata); err != nil {
+			// Log but don't fail - studios are supplementary data
+			a.logger.Warn("failed to apply studios",
+				slog.Int64("media_id", mediaID),
+				slog.String("media_type", string(mediaType)),
+				slog.Any("error", err))
 		}
 	}
 

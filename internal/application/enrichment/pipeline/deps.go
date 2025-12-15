@@ -48,6 +48,12 @@ type Deps struct {
 
 	// Downloader downloads remote images to local cache.
 	Downloader ImageDownloader
+
+	// PeopleRepo stores people and credits discovered during enrichment.
+	PeopleRepo media.PeopleRepository
+
+	// StudioRepo stores studios discovered during enrichment.
+	StudioRepo media.StudioRepository
 }
 
 // MediaRepository is the subset of media repository methods needed by the pipeline.
@@ -73,8 +79,17 @@ type TVRepository interface {
 
 // MusicRepository provides music-specific data for enrichment.
 type MusicRepository interface {
+	// Track operations
 	GetMusicTrackByID(ctx context.Context, id int64) (*media.MusicTrack, error)
 	UpdateMusicTrack(ctx context.Context, track *media.MusicTrack) error
+
+	// Album operations
+	GetAlbumByID(ctx context.Context, id int64) (*media.Album, error)
+	UpdateAlbum(ctx context.Context, album *media.Album) error
+
+	// Artist operations
+	GetArtistByID(ctx context.Context, id int64) (*media.Artist, error)
+	UpdateArtist(ctx context.Context, artist *media.Artist) error
 }
 
 // ImageRepository provides image storage for enrichment.

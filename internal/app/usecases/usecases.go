@@ -14,6 +14,7 @@ import (
 	"github.com/mantonx/viewra/internal/application/media"
 	"github.com/mantonx/viewra/internal/application/movies"
 	"github.com/mantonx/viewra/internal/application/music"
+	"github.com/mantonx/viewra/internal/application/people"
 	"github.com/mantonx/viewra/internal/application/progress"
 	"github.com/mantonx/viewra/internal/application/scanjob"
 	"github.com/mantonx/viewra/internal/application/transcode"
@@ -28,6 +29,7 @@ type UseCases struct {
 	Movies    *MovieUseCases
 	TV        *TVUseCases
 	Music     *MusicUseCases
+	People    *PeopleUseCases
 	Images    *ImageUseCases
 	Transcode *TranscodeUseCases
 	Progress  *progress.Service
@@ -79,6 +81,13 @@ type MusicUseCases struct {
 	ListArtistIDs      *music.ListArtistIDsUseCase
 }
 
+// PeopleUseCases holds people/credits-related use cases
+type PeopleUseCases struct {
+	GetPerson           *people.GetPersonUseCase
+	GetCreditsForEntity *people.GetCreditsForEntityUseCase
+	GetCreditsForPerson *people.GetCreditsForPersonUseCase
+}
+
 // ImageUseCases holds image-related use cases
 // Note: Image extraction is now handled by the enrichment pipeline (local_images enricher)
 type ImageUseCases struct {
@@ -112,6 +121,7 @@ func BuildUseCases(
 		Movies:    buildMovieUseCases(repos),
 		TV:        buildTVUseCases(repos),
 		Music:     buildMusicUseCases(repos),
+		People:    buildPeopleUseCases(repos),
 		Images:    buildImageUseCases(repos, svcs, logger, cfg.Images.CacheDir),
 		Transcode: buildTranscodeUseCases(repos, svcs),
 		Progress:  progress.NewService(repos.Progress),
@@ -222,6 +232,15 @@ func buildMusicUseCases(repos *repositories.Repositories) *MusicUseCases {
 		GetTrack:           music.NewGetTrackUseCase(repos.Music),
 		SearchTracks:       music.NewSearchTracksUseCase(repos.Music),
 		ListArtistIDs:      music.NewListArtistIDsUseCase(repos.Music),
+	}
+}
+
+// buildPeopleUseCases creates people/credits use cases
+func buildPeopleUseCases(repos *repositories.Repositories) *PeopleUseCases {
+	return &PeopleUseCases{
+		GetPerson:           people.NewGetPersonUseCase(repos.People),
+		GetCreditsForEntity: people.NewGetCreditsForEntityUseCase(repos.People),
+		GetCreditsForPerson: people.NewGetCreditsForPersonUseCase(repos.People),
 	}
 }
 

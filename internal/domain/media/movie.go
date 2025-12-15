@@ -22,19 +22,23 @@ type Movie struct {
 	Cast     []string
 
 	// Content information
-	Genre              []string
-	Plot               string
-	Tagline            string
-	ContentRating      string // e.g., "PG-13", "R"
-	MaturityRating     int    // Numeric rating 0-10
-	ContentAdvisories  []string
+	Genre             []string
+	Plot              string
+	Tagline           string
+	ContentRating     string // e.g., "PG-13", "R"
+	MaturityRating    int    // Numeric rating 0-10
+	ContentAdvisories []string
+
+	// Ratings
+	Rating      float32 // Average rating (0.0 - 10.0)
+	RatingVotes int     // Number of votes
 
 	// Production details
-	Budget            int64
-	Revenue           int64
-	OriginalLanguage  string
-	CountryOfOrigin   string
-	AwardsSummary     string
+	Budget           int64
+	Revenue          int64
+	OriginalLanguage string
+	CountryOfOrigin  string
+	AwardsSummary    string
 }
 
 // IsValid validates the movie entity including base media validation

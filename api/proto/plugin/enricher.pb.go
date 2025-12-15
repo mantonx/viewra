@@ -503,14 +503,35 @@ type EnrichedMetadata struct {
 	// TV-specific
 	Network   *string `protobuf:"bytes,15,opt,name=network,proto3,oneof" json:"network,omitempty"`
 	Status    *string `protobuf:"bytes,16,opt,name=status,proto3,oneof" json:"status,omitempty"`       // "Continuing", "Ended"
-	Premiered *string `protobuf:"bytes,17,opt,name=premiered,proto3,oneof" json:"premiered,omitempty"` // Date string
+	Premiered *string `protobuf:"bytes,17,opt,name=premiered,proto3,oneof" json:"premiered,omitempty"` // Date string (first_air_date)
 	// Music-specific
 	RecordLabel *string `protobuf:"bytes,18,opt,name=record_label,json=recordLabel,proto3,oneof" json:"record_label,omitempty"`
-	ReleaseDate *string `protobuf:"bytes,19,opt,name=release_date,json=releaseDate,proto3,oneof" json:"release_date,omitempty"`
+	ReleaseDate *string `protobuf:"bytes,19,opt,name=release_date,json=releaseDate,proto3,oneof" json:"release_date,omitempty"` // YYYY-MM-DD format
 	// Studio (movies) / Production companies
-	Studios       []string `protobuf:"bytes,20,rep,name=studios,proto3" json:"studios,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Studios []string `protobuf:"bytes,20,rep,name=studios,proto3" json:"studios,omitempty"`
+	// Movie-specific production details
+	Budget  *int64 `protobuf:"varint,21,opt,name=budget,proto3,oneof" json:"budget,omitempty"`
+	Revenue *int64 `protobuf:"varint,22,opt,name=revenue,proto3,oneof" json:"revenue,omitempty"`
+	// Common production details
+	OriginalLanguage *string `protobuf:"bytes,23,opt,name=original_language,json=originalLanguage,proto3,oneof" json:"original_language,omitempty"`
+	CountryOfOrigin  *string `protobuf:"bytes,24,opt,name=country_of_origin,json=countryOfOrigin,proto3,oneof" json:"country_of_origin,omitempty"`
+	// TV-specific additional fields
+	LastAirDate *string  `protobuf:"bytes,25,opt,name=last_air_date,json=lastAirDate,proto3,oneof" json:"last_air_date,omitempty"` // YYYY-MM-DD format
+	Creators    []string `protobuf:"bytes,26,rep,name=creators,proto3" json:"creators,omitempty"`                                  // Show creators
+	// Music-specific fields (for applying to tracks)
+	Artist      *string `protobuf:"bytes,27,opt,name=artist,proto3,oneof" json:"artist,omitempty"`
+	Album       *string `protobuf:"bytes,28,opt,name=album,proto3,oneof" json:"album,omitempty"`
+	AlbumArtist *string `protobuf:"bytes,29,opt,name=album_artist,json=albumArtist,proto3,oneof" json:"album_artist,omitempty"`
+	TrackNumber *int32  `protobuf:"varint,30,opt,name=track_number,json=trackNumber,proto3,oneof" json:"track_number,omitempty"`
+	DiscNumber  *int32  `protobuf:"varint,31,opt,name=disc_number,json=discNumber,proto3,oneof" json:"disc_number,omitempty"`
+	TotalTracks *int32  `protobuf:"varint,32,opt,name=total_tracks,json=totalTracks,proto3,oneof" json:"total_tracks,omitempty"`
+	TotalDiscs  *int32  `protobuf:"varint,33,opt,name=total_discs,json=totalDiscs,proto3,oneof" json:"total_discs,omitempty"`
+	// Album-specific metadata (for MediaTypeMusicAlbum)
+	AlbumMetadata *AlbumMetadata `protobuf:"bytes,34,opt,name=album_metadata,json=albumMetadata,proto3" json:"album_metadata,omitempty"`
+	// Artist-specific metadata (for MediaTypeMusicArtist)
+	ArtistMetadata *ArtistMetadata `protobuf:"bytes,35,opt,name=artist_metadata,json=artistMetadata,proto3" json:"artist_metadata,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *EnrichedMetadata) Reset() {
@@ -683,6 +704,345 @@ func (x *EnrichedMetadata) GetStudios() []string {
 	return nil
 }
 
+func (x *EnrichedMetadata) GetBudget() int64 {
+	if x != nil && x.Budget != nil {
+		return *x.Budget
+	}
+	return 0
+}
+
+func (x *EnrichedMetadata) GetRevenue() int64 {
+	if x != nil && x.Revenue != nil {
+		return *x.Revenue
+	}
+	return 0
+}
+
+func (x *EnrichedMetadata) GetOriginalLanguage() string {
+	if x != nil && x.OriginalLanguage != nil {
+		return *x.OriginalLanguage
+	}
+	return ""
+}
+
+func (x *EnrichedMetadata) GetCountryOfOrigin() string {
+	if x != nil && x.CountryOfOrigin != nil {
+		return *x.CountryOfOrigin
+	}
+	return ""
+}
+
+func (x *EnrichedMetadata) GetLastAirDate() string {
+	if x != nil && x.LastAirDate != nil {
+		return *x.LastAirDate
+	}
+	return ""
+}
+
+func (x *EnrichedMetadata) GetCreators() []string {
+	if x != nil {
+		return x.Creators
+	}
+	return nil
+}
+
+func (x *EnrichedMetadata) GetArtist() string {
+	if x != nil && x.Artist != nil {
+		return *x.Artist
+	}
+	return ""
+}
+
+func (x *EnrichedMetadata) GetAlbum() string {
+	if x != nil && x.Album != nil {
+		return *x.Album
+	}
+	return ""
+}
+
+func (x *EnrichedMetadata) GetAlbumArtist() string {
+	if x != nil && x.AlbumArtist != nil {
+		return *x.AlbumArtist
+	}
+	return ""
+}
+
+func (x *EnrichedMetadata) GetTrackNumber() int32 {
+	if x != nil && x.TrackNumber != nil {
+		return *x.TrackNumber
+	}
+	return 0
+}
+
+func (x *EnrichedMetadata) GetDiscNumber() int32 {
+	if x != nil && x.DiscNumber != nil {
+		return *x.DiscNumber
+	}
+	return 0
+}
+
+func (x *EnrichedMetadata) GetTotalTracks() int32 {
+	if x != nil && x.TotalTracks != nil {
+		return *x.TotalTracks
+	}
+	return 0
+}
+
+func (x *EnrichedMetadata) GetTotalDiscs() int32 {
+	if x != nil && x.TotalDiscs != nil {
+		return *x.TotalDiscs
+	}
+	return 0
+}
+
+func (x *EnrichedMetadata) GetAlbumMetadata() *AlbumMetadata {
+	if x != nil {
+		return x.AlbumMetadata
+	}
+	return nil
+}
+
+func (x *EnrichedMetadata) GetArtistMetadata() *ArtistMetadata {
+	if x != nil {
+		return x.ArtistMetadata
+	}
+	return nil
+}
+
+// AlbumMetadata contains fields specific to music albums.
+type AlbumMetadata struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Title              *string                `protobuf:"bytes,1,opt,name=title,proto3,oneof" json:"title,omitempty"`
+	AlbumArtist        *string                `protobuf:"bytes,2,opt,name=album_artist,json=albumArtist,proto3,oneof" json:"album_artist,omitempty"`
+	Artist             *string                `protobuf:"bytes,3,opt,name=artist,proto3,oneof" json:"artist,omitempty"` // Fallback if album_artist not set
+	Year               *int32                 `protobuf:"varint,4,opt,name=year,proto3,oneof" json:"year,omitempty"`
+	ReleaseDate        *string                `protobuf:"bytes,5,opt,name=release_date,json=releaseDate,proto3,oneof" json:"release_date,omitempty"` // YYYY-MM-DD
+	Genre              *string                `protobuf:"bytes,6,opt,name=genre,proto3,oneof" json:"genre,omitempty"`
+	TotalTracks        *int32                 `protobuf:"varint,7,opt,name=total_tracks,json=totalTracks,proto3,oneof" json:"total_tracks,omitempty"`
+	TotalDiscs         *int32                 `protobuf:"varint,8,opt,name=total_discs,json=totalDiscs,proto3,oneof" json:"total_discs,omitempty"`
+	RecordLabel        *string                `protobuf:"bytes,9,opt,name=record_label,json=recordLabel,proto3,oneof" json:"record_label,omitempty"`
+	ReleaseType        *string                `protobuf:"bytes,10,opt,name=release_type,json=releaseType,proto3,oneof" json:"release_type,omitempty"` // album, single, ep, compilation, live, remix, soundtrack
+	Compilation        *bool                  `protobuf:"varint,11,opt,name=compilation,proto3,oneof" json:"compilation,omitempty"`
+	MusicbrainzAlbumId *string                `protobuf:"bytes,12,opt,name=musicbrainz_album_id,json=musicbrainzAlbumId,proto3,oneof" json:"musicbrainz_album_id,omitempty"`
+	SortTitle          *string                `protobuf:"bytes,13,opt,name=sort_title,json=sortTitle,proto3,oneof" json:"sort_title,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *AlbumMetadata) Reset() {
+	*x = AlbumMetadata{}
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AlbumMetadata) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AlbumMetadata) ProtoMessage() {}
+
+func (x *AlbumMetadata) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AlbumMetadata.ProtoReflect.Descriptor instead.
+func (*AlbumMetadata) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_enricher_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *AlbumMetadata) GetTitle() string {
+	if x != nil && x.Title != nil {
+		return *x.Title
+	}
+	return ""
+}
+
+func (x *AlbumMetadata) GetAlbumArtist() string {
+	if x != nil && x.AlbumArtist != nil {
+		return *x.AlbumArtist
+	}
+	return ""
+}
+
+func (x *AlbumMetadata) GetArtist() string {
+	if x != nil && x.Artist != nil {
+		return *x.Artist
+	}
+	return ""
+}
+
+func (x *AlbumMetadata) GetYear() int32 {
+	if x != nil && x.Year != nil {
+		return *x.Year
+	}
+	return 0
+}
+
+func (x *AlbumMetadata) GetReleaseDate() string {
+	if x != nil && x.ReleaseDate != nil {
+		return *x.ReleaseDate
+	}
+	return ""
+}
+
+func (x *AlbumMetadata) GetGenre() string {
+	if x != nil && x.Genre != nil {
+		return *x.Genre
+	}
+	return ""
+}
+
+func (x *AlbumMetadata) GetTotalTracks() int32 {
+	if x != nil && x.TotalTracks != nil {
+		return *x.TotalTracks
+	}
+	return 0
+}
+
+func (x *AlbumMetadata) GetTotalDiscs() int32 {
+	if x != nil && x.TotalDiscs != nil {
+		return *x.TotalDiscs
+	}
+	return 0
+}
+
+func (x *AlbumMetadata) GetRecordLabel() string {
+	if x != nil && x.RecordLabel != nil {
+		return *x.RecordLabel
+	}
+	return ""
+}
+
+func (x *AlbumMetadata) GetReleaseType() string {
+	if x != nil && x.ReleaseType != nil {
+		return *x.ReleaseType
+	}
+	return ""
+}
+
+func (x *AlbumMetadata) GetCompilation() bool {
+	if x != nil && x.Compilation != nil {
+		return *x.Compilation
+	}
+	return false
+}
+
+func (x *AlbumMetadata) GetMusicbrainzAlbumId() string {
+	if x != nil && x.MusicbrainzAlbumId != nil {
+		return *x.MusicbrainzAlbumId
+	}
+	return ""
+}
+
+func (x *AlbumMetadata) GetSortTitle() string {
+	if x != nil && x.SortTitle != nil {
+		return *x.SortTitle
+	}
+	return ""
+}
+
+// ArtistMetadata contains fields specific to music artists.
+type ArtistMetadata struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Name                *string                `protobuf:"bytes,1,opt,name=name,proto3,oneof" json:"name,omitempty"`
+	SortName            *string                `protobuf:"bytes,2,opt,name=sort_name,json=sortName,proto3,oneof" json:"sort_name,omitempty"`
+	MusicbrainzArtistId *string                `protobuf:"bytes,3,opt,name=musicbrainz_artist_id,json=musicbrainzArtistId,proto3,oneof" json:"musicbrainz_artist_id,omitempty"`
+	Bio                 *string                `protobuf:"bytes,4,opt,name=bio,proto3,oneof" json:"bio,omitempty"` // Artist biography
+	Country             *string                `protobuf:"bytes,5,opt,name=country,proto3,oneof" json:"country,omitempty"`
+	FormedYear          *int32                 `protobuf:"varint,6,opt,name=formed_year,json=formedYear,proto3,oneof" json:"formed_year,omitempty"`
+	Genre               *string                `protobuf:"bytes,7,opt,name=genre,proto3,oneof" json:"genre,omitempty"` // Primary genre
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *ArtistMetadata) Reset() {
+	*x = ArtistMetadata{}
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArtistMetadata) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArtistMetadata) ProtoMessage() {}
+
+func (x *ArtistMetadata) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArtistMetadata.ProtoReflect.Descriptor instead.
+func (*ArtistMetadata) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_enricher_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ArtistMetadata) GetName() string {
+	if x != nil && x.Name != nil {
+		return *x.Name
+	}
+	return ""
+}
+
+func (x *ArtistMetadata) GetSortName() string {
+	if x != nil && x.SortName != nil {
+		return *x.SortName
+	}
+	return ""
+}
+
+func (x *ArtistMetadata) GetMusicbrainzArtistId() string {
+	if x != nil && x.MusicbrainzArtistId != nil {
+		return *x.MusicbrainzArtistId
+	}
+	return ""
+}
+
+func (x *ArtistMetadata) GetBio() string {
+	if x != nil && x.Bio != nil {
+		return *x.Bio
+	}
+	return ""
+}
+
+func (x *ArtistMetadata) GetCountry() string {
+	if x != nil && x.Country != nil {
+		return *x.Country
+	}
+	return ""
+}
+
+func (x *ArtistMetadata) GetFormedYear() int32 {
+	if x != nil && x.FormedYear != nil {
+		return *x.FormedYear
+	}
+	return 0
+}
+
+func (x *ArtistMetadata) GetGenre() string {
+	if x != nil && x.Genre != nil {
+		return *x.Genre
+	}
+	return ""
+}
+
 type CastMember struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -695,7 +1055,7 @@ type CastMember struct {
 
 func (x *CastMember) Reset() {
 	*x = CastMember{}
-	mi := &file_api_proto_plugin_enricher_proto_msgTypes[6]
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -707,7 +1067,7 @@ func (x *CastMember) String() string {
 func (*CastMember) ProtoMessage() {}
 
 func (x *CastMember) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_enricher_proto_msgTypes[6]
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -720,7 +1080,7 @@ func (x *CastMember) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CastMember.ProtoReflect.Descriptor instead.
 func (*CastMember) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_enricher_proto_rawDescGZIP(), []int{6}
+	return file_api_proto_plugin_enricher_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CastMember) GetName() string {
@@ -775,7 +1135,7 @@ type EnrichedImage struct {
 
 func (x *EnrichedImage) Reset() {
 	*x = EnrichedImage{}
-	mi := &file_api_proto_plugin_enricher_proto_msgTypes[7]
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -787,7 +1147,7 @@ func (x *EnrichedImage) String() string {
 func (*EnrichedImage) ProtoMessage() {}
 
 func (x *EnrichedImage) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_enricher_proto_msgTypes[7]
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -800,7 +1160,7 @@ func (x *EnrichedImage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnrichedImage.ProtoReflect.Descriptor instead.
 func (*EnrichedImage) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_enricher_proto_rawDescGZIP(), []int{7}
+	return file_api_proto_plugin_enricher_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *EnrichedImage) GetType() string {
@@ -923,7 +1283,7 @@ const file_api_proto_plugin_enricher_proto_rawDesc = "" +
 	"confidence\x1a@\n" +
 	"\x12DiscoveredIdsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8c\a\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbc\r\n" +
 	"\x10EnrichedMetadata\x12\x19\n" +
 	"\x05title\x18\x01 \x01(\tH\x00R\x05title\x88\x01\x01\x12*\n" +
 	"\x0eoriginal_title\x18\x02 \x01(\tH\x01R\roriginalTitle\x88\x01\x01\x12\"\n" +
@@ -947,7 +1307,24 @@ const file_api_proto_plugin_enricher_proto_rawDesc = "" +
 	"\tpremiered\x18\x11 \x01(\tH\fR\tpremiered\x88\x01\x01\x12&\n" +
 	"\frecord_label\x18\x12 \x01(\tH\rR\vrecordLabel\x88\x01\x01\x12&\n" +
 	"\frelease_date\x18\x13 \x01(\tH\x0eR\vreleaseDate\x88\x01\x01\x12\x18\n" +
-	"\astudios\x18\x14 \x03(\tR\astudiosB\b\n" +
+	"\astudios\x18\x14 \x03(\tR\astudios\x12\x1b\n" +
+	"\x06budget\x18\x15 \x01(\x03H\x0fR\x06budget\x88\x01\x01\x12\x1d\n" +
+	"\arevenue\x18\x16 \x01(\x03H\x10R\arevenue\x88\x01\x01\x120\n" +
+	"\x11original_language\x18\x17 \x01(\tH\x11R\x10originalLanguage\x88\x01\x01\x12/\n" +
+	"\x11country_of_origin\x18\x18 \x01(\tH\x12R\x0fcountryOfOrigin\x88\x01\x01\x12'\n" +
+	"\rlast_air_date\x18\x19 \x01(\tH\x13R\vlastAirDate\x88\x01\x01\x12\x1a\n" +
+	"\bcreators\x18\x1a \x03(\tR\bcreators\x12\x1b\n" +
+	"\x06artist\x18\x1b \x01(\tH\x14R\x06artist\x88\x01\x01\x12\x19\n" +
+	"\x05album\x18\x1c \x01(\tH\x15R\x05album\x88\x01\x01\x12&\n" +
+	"\falbum_artist\x18\x1d \x01(\tH\x16R\valbumArtist\x88\x01\x01\x12&\n" +
+	"\ftrack_number\x18\x1e \x01(\x05H\x17R\vtrackNumber\x88\x01\x01\x12$\n" +
+	"\vdisc_number\x18\x1f \x01(\x05H\x18R\n" +
+	"discNumber\x88\x01\x01\x12&\n" +
+	"\ftotal_tracks\x18  \x01(\x05H\x19R\vtotalTracks\x88\x01\x01\x12$\n" +
+	"\vtotal_discs\x18! \x01(\x05H\x1aR\n" +
+	"totalDiscs\x88\x01\x01\x12F\n" +
+	"\x0ealbum_metadata\x18\" \x01(\v2\x1f.viewra.plugin.v1.AlbumMetadataR\ralbumMetadata\x12I\n" +
+	"\x0fartist_metadata\x18# \x01(\v2 .viewra.plugin.v1.ArtistMetadataR\x0eartistMetadataB\b\n" +
 	"\x06_titleB\x11\n" +
 	"\x0f_original_titleB\r\n" +
 	"\v_sort_titleB\a\n" +
@@ -965,7 +1342,69 @@ const file_api_proto_plugin_enricher_proto_rawDesc = "" +
 	"\n" +
 	"_premieredB\x0f\n" +
 	"\r_record_labelB\x0f\n" +
-	"\r_release_date\"`\n" +
+	"\r_release_dateB\t\n" +
+	"\a_budgetB\n" +
+	"\n" +
+	"\b_revenueB\x14\n" +
+	"\x12_original_languageB\x14\n" +
+	"\x12_country_of_originB\x10\n" +
+	"\x0e_last_air_dateB\t\n" +
+	"\a_artistB\b\n" +
+	"\x06_albumB\x0f\n" +
+	"\r_album_artistB\x0f\n" +
+	"\r_track_numberB\x0e\n" +
+	"\f_disc_numberB\x0f\n" +
+	"\r_total_tracksB\x0e\n" +
+	"\f_total_discs\"\xb0\x05\n" +
+	"\rAlbumMetadata\x12\x19\n" +
+	"\x05title\x18\x01 \x01(\tH\x00R\x05title\x88\x01\x01\x12&\n" +
+	"\falbum_artist\x18\x02 \x01(\tH\x01R\valbumArtist\x88\x01\x01\x12\x1b\n" +
+	"\x06artist\x18\x03 \x01(\tH\x02R\x06artist\x88\x01\x01\x12\x17\n" +
+	"\x04year\x18\x04 \x01(\x05H\x03R\x04year\x88\x01\x01\x12&\n" +
+	"\frelease_date\x18\x05 \x01(\tH\x04R\vreleaseDate\x88\x01\x01\x12\x19\n" +
+	"\x05genre\x18\x06 \x01(\tH\x05R\x05genre\x88\x01\x01\x12&\n" +
+	"\ftotal_tracks\x18\a \x01(\x05H\x06R\vtotalTracks\x88\x01\x01\x12$\n" +
+	"\vtotal_discs\x18\b \x01(\x05H\aR\n" +
+	"totalDiscs\x88\x01\x01\x12&\n" +
+	"\frecord_label\x18\t \x01(\tH\bR\vrecordLabel\x88\x01\x01\x12&\n" +
+	"\frelease_type\x18\n" +
+	" \x01(\tH\tR\vreleaseType\x88\x01\x01\x12%\n" +
+	"\vcompilation\x18\v \x01(\bH\n" +
+	"R\vcompilation\x88\x01\x01\x125\n" +
+	"\x14musicbrainz_album_id\x18\f \x01(\tH\vR\x12musicbrainzAlbumId\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"sort_title\x18\r \x01(\tH\fR\tsortTitle\x88\x01\x01B\b\n" +
+	"\x06_titleB\x0f\n" +
+	"\r_album_artistB\t\n" +
+	"\a_artistB\a\n" +
+	"\x05_yearB\x0f\n" +
+	"\r_release_dateB\b\n" +
+	"\x06_genreB\x0f\n" +
+	"\r_total_tracksB\x0e\n" +
+	"\f_total_discsB\x0f\n" +
+	"\r_record_labelB\x0f\n" +
+	"\r_release_typeB\x0e\n" +
+	"\f_compilationB\x17\n" +
+	"\x15_musicbrainz_album_idB\r\n" +
+	"\v_sort_title\"\xda\x02\n" +
+	"\x0eArtistMetadata\x12\x17\n" +
+	"\x04name\x18\x01 \x01(\tH\x00R\x04name\x88\x01\x01\x12 \n" +
+	"\tsort_name\x18\x02 \x01(\tH\x01R\bsortName\x88\x01\x01\x127\n" +
+	"\x15musicbrainz_artist_id\x18\x03 \x01(\tH\x02R\x13musicbrainzArtistId\x88\x01\x01\x12\x15\n" +
+	"\x03bio\x18\x04 \x01(\tH\x03R\x03bio\x88\x01\x01\x12\x1d\n" +
+	"\acountry\x18\x05 \x01(\tH\x04R\acountry\x88\x01\x01\x12$\n" +
+	"\vformed_year\x18\x06 \x01(\x05H\x05R\n" +
+	"formedYear\x88\x01\x01\x12\x19\n" +
+	"\x05genre\x18\a \x01(\tH\x06R\x05genre\x88\x01\x01B\a\n" +
+	"\x05_nameB\f\n" +
+	"\n" +
+	"_sort_nameB\x18\n" +
+	"\x16_musicbrainz_artist_idB\x06\n" +
+	"\x04_bioB\n" +
+	"\n" +
+	"\b_countryB\x0e\n" +
+	"\f_formed_yearB\b\n" +
+	"\x06_genre\"`\n" +
 	"\n" +
 	"CastMember\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
@@ -998,7 +1437,7 @@ func file_api_proto_plugin_enricher_proto_rawDescGZIP() []byte {
 	return file_api_proto_plugin_enricher_proto_rawDescData
 }
 
-var file_api_proto_plugin_enricher_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_api_proto_plugin_enricher_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_api_proto_plugin_enricher_proto_goTypes = []any{
 	(*EnricherCapabilities)(nil), // 0: viewra.plugin.v1.EnricherCapabilities
 	(*EnrichRequest)(nil),        // 1: viewra.plugin.v1.EnrichRequest
@@ -1006,29 +1445,33 @@ var file_api_proto_plugin_enricher_proto_goTypes = []any{
 	(*MusicMetadata)(nil),        // 3: viewra.plugin.v1.MusicMetadata
 	(*EnrichResponse)(nil),       // 4: viewra.plugin.v1.EnrichResponse
 	(*EnrichedMetadata)(nil),     // 5: viewra.plugin.v1.EnrichedMetadata
-	(*CastMember)(nil),           // 6: viewra.plugin.v1.CastMember
-	(*EnrichedImage)(nil),        // 7: viewra.plugin.v1.EnrichedImage
-	nil,                          // 8: viewra.plugin.v1.EnrichRequest.ExistingIdsEntry
-	nil,                          // 9: viewra.plugin.v1.EnrichResponse.DiscoveredIdsEntry
-	(*Empty)(nil),                // 10: viewra.plugin.v1.Empty
+	(*AlbumMetadata)(nil),        // 6: viewra.plugin.v1.AlbumMetadata
+	(*ArtistMetadata)(nil),       // 7: viewra.plugin.v1.ArtistMetadata
+	(*CastMember)(nil),           // 8: viewra.plugin.v1.CastMember
+	(*EnrichedImage)(nil),        // 9: viewra.plugin.v1.EnrichedImage
+	nil,                          // 10: viewra.plugin.v1.EnrichRequest.ExistingIdsEntry
+	nil,                          // 11: viewra.plugin.v1.EnrichResponse.DiscoveredIdsEntry
+	(*Empty)(nil),                // 12: viewra.plugin.v1.Empty
 }
 var file_api_proto_plugin_enricher_proto_depIdxs = []int32{
-	8,  // 0: viewra.plugin.v1.EnrichRequest.existing_ids:type_name -> viewra.plugin.v1.EnrichRequest.ExistingIdsEntry
+	10, // 0: viewra.plugin.v1.EnrichRequest.existing_ids:type_name -> viewra.plugin.v1.EnrichRequest.ExistingIdsEntry
 	2,  // 1: viewra.plugin.v1.EnrichRequest.tv:type_name -> viewra.plugin.v1.TVMetadata
 	3,  // 2: viewra.plugin.v1.EnrichRequest.music:type_name -> viewra.plugin.v1.MusicMetadata
 	5,  // 3: viewra.plugin.v1.EnrichResponse.metadata:type_name -> viewra.plugin.v1.EnrichedMetadata
-	9,  // 4: viewra.plugin.v1.EnrichResponse.discovered_ids:type_name -> viewra.plugin.v1.EnrichResponse.DiscoveredIdsEntry
-	7,  // 5: viewra.plugin.v1.EnrichResponse.images:type_name -> viewra.plugin.v1.EnrichedImage
-	6,  // 6: viewra.plugin.v1.EnrichedMetadata.cast:type_name -> viewra.plugin.v1.CastMember
-	10, // 7: viewra.plugin.v1.Enricher.GetCapabilities:input_type -> viewra.plugin.v1.Empty
-	1,  // 8: viewra.plugin.v1.Enricher.Enrich:input_type -> viewra.plugin.v1.EnrichRequest
-	0,  // 9: viewra.plugin.v1.Enricher.GetCapabilities:output_type -> viewra.plugin.v1.EnricherCapabilities
-	4,  // 10: viewra.plugin.v1.Enricher.Enrich:output_type -> viewra.plugin.v1.EnrichResponse
-	9,  // [9:11] is the sub-list for method output_type
-	7,  // [7:9] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	11, // 4: viewra.plugin.v1.EnrichResponse.discovered_ids:type_name -> viewra.plugin.v1.EnrichResponse.DiscoveredIdsEntry
+	9,  // 5: viewra.plugin.v1.EnrichResponse.images:type_name -> viewra.plugin.v1.EnrichedImage
+	8,  // 6: viewra.plugin.v1.EnrichedMetadata.cast:type_name -> viewra.plugin.v1.CastMember
+	6,  // 7: viewra.plugin.v1.EnrichedMetadata.album_metadata:type_name -> viewra.plugin.v1.AlbumMetadata
+	7,  // 8: viewra.plugin.v1.EnrichedMetadata.artist_metadata:type_name -> viewra.plugin.v1.ArtistMetadata
+	12, // 9: viewra.plugin.v1.Enricher.GetCapabilities:input_type -> viewra.plugin.v1.Empty
+	1,  // 10: viewra.plugin.v1.Enricher.Enrich:input_type -> viewra.plugin.v1.EnrichRequest
+	0,  // 11: viewra.plugin.v1.Enricher.GetCapabilities:output_type -> viewra.plugin.v1.EnricherCapabilities
+	4,  // 12: viewra.plugin.v1.Enricher.Enrich:output_type -> viewra.plugin.v1.EnrichResponse
+	11, // [11:13] is the sub-list for method output_type
+	9,  // [9:11] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_plugin_enricher_proto_init() }
@@ -1038,13 +1481,15 @@ func file_api_proto_plugin_enricher_proto_init() {
 	}
 	file_api_proto_plugin_common_proto_init()
 	file_api_proto_plugin_enricher_proto_msgTypes[5].OneofWrappers = []any{}
+	file_api_proto_plugin_enricher_proto_msgTypes[6].OneofWrappers = []any{}
+	file_api_proto_plugin_enricher_proto_msgTypes[7].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_plugin_enricher_proto_rawDesc), len(file_api_proto_plugin_enricher_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
