@@ -51,7 +51,7 @@ CREATE INDEX idx_enrichment_status_stage ON enrichment_status(stage, status);
 -- Pipeline Configuration: user-configurable enrichment stages per media type
 CREATE TABLE enrichment_pipelines (
     id SERIAL PRIMARY KEY,
-    media_type TEXT NOT NULL CHECK(media_type IN ('movie', 'tv', 'music')),
+    media_type TEXT NOT NULL CHECK(media_type IN ('movie', 'tv', 'tv_show', 'music')),
     plugin_id TEXT NOT NULL,
     stage_name TEXT NOT NULL,
     position INTEGER NOT NULL,
@@ -99,5 +99,7 @@ INSERT INTO enrichment_pipelines (media_type, plugin_id, stage_name, position, e
     ('movie', 'builtin:local-images', 'local-images', 2, true),
     ('tv', 'builtin:nfo', 'nfo', 1, true),
     ('tv', 'builtin:local-images', 'local-images', 2, true),
+    ('tv_show', 'builtin:nfo', 'nfo', 1, true),
+    ('tv_show', 'builtin:local-images', 'local-images', 2, true),
     ('music', 'builtin:nfo', 'nfo', 1, true),
     ('music', 'builtin:local-images', 'local-images', 2, true);

@@ -54,7 +54,7 @@ CREATE INDEX idx_enrichment_status_stage ON enrichment_status(stage, status);
 -- Users can reorder, enable/disable, and configure stages through the UI
 CREATE TABLE enrichment_pipelines (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    media_type TEXT NOT NULL CHECK(media_type IN ('movie', 'tv', 'music')),
+    media_type TEXT NOT NULL CHECK(media_type IN ('movie', 'tv', 'tv_show', 'music')),
     plugin_id TEXT NOT NULL,
     stage_name TEXT NOT NULL,
     position INTEGER NOT NULL,
@@ -104,5 +104,7 @@ INSERT INTO enrichment_pipelines (media_type, plugin_id, stage_name, position, e
     ('movie', 'builtin:local-images', 'local-images', 2, 1),
     ('tv', 'builtin:nfo', 'nfo', 1, 1),
     ('tv', 'builtin:local-images', 'local-images', 2, 1),
+    ('tv_show', 'builtin:nfo', 'nfo', 1, 1),
+    ('tv_show', 'builtin:local-images', 'local-images', 2, 1),
     ('music', 'builtin:nfo', 'nfo', 1, 1),
     ('music', 'builtin:local-images', 'local-images', 2, 1);
