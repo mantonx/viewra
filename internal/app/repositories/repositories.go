@@ -11,15 +11,16 @@ import (
 	mediaRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/media"
 	movieRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/movie"
 	musicRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/music"
+	peopleRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/people"
 	progressRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/progress"
 	scanJobRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/scanjob"
 	scanStateRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/scanstate"
 	settingsRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/settings"
+	studiosRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/studios"
 	transcodeRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/transcode"
 	tvRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/tvshow"
 	userRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/user"
-	peopleRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/people"
-	studiosRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/studios"
+	"github.com/mantonx/viewra/internal/infrastructure/plugins"
 )
 
 // Repositories holds all data access layer implementations.
@@ -54,6 +55,9 @@ type Repositories struct {
 
 	// Studios (production companies)
 	Studios *studiosRepo.Repository
+
+	// Plugin MediaQuerier for plugin access to media data
+	PluginMediaQuerier plugins.MediaQuerier
 }
 
 // BuildRepositories creates and wires all repository instances using the provided database connection.
@@ -103,6 +107,9 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	// Create studios repository
 	studiosRepository := studiosRepo.NewRepository(baseRepo)
 
+	// Create plugin MediaQuerier for plugin access to media data
+	pluginMediaQuerier := plugins.NewDBMediaQuerier(db, driver)
+
 	return &Repositories{
 		Library:            libraryRepository,
 		Media:              mediaRepository,
@@ -127,5 +134,6 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 		EnrichmentMetadataSource: enrichmentMetadataSourceRepository,
 		People:                   peopleRepository,
 		Studios:                  studiosRepository,
+		PluginMediaQuerier:       pluginMediaQuerier,
 	}
 }

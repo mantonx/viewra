@@ -432,3 +432,19 @@ WHERE med.library_id = ?
   AND med.is_extra = 0
 ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE DESC
 LIMIT ? OFFSET ?;
+
+-- name: SearchMoviesGlobal :many
+-- Searches movies across all libraries (for plugin use)
+SELECT
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    m.year,
+    m.original_title
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.is_extra = 0
+  AND (med.title LIKE ? OR m.original_title LIKE ?)
+ORDER BY m.sort_title, med.title
+LIMIT ?;

@@ -14,6 +14,7 @@ import (
 	"github.com/mantonx/viewra/internal/application/auth"
 	"github.com/mantonx/viewra/internal/application/common"
 	"github.com/mantonx/viewra/internal/application/transcode"
+	"github.com/mantonx/viewra/internal/infrastructure/plugins"
 	"github.com/mantonx/viewra/internal/infrastructure/scheduler"
 )
 
@@ -85,6 +86,11 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 
 	// Create HTTP server
 	server := api.NewServer(cfg.Server.ToAPIServerConfig(), logger, handlers)
+
+	// Load and register external plugins before starting the pipeline
+	if svcs.PluginManager != nil && svcs.PipelineManager != nil {
+		loadExternalPlugins(context.Background(), svcs, logger)
+	}
 
 	// Start the enrichment pipeline manager (background workers)
 	if svcs.PipelineManager != nil {
@@ -386,4 +392,46 @@ func seedDevUser(
 		"username", "dev",
 		"password", "devdev00",
 		"note", "Only in development mode when no users exist")
+}
+
+// loadExternalPlugins discovers, loads, and registers external plugins with the pipeline.
+// External plugins are registered as disabled by default - users must explicitly enable them.
+func loadExternalPlugins(ctx context.Context, svcs *services.Services, logger *slog.Logger) {
+	pm := svcs.PluginManager
+	pipeline := svcs.PipelineManager
+
+	// Discover and load all plugins
+	if err := pm.LoadAllPlugins(ctx); err != nil {
+		logger.Error("Failed to load plugins", "error", err)
+		return
+	}
+
+	// Get all loaded plugins and register enrichers with the pipeline
+	for _, instance := range pm.GetEnrichers() {
+		// Wrap the plugin's enricher client as an application Enricher
+		enricher, err := plugins.NewGRPCEnricher(
+			instance.ID,
+			instance.EnricherClient,
+			logger.With("plugin", instance.ID),
+		)
+		if err != nil {
+			logger.Error("Failed to create enricher wrapper",
+				"plugin", instance.ID,
+				"error", err)
+			continue
+		}
+
+		// Register with the pipeline (creates disabled pipeline stages if not existing)
+		if err := pipeline.RegisterExternalEnricher(ctx, enricher); err != nil {
+			logger.Error("Failed to register external enricher",
+				"plugin", instance.ID,
+				"error", err)
+			continue
+		}
+
+		logger.Info("Registered external enricher plugin",
+			"plugin_id", instance.ID,
+			"plugin_name", instance.Manifest.Name,
+			"version", instance.Manifest.Version)
+	}
 }

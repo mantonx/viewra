@@ -192,15 +192,23 @@ Movies Pipeline:          Music Pipeline:
 ```sql
 CREATE TABLE enrichment_pipelines (
     id INTEGER PRIMARY KEY,
-    media_type TEXT NOT NULL,      -- 'movie', 'tv', 'music'
-    plugin_id TEXT NOT NULL REFERENCES plugins(id),
+    media_type TEXT NOT NULL,      -- 'movie', 'tv', 'tv_show', 'music'
+    plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+    stage_name TEXT NOT NULL,      -- Display name for the stage
     position INTEGER NOT NULL,
-    enabled BOOLEAN DEFAULT TRUE,
-    config JSONB,
+    enabled INTEGER DEFAULT 1,
+    config_json TEXT,              -- Plugin-specific configuration
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
     UNIQUE(media_type, position),
     UNIQUE(media_type, plugin_id)
 );
+
+-- Index for loading pipeline configuration by media type
+CREATE INDEX idx_enrichment_pipelines_order ON enrichment_pipelines(media_type, enabled, position);
 ```
+
+The `plugin_id` column has a foreign key constraint to `plugins(id)` with `ON DELETE CASCADE`, ensuring pipeline entries are cleaned up when a plugin is uninstalled.
 
 ### Apply Scopes
 
@@ -260,13 +268,10 @@ Worker config derived from plugin capabilities:
 
 ## Core Plugin Interface
 
-All plugins implement `PluginCore`:
+All plugins implement `PluginCore`. Plugin identity comes from the `plugin.yml` manifest file, which the host reads before starting the plugin binary.
 
 ```protobuf
 service PluginCore {
-  // Identity
-  rpc GetInfo(Empty) returns (PluginInfo);
-
   // Lifecycle
   rpc Initialize(InitRequest) returns (InitResponse);
   rpc Shutdown(Empty) returns (Empty);
@@ -280,7 +285,21 @@ service PluginCore {
   rpc GetSubscriptions(Empty) returns (EventSubscriptions);
   rpc OnEvent(Event) returns (EventResponse);
 }
+
+message InitRequest {
+  string host_version = 1;  // For compatibility checking
+  string data_dir = 2;      // Plugin's data directory
+  bytes config = 3;         // Contents of config.yml (runtime configuration)
+}
 ```
+
+**Plugin Identity Flow:**
+
+1. Host discovers plugin at `plugins/<name>/plugin.yml`
+2. Host reads manifest to get ID, name, version, categories, permissions
+3. Host starts plugin binary with `go-plugin`
+4. Host calls `Initialize(data_dir, config)` with runtime configuration
+5. Plugin is now ready to receive requests
 
 ### Plugin Categories
 
@@ -369,9 +388,23 @@ func (b *Base) RecordLatency(operation string, d time.Duration) {
 ### Plugin Interface
 
 ```go
+// EnricherPlugin is the interface that enricher plugins must implement.
+// Plugin identity comes from plugin.yml manifest file, not code.
 type EnricherPlugin interface {
     mustEmbedBase()  // Forces embedding Base—won't compile without it
-    Capabilities() EnricherCapabilities
+
+    // GetCapabilities returns what this enricher provides and requires.
+    GetCapabilities() EnricherCapabilities
+
+    // Initialize is called when the plugin is loaded.
+    // dataDir is the plugin's isolated data directory.
+    // config is the contents of config.yml (runtime configuration).
+    Initialize(ctx context.Context, dataDir string, config []byte) error
+
+    // Shutdown is called before the plugin is unloaded.
+    Shutdown(ctx context.Context) error
+
+    // Enrich processes a single media item.
     Enrich(ctx context.Context, req *EnrichRequest) (*EnrichResponse, error)
 }
 ```
@@ -380,12 +413,37 @@ type EnricherPlugin interface {
 
 ```go
 type TMDBPlugin struct {
-    plugin.Base  // Required, won't compile without it
+    sdk.Base  // Required, won't compile without it
     client *tmdb.Client
 }
 
-func (p *TMDBPlugin) Enrich(ctx context.Context, req *EnrichRequest) (*EnrichResponse, error) {
-    p.Log().Info("enriching", "title", req.Title)  // Logging comes free
+// Plugin identity comes from plugin.yml manifest, not code constants.
+
+func (p *TMDBPlugin) GetCapabilities() sdk.EnricherCapabilities {
+    return sdk.EnricherCapabilities{
+        MediaTypes: []string{"movie", "tv"},
+        Provides:   []string{"metadata", "artwork", "external_ids"},
+        IsLocal:    false,
+        RateLimit:  40,  // TMDb: ~40 req/10s
+    }
+}
+
+func (p *TMDBPlugin) Initialize(ctx context.Context, dataDir string, config []byte) error {
+    // Parse config.yml contents
+    var cfg Config
+    if err := yaml.Unmarshal(config, &cfg); err != nil {
+        return err
+    }
+    p.client = tmdb.NewClient(cfg.APIKey)
+    return nil
+}
+
+func (p *TMDBPlugin) Shutdown(ctx context.Context) error {
+    return nil
+}
+
+func (p *TMDBPlugin) Enrich(ctx context.Context, req *sdk.EnrichRequest) (*sdk.EnrichResponse, error) {
+    p.Log().Info("enriching", "title", req.Title)  // Logging comes free from Base
     // ...
 }
 ```
@@ -443,6 +501,45 @@ Plugins:
   ✓ NFO Parser        healthy     avg 12ms    0 errors
   ✓ TMDB              degraded    avg 890ms   3 errors/min (rate limited)
 ```
+
+### Plugin Registry Database Schema
+
+The `plugins` table provides centralized plugin management with health persistence:
+
+```sql
+CREATE TABLE plugins (
+    id TEXT PRIMARY KEY,           -- From manifest (e.g., "tmdb", "builtin:nfo")
+    name TEXT NOT NULL,            -- Display name from manifest
+    version TEXT NOT NULL,         -- Installed version
+    description TEXT,
+    author TEXT,
+    license TEXT,
+    homepage TEXT,
+    categories TEXT NOT NULL,      -- JSON array (e.g., '["enricher"]')
+    is_builtin INTEGER DEFAULT 0,  -- 1 for built-in plugins
+    enabled INTEGER DEFAULT 1,     -- Global enable/disable toggle
+    path TEXT,                     -- Binary path (NULL for built-ins)
+    -- Health tracking (persisted across restarts)
+    health_status TEXT DEFAULT 'unknown',  -- healthy, degraded, unhealthy, unknown
+    last_heartbeat TEXT,
+    restart_count INTEGER DEFAULT 0,
+    -- Timestamps
+    installed_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+-- Index for listing enabled plugins
+CREATE INDEX idx_plugins_enabled ON plugins(enabled, is_builtin);
+```
+
+**Built-in vs External Plugins:**
+
+| Type | `is_builtin` | `path` | Example IDs |
+|------|--------------|--------|-------------|
+| Built-in | 1 | NULL | `builtin:nfo`, `builtin:local-images` |
+| External | 0 | `/path/to/binary` | `tmdb`, `musicbrainz` |
+
+Built-in plugins are seeded in the migration and cannot be uninstalled (only disabled).
 
 ### Error Categorization
 
@@ -641,7 +738,7 @@ type PluginAPIKey struct {
 ```sql
 CREATE TABLE plugin_api_keys (
     id TEXT PRIMARY KEY,
-    plugin_id TEXT NOT NULL,
+    plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
     key_hash TEXT NOT NULL UNIQUE,
     permissions TEXT NOT NULL,  -- JSON array
     expires_at TEXT,
@@ -665,7 +762,7 @@ Plugins store per-user data via `HostUserMetadata` RPC (see [ADR 028](028-user-a
 
 ```sql
 CREATE TABLE plugin_user_metadata (
-    plugin_id TEXT NOT NULL,
+    plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     key TEXT NOT NULL,
     value BLOB NOT NULL,
@@ -675,12 +772,13 @@ CREATE TABLE plugin_user_metadata (
 );
 
 CREATE INDEX idx_plugin_user_metadata_user ON plugin_user_metadata(user_id);
+CREATE INDEX idx_plugin_user_metadata_plugin ON plugin_user_metadata(plugin_id);
 ```
 
 **Notes:**
 - Keys are namespaced by plugin ID automatically
-- Data is cleaned up when users are deleted (CASCADE)
-- Data is cleaned up when plugins are uninstalled
+- Data is cleaned up when users are deleted (`ON DELETE CASCADE` on `user_id`)
+- Data is cleaned up when plugins are uninstalled (`ON DELETE CASCADE` on `plugin_id`)
 - Requires `storage:user_metadata` permission
 
 ---
@@ -805,19 +903,42 @@ service NotificationSink {
 
 ### Plugin Manifest
 
+The `plugin.yml` manifest is the **single source of truth** for plugin identity. The host reads this file before starting the plugin binary.
+
 ```yaml
-# plugin.yaml
-name: tmdb
+# plugin.yml - Static metadata (checked into source control)
+id: tmdb                      # Unique identifier (used in DB, logs, etc.)
+name: TMDb                    # Display name
 version: 1.2.0
-min_host_version: 0.5.0
+description: Fetch movie and TV metadata from The Movie Database
 author: ViewRA Team
 license: MIT
+homepage: https://github.com/mantonx/viewra
+min_host_version: 0.5.0
+categories:
+  - enricher
 permissions:
   - network
   - storage:database
   - data:media:read
   - data:metadata:write
 ```
+
+```yaml
+# config.yml - Runtime configuration (user-editable, not in source control)
+api_key: "${TMDB_API_KEY}"    # Can use environment variables
+language: en-US
+include_adult: false
+```
+
+**Why Two Files?**
+
+| File | Purpose | Versioned? | User-editable? |
+|------|---------|------------|----------------|
+| `plugin.yml` | Static identity, permissions | Yes | No |
+| `config.yml` | Runtime settings (API keys, preferences) | No | Yes |
+
+The host passes `config.yml` contents to `Initialize()` as bytes.
 
 ### Installation
 
@@ -1591,21 +1712,22 @@ This phase builds the go-plugin + gRPC infrastructure for **external plugins**. 
 syntax = "proto3";
 package viewra.plugin.v1;
 
+// Plugin identity comes from plugin.yml manifest file.
+// The host reads the manifest before starting the plugin binary.
 service PluginCore {
-  rpc GetInfo(Empty) returns (PluginInfo);
   rpc Initialize(InitRequest) returns (InitResponse);
   rpc Shutdown(Empty) returns (Empty);
   rpc HealthCheck(Empty) returns (HealthStatus);
   rpc GetSettingsSchema(Empty) returns (SettingsSchema);
   rpc Configure(Settings) returns (ConfigureResponse);
+  rpc GetSubscriptions(Empty) returns (EventSubscriptions);
+  rpc OnEvent(Event) returns (EventResponse);
 }
 
-message PluginInfo {
-  string id = 1;
-  string name = 2;
-  string version = 3;
-  string min_host_version = 4;
-  repeated string categories = 5;  // "enricher", "notification_sink"
+message InitRequest {
+  string host_version = 1;
+  string data_dir = 2;
+  bytes config = 3;  // Contents of config.yml
 }
 ```
 
@@ -1704,15 +1826,15 @@ func (m *Manager) LoadPlugin(path string) (*PluginInstance, error) {
 ```go
 package plugins
 
-// GRPCEnricher wraps a gRPC client to implement the Enricher interface
+// GRPCEnricher wraps a gRPC client to implement the Enricher interface.
+// Plugin identity (stage name) comes from the manifest, not RPC.
 type GRPCEnricher struct {
-    client pb.EnricherClient
+    pluginID string  // From manifest
+    client   pb.EnricherClient
 }
 
 func (e *GRPCEnricher) Stage() string {
-    // Call gRPC to get plugin info
-    info, _ := e.client.GetInfo(context.Background(), &pb.Empty{})
-    return info.Id
+    return e.pluginID  // From manifest, no RPC needed
 }
 
 func (e *GRPCEnricher) Capabilities() enrichment.EnricherCapabilities {
@@ -1762,11 +1884,13 @@ func (s *HostStorageServer) KVGet(ctx context.Context, req *pb.KVKey) (*pb.KVVal
 ```go
 package sdk
 
-// Base provides common functionality for all plugins
+// Base provides common functionality for all plugins.
+// Plugin authors must embed this in their plugin struct.
 type Base struct {
     logger    *slog.Logger
     requestID string
     metrics   *MetricsCollector
+    dataDir   string
 }
 
 // mustEmbedBase forces plugins to embed Base
@@ -1776,10 +1900,17 @@ func (b *Base) Log() *slog.Logger {
     return b.logger.With("request_id", b.requestID)
 }
 
-// EnricherPlugin is the interface plugins must implement
+func (b *Base) Init(dataDir string) {
+    b.dataDir = dataDir
+}
+
+// EnricherPlugin is the interface plugins must implement.
+// Plugin identity comes from plugin.yml manifest file, not code.
 type EnricherPlugin interface {
     mustEmbedBase()
-    Capabilities() EnricherCapabilities
+    GetCapabilities() EnricherCapabilities
+    Initialize(ctx context.Context, dataDir string, config []byte) error
+    Shutdown(ctx context.Context) error
     Enrich(ctx context.Context, req *EnrichRequest) (*EnrichResponse, error)
 }
 ```
@@ -1834,7 +1965,24 @@ This phase implements the first external plugins: TMDb and MusicBrainz. These ru
 
 **4.1 TMDb Plugin** (`plugins/tmdb/`)
 
-This is a standalone Go binary that implements the Enricher gRPC service:
+This is a standalone Go binary that implements the Enricher gRPC service. Plugin identity comes from `plugin.yml`, not code constants.
+
+**plugin.yml:**
+
+```yaml
+id: tmdb
+name: TMDb
+version: 1.0.0
+description: Fetch movie and TV metadata from The Movie Database
+author: ViewRA Team
+categories:
+  - enricher
+permissions:
+  - network
+  - storage:database
+```
+
+**main.go:**
 
 ```go
 // plugins/tmdb/main.go
@@ -1845,14 +1993,15 @@ import (
     "github.com/mantonx/viewra/pkg/plugin/sdk"
 )
 
+// TMDbPlugin implements the Enricher interface.
+// Plugin identity comes from plugin.yml manifest.
 type TMDbPlugin struct {
     sdk.Base
-    client    *tmdb.Client
-    cache     *cache.Cache
+    client *tmdb.Client
 }
 
-func (p *TMDbPlugin) Capabilities() *sdk.EnricherCapabilities {
-    return &sdk.EnricherCapabilities{
+func (p *TMDbPlugin) GetCapabilities() sdk.EnricherCapabilities {
+    return sdk.EnricherCapabilities{
         MediaTypes: []string{"movie", "tv"},
         Provides:   []string{"metadata", "artwork", "external_ids"},
         IsLocal:    false,
@@ -1860,18 +2009,26 @@ func (p *TMDbPlugin) Capabilities() *sdk.EnricherCapabilities {
     }
 }
 
-func (p *TMDbPlugin) Enrich(ctx context.Context, req *sdk.EnrichRequest) (*sdk.EnrichResponse, error) {
-    // 1. Check local cache first
-    if cached := p.cache.Get(cacheKey(req)); cached != nil {
-        return cached, nil
+func (p *TMDbPlugin) Initialize(ctx context.Context, dataDir string, config []byte) error {
+    var cfg Config
+    if err := yaml.Unmarshal(config, &cfg); err != nil {
+        return err
     }
+    p.client = tmdb.NewClient(cfg.APIKey)
+    return nil
+}
 
-    // 2. Try lookup by IMDB ID (faster, more accurate)
-    if imdbID := req.GetExternalID("imdb"); imdbID != "" {
+func (p *TMDbPlugin) Shutdown(ctx context.Context) error {
+    return nil
+}
+
+func (p *TMDbPlugin) Enrich(ctx context.Context, req *sdk.EnrichRequest) (*sdk.EnrichResponse, error) {
+    // 1. Try lookup by IMDB ID (faster, more accurate)
+    if imdbID, ok := req.ExistingIDs["imdb"]; ok && imdbID != "" {
         return p.lookupByIMDb(ctx, imdbID, req.MediaType)
     }
 
-    // 3. Fall back to search by title/year
+    // 2. Fall back to search by title/year
     return p.searchByTitleYear(ctx, req)
 }
 
@@ -2583,7 +2740,7 @@ Simpler but no isolation—a buggy plugin crashes ViewRA.
 | 12-14 | Operations | Protocol versioning, smart retry, structured logging |
 | 15 | Merging | Field-level priority configuration |
 | 16-20 | Dev experience | Test harness, Git distribution, parallel limits |
-| 21 | Manifest | Hybrid (minimal file + RPC capabilities) |
+| 21 | Manifest | plugin.yml for identity + config.yml for runtime settings (no GetInfo RPC) |
 | 22 | Lifecycle | Adaptive warm pool |
 | 23 | Search flow | ViewRA parses, plugins search, ViewRA selects |
 | 24 | NFO handling | Runs first, provides hints |
@@ -2617,6 +2774,61 @@ Simpler but no isolation—a buggy plugin crashes ViewRA.
 | 62 | Capabilities | Rich fields (MediaTypes, Provides, IsLocal, etc.) |
 | 63 | Diagnostics | Exportable diagnostic bundles |
 | 64 | Phases | Reorganized for new components |
+
+---
+
+## Current Implementation Status
+
+As of December 2025, the plugin system is partially implemented. This section tracks what's complete, in progress, and planned.
+
+### Complete
+
+| Component | Location | Notes |
+|-----------|----------|-------|
+| Plugin Manager | `internal/infrastructure/plugins/manager.go` | Lifecycle, loading, health monitoring |
+| Manifest Parser | `internal/infrastructure/plugins/manifest.go` | Reads `plugin.yml`, validates fields |
+| gRPC Wiring | `internal/infrastructure/plugins/grpc_*.go` | PluginCore, Enricher, Host services |
+| Warm Pool | `internal/infrastructure/plugins/warm_pool.go` | Keep-warm, pre-warming, idle unloading |
+| Host Storage (KV) | `internal/infrastructure/plugins/host_storage.go` | Per-plugin key-value with TTL |
+| Enrichment Queue | `migrations/000027`, `internal/infrastructure/database/queries/*/enrichment_queue.sql` | Job queue with retry logic |
+| Pipeline Manager | `internal/application/enrichment/pipeline/manager.go` | Stage orchestration, worker pools |
+| Worker Pools | `internal/application/enrichment/pipeline/worker_pool.go` | Concurrent processing, rate limiting |
+| Response Appliers | `internal/application/enrichment/pipeline/*_applier.go` | Metadata, credits, studios, images |
+| Plugin KV Queries | `internal/infrastructure/database/queries/*/plugin_kv.sql` | CRUD, expiration cleanup |
+| TMDb Plugin | `plugins/tmdb/` | Reference implementation, movie/TV enrichment |
+| SDK | `pkg/plugin/sdk/` | Base struct, EnricherPlugin interface |
+| Built-in NFO Enricher | `internal/application/enrichment/builtin/nfo.go` | Parses movie, TV, TV show NFO files |
+| Built-in Local Images | `internal/application/enrichment/builtin/local_images.go` | Extracts local artwork for all media types |
+| Plugins Table | `migrations/000037`, queries in `plugins.sql` | Plugin registry with health tracking |
+| Plugin API Keys Table | `migrations/000037`, queries in `plugin_api_keys.sql` | Server-to-server auth |
+| Plugin User Metadata | `migrations/000037`, queries in `plugin_user_metadata.sql` | Per-user data storage |
+| Enrichment Pipelines FK | `migrations/000038` | FK constraint to plugins table |
+| Scanner → Pipeline Integration | `internal/application/library/scan/media/*.go` | Scanner enqueues to pipeline, no inline NFO/images |
+
+### In Progress
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Plugin API endpoints | Planned | REST API to manage plugins from UI |
+
+### Known Gaps
+
+| Gap | Impact | Priority |
+|-----|--------|----------|
+| **MediaQuerier not implemented** | `host_data.go` defines interface but plugins can't query media beyond EnrichRequest | Medium |
+| **External IDs for people/studios** | `media_external_ids` only references `media.id`, can't store TMDB person_id etc. | Medium |
+| **Plugin API endpoints** | No REST API to list/enable/disable/configure plugins | Medium |
+| **Event system incomplete** | `GetSubscriptions`/`OnEvent` are stubs, no event types defined | Low |
+| **GetLibrary stub** | `host_data.go` returns "not implemented" for library queries | Low |
+
+### Implementation Order
+
+Based on dependencies and impact:
+
+1. **MediaQuerier implementation** - Plugins need to query media
+2. **External IDs for people/studios** - Enable full enrichment chain
+3. **Plugin API endpoints** - UI management
+4. **Event system** - Notification plugins
 
 ---
 

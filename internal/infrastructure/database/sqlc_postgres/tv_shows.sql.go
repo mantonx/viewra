@@ -2165,6 +2165,63 @@ func (q *Queries) SearchTVShowsByTitlePaginated(ctx context.Context, arg SearchT
 	return items, nil
 }
 
+const searchTVShowsGlobal = `-- name: SearchTVShowsGlobal :many
+SELECT
+    id,
+    library_id,
+    title,
+    year,
+    original_title
+FROM tv_shows
+WHERE (title ILIKE $1 OR original_title ILIKE $2)
+ORDER BY sort_title, title
+LIMIT $3
+`
+
+type SearchTVShowsGlobalParams struct {
+	Title         string         `json:"title"`
+	OriginalTitle sql.NullString `json:"original_title"`
+	Limit         int32          `json:"limit"`
+}
+
+type SearchTVShowsGlobalRow struct {
+	ID            int32          `json:"id"`
+	LibraryID     int32          `json:"library_id"`
+	Title         string         `json:"title"`
+	Year          sql.NullInt32  `json:"year"`
+	OriginalTitle sql.NullString `json:"original_title"`
+}
+
+// Searches TV shows across all libraries (for plugin use)
+func (q *Queries) SearchTVShowsGlobal(ctx context.Context, arg SearchTVShowsGlobalParams) ([]SearchTVShowsGlobalRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchTVShowsGlobal, arg.Title, arg.OriginalTitle, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchTVShowsGlobalRow{}
+	for rows.Next() {
+		var i SearchTVShowsGlobalRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.Title,
+			&i.Year,
+			&i.OriginalTitle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchTVShowsWithCountsByTitlePaginated = `-- name: SearchTVShowsWithCountsByTitlePaginated :many
 SELECT
     s.id,

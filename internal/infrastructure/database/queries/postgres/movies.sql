@@ -432,3 +432,19 @@ WHERE med.library_id = $1
   AND med.is_extra = false
 ORDER BY COALESCE(m.sort_title, med.title) DESC
 LIMIT $2 OFFSET $3;
+
+-- name: SearchMoviesGlobal :many
+-- Searches movies across all libraries (for plugin use)
+SELECT
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    m.year,
+    m.original_title
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.is_extra = false
+  AND (med.title ILIKE $1 OR m.original_title ILIKE $2)
+ORDER BY m.sort_title, med.title
+LIMIT $3;

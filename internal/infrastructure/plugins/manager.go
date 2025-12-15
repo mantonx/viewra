@@ -49,8 +49,8 @@ type PluginInstance struct {
 	// ID is the unique identifier for this plugin.
 	ID string
 
-	// Info contains the plugin's identity and capabilities.
-	Info *pluginv1.PluginInfo
+	// Manifest contains the plugin's static metadata from plugin.yml.
+	Manifest *Manifest
 
 	// Path is the filesystem path to the plugin binary.
 	Path string
@@ -115,6 +115,9 @@ type Manager struct {
 
 	// maxRestarts is the maximum number of automatic restarts for a crashed plugin.
 	maxRestarts int
+
+	// hostDataServer provides media data access for plugins.
+	hostDataServer *HostDataServer
 }
 
 // ManagerConfig configures the plugin manager.
@@ -135,6 +138,10 @@ type ManagerConfig struct {
 	// MaxRestarts is the maximum number of automatic restarts for a crashed plugin.
 	// Defaults to 3 if not set.
 	MaxRestarts int
+
+	// MediaQuerier provides media data access for plugins.
+	// If nil, plugins will not be able to query media data.
+	MediaQuerier MediaQuerier
 }
 
 // NewManager creates a new plugin manager.
@@ -160,6 +167,12 @@ func NewManager(cfg ManagerConfig, logger *slog.Logger) (*Manager, error) {
 		}
 	}
 
+	// Create HostDataServer if MediaQuerier is provided
+	var hostDataServer *HostDataServer
+	if cfg.MediaQuerier != nil {
+		hostDataServer = NewHostDataServer(cfg.MediaQuerier, logger.With("component", "host-data-server"))
+	}
+
 	return &Manager{
 		plugins:             make(map[string]*PluginInstance),
 		pluginDir:           cfg.PluginDir,
@@ -168,6 +181,7 @@ func NewManager(cfg ManagerConfig, logger *slog.Logger) (*Manager, error) {
 		hostVersion:         cfg.HostVersion,
 		healthCheckInterval: cfg.HealthCheckInterval,
 		maxRestarts:         cfg.MaxRestarts,
+		hostDataServer:      hostDataServer,
 	}, nil
 }
 
@@ -202,15 +216,35 @@ func (m *Manager) DiscoverPlugins() ([]string, error) {
 
 // LoadPlugin loads a single plugin from the given path.
 func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance, error) {
-	m.logger.Info("loading plugin", "path", path)
+	pluginDir := filepath.Dir(path)
+
+	// Read manifest first (before starting the binary)
+	manifest, err := LoadManifest(pluginDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load plugin manifest: %w", err)
+	}
+
+	m.logger.Info("loading plugin",
+		"id", manifest.ID,
+		"name", manifest.Name,
+		"version", manifest.Version,
+		"path", path)
+
+	// Build plugin map with host services
+	pluginMap := map[string]plugin.Plugin{
+		"core":     &PluginCoreGRPCPlugin{},
+		"enricher": &EnricherGRPCPlugin{},
+	}
+
+	// Add host data service if available
+	if m.hostDataServer != nil {
+		pluginMap["host_data"] = &HostDataGRPCPlugin{Impl: m.hostDataServer}
+	}
 
 	// Create the go-plugin client
 	client := plugin.NewClient(&plugin.ClientConfig{
-		HandshakeConfig: Handshake,
-		Plugins: map[string]plugin.Plugin{
-			"core":     &PluginCoreGRPCPlugin{},
-			"enricher": &EnricherGRPCPlugin{},
-		},
+		HandshakeConfig:  Handshake,
+		Plugins:          pluginMap,
 		Cmd:              exec.Command(path),
 		AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 		Logger:           newHCLogAdapter(m.logger),
@@ -236,17 +270,10 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		return nil, fmt.Errorf("unexpected core interface type: %T", raw)
 	}
 
-	// Get plugin info
-	info, err := coreClient.GetInfo(ctx, &pluginv1.Empty{})
-	if err != nil {
-		client.Kill()
-		return nil, fmt.Errorf("failed to get plugin info: %w", err)
-	}
-
-	// Create the plugin instance
+	// Create the plugin instance using manifest data
 	instance := &PluginInstance{
-		ID:         info.Id,
-		Info:       info,
+		ID:         manifest.ID,
+		Manifest:   manifest,
 		Path:       path,
 		Client:     client,
 		CoreClient: coreClient,
@@ -254,7 +281,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 			Status:        pluginv1.HealthStatus_UNKNOWN,
 			LastHeartbeat: time.Now(),
 		},
-		Categories: parseCategories(info.Categories),
+		Categories: parseCategories(manifest.Categories),
 	}
 
 	// If it's an enricher, get the enricher client
@@ -262,7 +289,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		enricherRaw, err := rpcClient.Dispense("enricher")
 		if err != nil {
 			m.logger.Warn("plugin declares enricher category but dispense failed",
-				"plugin", info.Id, "error", err)
+				"plugin", manifest.ID, "error", err)
 		} else if enricherClient, ok := enricherRaw.(pluginv1.EnricherClient); ok {
 			instance.EnricherClient = enricherClient
 		}
@@ -271,15 +298,33 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 	// Initialize the plugin
 	dataDir := ""
 	if m.storageDir != "" {
-		dataDir = filepath.Join(m.storageDir, info.Id)
+		dataDir = filepath.Join(m.storageDir, manifest.ID)
 		if err := os.MkdirAll(dataDir, 0755); err != nil {
-			m.logger.Warn("failed to create plugin data directory", "plugin", info.Id, "error", err)
+			m.logger.Warn("failed to create plugin data directory", "plugin", manifest.ID, "error", err)
 		}
+	}
+
+	// Read plugin config from config.yml in the plugin's directory
+	configPath := filepath.Join(pluginDir, "config.yml")
+	configBytes, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			m.logger.Warn("plugin config.yml not found, plugin may not function correctly",
+				"plugin", manifest.ID,
+				"expected_path", configPath)
+			configBytes = nil
+		} else {
+			client.Kill()
+			return nil, fmt.Errorf("failed to read plugin config: %w", err)
+		}
+	} else {
+		m.logger.Debug("loaded plugin config", "plugin", manifest.ID, "config_path", configPath)
 	}
 
 	initResp, err := coreClient.Initialize(ctx, &pluginv1.InitRequest{
 		HostVersion: m.hostVersion,
 		DataDir:     dataDir,
+		Config:      configBytes,
 	})
 	if err != nil {
 		client.Kill()
@@ -292,14 +337,14 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 
 	// Register the plugin
 	m.mu.Lock()
-	m.plugins[info.Id] = instance
+	m.plugins[manifest.ID] = instance
 	m.mu.Unlock()
 
 	m.logger.Info("plugin loaded successfully",
-		"id", info.Id,
-		"name", info.Name,
-		"version", info.Version,
-		"categories", info.Categories,
+		"id", manifest.ID,
+		"name", manifest.Name,
+		"version", manifest.Version,
+		"categories", manifest.Categories,
 	)
 
 	return instance, nil

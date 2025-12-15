@@ -6,6 +6,7 @@ package sqlc_postgres
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/sqlc-dev/pqtype"
@@ -332,6 +333,34 @@ type PlaybackSession struct {
 	CreatedAt          sql.NullTime   `json:"created_at"`
 }
 
+type Plugin struct {
+	ID            string          `json:"id"`
+	Name          string          `json:"name"`
+	Version       string          `json:"version"`
+	Description   sql.NullString  `json:"description"`
+	Author        sql.NullString  `json:"author"`
+	License       sql.NullString  `json:"license"`
+	Homepage      sql.NullString  `json:"homepage"`
+	Categories    json.RawMessage `json:"categories"`
+	IsBuiltin     sql.NullBool    `json:"is_builtin"`
+	Enabled       sql.NullBool    `json:"enabled"`
+	Path          sql.NullString  `json:"path"`
+	HealthStatus  sql.NullString  `json:"health_status"`
+	LastHeartbeat sql.NullTime    `json:"last_heartbeat"`
+	RestartCount  sql.NullInt32   `json:"restart_count"`
+	InstalledAt   time.Time       `json:"installed_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+}
+
+type PluginApiKey struct {
+	ID          string          `json:"id"`
+	PluginID    string          `json:"plugin_id"`
+	KeyHash     string          `json:"key_hash"`
+	Permissions json.RawMessage `json:"permissions"`
+	ExpiresAt   sql.NullTime    `json:"expires_at"`
+	CreatedAt   time.Time       `json:"created_at"`
+}
+
 type PluginKv struct {
 	PluginID  string       `json:"plugin_id"`
 	Key       string       `json:"key"`
@@ -339,6 +368,15 @@ type PluginKv struct {
 	ExpiresAt sql.NullTime `json:"expires_at"`
 	CreatedAt time.Time    `json:"created_at"`
 	UpdatedAt time.Time    `json:"updated_at"`
+}
+
+type PluginUserMetadatum struct {
+	PluginID  string    `json:"plugin_id"`
+	UserID    int32     `json:"user_id"`
+	Key       string    `json:"key"`
+	Value     []byte    `json:"value"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type QualitySwitchEvent struct {

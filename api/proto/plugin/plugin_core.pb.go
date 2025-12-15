@@ -70,115 +70,7 @@ func (x HealthStatus_Status) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use HealthStatus_Status.Descriptor instead.
 func (HealthStatus_Status) EnumDescriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{3, 0}
-}
-
-type PluginInfo struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Unique identifier for this plugin (e.g., "tmdb", "musicbrainz")
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// Human-readable name
-	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	// Semantic version (e.g., "1.2.0")
-	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
-	// Minimum ViewRA version required
-	MinHostVersion string `protobuf:"bytes,4,opt,name=min_host_version,json=minHostVersion,proto3" json:"min_host_version,omitempty"`
-	// Plugin author
-	Author string `protobuf:"bytes,5,opt,name=author,proto3" json:"author,omitempty"`
-	// License (e.g., "MIT", "Apache-2.0")
-	License string `protobuf:"bytes,6,opt,name=license,proto3" json:"license,omitempty"`
-	// Categories this plugin implements (e.g., ["enricher"], ["notification_sink"])
-	Categories []string `protobuf:"bytes,7,rep,name=categories,proto3" json:"categories,omitempty"`
-	// Permissions this plugin requires
-	Permissions   []string `protobuf:"bytes,8,rep,name=permissions,proto3" json:"permissions,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *PluginInfo) Reset() {
-	*x = PluginInfo{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *PluginInfo) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PluginInfo) ProtoMessage() {}
-
-func (x *PluginInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PluginInfo.ProtoReflect.Descriptor instead.
-func (*PluginInfo) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *PluginInfo) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *PluginInfo) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *PluginInfo) GetVersion() string {
-	if x != nil {
-		return x.Version
-	}
-	return ""
-}
-
-func (x *PluginInfo) GetMinHostVersion() string {
-	if x != nil {
-		return x.MinHostVersion
-	}
-	return ""
-}
-
-func (x *PluginInfo) GetAuthor() string {
-	if x != nil {
-		return x.Author
-	}
-	return ""
-}
-
-func (x *PluginInfo) GetLicense() string {
-	if x != nil {
-		return x.License
-	}
-	return ""
-}
-
-func (x *PluginInfo) GetCategories() []string {
-	if x != nil {
-		return x.Categories
-	}
-	return nil
-}
-
-func (x *PluginInfo) GetPermissions() []string {
-	if x != nil {
-		return x.Permissions
-	}
-	return nil
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{2, 0}
 }
 
 type InitRequest struct {
@@ -195,7 +87,7 @@ type InitRequest struct {
 
 func (x *InitRequest) Reset() {
 	*x = InitRequest{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[1]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -207,7 +99,7 @@ func (x *InitRequest) String() string {
 func (*InitRequest) ProtoMessage() {}
 
 func (x *InitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[1]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -220,7 +112,7 @@ func (x *InitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InitRequest.ProtoReflect.Descriptor instead.
 func (*InitRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{1}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *InitRequest) GetHostVersion() string {
@@ -254,7 +146,7 @@ type InitResponse struct {
 
 func (x *InitResponse) Reset() {
 	*x = InitResponse{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[2]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -266,7 +158,7 @@ func (x *InitResponse) String() string {
 func (*InitResponse) ProtoMessage() {}
 
 func (x *InitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[2]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -279,7 +171,7 @@ func (x *InitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InitResponse.ProtoReflect.Descriptor instead.
 func (*InitResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{2}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *InitResponse) GetSuccess() bool {
@@ -310,7 +202,7 @@ type HealthStatus struct {
 
 func (x *HealthStatus) Reset() {
 	*x = HealthStatus{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[3]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -322,7 +214,7 @@ func (x *HealthStatus) String() string {
 func (*HealthStatus) ProtoMessage() {}
 
 func (x *HealthStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[3]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -335,7 +227,7 @@ func (x *HealthStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthStatus.ProtoReflect.Descriptor instead.
 func (*HealthStatus) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{3}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *HealthStatus) GetStatus() HealthStatus_Status {
@@ -383,7 +275,7 @@ type SettingsSchema struct {
 
 func (x *SettingsSchema) Reset() {
 	*x = SettingsSchema{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[4]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -395,7 +287,7 @@ func (x *SettingsSchema) String() string {
 func (*SettingsSchema) ProtoMessage() {}
 
 func (x *SettingsSchema) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[4]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -408,7 +300,7 @@ func (x *SettingsSchema) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SettingsSchema.ProtoReflect.Descriptor instead.
 func (*SettingsSchema) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{4}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *SettingsSchema) GetJsonSchema() []byte {
@@ -428,7 +320,7 @@ type Settings struct {
 
 func (x *Settings) Reset() {
 	*x = Settings{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[5]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -440,7 +332,7 @@ func (x *Settings) String() string {
 func (*Settings) ProtoMessage() {}
 
 func (x *Settings) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[5]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -453,7 +345,7 @@ func (x *Settings) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Settings.ProtoReflect.Descriptor instead.
 func (*Settings) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{5}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Settings) GetJson() []byte {
@@ -473,7 +365,7 @@ type ConfigureResponse struct {
 
 func (x *ConfigureResponse) Reset() {
 	*x = ConfigureResponse{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[6]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -485,7 +377,7 @@ func (x *ConfigureResponse) String() string {
 func (*ConfigureResponse) ProtoMessage() {}
 
 func (x *ConfigureResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[6]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -498,7 +390,7 @@ func (x *ConfigureResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigureResponse.ProtoReflect.Descriptor instead.
 func (*ConfigureResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{6}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ConfigureResponse) GetSuccess() bool {
@@ -525,7 +417,7 @@ type EventSubscriptions struct {
 
 func (x *EventSubscriptions) Reset() {
 	*x = EventSubscriptions{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[7]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -537,7 +429,7 @@ func (x *EventSubscriptions) String() string {
 func (*EventSubscriptions) ProtoMessage() {}
 
 func (x *EventSubscriptions) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[7]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -550,7 +442,7 @@ func (x *EventSubscriptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventSubscriptions.ProtoReflect.Descriptor instead.
 func (*EventSubscriptions) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{7}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *EventSubscriptions) GetEventTypes() []string {
@@ -573,7 +465,7 @@ type Event struct {
 
 func (x *Event) Reset() {
 	*x = Event{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[8]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -585,7 +477,7 @@ func (x *Event) String() string {
 func (*Event) ProtoMessage() {}
 
 func (x *Event) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[8]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -598,7 +490,7 @@ func (x *Event) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Event.ProtoReflect.Descriptor instead.
 func (*Event) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{8}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Event) GetType() string {
@@ -646,7 +538,7 @@ type EventResponse struct {
 
 func (x *EventResponse) Reset() {
 	*x = EventResponse{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[9]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -658,7 +550,7 @@ func (x *EventResponse) String() string {
 func (*EventResponse) ProtoMessage() {}
 
 func (x *EventResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[9]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -671,7 +563,7 @@ func (x *EventResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventResponse.ProtoReflect.Descriptor instead.
 func (*EventResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{9}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *EventResponse) GetHandled() bool {
@@ -692,19 +584,7 @@ var File_api_proto_plugin_plugin_core_proto protoreflect.FileDescriptor
 
 const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
 	"\n" +
-	"\"api/proto/plugin/plugin_core.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"\xe8\x01\n" +
-	"\n" +
-	"PluginInfo\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
-	"\aversion\x18\x03 \x01(\tR\aversion\x12(\n" +
-	"\x10min_host_version\x18\x04 \x01(\tR\x0eminHostVersion\x12\x16\n" +
-	"\x06author\x18\x05 \x01(\tR\x06author\x12\x18\n" +
-	"\alicense\x18\x06 \x01(\tR\alicense\x12\x1e\n" +
-	"\n" +
-	"categories\x18\a \x03(\tR\n" +
-	"categories\x12 \n" +
-	"\vpermissions\x18\b \x03(\tR\vpermissions\"c\n" +
+	"\"api/proto/plugin/plugin_core.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"c\n" +
 	"\vInitRequest\x12!\n" +
 	"\fhost_version\x18\x01 \x01(\tR\vhostVersion\x12\x19\n" +
 	"\bdata_dir\x18\x02 \x01(\tR\adataDir\x12\x16\n" +
@@ -742,10 +622,9 @@ const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
 	"\x0ecorrelation_id\x18\x05 \x01(\tR\rcorrelationId\"?\n" +
 	"\rEventResponse\x12\x18\n" +
 	"\ahandled\x18\x01 \x01(\bR\ahandled\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error2\xd7\x04\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error2\x95\x04\n" +
 	"\n" +
-	"PluginCore\x12@\n" +
-	"\aGetInfo\x12\x17.viewra.plugin.v1.Empty\x1a\x1c.viewra.plugin.v1.PluginInfo\x12K\n" +
+	"PluginCore\x12K\n" +
 	"\n" +
 	"Initialize\x12\x1d.viewra.plugin.v1.InitRequest\x1a\x1e.viewra.plugin.v1.InitResponse\x12<\n" +
 	"\bShutdown\x12\x17.viewra.plugin.v1.Empty\x1a\x17.viewra.plugin.v1.Empty\x12F\n" +
@@ -768,41 +647,38 @@ func file_api_proto_plugin_plugin_core_proto_rawDescGZIP() []byte {
 }
 
 var file_api_proto_plugin_plugin_core_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_proto_plugin_plugin_core_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_api_proto_plugin_plugin_core_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_api_proto_plugin_plugin_core_proto_goTypes = []any{
 	(HealthStatus_Status)(0),   // 0: viewra.plugin.v1.HealthStatus.Status
-	(*PluginInfo)(nil),         // 1: viewra.plugin.v1.PluginInfo
-	(*InitRequest)(nil),        // 2: viewra.plugin.v1.InitRequest
-	(*InitResponse)(nil),       // 3: viewra.plugin.v1.InitResponse
-	(*HealthStatus)(nil),       // 4: viewra.plugin.v1.HealthStatus
-	(*SettingsSchema)(nil),     // 5: viewra.plugin.v1.SettingsSchema
-	(*Settings)(nil),           // 6: viewra.plugin.v1.Settings
-	(*ConfigureResponse)(nil),  // 7: viewra.plugin.v1.ConfigureResponse
-	(*EventSubscriptions)(nil), // 8: viewra.plugin.v1.EventSubscriptions
-	(*Event)(nil),              // 9: viewra.plugin.v1.Event
-	(*EventResponse)(nil),      // 10: viewra.plugin.v1.EventResponse
-	(*Empty)(nil),              // 11: viewra.plugin.v1.Empty
+	(*InitRequest)(nil),        // 1: viewra.plugin.v1.InitRequest
+	(*InitResponse)(nil),       // 2: viewra.plugin.v1.InitResponse
+	(*HealthStatus)(nil),       // 3: viewra.plugin.v1.HealthStatus
+	(*SettingsSchema)(nil),     // 4: viewra.plugin.v1.SettingsSchema
+	(*Settings)(nil),           // 5: viewra.plugin.v1.Settings
+	(*ConfigureResponse)(nil),  // 6: viewra.plugin.v1.ConfigureResponse
+	(*EventSubscriptions)(nil), // 7: viewra.plugin.v1.EventSubscriptions
+	(*Event)(nil),              // 8: viewra.plugin.v1.Event
+	(*EventResponse)(nil),      // 9: viewra.plugin.v1.EventResponse
+	(*Empty)(nil),              // 10: viewra.plugin.v1.Empty
 }
 var file_api_proto_plugin_plugin_core_proto_depIdxs = []int32{
 	0,  // 0: viewra.plugin.v1.HealthStatus.status:type_name -> viewra.plugin.v1.HealthStatus.Status
-	11, // 1: viewra.plugin.v1.PluginCore.GetInfo:input_type -> viewra.plugin.v1.Empty
-	2,  // 2: viewra.plugin.v1.PluginCore.Initialize:input_type -> viewra.plugin.v1.InitRequest
-	11, // 3: viewra.plugin.v1.PluginCore.Shutdown:input_type -> viewra.plugin.v1.Empty
-	11, // 4: viewra.plugin.v1.PluginCore.HealthCheck:input_type -> viewra.plugin.v1.Empty
-	11, // 5: viewra.plugin.v1.PluginCore.GetSettingsSchema:input_type -> viewra.plugin.v1.Empty
-	6,  // 6: viewra.plugin.v1.PluginCore.Configure:input_type -> viewra.plugin.v1.Settings
-	11, // 7: viewra.plugin.v1.PluginCore.GetSubscriptions:input_type -> viewra.plugin.v1.Empty
-	9,  // 8: viewra.plugin.v1.PluginCore.OnEvent:input_type -> viewra.plugin.v1.Event
-	1,  // 9: viewra.plugin.v1.PluginCore.GetInfo:output_type -> viewra.plugin.v1.PluginInfo
-	3,  // 10: viewra.plugin.v1.PluginCore.Initialize:output_type -> viewra.plugin.v1.InitResponse
-	11, // 11: viewra.plugin.v1.PluginCore.Shutdown:output_type -> viewra.plugin.v1.Empty
-	4,  // 12: viewra.plugin.v1.PluginCore.HealthCheck:output_type -> viewra.plugin.v1.HealthStatus
-	5,  // 13: viewra.plugin.v1.PluginCore.GetSettingsSchema:output_type -> viewra.plugin.v1.SettingsSchema
-	7,  // 14: viewra.plugin.v1.PluginCore.Configure:output_type -> viewra.plugin.v1.ConfigureResponse
-	8,  // 15: viewra.plugin.v1.PluginCore.GetSubscriptions:output_type -> viewra.plugin.v1.EventSubscriptions
-	10, // 16: viewra.plugin.v1.PluginCore.OnEvent:output_type -> viewra.plugin.v1.EventResponse
-	9,  // [9:17] is the sub-list for method output_type
-	1,  // [1:9] is the sub-list for method input_type
+	1,  // 1: viewra.plugin.v1.PluginCore.Initialize:input_type -> viewra.plugin.v1.InitRequest
+	10, // 2: viewra.plugin.v1.PluginCore.Shutdown:input_type -> viewra.plugin.v1.Empty
+	10, // 3: viewra.plugin.v1.PluginCore.HealthCheck:input_type -> viewra.plugin.v1.Empty
+	10, // 4: viewra.plugin.v1.PluginCore.GetSettingsSchema:input_type -> viewra.plugin.v1.Empty
+	5,  // 5: viewra.plugin.v1.PluginCore.Configure:input_type -> viewra.plugin.v1.Settings
+	10, // 6: viewra.plugin.v1.PluginCore.GetSubscriptions:input_type -> viewra.plugin.v1.Empty
+	8,  // 7: viewra.plugin.v1.PluginCore.OnEvent:input_type -> viewra.plugin.v1.Event
+	2,  // 8: viewra.plugin.v1.PluginCore.Initialize:output_type -> viewra.plugin.v1.InitResponse
+	10, // 9: viewra.plugin.v1.PluginCore.Shutdown:output_type -> viewra.plugin.v1.Empty
+	3,  // 10: viewra.plugin.v1.PluginCore.HealthCheck:output_type -> viewra.plugin.v1.HealthStatus
+	4,  // 11: viewra.plugin.v1.PluginCore.GetSettingsSchema:output_type -> viewra.plugin.v1.SettingsSchema
+	6,  // 12: viewra.plugin.v1.PluginCore.Configure:output_type -> viewra.plugin.v1.ConfigureResponse
+	7,  // 13: viewra.plugin.v1.PluginCore.GetSubscriptions:output_type -> viewra.plugin.v1.EventSubscriptions
+	9,  // 14: viewra.plugin.v1.PluginCore.OnEvent:output_type -> viewra.plugin.v1.EventResponse
+	8,  // [8:15] is the sub-list for method output_type
+	1,  // [1:8] is the sub-list for method input_type
 	1,  // [1:1] is the sub-list for extension type_name
 	1,  // [1:1] is the sub-list for extension extendee
 	0,  // [0:1] is the sub-list for field type_name
@@ -820,7 +696,7 @@ func file_api_proto_plugin_plugin_core_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_plugin_plugin_core_proto_rawDesc), len(file_api_proto_plugin_plugin_core_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   10,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

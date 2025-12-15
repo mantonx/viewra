@@ -1741,6 +1741,68 @@ func (q *Queries) SearchMoviesByTitlePaginated(ctx context.Context, arg SearchMo
 	return items, nil
 }
 
+const searchMoviesGlobal = `-- name: SearchMoviesGlobal :many
+SELECT
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    m.year,
+    m.original_title
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.is_extra = false
+  AND (med.title ILIKE $1 OR m.original_title ILIKE $2)
+ORDER BY m.sort_title, med.title
+LIMIT $3
+`
+
+type SearchMoviesGlobalParams struct {
+	Title         string         `json:"title"`
+	OriginalTitle sql.NullString `json:"original_title"`
+	Limit         int32          `json:"limit"`
+}
+
+type SearchMoviesGlobalRow struct {
+	MediaID       int32          `json:"media_id"`
+	LibraryID     int32          `json:"library_id"`
+	Title         string         `json:"title"`
+	FilePath      string         `json:"file_path"`
+	Year          sql.NullInt32  `json:"year"`
+	OriginalTitle sql.NullString `json:"original_title"`
+}
+
+// Searches movies across all libraries (for plugin use)
+func (q *Queries) SearchMoviesGlobal(ctx context.Context, arg SearchMoviesGlobalParams) ([]SearchMoviesGlobalRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchMoviesGlobal, arg.Title, arg.OriginalTitle, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchMoviesGlobalRow{}
+	for rows.Next() {
+		var i SearchMoviesGlobalRow
+		if err := rows.Scan(
+			&i.MediaID,
+			&i.LibraryID,
+			&i.Title,
+			&i.FilePath,
+			&i.Year,
+			&i.OriginalTitle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateMovie = `-- name: UpdateMovie :exec
 UPDATE movies
 SET year = $1,

@@ -19,7 +19,6 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PluginCore_GetInfo_FullMethodName           = "/viewra.plugin.v1.PluginCore/GetInfo"
 	PluginCore_Initialize_FullMethodName        = "/viewra.plugin.v1.PluginCore/Initialize"
 	PluginCore_Shutdown_FullMethodName          = "/viewra.plugin.v1.PluginCore/Shutdown"
 	PluginCore_HealthCheck_FullMethodName       = "/viewra.plugin.v1.PluginCore/HealthCheck"
@@ -34,10 +33,11 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // PluginCore is the base interface all plugins must implement.
-// Provides identity, lifecycle, health, and configuration.
+// Provides lifecycle, health, and configuration.
+//
+// Plugin identity comes from plugin.yml manifest file.
+// The host reads the manifest before starting the plugin binary.
 type PluginCoreClient interface {
-	// GetInfo returns plugin identity and capabilities.
-	GetInfo(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*PluginInfo, error)
 	// Initialize is called when the plugin is loaded.
 	Initialize(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*InitResponse, error)
 	// Shutdown is called before the plugin process is terminated.
@@ -60,16 +60,6 @@ type pluginCoreClient struct {
 
 func NewPluginCoreClient(cc grpc.ClientConnInterface) PluginCoreClient {
 	return &pluginCoreClient{cc}
-}
-
-func (c *pluginCoreClient) GetInfo(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*PluginInfo, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(PluginInfo)
-	err := c.cc.Invoke(ctx, PluginCore_GetInfo_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *pluginCoreClient) Initialize(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*InitResponse, error) {
@@ -147,10 +137,11 @@ func (c *pluginCoreClient) OnEvent(ctx context.Context, in *Event, opts ...grpc.
 // for forward compatibility.
 //
 // PluginCore is the base interface all plugins must implement.
-// Provides identity, lifecycle, health, and configuration.
+// Provides lifecycle, health, and configuration.
+//
+// Plugin identity comes from plugin.yml manifest file.
+// The host reads the manifest before starting the plugin binary.
 type PluginCoreServer interface {
-	// GetInfo returns plugin identity and capabilities.
-	GetInfo(context.Context, *Empty) (*PluginInfo, error)
 	// Initialize is called when the plugin is loaded.
 	Initialize(context.Context, *InitRequest) (*InitResponse, error)
 	// Shutdown is called before the plugin process is terminated.
@@ -175,9 +166,6 @@ type PluginCoreServer interface {
 // pointer dereference when methods are called.
 type UnimplementedPluginCoreServer struct{}
 
-func (UnimplementedPluginCoreServer) GetInfo(context.Context, *Empty) (*PluginInfo, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetInfo not implemented")
-}
 func (UnimplementedPluginCoreServer) Initialize(context.Context, *InitRequest) (*InitResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Initialize not implemented")
 }
@@ -218,24 +206,6 @@ func RegisterPluginCoreServer(s grpc.ServiceRegistrar, srv PluginCoreServer) {
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&PluginCore_ServiceDesc, srv)
-}
-
-func _PluginCore_GetInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(PluginCoreServer).GetInfo(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: PluginCore_GetInfo_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PluginCoreServer).GetInfo(ctx, req.(*Empty))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _PluginCore_Initialize_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -371,10 +341,6 @@ var PluginCore_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "viewra.plugin.v1.PluginCore",
 	HandlerType: (*PluginCoreServer)(nil),
 	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "GetInfo",
-			Handler:    _PluginCore_GetInfo_Handler,
-		},
 		{
 			MethodName: "Initialize",
 			Handler:    _PluginCore_Initialize_Handler,

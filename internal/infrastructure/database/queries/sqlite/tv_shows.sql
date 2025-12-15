@@ -556,3 +556,16 @@ FROM tv_shows
 WHERE library_id = ?
 ORDER BY COALESCE(sort_title, title) COLLATE NOCASE DESC
 LIMIT ? OFFSET ?;
+
+-- name: SearchTVShowsGlobal :many
+-- Searches TV shows across all libraries (for plugin use)
+SELECT
+    id,
+    library_id,
+    title,
+    year,
+    original_title
+FROM tv_shows
+WHERE (title LIKE ? OR original_title LIKE ?)
+ORDER BY sort_title, title
+LIMIT ?;

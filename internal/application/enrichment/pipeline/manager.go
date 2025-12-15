@@ -44,6 +44,78 @@ func (m *Manager) RegisterEnricher(enricher appenrich.Enricher) {
 	m.enrichers[enricher.Stage()] = enricher
 }
 
+// RegisterExternalEnricher registers an external plugin enricher and ensures
+// pipeline configuration exists for it (disabled by default).
+// This is called when external plugins are loaded.
+func (m *Manager) RegisterExternalEnricher(ctx context.Context, enricher appenrich.Enricher) error {
+	// First register the enricher
+	m.RegisterEnricher(enricher)
+
+	stage := enricher.Stage()
+	caps := enricher.Capabilities()
+
+	// For each supported media type, ensure a pipeline stage exists
+	for _, mt := range caps.MediaTypes {
+		mediaType := enrichment.MediaType(mt)
+
+		// Check if stage already exists
+		existing, err := m.deps.PipelineRepo.GetStageByName(ctx, mediaType, stage)
+		if err != nil {
+			m.deps.Logger.Warn("failed to check for existing pipeline stage",
+				"stage", stage,
+				"media_type", mt,
+				"error", err)
+			continue
+		}
+
+		if existing != nil {
+			m.deps.Logger.Debug("pipeline stage already exists",
+				"stage", stage,
+				"media_type", mt,
+				"enabled", existing.Enabled)
+			continue
+		}
+
+		// Find the next available position (after existing stages)
+		allStages, err := m.deps.PipelineRepo.GetAllStages(ctx, mediaType)
+		if err != nil {
+			m.deps.Logger.Warn("failed to get existing stages",
+				"media_type", mt,
+				"error", err)
+			continue
+		}
+
+		// Position is one after the last stage
+		position := len(allStages) + 1
+
+		// Create new stage (disabled by default for external plugins)
+		newStage := &enrichment.PipelineStage{
+			MediaType: mediaType,
+			PluginID:  stage,
+			StageName: stage,
+			Position:  position,
+			Enabled:   false, // External plugins are disabled by default
+		}
+
+		if _, err := m.deps.PipelineRepo.Create(ctx, newStage); err != nil {
+			m.deps.Logger.Warn("failed to create pipeline stage",
+				"stage", stage,
+				"media_type", mt,
+				"position", position,
+				"error", err)
+			continue
+		}
+
+		m.deps.Logger.Info("registered external plugin pipeline stage",
+			"stage", stage,
+			"media_type", mt,
+			"position", position,
+			"enabled", false)
+	}
+
+	return nil
+}
+
 // Start begins all worker pools.
 func (m *Manager) Start(ctx context.Context) error {
 	m.mu.Lock()

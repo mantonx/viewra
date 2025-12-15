@@ -18,11 +18,13 @@ import (
 	"github.com/mantonx/viewra/internal/infrastructure/events"
 	infraimages "github.com/mantonx/viewra/internal/infrastructure/images"
 	"github.com/mantonx/viewra/internal/infrastructure/pathbrowser"
+	"github.com/mantonx/viewra/internal/infrastructure/plugins"
 	"github.com/mantonx/viewra/internal/infrastructure/subtitles"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
 	transcodeconfig "github.com/mantonx/viewra/internal/infrastructure/transcoding/config"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/logging"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/session"
+	"github.com/mantonx/viewra/internal/version"
 )
 
 // DiskMonitoringRepo defines the repository interface needed for disk monitoring cleanup.
@@ -62,6 +64,9 @@ type Services struct {
 
 	// Enrichment pipeline manager
 	PipelineManager *pipeline.Manager
+
+	// Plugin manager for external plugins
+	PluginManager *plugins.Manager
 }
 
 // BuildServices creates and initializes all infrastructure services.
@@ -271,6 +276,22 @@ func BuildServices(
 	imageExtractor := infraimages.NewExtractor()
 	pipelineManager.RegisterEnricher(builtin.NewLocalImagesEnricher(imageExtractor, logger))
 
+	// Initialize plugin manager for external plugins
+	var pluginManager *plugins.Manager
+	if cfg.Plugins.Enabled {
+		pluginLogger := logger.With("component", "plugin-manager")
+		var err error
+		pluginManager, err = plugins.NewManager(plugins.ManagerConfig{
+			PluginDir:    cfg.Plugins.Dir,
+			StorageDir:   cfg.Plugins.StorageDir,
+			HostVersion:  version.Version,
+			MediaQuerier: repos.PluginMediaQuerier,
+		}, pluginLogger)
+		if err != nil {
+			logger.Warn("Failed to create plugin manager", "error", err)
+		}
+	}
+
 	return &Services{
 		ImageCache:        imageCacheService,
 		ImageTransformer:  imageTransformer,
@@ -286,6 +307,7 @@ func BuildServices(
 		Settings:          settingsService,
 		EventBus:          eventBus,
 		PipelineManager:   pipelineManager,
+		PluginManager:     pluginManager,
 	}, nil
 }
 

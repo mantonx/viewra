@@ -556,3 +556,16 @@ FROM tv_shows
 WHERE library_id = $1
 ORDER BY COALESCE(sort_title, title) DESC
 LIMIT $2 OFFSET $3;
+
+-- name: SearchTVShowsGlobal :many
+-- Searches TV shows across all libraries (for plugin use)
+SELECT
+    id,
+    library_id,
+    title,
+    year,
+    original_title
+FROM tv_shows
+WHERE (title ILIKE $1 OR original_title ILIKE $2)
+ORDER BY sort_title, title
+LIMIT $3;

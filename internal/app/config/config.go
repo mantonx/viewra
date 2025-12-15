@@ -23,6 +23,7 @@ type Config struct {
 	Media         MediaConfig
 	Transcode     TranscodeConfig
 	Images        ImagesConfig
+	Plugins       PluginsConfig
 	Auth          AuthConfig
 	SystemProfile *system.Profile // Detected system profile for auto-tuning
 }
@@ -104,6 +105,22 @@ type ImagesConfig struct {
 	CacheDir string
 }
 
+// PluginsConfig holds plugin system configuration.
+type PluginsConfig struct {
+	// Dir is the directory containing plugin binaries.
+	// Defaults to "data/plugins" relative to the working directory.
+	Dir string
+
+	// StorageDir is the base directory for plugin data storage.
+	// Each plugin gets its own subdirectory for databases and caches.
+	// Defaults to "data/plugins/storage" relative to the working directory.
+	StorageDir string
+
+	// Enabled controls whether external plugins are loaded.
+	// Built-in enrichers (NFO, local-images) always run regardless of this setting.
+	Enabled bool
+}
+
 // Load reads configuration from environment variables with sensible defaults
 func Load() (*Config, error) {
 	env := getEnv("ENVIRONMENT", "development")
@@ -116,6 +133,7 @@ func Load() (*Config, error) {
 		Media:       loadMediaConfig(logger),
 		Transcode:   loadTranscodeConfig(logger),
 		Images:      loadImagesConfig(),
+		Plugins:     loadPluginsConfig(),
 		Auth:        loadAuthConfig(logger),
 	}
 
@@ -315,6 +333,15 @@ func loadAuthConfig(logger *slog.Logger) AuthConfig {
 		AccessTokenTTL:     getEnvDurationWithLog(logger, "ACCESS_TOKEN_TTL", 15*time.Minute),
 		RefreshTokenTTL:    getEnvDurationWithLog(logger, "REFRESH_TOKEN_TTL", 7*24*time.Hour),
 		MaxSessionsPerUser: getEnvIntWithLog(logger, "MAX_SESSIONS_PER_USER", 10),
+	}
+}
+
+// loadPluginsConfig loads plugin system configuration from environment
+func loadPluginsConfig() PluginsConfig {
+	return PluginsConfig{
+		Dir:        getEnv("PLUGINS_DIR", "./data/plugins"),
+		StorageDir: getEnv("PLUGINS_STORAGE_DIR", "./data/plugins/storage"),
+		Enabled:    getEnvBool("PLUGINS_ENABLED", true),
 	}
 }
 

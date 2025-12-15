@@ -1,0 +1,15 @@
+# TMDb Plugin Configuration
+
+# Required: Your TMDb API key (v3 auth)
+# Get one at https://www.themoviedb.org/settings/api
+api_key: ""
+
+# Optional: Rate limit (requests per 10 seconds)
+# TMDb allows ~40 requests per 10 seconds for free accounts
+rate_limit: 40
+
+# Optional: Cache TTL in hours
+cache_ttl_hours: 24
+
+# Optional: Preferred language for metadata
+language: "en-US"

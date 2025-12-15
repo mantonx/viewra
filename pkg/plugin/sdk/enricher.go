@@ -12,19 +12,18 @@ import (
 
 // EnricherPlugin is the interface that enricher plugins must implement.
 // Plugin authors implement this interface and use Serve() to run the plugin.
+//
+// Plugin identity comes from plugin.yml manifest file, not code.
 type EnricherPlugin interface {
 	// mustEmbedBase ensures plugins embed sdk.Base
 	mustEmbedBase()
-
-	// GetInfo returns the plugin's identity and metadata.
-	GetInfo() PluginInfo
 
 	// GetCapabilities returns what this enricher provides and requires.
 	GetCapabilities() EnricherCapabilities
 
 	// Initialize is called when the plugin is loaded.
-	// Use this to set up any resources needed by the plugin.
-	Initialize(ctx context.Context, dataDir string) error
+	// Config is the contents of config.yml passed by the host.
+	Initialize(ctx context.Context, dataDir string, config []byte) error
 
 	// Shutdown is called before the plugin is unloaded.
 	// Use this to clean up any resources.
@@ -32,17 +31,6 @@ type EnricherPlugin interface {
 
 	// Enrich processes a single media item.
 	Enrich(ctx context.Context, req *EnrichRequest) (*EnrichResponse, error)
-}
-
-// PluginInfo contains plugin identity and metadata.
-type PluginInfo struct {
-	ID             string   // Unique identifier (e.g., "tmdb")
-	Name           string   // Human-readable name
-	Version        string   // Semantic version
-	MinHostVersion string   // Minimum ViewRA version required
-	Author         string   // Plugin author
-	License        string   // License (e.g., "MIT")
-	Permissions    []string // Required permissions
 }
 
 // EnricherCapabilities describes what an enricher provides and requires.
@@ -156,24 +144,10 @@ type enricherGRPCServer struct {
 	base *Base
 }
 
-func (s *enricherGRPCServer) GetInfo(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.PluginInfo, error) {
-	info := s.impl.GetInfo()
-	return &pluginv1.PluginInfo{
-		Id:             info.ID,
-		Name:           info.Name,
-		Version:        info.Version,
-		MinHostVersion: info.MinHostVersion,
-		Author:         info.Author,
-		License:        info.License,
-		Categories:     []string{"enricher"},
-		Permissions:    info.Permissions,
-	}, nil
-}
-
 func (s *enricherGRPCServer) Initialize(ctx context.Context, req *pluginv1.InitRequest) (*pluginv1.InitResponse, error) {
 	s.base.Init(req.DataDir)
 
-	if err := s.impl.Initialize(ctx, req.DataDir); err != nil {
+	if err := s.impl.Initialize(ctx, req.DataDir, req.Config); err != nil {
 		return &pluginv1.InitResponse{Success: false, Error: err.Error()}, nil
 	}
 	return &pluginv1.InitResponse{Success: true}, nil

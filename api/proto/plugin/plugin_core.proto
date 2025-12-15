@@ -7,11 +7,11 @@ option go_package = "github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1";
 import "api/proto/plugin/common.proto";
 
 // PluginCore is the base interface all plugins must implement.
-// Provides identity, lifecycle, health, and configuration.
+// Provides lifecycle, health, and configuration.
+//
+// Plugin identity comes from plugin.yml manifest file.
+// The host reads the manifest before starting the plugin binary.
 service PluginCore {
-  // GetInfo returns plugin identity and capabilities.
-  rpc GetInfo(Empty) returns (PluginInfo);
-
   // Initialize is called when the plugin is loaded.
   rpc Initialize(InitRequest) returns (InitResponse);
 
@@ -35,32 +35,6 @@ service PluginCore {
 }
 
 // Empty is defined in common.proto
-
-message PluginInfo {
-  // Unique identifier for this plugin (e.g., "tmdb", "musicbrainz")
-  string id = 1;
-
-  // Human-readable name
-  string name = 2;
-
-  // Semantic version (e.g., "1.2.0")
-  string version = 3;
-
-  // Minimum ViewRA version required
-  string min_host_version = 4;
-
-  // Plugin author
-  string author = 5;
-
-  // License (e.g., "MIT", "Apache-2.0")
-  string license = 6;
-
-  // Categories this plugin implements (e.g., ["enricher"], ["notification_sink"])
-  repeated string categories = 7;
-
-  // Permissions this plugin requires
-  repeated string permissions = 8;
-}
 
 message InitRequest {
   // Host version for compatibility checking
