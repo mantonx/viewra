@@ -136,6 +136,10 @@ func (r *mockQueueRepo) DeleteByMedia(ctx context.Context, mediaID int64, mediaT
 	return nil
 }
 
+func (r *mockQueueRepo) GetOrphanedPipelineStates(ctx context.Context) ([]*enrichment.OrphanedPipelineState, error) {
+	return nil, nil
+}
+
 // mockStatusRepo implements enrichment.StatusRepository for testing.
 type mockStatusRepo struct {
 	mu       sync.Mutex
@@ -159,7 +163,7 @@ func (r *mockStatusRepo) Upsert(ctx context.Context, status *enrichment.Status) 
 	return nil
 }
 
-func (r *mockStatusRepo) GetByMedia(ctx context.Context, mediaID int64) ([]*enrichment.Status, error) {
+func (r *mockStatusRepo) GetByMedia(ctx context.Context, mediaType enrichment.MediaType, mediaID int64) ([]*enrichment.Status, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var result []*enrichment.Status
@@ -171,11 +175,12 @@ func (r *mockStatusRepo) GetByMedia(ctx context.Context, mediaID int64) ([]*enri
 	return result, nil
 }
 
-func (r *mockStatusRepo) MarkComplete(ctx context.Context, mediaID int64, stage, pluginID, metadataJSON string) error {
+func (r *mockStatusRepo) MarkComplete(ctx context.Context, mediaType enrichment.MediaType, mediaID int64, stage, pluginID, metadataJSON string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	now := time.Now()
 	r.statuses[r.key(mediaID, stage)] = &enrichment.Status{
+		MediaType:    mediaType,
 		MediaID:      mediaID,
 		Stage:        stage,
 		Status:       enrichment.JobStatusCompleted,
@@ -186,10 +191,11 @@ func (r *mockStatusRepo) MarkComplete(ctx context.Context, mediaID int64, stage,
 	return nil
 }
 
-func (r *mockStatusRepo) MarkFailed(ctx context.Context, mediaID int64, stage, pluginID, errorMsg string) error {
+func (r *mockStatusRepo) MarkFailed(ctx context.Context, mediaType enrichment.MediaType, mediaID int64, stage, pluginID, errorMsg string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.statuses[r.key(mediaID, stage)] = &enrichment.Status{
+		MediaType:    mediaType,
 		MediaID:      mediaID,
 		Stage:        stage,
 		Status:       enrichment.JobStatusFailed,
@@ -199,14 +205,15 @@ func (r *mockStatusRepo) MarkFailed(ctx context.Context, mediaID int64, stage, p
 	return nil
 }
 
-func (r *mockStatusRepo) MarkSkipped(ctx context.Context, mediaID int64, stage, pluginID string) error {
+func (r *mockStatusRepo) MarkSkipped(ctx context.Context, mediaType enrichment.MediaType, mediaID int64, stage, pluginID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.statuses[r.key(mediaID, stage)] = &enrichment.Status{
-		MediaID:  mediaID,
-		Stage:    stage,
-		Status:   enrichment.JobStatusSkipped,
-		PluginID: pluginID,
+		MediaType: mediaType,
+		MediaID:   mediaID,
+		Stage:     stage,
+		Status:    enrichment.JobStatusSkipped,
+		PluginID:  pluginID,
 	}
 	return nil
 }
@@ -215,7 +222,7 @@ func (r *mockStatusRepo) GetLibraryProgress(ctx context.Context, libraryID int64
 	return make(map[string]*enrichment.QueueStats), nil
 }
 
-func (r *mockStatusRepo) DeleteByMedia(ctx context.Context, mediaID int64) error {
+func (r *mockStatusRepo) DeleteByMedia(ctx context.Context, mediaType enrichment.MediaType, mediaID int64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for key, s := range r.statuses {
@@ -224,6 +231,10 @@ func (r *mockStatusRepo) DeleteByMedia(ctx context.Context, mediaID int64) error
 		}
 	}
 	return nil
+}
+
+func (r *mockStatusRepo) ResetStuck(ctx context.Context) (int64, error) {
+	return 0, nil
 }
 
 // mockPipelineRepo implements enrichment.PipelineRepository for testing.

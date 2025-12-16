@@ -678,6 +678,52 @@ func (q *Queries) GetTVSeasonByShowAndNumber(ctx context.Context, arg GetTVSeaso
 	return i, err
 }
 
+const getTVShowByDirectory = `-- name: GetTVShowByDirectory :one
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
+WHERE library_id = $1 AND directory = $2
+LIMIT 1
+`
+
+type GetTVShowByDirectoryParams struct {
+	LibraryID int32          `json:"library_id"`
+	Directory sql.NullString `json:"directory"`
+}
+
+// Find a TV show by its directory path. Used to prevent duplicate shows
+// when different episodes parse to different titles but share the same directory.
+func (q *Queries) GetTVShowByDirectory(ctx context.Context, arg GetTVShowByDirectoryParams) (TvShow, error) {
+	row := q.db.QueryRowContext(ctx, getTVShowByDirectory, arg.LibraryID, arg.Directory)
+	var i TvShow
+	err := row.Scan(
+		&i.ID,
+		&i.LibraryID,
+		&i.Title,
+		&i.OriginalTitle,
+		&i.SortTitle,
+		&i.Year,
+		&i.FirstAirDate,
+		&i.LastAirDate,
+		&i.Genre,
+		&i.Plot,
+		&i.Status,
+		&i.ContentRating,
+		&i.MaturityRating,
+		&i.Network,
+		&i.OriginalLanguage,
+		&i.CountryOfOrigin,
+		&i.ImdbID,
+		&i.TmdbID,
+		&i.TvdbID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Directory,
+		&i.Rating,
+		&i.RatingVotes,
+		&i.Tagline,
+	)
+	return i, err
+}
+
 const getTVShowByID = `-- name: GetTVShowByID :one
 SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
 WHERE id = $1

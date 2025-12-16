@@ -125,6 +125,12 @@ func (m *Manager) Start(ctx context.Context) error {
 		return errors.New("pipeline manager already running")
 	}
 
+	// Recover from any previous crashes by resetting stuck jobs
+	if err := m.recoverStuckJobs(ctx); err != nil {
+		m.deps.Logger.Warn("failed to recover stuck jobs", slog.Any("error", err))
+		// Continue anyway - this shouldn't prevent startup
+	}
+
 	m.ctx, m.cancel = context.WithCancel(ctx)
 	m.running = true
 
@@ -167,6 +173,62 @@ func (m *Manager) Stop() {
 	m.wg.Wait()
 
 	m.deps.Logger.Info("pipeline manager stopped")
+}
+
+// recoverStuckJobs resets jobs that were stuck in 'processing' status from a previous crash.
+// This ensures that jobs orphaned by worker crashes are re-queued for processing.
+// It also recovers orphaned pipeline states where a stage completed but the next was never enqueued.
+func (m *Manager) recoverStuckJobs(ctx context.Context) error {
+	// Reset stuck queue jobs (processing for > 10 minutes)
+	const maxLockSeconds = 600 // 10 minutes
+	if err := m.deps.QueueRepo.ReleaseStuck(ctx, maxLockSeconds); err != nil {
+		return fmt.Errorf("release stuck queue jobs: %w", err)
+	}
+
+	// Reset stuck status records
+	count, err := m.deps.StatusRepo.ResetStuck(ctx)
+	if err != nil {
+		return fmt.Errorf("reset stuck status records: %w", err)
+	}
+
+	if count > 0 {
+		m.deps.Logger.Info("recovered stuck enrichment jobs",
+			slog.Int64("status_records_reset", count))
+	}
+
+	// Recover orphaned pipeline states - where a stage completed but next stage was never enqueued.
+	// This happens when the server crashes between marking complete and enqueuing next.
+	orphaned, err := m.deps.QueueRepo.GetOrphanedPipelineStates(ctx)
+	if err != nil {
+		return fmt.Errorf("get orphaned pipeline states: %w", err)
+	}
+
+	for _, state := range orphaned {
+		job := &enrichment.QueueJob{
+			MediaID:     state.MediaID,
+			MediaType:   state.MediaType,
+			Stage:       state.NextStage,
+			Priority:    0,
+			Status:      enrichment.JobStatusPending,
+			MaxAttempts: 3,
+		}
+
+		if _, err := m.deps.QueueRepo.Enqueue(ctx, job); err != nil {
+			m.deps.Logger.Warn("failed to enqueue orphaned pipeline job",
+				slog.String("media_type", string(state.MediaType)),
+				slog.Int64("media_id", state.MediaID),
+				slog.String("stage", state.NextStage),
+				slog.Any("error", err))
+			continue
+		}
+	}
+
+	if len(orphaned) > 0 {
+		m.deps.Logger.Info("recovered orphaned pipeline states",
+			slog.Int("count", len(orphaned)))
+	}
+
+	return nil
 }
 
 // EnqueueFirstStage enqueues a media item for the first stage of its pipeline.

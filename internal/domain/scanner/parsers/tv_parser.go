@@ -304,10 +304,12 @@ func cleanShowName(name string) string {
 }
 
 // normalizeShowTitle normalizes a show title for consistent database matching.
-// This handles variations like "Star Trek - Voyager" vs "Star Trek Voyager".
+// This handles variations like:
+// - "Star Trek - Voyager" vs "Star Trek Voyager" (dashes)
+// - "Are You Afraid of the Dark?" vs "Are You Afraid of the Dark!" (punctuation)
+// - "Giri/Haji" vs "Giri+Haji" (slash/plus)
 func normalizeShowTitle(title string) string {
 	// Replace various dash/hyphen characters with a standard space
-	// This normalizes: "Star Trek - Voyager" and "Star Trek Voyager" to the same thing
 	// Unicode dashes: en-dash (–), em-dash (—), hyphen (-)
 	title = strings.ReplaceAll(title, " - ", " ")
 	title = strings.ReplaceAll(title, " – ", " ") // en-dash
@@ -315,6 +317,20 @@ func normalizeShowTitle(title string) string {
 	title = strings.ReplaceAll(title, "-", " ")
 	title = strings.ReplaceAll(title, "–", " ") // en-dash
 	title = strings.ReplaceAll(title, "—", " ") // em-dash
+
+	// Normalize slashes and plus signs to spaces (Giri/Haji vs Giri+Haji)
+	title = strings.ReplaceAll(title, "/", " ")
+	title = strings.ReplaceAll(title, "+", " ")
+
+	// Remove punctuation that varies between sources
+	title = strings.ReplaceAll(title, ":", "")
+	title = strings.ReplaceAll(title, "?", "")
+	title = strings.ReplaceAll(title, "!", "")
+	title = strings.ReplaceAll(title, "'", "")
+	title = strings.ReplaceAll(title, "'", "") // smart apostrophe
+	title = strings.ReplaceAll(title, "\"", "")
+	title = strings.ReplaceAll(title, ".", "")
+	title = strings.ReplaceAll(title, ",", "")
 
 	// Normalize multiple spaces to single space
 	title = regexp.MustCompile(`\s+`).ReplaceAllString(title, " ")

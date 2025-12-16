@@ -131,3 +131,42 @@ SET
     next_retry_at = NULL,
     updated_at = datetime('now')
 WHERE id = ?;
+
+-- name: GetOrphanedPipelineStates :many
+-- Find enrichment statuses where a stage completed but the next stage was never enqueued.
+-- This happens when the server crashes between marking a stage complete and enqueuing the next.
+-- Returns the media items that need their next stage enqueued.
+SELECT
+    es.media_type,
+    es.media_id,
+    es.stage as completed_stage,
+    next_ep.stage_name as next_stage
+FROM enrichment_status es
+JOIN enrichment_pipelines ep
+    ON ep.media_type = es.media_type
+    AND ep.stage_name = es.stage
+    AND ep.enabled = 1
+JOIN enrichment_pipelines next_ep
+    ON next_ep.media_type = es.media_type
+    AND next_ep.enabled = 1
+    AND next_ep.position = (
+        SELECT MIN(ep2.position)
+        FROM enrichment_pipelines ep2
+        WHERE ep2.media_type = es.media_type
+        AND ep2.position > ep.position
+        AND ep2.enabled = 1
+    )
+WHERE es.status = 'completed'
+AND NOT EXISTS (
+    SELECT 1 FROM enrichment_status es2
+    WHERE es2.media_type = es.media_type
+    AND es2.media_id = es.media_id
+    AND es2.stage = next_ep.stage_name
+)
+AND NOT EXISTS (
+    SELECT 1 FROM enrichment_queue eq
+    WHERE eq.media_type = es.media_type
+    AND eq.media_id = es.media_id
+    AND eq.stage = next_ep.stage_name
+    AND eq.status IN ('pending', 'processing')
+);

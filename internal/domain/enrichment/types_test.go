@@ -291,16 +291,17 @@ func TestPipelineStage_Fields(t *testing.T) {
 
 func TestExternalID_Fields(t *testing.T) {
 	now := time.Now()
+	mediaID := int64(42)
 	extID := &ExternalID{
-		MediaID:    42,
+		MediaID:    &mediaID,
 		Provider:   "imdb",
 		ExternalID: "tt0133093",
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}
 
-	if extID.MediaID != 42 {
-		t.Errorf("MediaID = %d, want 42", extID.MediaID)
+	if extID.MediaID == nil || *extID.MediaID != 42 {
+		t.Errorf("MediaID = %v, want 42", extID.MediaID)
 	}
 	if extID.Provider != "imdb" {
 		t.Errorf("Provider = %s, want imdb", extID.Provider)

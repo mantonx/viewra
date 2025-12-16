@@ -325,6 +325,22 @@ func (q *Queries) MarkEnrichmentSkipped(ctx context.Context, arg MarkEnrichmentS
 	return err
 }
 
+const resetStuckEnrichmentStatus = `-- name: ResetStuckEnrichmentStatus :execrows
+UPDATE enrichment_status
+SET status = 'pending'
+WHERE status = 'processing'
+`
+
+// Reset all 'processing' status records to 'pending'.
+// Called at startup to recover from crashed workers.
+func (q *Queries) ResetStuckEnrichmentStatus(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, resetStuckEnrichmentStatus)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const upsertEnrichmentStatus = `-- name: UpsertEnrichmentStatus :exec
 INSERT INTO enrichment_status (
     media_type,

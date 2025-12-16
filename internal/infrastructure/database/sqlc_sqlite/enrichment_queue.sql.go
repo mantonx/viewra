@@ -345,6 +345,81 @@ func (q *Queries) GetEnrichmentQueueStatsByMedia(ctx context.Context, mediaID in
 	return items, nil
 }
 
+const getOrphanedPipelineStates = `-- name: GetOrphanedPipelineStates :many
+SELECT
+    es.media_type,
+    es.media_id,
+    es.stage as completed_stage,
+    next_ep.stage_name as next_stage
+FROM enrichment_status es
+JOIN enrichment_pipelines ep
+    ON ep.media_type = es.media_type
+    AND ep.stage_name = es.stage
+    AND ep.enabled = 1
+JOIN enrichment_pipelines next_ep
+    ON next_ep.media_type = es.media_type
+    AND next_ep.enabled = 1
+    AND next_ep.position = (
+        SELECT MIN(ep2.position)
+        FROM enrichment_pipelines ep2
+        WHERE ep2.media_type = es.media_type
+        AND ep2.position > ep.position
+        AND ep2.enabled = 1
+    )
+WHERE es.status = 'completed'
+AND NOT EXISTS (
+    SELECT 1 FROM enrichment_status es2
+    WHERE es2.media_type = es.media_type
+    AND es2.media_id = es.media_id
+    AND es2.stage = next_ep.stage_name
+)
+AND NOT EXISTS (
+    SELECT 1 FROM enrichment_queue eq
+    WHERE eq.media_type = es.media_type
+    AND eq.media_id = es.media_id
+    AND eq.stage = next_ep.stage_name
+    AND eq.status IN ('pending', 'processing')
+)
+`
+
+type GetOrphanedPipelineStatesRow struct {
+	MediaType      string `json:"media_type"`
+	MediaID        int64  `json:"media_id"`
+	CompletedStage string `json:"completed_stage"`
+	NextStage      string `json:"next_stage"`
+}
+
+// Find enrichment statuses where a stage completed but the next stage was never enqueued.
+// This happens when the server crashes between marking a stage complete and enqueuing the next.
+// Returns the media items that need their next stage enqueued.
+func (q *Queries) GetOrphanedPipelineStates(ctx context.Context) ([]GetOrphanedPipelineStatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOrphanedPipelineStates)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetOrphanedPipelineStatesRow{}
+	for rows.Next() {
+		var i GetOrphanedPipelineStatesRow
+		if err := rows.Scan(
+			&i.MediaType,
+			&i.MediaID,
+			&i.CompletedStage,
+			&i.NextStage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getRetryableEnrichmentJobs = `-- name: GetRetryableEnrichmentJobs :many
 SELECT id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at FROM enrichment_queue
 WHERE status = 'failed'

@@ -2,6 +2,7 @@ package tvshow
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -599,13 +600,43 @@ func (r *Repository) ListTVShowIDsByLibraryPaginated(ctx context.Context, librar
 // --- Helper Methods ---
 
 // ensureTVShowExists atomically creates a TV show if it doesn't exist, or returns the existing one.
-// Uses INSERT...ON CONFLICT to prevent race conditions during concurrent episode scans.
-// If the show exists but has no directory set, the upsert will update it.
+// Uses a two-phase lookup to prevent duplicates:
+// 1. First checks if a show already exists for this directory (prevents duplicates from title variations)
+// 2. Falls back to title-based upsert if no directory match exists
 func (r *Repository) ensureTVShowExists(ctx context.Context, episode *media.TVEpisode) (media.TVShow, error) {
 	showDir := deriveShowDirectory(episode.Media.FilePath)
 
-	// Use atomic upsert - this prevents race conditions when multiple workers
-	// try to create the same show concurrently
+	// Phase 1: Check if a show already exists for this directory.
+	// This prevents duplicates when different episodes in the same folder
+	// parse to different titles (e.g., "Looney Tunes" vs "New Looney Tunes").
+	if showDir != "" {
+		dirParam := sql.NullString{String: showDir, Valid: true}
+		existingShow, err := common.QuerySingle(
+			r.BaseRepository, ctx,
+			func() (sqlc_postgres.TvShow, error) {
+				return r.Postgres().GetTVShowByDirectory(ctx, sqlc_postgres.GetTVShowByDirectoryParams{
+					LibraryID: int32(episode.LibraryID),
+					Directory: dirParam,
+				})
+			},
+			func() (sqlc_sqlite.TvShow, error) {
+				return r.SQLite().GetTVShowByDirectory(ctx, sqlc_sqlite.GetTVShowByDirectoryParams{
+					LibraryID: episode.LibraryID,
+					Directory: dirParam,
+				})
+			},
+			postgresShowToDomain,
+			sqliteShowToDomain,
+		)
+		if err == nil {
+			// Found existing show for this directory, use it
+			return existingShow, nil
+		}
+		// If not found, fall through to title-based upsert
+	}
+
+	// Phase 2: Use atomic upsert by title - this handles the case where the show
+	// doesn't exist yet or we couldn't find it by directory
 	return common.QuerySingle(
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.TvShow, error) {

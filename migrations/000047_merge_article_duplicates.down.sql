@@ -1,0 +1,2 @@
+-- This migration merges duplicate shows, which cannot be automatically reversed.
+-- If you need to undo this, restore from backup.

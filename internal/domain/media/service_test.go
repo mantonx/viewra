@@ -146,6 +146,44 @@ func (m *mockRepository) ListByType(ctx context.Context, libraryID int64, mediaT
 	return nil, nil
 }
 
+func (m *mockRepository) GetFilePathCache(ctx context.Context, libraryID int64) (map[string]int64, error) {
+	cache := make(map[string]int64)
+	for id, media := range m.media {
+		if media.LibraryID == libraryID {
+			cache[media.FilePath] = id
+		}
+	}
+	return cache, nil
+}
+
+func (m *mockRepository) InsertAudioTrack(ctx context.Context, track *AudioTrack) error {
+	return nil
+}
+
+func (m *mockRepository) GetAudioTracksByMediaID(ctx context.Context, mediaID int64) ([]*AudioTrack, error) {
+	return nil, nil
+}
+
+func (m *mockRepository) DeleteAudioTracksByMediaID(ctx context.Context, mediaID int64) error {
+	return nil
+}
+
+func (m *mockRepository) InsertSubtitleTrack(ctx context.Context, track *SubtitleTrack) error {
+	return nil
+}
+
+func (m *mockRepository) GetSubtitleTracksByMediaID(ctx context.Context, mediaID int64) ([]*SubtitleTrack, error) {
+	return nil, nil
+}
+
+func (m *mockRepository) DeleteSubtitleTracksByMediaID(ctx context.Context, mediaID int64) error {
+	return nil
+}
+
+func (m *mockRepository) DeleteExternalSubtitlesByMediaID(ctx context.Context, mediaID int64) error {
+	return nil
+}
+
 // Transaction-aware methods (delegate to non-tx versions for testing)
 func (m *mockRepository) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error {
 	return m.Delete(ctx, id)

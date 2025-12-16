@@ -266,7 +266,7 @@ func TestParseTVEpisode(t *testing.T) {
 		{
 			name:             "TV show with year and bracketed quality",
 			path:             "/tv/Chicago P.D. (2014)/Season 13/Chicago P.D. (2014) - S13E07 - Impulse Control [WEBDL-1080p][EAC3 5.1][x264]-ETHEL.mkv",
-			expectedShow:     "Chicago P.D.",
+			expectedShow:     "Chicago PD", // Normalized: dots are removed for consistent matching
 			expectedSeason:   13,
 			expectedEpisode:  7,
 			expectedTitle:    "Impulse Control",
@@ -275,7 +275,7 @@ func TestParseTVEpisode(t *testing.T) {
 		{
 			name:             "TV show with leading zero in season",
 			path:             "/tv/Chicago P.D. (2014)/Season 01/Chicago P.D. (2014) - S01E01 - Stepping Stone [WEBRip-1080p][EAC3 5.1][x265]-iVy.mkv",
-			expectedShow:     "Chicago P.D.",
+			expectedShow:     "Chicago PD", // Normalized: dots are removed for consistent matching
 			expectedSeason:   1,
 			expectedEpisode:  1,
 			expectedTitle:    "Stepping Stone",

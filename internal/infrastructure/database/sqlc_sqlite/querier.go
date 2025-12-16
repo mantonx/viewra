@@ -233,6 +233,10 @@ type Querier interface {
 	GetMusicTrackByMediaID(ctx context.Context, mediaID int64) (GetMusicTrackByMediaIDRow, error)
 	GetNextPipelinePosition(ctx context.Context, mediaType string) (int64, error)
 	GetNextPipelineStage(ctx context.Context, arg GetNextPipelineStageParams) (EnrichmentPipeline, error)
+	// Find enrichment statuses where a stage completed but the next stage was never enqueued.
+	// This happens when the server crashes between marking a stage complete and enqueuing the next.
+	// Returns the media items that need their next stage enqueued.
+	GetOrphanedPipelineStates(ctx context.Context) ([]GetOrphanedPipelineStatesRow, error)
 	GetPendingScanCheckpoints(ctx context.Context, arg GetPendingScanCheckpointsParams) ([]ScanCheckpoint, error)
 	// Looks up a person by external ID (e.g., TMDb person ID)
 	GetPersonByExternalID(ctx context.Context, arg GetPersonByExternalIDParams) (int64, error)
@@ -281,6 +285,9 @@ type Querier interface {
 	GetTVEpisodeByShowSeasonEpisode(ctx context.Context, arg GetTVEpisodeByShowSeasonEpisodeParams) (GetTVEpisodeByShowSeasonEpisodeRow, error)
 	GetTVSeasonByID(ctx context.Context, id int64) (TvSeason, error)
 	GetTVSeasonByShowAndNumber(ctx context.Context, arg GetTVSeasonByShowAndNumberParams) (TvSeason, error)
+	// Find a TV show by its directory path. Used to prevent duplicate shows
+	// when different episodes parse to different titles but share the same directory.
+	GetTVShowByDirectory(ctx context.Context, arg GetTVShowByDirectoryParams) (TvShow, error)
 	GetTVShowByID(ctx context.Context, id int64) (TvShow, error)
 	GetTVShowByTitle(ctx context.Context, arg GetTVShowByTitleParams) (TvShow, error)
 	// ============================================================================
@@ -392,6 +399,9 @@ type Querier interface {
 	ResetEnrichmentJobForRetry(ctx context.Context, id int64) error
 	ResetFailedScanCheckpoints(ctx context.Context, scanJobID int64) error
 	ResetPluginRestartCount(ctx context.Context, id string) error
+	// Reset all 'processing' status records to 'pending'.
+	// Called at startup to recover from crashed workers.
+	ResetStuckEnrichmentStatus(ctx context.Context) (int64, error)
 	SearchArtistsByName(ctx context.Context, arg SearchArtistsByNameParams) ([]MusicArtist, error)
 	SearchArtistsWithCountsByNamePaginated(ctx context.Context, arg SearchArtistsWithCountsByNamePaginatedParams) ([]SearchArtistsWithCountsByNamePaginatedRow, error)
 	SearchMoviesByTitle(ctx context.Context, arg SearchMoviesByTitleParams) ([]SearchMoviesByTitleRow, error)

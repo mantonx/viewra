@@ -245,6 +245,23 @@ func (r *StatusRepository) DeleteByMedia(ctx context.Context, mediaType enrichme
 	)
 }
 
+// ResetStuck resets all 'processing' status records to 'pending'.
+// Called at startup to recover from crashed workers.
+func (r *StatusRepository) ResetStuck(ctx context.Context) (int64, error) {
+	result, err := r.router.Route(
+		func() (any, error) {
+			return r.postgres.ResetStuckEnrichmentStatus(ctx)
+		},
+		func() (any, error) {
+			return r.sqlite.ResetStuckEnrichmentStatus(ctx)
+		},
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.(int64), nil
+}
+
 // convertToStatus converts sqlc result to domain Status.
 func (r *StatusRepository) convertToStatus(result any) *enrichment.Status {
 	if r.router.IsPostgresDB() {

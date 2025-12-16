@@ -104,7 +104,10 @@ func removeAccents(s string) string {
 }
 
 // NormalizeTitle normalizes a title for deduplication purposes.
-// Handles punctuation variants like "Star Trek: Voyager" vs "Star Trek Voyager".
+// Handles punctuation variants like:
+// - "Star Trek: Voyager" vs "Star Trek Voyager"
+// - "Are You Afraid of the Dark?" vs "Are You Afraid of the Dark!"
+// - "Giri/Haji" vs "Giri+Haji"
 // This is used to ensure consistent title matching regardless of punctuation differences.
 func NormalizeTitle(title string) string {
 	if title == "" {
@@ -117,11 +120,18 @@ func NormalizeTitle(title string) string {
 		"-", " ", // Hyphens to space (Spider-Man → Spider Man)
 		"–", " ", // En-dash
 		"—", " ", // Em-dash
+		"/", " ", // Slashes to space (Giri/Haji → Giri Haji)
+		"+", " ", // Plus to space (Giri+Haji → Giri Haji)
 		"&", "and", // Ampersand
 		"'", "",  // Apostrophes
 		"'", "",  // Smart apostrophe
 		".", "",  // Periods
 		",", "",  // Commas
+		"?", "",  // Question marks (Are You Afraid of the Dark? → Are You Afraid of the Dark)
+		"!", "",  // Exclamation marks
+		"\"", "", // Double quotes
+		"(", "",  // Opening parentheses
+		")", "",  // Closing parentheses
 	)
 	normalized := replacer.Replace(title)
 

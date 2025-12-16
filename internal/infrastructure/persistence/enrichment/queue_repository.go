@@ -345,3 +345,46 @@ func parseTimeString(s sql.NullString) time.Time {
 	}
 	return t
 }
+
+// GetOrphanedPipelineStates finds media items where a stage completed but
+// the next stage was never enqueued. This happens when the server crashes
+// between marking a stage complete and enqueuing the next.
+func (r *QueueRepository) GetOrphanedPipelineStates(ctx context.Context) ([]*enrichment.OrphanedPipelineState, error) {
+	result, err := r.router.Route(
+		func() (any, error) {
+			return r.postgres.GetOrphanedPipelineStates(ctx)
+		},
+		func() (any, error) {
+			return r.sqlite.GetOrphanedPipelineStates(ctx)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.router.IsPostgresDB() {
+		pgRows := result.([]sqlc_postgres.GetOrphanedPipelineStatesRow)
+		states := make([]*enrichment.OrphanedPipelineState, len(pgRows))
+		for i, row := range pgRows {
+			states[i] = &enrichment.OrphanedPipelineState{
+				MediaType:      enrichment.MediaType(row.MediaType),
+				MediaID:        int64(row.MediaID),
+				CompletedStage: row.CompletedStage,
+				NextStage:      row.NextStage,
+			}
+		}
+		return states, nil
+	}
+
+	sqRows := result.([]sqlc_sqlite.GetOrphanedPipelineStatesRow)
+	states := make([]*enrichment.OrphanedPipelineState, len(sqRows))
+	for i, row := range sqRows {
+		states[i] = &enrichment.OrphanedPipelineState{
+			MediaType:      enrichment.MediaType(row.MediaType),
+			MediaID:        row.MediaID,
+			CompletedStage: row.CompletedStage,
+			NextStage:      row.NextStage,
+		}
+	}
+	return states, nil
+}

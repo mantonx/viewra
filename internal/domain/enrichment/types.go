@@ -138,6 +138,15 @@ type MetadataSource struct {
 	UpdatedAt time.Time
 }
 
+// OrphanedPipelineState represents a media item that has a completed stage
+// but is missing the next stage in the pipeline.
+type OrphanedPipelineState struct {
+	MediaType      MediaType
+	MediaID        int64
+	CompletedStage string
+	NextStage      string
+}
+
 // QueueRepository defines operations for the enrichment queue.
 type QueueRepository interface {
 	// Enqueue adds or updates a job in the queue.
@@ -166,6 +175,11 @@ type QueueRepository interface {
 
 	// DeleteByMedia removes all queue jobs for a media item of a specific type.
 	DeleteByMedia(ctx context.Context, mediaID int64, mediaType MediaType) error
+
+	// GetOrphanedPipelineStates finds media items where a stage completed but
+	// the next stage was never enqueued. This happens when the server crashes
+	// between marking a stage complete and enqueuing the next.
+	GetOrphanedPipelineStates(ctx context.Context) ([]*OrphanedPipelineState, error)
 }
 
 // StatusRepository defines operations for enrichment status tracking.
@@ -190,6 +204,10 @@ type StatusRepository interface {
 
 	// DeleteByMedia removes all status records for a media item.
 	DeleteByMedia(ctx context.Context, mediaType MediaType, mediaID int64) error
+
+	// ResetStuck resets all 'processing' status records to 'pending'.
+	// Called at startup to recover from crashed workers.
+	ResetStuck(ctx context.Context) (int64, error)
 }
 
 // PipelineRepository defines operations for pipeline configuration.

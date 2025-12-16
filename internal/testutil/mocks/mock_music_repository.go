@@ -9,6 +9,7 @@ import (
 
 	"github.com/mantonx/viewra/internal/domain/common"
 	"github.com/mantonx/viewra/internal/domain/media"
+	musicRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/music"
 )
 
 // MusicRepository is a mock implementation of media.MusicRepository for testing.
@@ -688,4 +689,96 @@ func (r *MusicRepository) SearchArtistsByName(ctx context.Context, libraryID int
 	}
 
 	return matchingArtists[start:end], nil
+}
+
+// GetArtistsWithCountsByLibraryPaginated retrieves artists with album/track counts
+func (r *MusicRepository) GetArtistsWithCountsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *common.PaginationParams) ([]musicRepo.ArtistWithCounts, error) {
+	if r.ListErr != nil {
+		return nil, r.ListErr
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Aggregate by artist from tracks (tests use WithTracks to set up data)
+	artistMap := make(map[string]*musicRepo.ArtistWithCounts)
+	for _, track := range r.tracks {
+		if track.LibraryID == libraryID && track.Artist != "" {
+			if _, exists := artistMap[track.Artist]; !exists {
+				artistMap[track.Artist] = &musicRepo.ArtistWithCounts{
+					ID:        track.ID,
+					LibraryID: track.LibraryID,
+					Name:      track.Artist,
+				}
+			}
+			artistMap[track.Artist].TrackCount++
+		}
+	}
+
+	// Convert to slice
+	var result []musicRepo.ArtistWithCounts
+	for _, awc := range artistMap {
+		result = append(result, *awc)
+	}
+
+	// Apply pagination
+	start := int(pagination.Offset)
+	end := start + int(pagination.Limit)
+
+	if start >= len(result) {
+		return []musicRepo.ArtistWithCounts{}, nil
+	}
+
+	if end > len(result) {
+		end = len(result)
+	}
+
+	return result[start:end], nil
+}
+
+// SearchArtistsWithCountsByNamePaginated searches for artists with counts by name
+func (r *MusicRepository) SearchArtistsWithCountsByNamePaginated(ctx context.Context, libraryID int64, query string, pagination *common.PaginationParams) ([]musicRepo.ArtistWithCounts, error) {
+	if r.SearchErr != nil {
+		return nil, r.SearchErr
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	queryLower := strings.ToLower(query)
+
+	// Aggregate by artist from tracks matching query
+	artistMap := make(map[string]*musicRepo.ArtistWithCounts)
+	for _, track := range r.tracks {
+		if track.LibraryID == libraryID && track.Artist != "" && strings.Contains(strings.ToLower(track.Artist), queryLower) {
+			if _, exists := artistMap[track.Artist]; !exists {
+				artistMap[track.Artist] = &musicRepo.ArtistWithCounts{
+					ID:        track.ID,
+					LibraryID: track.LibraryID,
+					Name:      track.Artist,
+				}
+			}
+			artistMap[track.Artist].TrackCount++
+		}
+	}
+
+	// Convert to slice
+	var result []musicRepo.ArtistWithCounts
+	for _, awc := range artistMap {
+		result = append(result, *awc)
+	}
+
+	// Apply pagination
+	start := int(pagination.Offset)
+	end := start + int(pagination.Limit)
+
+	if start >= len(result) {
+		return []musicRepo.ArtistWithCounts{}, nil
+	}
+
+	if end > len(result) {
+		end = len(result)
+	}
+
+	return result[start:end], nil
 }

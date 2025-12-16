@@ -42,6 +42,13 @@ SELECT * FROM tv_shows
 WHERE library_id = ? AND LOWER(title) = LOWER(?)
 LIMIT 1;
 
+-- name: GetTVShowByDirectory :one
+-- Find a TV show by its directory path. Used to prevent duplicate shows
+-- when different episodes parse to different titles but share the same directory.
+SELECT * FROM tv_shows
+WHERE library_id = ? AND directory = ?
+LIMIT 1;
+
 -- name: ListTVShowsByLibrary :many
 SELECT * FROM tv_shows
 WHERE library_id = ?

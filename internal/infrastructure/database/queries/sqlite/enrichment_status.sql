@@ -87,3 +87,10 @@ WHERE (
     OR (es.media_type = 'tv_season' AND EXISTS (SELECT 1 FROM tv_seasons tsn JOIN tv_shows ts ON ts.id = tsn.tv_show_id WHERE tsn.id = es.media_id AND ts.library_id = ?))
 )
 GROUP BY es.stage;
+
+-- name: ResetStuckEnrichmentStatus :execrows
+-- Reset all 'processing' status records to 'pending'.
+-- Called at startup to recover from crashed workers.
+UPDATE enrichment_status
+SET status = 'pending'
+WHERE status = 'processing';
