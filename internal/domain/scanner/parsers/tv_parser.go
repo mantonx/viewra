@@ -51,6 +51,7 @@ var qualityTags = []string{
 
 // ParseTVEpisode extracts TV show metadata from a filename or file path.
 // It supports multiple naming patterns and can extract season information from directory structure.
+// For files in "Specials" directories without episode numbers, it generates a stable episode number.
 func ParseTVEpisode(path string) (*scanner.TVEpisodeInfo, error) {
 	// Get the filename without extension
 	filename := filepath.Base(path)
@@ -97,6 +98,15 @@ func ParseTVEpisode(path string) (*scanner.TVEpisodeInfo, error) {
 		}
 
 		return info, nil
+	}
+
+	// If no pattern matched, check if this is a special without episode numbering
+	// Files in "Specials" directories are treated as Season 0 episodes
+	if isInSpecialsDirectory(path) {
+		info := parseSpecialWithoutEpisodeNumber(path, filenameNoExt)
+		if info != nil {
+			return info, nil
+		}
 	}
 
 	return nil, fmt.Errorf("unable to parse TV episode information from: %s", filename)
@@ -182,17 +192,23 @@ func extractSeasonFromPath(path string) int {
 
 // extractShowNameFromPath attempts to extract the show name from the directory path
 // Typical structure: /TV Shows/Show Name/Season 1/Episode.mkv
+// Also handles: /TV Shows/Show Name/Specials/Special.mkv
 func extractShowNameFromPath(path string) string {
 	dir := filepath.Dir(path)
 	parts := strings.Split(dir, string(filepath.Separator))
 
 	// Look for the show name (typically 1-2 directories up from the file)
-	// Skip the immediate parent if it looks like a season directory
+	// Skip the immediate parent if it looks like a season or specials directory
 	for i := len(parts) - 1; i >= 0; i-- {
 		part := parts[i]
 
 		// Skip if this looks like a season directory
 		if regexp.MustCompile(`(?i)season|^s?\d+$`).MatchString(part) {
+			continue
+		}
+
+		// Skip specials/extras directories
+		if regexp.MustCompile(`(?i)^(specials?|extras?|behind the scenes|bonus|featurettes?)$`).MatchString(part) {
 			continue
 		}
 
@@ -346,4 +362,81 @@ func cleanEpisodeTitle(title string) string {
 	title = strings.TrimSpace(title)
 
 	return title
+}
+
+// isInSpecialsDirectory checks if a file path is within a "Specials" directory.
+// Common naming conventions: "Specials", "Special", "Extras", "Behind the Scenes"
+func isInSpecialsDirectory(path string) bool {
+	dir := filepath.Dir(path)
+	parts := strings.Split(dir, string(filepath.Separator))
+
+	// Check from the end backwards (most likely to find Specials folder near the file)
+	for i := len(parts) - 1; i >= 0 && i >= len(parts)-3; i-- {
+		part := strings.ToLower(parts[i])
+		if part == "specials" || part == "special" || part == "extras" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// parseSpecialWithoutEpisodeNumber handles TV specials/movies that don't have
+// standard episode numbering (e.g., "Deadwood - The Movie.mkv" in a Specials folder).
+// It extracts the show name from the path and uses the filename as the episode title.
+// Episode numbers are generated as a hash of the filename to ensure stability across rescans.
+func parseSpecialWithoutEpisodeNumber(path, filenameNoExt string) *scanner.TVEpisodeInfo {
+	// Extract show name from directory path
+	showName := extractShowNameFromPath(path)
+	if showName == "" {
+		return nil
+	}
+
+	// Clean up the filename to use as episode title
+	episodeTitle := filenameNoExt
+
+	// Remove show name prefix if present (e.g., "Deadwood - The Movie" -> "The Movie")
+	showNameLower := strings.ToLower(showName)
+	titleLower := strings.ToLower(episodeTitle)
+	if strings.HasPrefix(titleLower, showNameLower) {
+		// Remove the show name prefix (case-insensitive match, but preserve original length)
+		episodeTitle = episodeTitle[len(showName):]
+		episodeTitle = strings.TrimPrefix(episodeTitle, " - ")
+		episodeTitle = strings.TrimPrefix(episodeTitle, " – ")
+		episodeTitle = strings.TrimPrefix(episodeTitle, " — ")
+		episodeTitle = strings.TrimSpace(episodeTitle)
+	}
+
+	// Clean up the episode title
+	episodeTitle = cleanEpisodeTitle(episodeTitle)
+	if episodeTitle == "" {
+		episodeTitle = filenameNoExt // Fall back to original filename
+	}
+
+	// Generate a stable episode number from the filename
+	// Use a simple hash to create a number between 1-999
+	// This ensures the same file always gets the same episode number
+	episodeNum := generateEpisodeNumber(filenameNoExt)
+
+	return &scanner.TVEpisodeInfo{
+		ShowName:     cleanShowName(showName),
+		Season:       0, // Specials are always Season 0
+		Episode:      episodeNum,
+		EpisodeTitle: episodeTitle,
+	}
+}
+
+// generateEpisodeNumber creates a stable episode number from a filename.
+// Uses a simple hash to generate a number between 1 and 999.
+// This ensures the same filename always produces the same episode number.
+func generateEpisodeNumber(filename string) int {
+	// Simple string hash (FNV-1a inspired but simplified)
+	var hash uint32 = 2166136261
+	for i := 0; i < len(filename); i++ {
+		hash ^= uint32(filename[i])
+		hash *= 16777619
+	}
+
+	// Map to range 1-999 (leaving room for explicitly numbered specials)
+	return int(hash%999) + 1
 }

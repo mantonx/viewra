@@ -281,6 +281,25 @@ func TestParseTVEpisode(t *testing.T) {
 			expectedTitle:    "Stepping Stone",
 			shouldError:      false,
 		},
+		// Specials without episode numbers
+		{
+			name:            "Special without episode number in Specials folder",
+			path:            "/tv/Deadwood/Specials/Deadwood - The Movie.mkv",
+			expectedShow:    "Deadwood",
+			expectedSeason:  0,
+			expectedEpisode: 182, // Hash-based episode number (stable for this filename)
+			expectedTitle:   "The Movie",
+			shouldError:     false,
+		},
+		{
+			name:            "Special in Extras folder",
+			path:            "/tv/Breaking Bad/Extras/Making of Breaking Bad.mkv",
+			expectedShow:    "Breaking Bad",
+			expectedSeason:  0,
+			expectedEpisode: 464, // Hash-based episode number
+			expectedTitle:   "Making of Breaking Bad",
+			shouldError:     false,
+		},
 	}
 
 	for _, tt := range tests {
