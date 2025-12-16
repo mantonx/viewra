@@ -1,6 +1,7 @@
 package images
 
 import (
+	"context"
 	"fmt"
 	"image"
 	"os"
@@ -11,7 +12,13 @@ import (
 	"github.com/chai2010/webp"
 	"github.com/disintegration/imaging"
 	"github.com/mantonx/viewra/internal/domain/images"
+	"golang.org/x/sync/semaphore"
 )
+
+// imageProcessingSem limits concurrent image decode/encode operations.
+// Each decoded image can consume 5-20MB of memory depending on resolution.
+// Limiting to 4 concurrent operations caps memory usage at ~80MB for image processing.
+var imageProcessingSem = semaphore.NewWeighted(4)
 
 // TransformOptions contains parameters for image transformation
 // All images are converted to WebP format
@@ -150,6 +157,12 @@ func (t *Transformer) Transform(sourcePath, fileHash string, opts TransformOptio
 		return cacheKey, nil
 	}
 
+	// Acquire semaphore to limit concurrent image processing
+	if err := imageProcessingSem.Acquire(context.Background(), 1); err != nil {
+		return "", fmt.Errorf("failed to acquire image processing slot: %w", err)
+	}
+	defer imageProcessingSem.Release(1)
+
 	// Load source image
 	src, err := imaging.Open(sourcePath)
 	if err != nil {
@@ -187,6 +200,13 @@ func (t *Transformer) TransformAllPresets(sourcePath, fileHash string, imageType
 		// No presets defined for this image type, return empty
 		return map[string]string{}, nil
 	}
+
+	// Acquire semaphore to limit concurrent image processing.
+	// This prevents memory exhaustion when many enrichment workers process images simultaneously.
+	if err := imageProcessingSem.Acquire(context.Background(), 1); err != nil {
+		return nil, fmt.Errorf("failed to acquire image processing slot: %w", err)
+	}
+	defer imageProcessingSem.Release(1)
 
 	// Load source image once
 	src, err := imaging.Open(sourcePath)
