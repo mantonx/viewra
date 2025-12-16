@@ -2493,3 +2493,67 @@ func (q *Queries) UpdateTVShow(ctx context.Context, arg UpdateTVShowParams) erro
 	)
 	return err
 }
+
+const upsertTVShow = `-- name: UpsertTVShow :one
+INSERT INTO tv_shows (
+    library_id, title, sort_title, directory
+) VALUES (
+    $1, $2, $3, $4
+)
+ON CONFLICT(library_id, LOWER(title)) DO UPDATE SET
+    directory = CASE
+        WHEN tv_shows.directory IS NULL OR tv_shows.directory = ''
+        THEN EXCLUDED.directory
+        ELSE tv_shows.directory
+    END,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline
+`
+
+type UpsertTVShowParams struct {
+	LibraryID int32          `json:"library_id"`
+	Title     string         `json:"title"`
+	SortTitle sql.NullString `json:"sort_title"`
+	Directory sql.NullString `json:"directory"`
+}
+
+// Atomically creates a TV show or returns existing one if title already exists.
+// Uses ON CONFLICT to handle race conditions during concurrent episode scans.
+// On conflict, updates directory if it was previously empty.
+func (q *Queries) UpsertTVShow(ctx context.Context, arg UpsertTVShowParams) (TvShow, error) {
+	row := q.db.QueryRowContext(ctx, upsertTVShow,
+		arg.LibraryID,
+		arg.Title,
+		arg.SortTitle,
+		arg.Directory,
+	)
+	var i TvShow
+	err := row.Scan(
+		&i.ID,
+		&i.LibraryID,
+		&i.Title,
+		&i.OriginalTitle,
+		&i.SortTitle,
+		&i.Year,
+		&i.FirstAirDate,
+		&i.LastAirDate,
+		&i.Genre,
+		&i.Plot,
+		&i.Status,
+		&i.ContentRating,
+		&i.MaturityRating,
+		&i.Network,
+		&i.OriginalLanguage,
+		&i.CountryOfOrigin,
+		&i.ImdbID,
+		&i.TmdbID,
+		&i.TvdbID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Directory,
+		&i.Rating,
+		&i.RatingVotes,
+		&i.Tagline,
+	)
+	return i, err
+}

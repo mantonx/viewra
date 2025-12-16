@@ -3,6 +3,7 @@ package studios
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
@@ -103,6 +104,13 @@ func (r *Repository) UpdateStudio(studio *media.Studio) error {
 	)
 }
 
+// isNotFoundError checks if the error indicates a record was not found.
+// This handles both sql.ErrNoRows (direct DB access) and media.ErrMediaNotFound (via QuerySingle).
+// Uses errors.Is to properly handle wrapped errors.
+func isNotFoundError(err error) bool {
+	return errors.Is(err, sql.ErrNoRows) || errors.Is(err, media.ErrMediaNotFound)
+}
+
 // FindOrCreateStudio finds a studio by name or TMDb ID, or creates it if not found.
 func (r *Repository) FindOrCreateStudio(name string, tmdbID int) (*media.Studio, error) {
 	// Try to find by TMDb ID first
@@ -111,7 +119,7 @@ func (r *Repository) FindOrCreateStudio(name string, tmdbID int) (*media.Studio,
 		if err == nil {
 			return studio, nil
 		}
-		if err != sql.ErrNoRows {
+		if !isNotFoundError(err) {
 			return nil, err
 		}
 	}
@@ -126,7 +134,7 @@ func (r *Repository) FindOrCreateStudio(name string, tmdbID int) (*media.Studio,
 		}
 		return studio, nil
 	}
-	if err != sql.ErrNoRows {
+	if !isNotFoundError(err) {
 		return nil, err
 	}
 
@@ -202,6 +210,26 @@ func (r *Repository) RemoveStudioFromEntity(mediaType string, entityID int64, st
 				MediaType: mediaType,
 				EntityID:  entityID,
 				StudioID:  studioID,
+			})
+		},
+	)
+}
+
+// ClearStudiosForEntity removes all studio associations for a media entity.
+func (r *Repository) ClearStudiosForEntity(mediaType string, entityID int64) error {
+	ctx := context.Background()
+	return common.ExecuteCommand(
+		r.BaseRepository, ctx,
+		func() error {
+			return r.Postgres().ClearStudiosForEntity(ctx, sqlc_postgres.ClearStudiosForEntityParams{
+				MediaType: mediaType,
+				EntityID:  int32(entityID),
+			})
+		},
+		func() error {
+			return r.SQLite().ClearStudiosForEntity(ctx, sqlc_sqlite.ClearStudiosForEntityParams{
+				MediaType: mediaType,
+				EntityID:  entityID,
 			})
 		},
 	)

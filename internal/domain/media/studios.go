@@ -22,5 +22,6 @@ type StudioRepository interface {
 	GetStudiosForEntity(mediaType string, entityID int64) ([]*Studio, error)
 	AddStudioToEntity(mediaType string, entityID int64, studioID int64) error
 	RemoveStudioFromEntity(mediaType string, entityID int64, studioID int64) error
+	ClearStudiosForEntity(mediaType string, entityID int64) error
 	ReplaceStudiosForEntity(mediaType string, entityID int64, studios []*Studio) error
 }

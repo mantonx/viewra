@@ -53,6 +53,7 @@ type EnrichmentQueue struct {
 }
 
 type EnrichmentStatus struct {
+	MediaType    string         `json:"media_type"`
 	MediaID      int64          `json:"media_id"`
 	Stage        string         `json:"stage"`
 	Status       sql.NullString `json:"status"`

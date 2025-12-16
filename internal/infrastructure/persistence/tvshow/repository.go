@@ -237,20 +237,24 @@ func (r *Repository) GetTVShowByID(ctx context.Context, id int64) (media.TVShow,
 	return show, nil
 }
 
-// GetTVShowByTitle retrieves a TV show by its title in a library
+// GetTVShowByTitle retrieves a TV show by its title in a library.
+// The title is normalized before lookup to match how titles are stored.
 func (r *Repository) GetTVShowByTitle(ctx context.Context, libraryID int64, title string) (media.TVShow, error) {
+	// Normalize title to match how it's stored in the database
+	normalizedTitle := domainCommon.NormalizeTitle(title)
+
 	show, err := common.QuerySingle(
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.TvShow, error) {
 			return r.Postgres().GetTVShowByTitle(ctx, sqlc_postgres.GetTVShowByTitleParams{
 				LibraryID: int32(libraryID),
-				Lower:     title,
+				Lower:     normalizedTitle,
 			})
 		},
 		func() (sqlc_sqlite.TvShow, error) {
 			return r.SQLite().GetTVShowByTitle(ctx, sqlc_sqlite.GetTVShowByTitleParams{
 				LibraryID: libraryID,
-				LOWER:     title,
+				LOWER:     normalizedTitle,
 			})
 		},
 		postgresShowToDomain,
@@ -594,34 +598,25 @@ func (r *Repository) ListTVShowIDsByLibraryPaginated(ctx context.Context, librar
 
 // --- Helper Methods ---
 
-// ensureTVShowExists creates a TV show if it doesn't exist, or returns the existing one.
-// If the show exists but has no directory set, it updates the directory.
+// ensureTVShowExists atomically creates a TV show if it doesn't exist, or returns the existing one.
+// Uses INSERT...ON CONFLICT to prevent race conditions during concurrent episode scans.
+// If the show exists but has no directory set, the upsert will update it.
 func (r *Repository) ensureTVShowExists(ctx context.Context, episode *media.TVEpisode) (media.TVShow, error) {
-	// Try to get existing show
-	show, err := r.GetTVShowByTitle(ctx, episode.LibraryID, episode.ShowTitle)
-	if err == nil {
-		// Show exists - check if directory needs to be populated
-		if show.Directory == "" {
-			showDir := deriveShowDirectory(episode.Media.FilePath)
-			if showDir != "" {
-				show.Directory = showDir
-				// Update the show with the directory
-				if updateErr := r.UpdateTVShow(ctx, show); updateErr != nil {
-					// Log but don't fail - show still exists
-					// The show record is valid, just missing directory
-				}
-			}
-		}
-		return show, nil
-	}
+	showDir := deriveShowDirectory(episode.Media.FilePath)
 
-	// If not found, create it
-	if errors.Is(err, media.ErrMediaNotFound) {
-		showDir := deriveShowDirectory(episode.Media.FilePath)
-		return r.CreateTVShow(ctx, episode.LibraryID, episode.ShowTitle, showDir)
-	}
-
-	return media.TVShow{}, err
+	// Use atomic upsert - this prevents race conditions when multiple workers
+	// try to create the same show concurrently
+	return common.QuerySingle(
+		r.BaseRepository, ctx,
+		func() (sqlc_postgres.TvShow, error) {
+			return r.Postgres().UpsertTVShow(ctx, buildPostgresUpsertTVShowParams(episode.LibraryID, episode.ShowTitle, showDir))
+		},
+		func() (sqlc_sqlite.TvShow, error) {
+			return r.SQLite().UpsertTVShow(ctx, buildSQLiteUpsertTVShowParams(episode.LibraryID, episode.ShowTitle, showDir))
+		},
+		postgresShowToDomain,
+		sqliteShowToDomain,
+	)
 }
 
 // deriveShowDirectory extracts the show directory from an episode file path.

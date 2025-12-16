@@ -102,3 +102,33 @@ func removeAccents(s string) string {
 	result, _, _ := transform.String(t, s)
 	return result
 }
+
+// NormalizeTitle normalizes a title for deduplication purposes.
+// Handles punctuation variants like "Star Trek: Voyager" vs "Star Trek Voyager".
+// This is used to ensure consistent title matching regardless of punctuation differences.
+func NormalizeTitle(title string) string {
+	if title == "" {
+		return ""
+	}
+
+	// Remove common punctuation that varies between sources
+	replacer := strings.NewReplacer(
+		":", "",  // Colons (Star Trek: Voyager → Star Trek Voyager)
+		"-", " ", // Hyphens to space (Spider-Man → Spider Man)
+		"–", " ", // En-dash
+		"—", " ", // Em-dash
+		"&", "and", // Ampersand
+		"'", "",  // Apostrophes
+		"'", "",  // Smart apostrophe
+		".", "",  // Periods
+		",", "",  // Commas
+	)
+	normalized := replacer.Replace(title)
+
+	// Collapse multiple spaces
+	for strings.Contains(normalized, "  ") {
+		normalized = strings.ReplaceAll(normalized, "  ", " ")
+	}
+
+	return strings.TrimSpace(normalized)
+}

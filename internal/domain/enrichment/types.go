@@ -92,6 +92,7 @@ type QueueStats struct {
 
 // Status represents the enrichment status for a media item at a specific stage.
 type Status struct {
+	MediaType    MediaType
 	MediaID      int64
 	Stage        string
 	Status       JobStatus
@@ -173,22 +174,22 @@ type StatusRepository interface {
 	Upsert(ctx context.Context, status *Status) error
 
 	// GetByMedia returns all enrichment statuses for a media item.
-	GetByMedia(ctx context.Context, mediaID int64) ([]*Status, error)
+	GetByMedia(ctx context.Context, mediaType MediaType, mediaID int64) ([]*Status, error)
 
 	// MarkComplete marks a stage as completed for a media item.
-	MarkComplete(ctx context.Context, mediaID int64, stage, pluginID, metadataJSON string) error
+	MarkComplete(ctx context.Context, mediaType MediaType, mediaID int64, stage, pluginID, metadataJSON string) error
 
 	// MarkFailed marks a stage as failed for a media item.
-	MarkFailed(ctx context.Context, mediaID int64, stage, pluginID, errorMsg string) error
+	MarkFailed(ctx context.Context, mediaType MediaType, mediaID int64, stage, pluginID, errorMsg string) error
 
 	// MarkSkipped marks a stage as skipped for a media item.
-	MarkSkipped(ctx context.Context, mediaID int64, stage, pluginID string) error
+	MarkSkipped(ctx context.Context, mediaType MediaType, mediaID int64, stage, pluginID string) error
 
 	// GetLibraryProgress returns enrichment progress for a library.
 	GetLibraryProgress(ctx context.Context, libraryID int64) (map[string]*QueueStats, error)
 
 	// DeleteByMedia removes all status records for a media item.
-	DeleteByMedia(ctx context.Context, mediaID int64) error
+	DeleteByMedia(ctx context.Context, mediaType MediaType, mediaID int64) error
 }
 
 // PipelineRepository defines operations for pipeline configuration.

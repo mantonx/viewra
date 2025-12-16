@@ -5,6 +5,7 @@ package builtin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -62,6 +63,14 @@ func (e *NFOEnricher) enrichMovie(ctx context.Context, req *pluginv1.EnrichReque
 	// Parse the NFO file
 	metadata, err := nfo.ParseMovieNFO(nfoPath)
 	if err != nil {
+		// Handle non-retryable errors gracefully
+		if errors.Is(err, nfo.ErrEmptyNFO) {
+			return appenrich.Skip("NFO file is empty"), nil
+		}
+		var wrongType nfo.ErrWrongNFOType
+		if errors.As(err, &wrongType) {
+			return appenrich.Skip(fmt.Sprintf("NFO contains wrong type: %s", wrongType.Actual)), nil
+		}
 		return nil, fmt.Errorf("parse movie NFO: %w", err)
 	}
 
@@ -133,6 +142,14 @@ func (e *NFOEnricher) enrichTVEpisode(ctx context.Context, req *pluginv1.EnrichR
 	// Parse the NFO file
 	metadata, err := nfo.ParseEpisodeNFO(nfoPath)
 	if err != nil {
+		// Handle non-retryable errors gracefully
+		if errors.Is(err, nfo.ErrEmptyNFO) {
+			return appenrich.Skip("NFO file is empty"), nil
+		}
+		var wrongType nfo.ErrWrongNFOType
+		if errors.As(err, &wrongType) {
+			return appenrich.Skip(fmt.Sprintf("NFO contains wrong type: %s", wrongType.Actual)), nil
+		}
 		return nil, fmt.Errorf("parse episode NFO: %w", err)
 	}
 
@@ -178,6 +195,14 @@ func (e *NFOEnricher) enrichTVShow(ctx context.Context, req *pluginv1.EnrichRequ
 	// Parse the NFO file
 	metadata, err := nfo.ParseTVShowNFO(nfoPath)
 	if err != nil {
+		// Handle non-retryable errors gracefully
+		if errors.Is(err, nfo.ErrEmptyNFO) {
+			return appenrich.Skip("NFO file is empty"), nil
+		}
+		var wrongType nfo.ErrWrongNFOType
+		if errors.As(err, &wrongType) {
+			return appenrich.Skip(fmt.Sprintf("NFO contains wrong type: %s", wrongType.Actual)), nil
+		}
 		return nil, fmt.Errorf("parse tvshow NFO: %w", err)
 	}
 

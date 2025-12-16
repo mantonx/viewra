@@ -1,5 +1,6 @@
 -- name: UpsertEnrichmentStatus :exec
 INSERT INTO enrichment_status (
+    media_type,
     media_id,
     stage,
     status,
@@ -7,8 +8,8 @@ INSERT INTO enrichment_status (
     completed_at,
     error_message,
     metadata_json
-) VALUES ($1, $2, $3, $4, $5, $6, $7)
-ON CONFLICT(media_id, stage) DO UPDATE SET
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+ON CONFLICT(media_type, media_id, stage) DO UPDATE SET
     status = EXCLUDED.status,
     plugin_id = EXCLUDED.plugin_id,
     completed_at = EXCLUDED.completed_at,
@@ -17,17 +18,17 @@ ON CONFLICT(media_id, stage) DO UPDATE SET
 
 -- name: GetEnrichmentStatus :one
 SELECT * FROM enrichment_status
-WHERE media_id = $1 AND stage = $2;
+WHERE media_type = $1 AND media_id = $2 AND stage = $3;
 
 -- name: GetEnrichmentStatusByMedia :many
 SELECT * FROM enrichment_status
-WHERE media_id = $1
+WHERE media_type = $1 AND media_id = $2
 ORDER BY stage;
 
 -- name: GetEnrichmentStatusByStage :many
 SELECT * FROM enrichment_status
 WHERE stage = $1 AND status = $2
-ORDER BY media_id
+ORDER BY media_type, media_id
 LIMIT $3 OFFSET $4;
 
 -- name: CountEnrichmentStatusByStage :one
@@ -49,7 +50,7 @@ SET
     completed_at = NOW(),
     error_message = NULL,
     metadata_json = $2
-WHERE media_id = $3 AND stage = $4;
+WHERE media_type = $3 AND media_id = $4 AND stage = $5;
 
 -- name: MarkEnrichmentFailed :exec
 UPDATE enrichment_status
@@ -57,7 +58,7 @@ SET
     status = 'failed',
     plugin_id = $1,
     error_message = $2
-WHERE media_id = $3 AND stage = $4;
+WHERE media_type = $3 AND media_id = $4 AND stage = $5;
 
 -- name: MarkEnrichmentSkipped :exec
 UPDATE enrichment_status
@@ -65,10 +66,10 @@ SET
     status = 'skipped',
     plugin_id = $1,
     completed_at = NOW()
-WHERE media_id = $2 AND stage = $3;
+WHERE media_type = $2 AND media_id = $3 AND stage = $4;
 
 -- name: DeleteEnrichmentStatusByMedia :exec
-DELETE FROM enrichment_status WHERE media_id = $1;
+DELETE FROM enrichment_status WHERE media_type = $1 AND media_id = $2;
 
 -- name: GetLibraryEnrichmentProgress :many
 SELECT
@@ -80,6 +81,9 @@ SELECT
     SUM(CASE WHEN es.status = 'skipped' THEN 1 ELSE 0 END)::bigint as skipped_count,
     COUNT(*)::bigint as total_count
 FROM enrichment_status es
-JOIN media m ON m.id = es.media_id
-WHERE m.library_id = $1
+WHERE (
+    (es.media_type IN ('movie', 'tv') AND EXISTS (SELECT 1 FROM media m WHERE m.id = es.media_id AND m.library_id = $1))
+    OR (es.media_type = 'tv_show' AND EXISTS (SELECT 1 FROM tv_shows ts WHERE ts.id = es.media_id AND ts.library_id = $1))
+    OR (es.media_type = 'tv_season' AND EXISTS (SELECT 1 FROM tv_seasons tsn JOIN tv_shows ts ON ts.id = tsn.tv_show_id WHERE tsn.id = es.media_id AND ts.library_id = $1))
+)
 GROUP BY es.stage;

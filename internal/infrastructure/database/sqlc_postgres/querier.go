@@ -100,7 +100,7 @@ type Querier interface {
 	DeleteCreditsForEntity(ctx context.Context, arg DeleteCreditsForEntityParams) error
 	DeleteCreditsForEntityByType(ctx context.Context, arg DeleteCreditsForEntityByTypeParams) error
 	DeleteEnrichmentJobsByMedia(ctx context.Context, arg DeleteEnrichmentJobsByMediaParams) error
-	DeleteEnrichmentStatusByMedia(ctx context.Context, mediaID int32) error
+	DeleteEnrichmentStatusByMedia(ctx context.Context, arg DeleteEnrichmentStatusByMediaParams) error
 	DeleteExpiredPluginAPIKeys(ctx context.Context) error
 	DeleteExpiredSessions(ctx context.Context, expiresAt time.Time) (int64, error)
 	DeleteExternalID(ctx context.Context, arg DeleteExternalIDParams) error
@@ -196,7 +196,7 @@ type Querier interface {
 	GetEnrichmentQueueStats(ctx context.Context, stage string) (GetEnrichmentQueueStatsRow, error)
 	GetEnrichmentQueueStatsByMedia(ctx context.Context, mediaID int32) ([]GetEnrichmentQueueStatsByMediaRow, error)
 	GetEnrichmentStatus(ctx context.Context, arg GetEnrichmentStatusParams) (EnrichmentStatus, error)
-	GetEnrichmentStatusByMedia(ctx context.Context, mediaID int32) ([]EnrichmentStatus, error)
+	GetEnrichmentStatusByMedia(ctx context.Context, arg GetEnrichmentStatusByMediaParams) ([]EnrichmentStatus, error)
 	GetEnrichmentStatusByStage(ctx context.Context, arg GetEnrichmentStatusByStageParams) ([]EnrichmentStatus, error)
 	// Returns full entity info for external ID lookup
 	GetEntityByExternalID(ctx context.Context, arg GetEntityByExternalIDParams) (GetEntityByExternalIDRow, error)
@@ -443,6 +443,10 @@ type Querier interface {
 	UpsertPlugin(ctx context.Context, arg UpsertPluginParams) error
 	UpsertScanState(ctx context.Context, arg UpsertScanStateParams) error
 	UpsertSystemSetting(ctx context.Context, arg UpsertSystemSettingParams) error
+	// Atomically creates a TV show or returns existing one if title already exists.
+	// Uses ON CONFLICT to handle race conditions during concurrent episode scans.
+	// On conflict, updates directory if it was previously empty.
+	UpsertTVShow(ctx context.Context, arg UpsertTVShowParams) (TvShow, error)
 	UpsertUserSetting(ctx context.Context, arg UpsertUserSettingParams) error
 	UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) (WatchProgress, error)
 }

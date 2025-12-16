@@ -40,8 +40,16 @@ func (a *StudiosApplier) Apply(ctx context.Context, mediaID int64, mediaType enr
 		return nil
 	}
 
-	// Find or create studios
-	var studios []*media.Studio
+	// IMPORTANT: Clear existing studios FIRST before finding/creating studios.
+	// The orphan cleanup trigger (tr_media_studios_cleanup_orphan_studios) deletes studios
+	// who have no remaining associations. If we find/create studios before clearing,
+	// those studio IDs may become invalid after clearing.
+	if err := a.studioRepo.ClearStudiosForEntity(entityType, mediaID); err != nil {
+		return err
+	}
+
+	// Now find or create studios and add new associations
+	var count int
 	for _, studioName := range metadata.Studios {
 		if studioName == "" {
 			continue
@@ -54,23 +62,20 @@ func (a *StudiosApplier) Apply(ctx context.Context, mediaID int64, mediaType enr
 				slog.Any("error", err))
 			continue
 		}
-		studios = append(studios, studio)
-	}
 
-	// No studios to apply after filtering
-	if len(studios) == 0 {
-		return nil
-	}
-
-	// Replace existing studios with new ones
-	if err := a.studioRepo.ReplaceStudiosForEntity(entityType, mediaID, studios); err != nil {
-		return err
+		if err := a.studioRepo.AddStudioToEntity(entityType, mediaID, studio.ID); err != nil {
+			a.logger.Warn("failed to add studio to entity",
+				slog.String("name", studioName),
+				slog.Any("error", err))
+			continue
+		}
+		count++
 	}
 
 	a.logger.Debug("applied studios",
 		slog.Int64("media_id", mediaID),
 		slog.String("media_type", string(mediaType)),
-		slog.Int("studio_count", len(studios)))
+		slog.Int("studio_count", count))
 
 	return nil
 }

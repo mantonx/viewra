@@ -228,6 +228,18 @@ INSERT INTO media_audio_tracks (
     media_id, stream_index, codec, codec_profile, channels, channel_layout,
     sample_rate, bit_rate, language, title, is_default, is_commentary, is_descriptive
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+ON CONFLICT(media_id, stream_index) DO UPDATE SET
+    codec = EXCLUDED.codec,
+    codec_profile = EXCLUDED.codec_profile,
+    channels = EXCLUDED.channels,
+    channel_layout = EXCLUDED.channel_layout,
+    sample_rate = EXCLUDED.sample_rate,
+    bit_rate = EXCLUDED.bit_rate,
+    language = EXCLUDED.language,
+    title = EXCLUDED.title,
+    is_default = EXCLUDED.is_default,
+    is_commentary = EXCLUDED.is_commentary,
+    is_descriptive = EXCLUDED.is_descriptive
 RETURNING id, created_at
 `
 

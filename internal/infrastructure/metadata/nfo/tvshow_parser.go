@@ -173,6 +173,11 @@ func ParseTVShowNFO(nfoPath string) (*TVShowMetadata, error) {
 		return nil, fmt.Errorf("failed to read NFO file: %w", err)
 	}
 
+	// Validate NFO content before parsing
+	if err := validateNFOData(data, "tvshow"); err != nil {
+		return nil, err
+	}
+
 	// Parse XML
 	var nfo TVShowNFO
 	if err := xml.Unmarshal(data, &nfo); err != nil {
@@ -266,6 +271,11 @@ func ParseEpisodeNFO(nfoPath string) (*EpisodeMetadata, error) {
 	data, err := os.ReadFile(nfoPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read NFO file: %w", err)
+	}
+
+	// Validate NFO content before parsing
+	if err := validateNFOData(data, "episodedetails"); err != nil {
+		return nil, err
 	}
 
 	// Parse XML

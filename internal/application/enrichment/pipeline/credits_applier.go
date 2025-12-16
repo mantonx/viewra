@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"log/slog"
+	"strings"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 	"github.com/mantonx/viewra/internal/domain/enrichment"
@@ -35,7 +36,24 @@ func (a *CreditsApplier) Apply(ctx context.Context, mediaID int64, mediaType enr
 		return nil // Not a supported type for credits
 	}
 
-	// Collect all credits to apply
+	// Check if we have any credits to apply
+	hasCast := len(metadata.Cast) > 0
+	hasDirectors := len(metadata.Directors) > 0
+	hasWriters := len(metadata.Writers) > 0
+	hasCreators := len(metadata.Creators) > 0
+	if !hasCast && !hasDirectors && !hasWriters && !hasCreators {
+		return nil
+	}
+
+	// IMPORTANT: Delete existing credits FIRST before finding/creating persons.
+	// The orphan cleanup trigger (tr_credits_cleanup_orphan_people) deletes persons
+	// who have no remaining credits. If we find/create persons before deleting,
+	// those person IDs may become invalid after deletion.
+	if err := a.peopleRepo.DeleteCreditsForEntity(entityType, mediaID); err != nil {
+		return err
+	}
+
+	// Now find/create persons and add new credits
 	var credits []*media.Credit
 
 	// Process cast members
@@ -52,6 +70,8 @@ func (a *CreditsApplier) Apply(ctx context.Context, mediaID int64, mediaType enr
 		credits = append(credits, &media.Credit{
 			PersonID:      person.ID,
 			Person:        person,
+			MediaType:     entityType,
+			EntityID:      mediaID,
 			CreditType:    media.CreditTypeCast,
 			CharacterName: castMember.Role,
 			BillingOrder:  int(castMember.Order),
@@ -76,6 +96,8 @@ func (a *CreditsApplier) Apply(ctx context.Context, mediaID int64, mediaType enr
 		credits = append(credits, &media.Credit{
 			PersonID:     person.ID,
 			Person:       person,
+			MediaType:    entityType,
+			EntityID:     mediaID,
 			CreditType:   media.CreditTypeDirector,
 			Department:   "Directing",
 			Job:          "Director",
@@ -96,6 +118,8 @@ func (a *CreditsApplier) Apply(ctx context.Context, mediaID int64, mediaType enr
 		credits = append(credits, &media.Credit{
 			PersonID:     person.ID,
 			Person:       person,
+			MediaType:    entityType,
+			EntityID:     mediaID,
 			CreditType:   media.CreditTypeWriter,
 			Department:   "Writing",
 			Job:          "Writer",
@@ -116,6 +140,8 @@ func (a *CreditsApplier) Apply(ctx context.Context, mediaID int64, mediaType enr
 		credits = append(credits, &media.Credit{
 			PersonID:     person.ID,
 			Person:       person,
+			MediaType:    entityType,
+			EntityID:     mediaID,
 			CreditType:   media.CreditTypeCreator,
 			Department:   "Production",
 			Job:          "Creator",
@@ -123,14 +149,16 @@ func (a *CreditsApplier) Apply(ctx context.Context, mediaID int64, mediaType enr
 		})
 	}
 
-	// No credits to apply
-	if len(credits) == 0 {
-		return nil
-	}
-
-	// Replace existing credits with new ones
-	if err := a.peopleRepo.ReplaceCreditsForEntity(entityType, mediaID, credits); err != nil {
-		return err
+	// Create new credits
+	for _, credit := range credits {
+		if err := a.peopleRepo.CreateCredit(credit); err != nil {
+			// Ignore FK errors - can happen due to race conditions with orphan cleanup trigger
+			if !strings.Contains(err.Error(), "FOREIGN KEY constraint") {
+				a.logger.Warn("failed to create credit",
+					slog.String("person", credit.Person.Name),
+					slog.Any("error", err))
+			}
+		}
 	}
 
 	a.logger.Debug("applied credits",

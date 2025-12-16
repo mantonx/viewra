@@ -46,28 +46,35 @@ func (q *Queries) CountEnrichmentStatusByStage(ctx context.Context, stage string
 }
 
 const deleteEnrichmentStatusByMedia = `-- name: DeleteEnrichmentStatusByMedia :exec
-DELETE FROM enrichment_status WHERE media_id = ?
+DELETE FROM enrichment_status WHERE media_type = ? AND media_id = ?
 `
 
-func (q *Queries) DeleteEnrichmentStatusByMedia(ctx context.Context, mediaID int64) error {
-	_, err := q.db.ExecContext(ctx, deleteEnrichmentStatusByMedia, mediaID)
+type DeleteEnrichmentStatusByMediaParams struct {
+	MediaType string `json:"media_type"`
+	MediaID   int64  `json:"media_id"`
+}
+
+func (q *Queries) DeleteEnrichmentStatusByMedia(ctx context.Context, arg DeleteEnrichmentStatusByMediaParams) error {
+	_, err := q.db.ExecContext(ctx, deleteEnrichmentStatusByMedia, arg.MediaType, arg.MediaID)
 	return err
 }
 
 const getEnrichmentStatus = `-- name: GetEnrichmentStatus :one
-SELECT media_id, stage, status, plugin_id, completed_at, error_message, metadata_json FROM enrichment_status
-WHERE media_id = ? AND stage = ?
+SELECT media_type, media_id, stage, status, plugin_id, completed_at, error_message, metadata_json FROM enrichment_status
+WHERE media_type = ? AND media_id = ? AND stage = ?
 `
 
 type GetEnrichmentStatusParams struct {
-	MediaID int64  `json:"media_id"`
-	Stage   string `json:"stage"`
+	MediaType string `json:"media_type"`
+	MediaID   int64  `json:"media_id"`
+	Stage     string `json:"stage"`
 }
 
 func (q *Queries) GetEnrichmentStatus(ctx context.Context, arg GetEnrichmentStatusParams) (EnrichmentStatus, error) {
-	row := q.db.QueryRowContext(ctx, getEnrichmentStatus, arg.MediaID, arg.Stage)
+	row := q.db.QueryRowContext(ctx, getEnrichmentStatus, arg.MediaType, arg.MediaID, arg.Stage)
 	var i EnrichmentStatus
 	err := row.Scan(
+		&i.MediaType,
 		&i.MediaID,
 		&i.Stage,
 		&i.Status,
@@ -80,13 +87,18 @@ func (q *Queries) GetEnrichmentStatus(ctx context.Context, arg GetEnrichmentStat
 }
 
 const getEnrichmentStatusByMedia = `-- name: GetEnrichmentStatusByMedia :many
-SELECT media_id, stage, status, plugin_id, completed_at, error_message, metadata_json FROM enrichment_status
-WHERE media_id = ?
+SELECT media_type, media_id, stage, status, plugin_id, completed_at, error_message, metadata_json FROM enrichment_status
+WHERE media_type = ? AND media_id = ?
 ORDER BY stage
 `
 
-func (q *Queries) GetEnrichmentStatusByMedia(ctx context.Context, mediaID int64) ([]EnrichmentStatus, error) {
-	rows, err := q.db.QueryContext(ctx, getEnrichmentStatusByMedia, mediaID)
+type GetEnrichmentStatusByMediaParams struct {
+	MediaType string `json:"media_type"`
+	MediaID   int64  `json:"media_id"`
+}
+
+func (q *Queries) GetEnrichmentStatusByMedia(ctx context.Context, arg GetEnrichmentStatusByMediaParams) ([]EnrichmentStatus, error) {
+	rows, err := q.db.QueryContext(ctx, getEnrichmentStatusByMedia, arg.MediaType, arg.MediaID)
 	if err != nil {
 		return nil, err
 	}
@@ -95,6 +107,7 @@ func (q *Queries) GetEnrichmentStatusByMedia(ctx context.Context, mediaID int64)
 	for rows.Next() {
 		var i EnrichmentStatus
 		if err := rows.Scan(
+			&i.MediaType,
 			&i.MediaID,
 			&i.Stage,
 			&i.Status,
@@ -117,9 +130,9 @@ func (q *Queries) GetEnrichmentStatusByMedia(ctx context.Context, mediaID int64)
 }
 
 const getEnrichmentStatusByStage = `-- name: GetEnrichmentStatusByStage :many
-SELECT media_id, stage, status, plugin_id, completed_at, error_message, metadata_json FROM enrichment_status
+SELECT media_type, media_id, stage, status, plugin_id, completed_at, error_message, metadata_json FROM enrichment_status
 WHERE stage = ? AND status = ?
-ORDER BY media_id
+ORDER BY media_type, media_id
 LIMIT ? OFFSET ?
 `
 
@@ -145,6 +158,7 @@ func (q *Queries) GetEnrichmentStatusByStage(ctx context.Context, arg GetEnrichm
 	for rows.Next() {
 		var i EnrichmentStatus
 		if err := rows.Scan(
+			&i.MediaType,
 			&i.MediaID,
 			&i.Stage,
 			&i.Status,
@@ -176,10 +190,19 @@ SELECT
     SUM(CASE WHEN es.status = 'skipped' THEN 1 ELSE 0 END) as skipped_count,
     COUNT(*) as total_count
 FROM enrichment_status es
-JOIN media m ON m.id = es.media_id
-WHERE m.library_id = ?
+WHERE (
+    (es.media_type IN ('movie', 'tv') AND EXISTS (SELECT 1 FROM media m WHERE m.id = es.media_id AND m.library_id = ?))
+    OR (es.media_type = 'tv_show' AND EXISTS (SELECT 1 FROM tv_shows ts WHERE ts.id = es.media_id AND ts.library_id = ?))
+    OR (es.media_type = 'tv_season' AND EXISTS (SELECT 1 FROM tv_seasons tsn JOIN tv_shows ts ON ts.id = tsn.tv_show_id WHERE tsn.id = es.media_id AND ts.library_id = ?))
+)
 GROUP BY es.stage
 `
+
+type GetLibraryEnrichmentProgressParams struct {
+	LibraryID   int64 `json:"library_id"`
+	LibraryID_2 int64 `json:"library_id_2"`
+	LibraryID_3 int64 `json:"library_id_3"`
+}
 
 type GetLibraryEnrichmentProgressRow struct {
 	Stage           string          `json:"stage"`
@@ -191,8 +214,8 @@ type GetLibraryEnrichmentProgressRow struct {
 	TotalCount      int64           `json:"total_count"`
 }
 
-func (q *Queries) GetLibraryEnrichmentProgress(ctx context.Context, libraryID int64) ([]GetLibraryEnrichmentProgressRow, error) {
-	rows, err := q.db.QueryContext(ctx, getLibraryEnrichmentProgress, libraryID)
+func (q *Queries) GetLibraryEnrichmentProgress(ctx context.Context, arg GetLibraryEnrichmentProgressParams) ([]GetLibraryEnrichmentProgressRow, error) {
+	rows, err := q.db.QueryContext(ctx, getLibraryEnrichmentProgress, arg.LibraryID, arg.LibraryID_2, arg.LibraryID_3)
 	if err != nil {
 		return nil, err
 	}
@@ -230,12 +253,13 @@ SET
     completed_at = datetime('now'),
     error_message = NULL,
     metadata_json = ?
-WHERE media_id = ? AND stage = ?
+WHERE media_type = ? AND media_id = ? AND stage = ?
 `
 
 type MarkEnrichmentCompleteParams struct {
 	PluginID     sql.NullString `json:"plugin_id"`
 	MetadataJson sql.NullString `json:"metadata_json"`
+	MediaType    string         `json:"media_type"`
 	MediaID      int64          `json:"media_id"`
 	Stage        string         `json:"stage"`
 }
@@ -244,6 +268,7 @@ func (q *Queries) MarkEnrichmentComplete(ctx context.Context, arg MarkEnrichment
 	_, err := q.db.ExecContext(ctx, markEnrichmentComplete,
 		arg.PluginID,
 		arg.MetadataJson,
+		arg.MediaType,
 		arg.MediaID,
 		arg.Stage,
 	)
@@ -256,12 +281,13 @@ SET
     status = 'failed',
     plugin_id = ?,
     error_message = ?
-WHERE media_id = ? AND stage = ?
+WHERE media_type = ? AND media_id = ? AND stage = ?
 `
 
 type MarkEnrichmentFailedParams struct {
 	PluginID     sql.NullString `json:"plugin_id"`
 	ErrorMessage sql.NullString `json:"error_message"`
+	MediaType    string         `json:"media_type"`
 	MediaID      int64          `json:"media_id"`
 	Stage        string         `json:"stage"`
 }
@@ -270,6 +296,7 @@ func (q *Queries) MarkEnrichmentFailed(ctx context.Context, arg MarkEnrichmentFa
 	_, err := q.db.ExecContext(ctx, markEnrichmentFailed,
 		arg.PluginID,
 		arg.ErrorMessage,
+		arg.MediaType,
 		arg.MediaID,
 		arg.Stage,
 	)
@@ -282,22 +309,29 @@ SET
     status = 'skipped',
     plugin_id = ?,
     completed_at = datetime('now')
-WHERE media_id = ? AND stage = ?
+WHERE media_type = ? AND media_id = ? AND stage = ?
 `
 
 type MarkEnrichmentSkippedParams struct {
-	PluginID sql.NullString `json:"plugin_id"`
-	MediaID  int64          `json:"media_id"`
-	Stage    string         `json:"stage"`
+	PluginID  sql.NullString `json:"plugin_id"`
+	MediaType string         `json:"media_type"`
+	MediaID   int64          `json:"media_id"`
+	Stage     string         `json:"stage"`
 }
 
 func (q *Queries) MarkEnrichmentSkipped(ctx context.Context, arg MarkEnrichmentSkippedParams) error {
-	_, err := q.db.ExecContext(ctx, markEnrichmentSkipped, arg.PluginID, arg.MediaID, arg.Stage)
+	_, err := q.db.ExecContext(ctx, markEnrichmentSkipped,
+		arg.PluginID,
+		arg.MediaType,
+		arg.MediaID,
+		arg.Stage,
+	)
 	return err
 }
 
 const upsertEnrichmentStatus = `-- name: UpsertEnrichmentStatus :exec
 INSERT INTO enrichment_status (
+    media_type,
     media_id,
     stage,
     status,
@@ -305,8 +339,8 @@ INSERT INTO enrichment_status (
     completed_at,
     error_message,
     metadata_json
-) VALUES (?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(media_id, stage) DO UPDATE SET
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(media_type, media_id, stage) DO UPDATE SET
     status = excluded.status,
     plugin_id = excluded.plugin_id,
     completed_at = excluded.completed_at,
@@ -315,6 +349,7 @@ ON CONFLICT(media_id, stage) DO UPDATE SET
 `
 
 type UpsertEnrichmentStatusParams struct {
+	MediaType    string         `json:"media_type"`
 	MediaID      int64          `json:"media_id"`
 	Stage        string         `json:"stage"`
 	Status       sql.NullString `json:"status"`
@@ -326,6 +361,7 @@ type UpsertEnrichmentStatusParams struct {
 
 func (q *Queries) UpsertEnrichmentStatus(ctx context.Context, arg UpsertEnrichmentStatusParams) error {
 	_, err := q.db.ExecContext(ctx, upsertEnrichmentStatus,
+		arg.MediaType,
 		arg.MediaID,
 		arg.Stage,
 		arg.Status,

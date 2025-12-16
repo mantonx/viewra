@@ -69,9 +69,10 @@ func (p *JobProcessor) Process(ctx context.Context, job *enrichment.QueueJob) {
 
 	// Update status to processing
 	if err := p.deps.StatusRepo.Upsert(jobCtx, &enrichment.Status{
-		MediaID: job.MediaID,
-		Stage:   job.Stage,
-		Status:  enrichment.JobStatusProcessing,
+		MediaType: job.MediaType,
+		MediaID:   job.MediaID,
+		Stage:     job.Stage,
+		Status:    enrichment.JobStatusProcessing,
 	}); err != nil {
 		logger.Error("failed to update status", slog.Any("error", err))
 	}
@@ -80,7 +81,7 @@ func (p *JobProcessor) Process(ctx context.Context, job *enrichment.QueueJob) {
 	startTime := time.Now()
 	req, mediaType, err := p.requestBuilder.Build(jobCtx, job)
 	if err != nil {
-		p.handleFailure(ctx, logger, job, enrichment.MediaType(""), fmt.Errorf("build request: %w", err), time.Since(startTime))
+		p.handleFailure(ctx, logger, job, job.MediaType, fmt.Errorf("build request: %w", err), time.Since(startTime))
 		return
 	}
 
@@ -111,7 +112,7 @@ func (p *JobProcessor) Process(ctx context.Context, job *enrichment.QueueJob) {
 
 // handleSuccess marks a job as completed and enqueues the next stage.
 func (p *JobProcessor) handleSuccess(ctx context.Context, logger *slog.Logger, job *enrichment.QueueJob, mediaType enrichment.MediaType, resp *pluginv1.EnrichResponse, duration time.Duration) {
-	logger.Info("job completed",
+	logger.Debug("job completed",
 		slog.Duration("duration", duration),
 		slog.Bool("matched", resp != nil && resp.GetMatched()),
 		slog.Bool("skipped", resp != nil && resp.GetSkipped()))
@@ -122,7 +123,7 @@ func (p *JobProcessor) handleSuccess(ctx context.Context, logger *slog.Logger, j
 	}
 
 	// Update status
-	if err := p.deps.StatusRepo.MarkComplete(ctx, job.MediaID, job.Stage, "", ""); err != nil {
+	if err := p.deps.StatusRepo.MarkComplete(ctx, mediaType, job.MediaID, job.Stage, "", ""); err != nil {
 		logger.Error("failed to update status", slog.Any("error", err))
 	}
 
@@ -174,7 +175,7 @@ func (p *JobProcessor) handleFailure(ctx context.Context, logger *slog.Logger, j
 	}
 
 	// Update status
-	if dbErr := p.deps.StatusRepo.MarkFailed(ctx, job.MediaID, job.Stage, "", err.Error()); dbErr != nil {
+	if dbErr := p.deps.StatusRepo.MarkFailed(ctx, mediaType, job.MediaID, job.Stage, "", err.Error()); dbErr != nil {
 		logger.Error("failed to update status", slog.Any("error", dbErr))
 	}
 

@@ -3,6 +3,7 @@ package people
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/mantonx/viewra/internal/domain/media"
@@ -110,8 +111,9 @@ func (r *Repository) UpdatePerson(person *media.Person) error {
 
 // isNotFoundError checks if the error indicates a record was not found.
 // This handles both sql.ErrNoRows (direct DB access) and media.ErrMediaNotFound (via QuerySingle).
+// Uses errors.Is to properly handle wrapped errors.
 func isNotFoundError(err error) bool {
-	return err == sql.ErrNoRows || err == media.ErrMediaNotFound
+	return errors.Is(err, sql.ErrNoRows) || errors.Is(err, media.ErrMediaNotFound)
 }
 
 // FindOrCreatePerson finds a person by TMDb ID or name, creating them if they don't exist.

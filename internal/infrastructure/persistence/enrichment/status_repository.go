@@ -40,6 +40,7 @@ func (r *StatusRepository) Upsert(ctx context.Context, status *enrichment.Status
 				completedAt = sql.NullTime{Time: *status.CompletedAt, Valid: true}
 			}
 			return r.postgres.UpsertEnrichmentStatus(ctx, sqlc_postgres.UpsertEnrichmentStatusParams{
+				MediaType:    string(status.MediaType),
 				MediaID:      int32(status.MediaID),
 				Stage:        status.Stage,
 				Status:       sql.NullString{String: string(status.Status), Valid: status.Status != ""},
@@ -55,6 +56,7 @@ func (r *StatusRepository) Upsert(ctx context.Context, status *enrichment.Status
 				completedAtStr = sql.NullString{String: status.CompletedAt.Format("2006-01-02 15:04:05"), Valid: true}
 			}
 			return r.sqlite.UpsertEnrichmentStatus(ctx, sqlc_sqlite.UpsertEnrichmentStatusParams{
+				MediaType:    string(status.MediaType),
 				MediaID:      status.MediaID,
 				Stage:        status.Stage,
 				Status:       sql.NullString{String: string(status.Status), Valid: status.Status != ""},
@@ -68,13 +70,19 @@ func (r *StatusRepository) Upsert(ctx context.Context, status *enrichment.Status
 }
 
 // GetByMedia returns all enrichment statuses for a media item.
-func (r *StatusRepository) GetByMedia(ctx context.Context, mediaID int64) ([]*enrichment.Status, error) {
+func (r *StatusRepository) GetByMedia(ctx context.Context, mediaType enrichment.MediaType, mediaID int64) ([]*enrichment.Status, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetEnrichmentStatusByMedia(ctx, int32(mediaID))
+			return r.postgres.GetEnrichmentStatusByMedia(ctx, sqlc_postgres.GetEnrichmentStatusByMediaParams{
+				MediaType: string(mediaType),
+				MediaID:   int32(mediaID),
+			})
 		},
 		func() (any, error) {
-			return r.sqlite.GetEnrichmentStatusByMedia(ctx, mediaID)
+			return r.sqlite.GetEnrichmentStatusByMedia(ctx, sqlc_sqlite.GetEnrichmentStatusByMediaParams{
+				MediaType: string(mediaType),
+				MediaID:   mediaID,
+			})
 		},
 	)
 	if err != nil {
@@ -99,12 +107,13 @@ func (r *StatusRepository) GetByMedia(ctx context.Context, mediaID int64) ([]*en
 }
 
 // MarkComplete marks a stage as completed for a media item.
-func (r *StatusRepository) MarkComplete(ctx context.Context, mediaID int64, stage, pluginID, metadataJSON string) error {
+func (r *StatusRepository) MarkComplete(ctx context.Context, mediaType enrichment.MediaType, mediaID int64, stage, pluginID, metadataJSON string) error {
 	return r.router.RouteVoid(
 		func() error {
 			return r.postgres.MarkEnrichmentComplete(ctx, sqlc_postgres.MarkEnrichmentCompleteParams{
 				PluginID:     sql.NullString{String: pluginID, Valid: pluginID != ""},
 				MetadataJson: statusStringToNullRawMessage(metadataJSON),
+				MediaType:    string(mediaType),
 				MediaID:      int32(mediaID),
 				Stage:        stage,
 			})
@@ -113,6 +122,7 @@ func (r *StatusRepository) MarkComplete(ctx context.Context, mediaID int64, stag
 			return r.sqlite.MarkEnrichmentComplete(ctx, sqlc_sqlite.MarkEnrichmentCompleteParams{
 				PluginID:     sql.NullString{String: pluginID, Valid: pluginID != ""},
 				MetadataJson: sql.NullString{String: metadataJSON, Valid: metadataJSON != ""},
+				MediaType:    string(mediaType),
 				MediaID:      mediaID,
 				Stage:        stage,
 			})
@@ -121,12 +131,13 @@ func (r *StatusRepository) MarkComplete(ctx context.Context, mediaID int64, stag
 }
 
 // MarkFailed marks a stage as failed for a media item.
-func (r *StatusRepository) MarkFailed(ctx context.Context, mediaID int64, stage, pluginID, errorMsg string) error {
+func (r *StatusRepository) MarkFailed(ctx context.Context, mediaType enrichment.MediaType, mediaID int64, stage, pluginID, errorMsg string) error {
 	return r.router.RouteVoid(
 		func() error {
 			return r.postgres.MarkEnrichmentFailed(ctx, sqlc_postgres.MarkEnrichmentFailedParams{
 				PluginID:     sql.NullString{String: pluginID, Valid: pluginID != ""},
 				ErrorMessage: sql.NullString{String: errorMsg, Valid: errorMsg != ""},
+				MediaType:    string(mediaType),
 				MediaID:      int32(mediaID),
 				Stage:        stage,
 			})
@@ -135,6 +146,7 @@ func (r *StatusRepository) MarkFailed(ctx context.Context, mediaID int64, stage,
 			return r.sqlite.MarkEnrichmentFailed(ctx, sqlc_sqlite.MarkEnrichmentFailedParams{
 				PluginID:     sql.NullString{String: pluginID, Valid: pluginID != ""},
 				ErrorMessage: sql.NullString{String: errorMsg, Valid: errorMsg != ""},
+				MediaType:    string(mediaType),
 				MediaID:      mediaID,
 				Stage:        stage,
 			})
@@ -143,20 +155,22 @@ func (r *StatusRepository) MarkFailed(ctx context.Context, mediaID int64, stage,
 }
 
 // MarkSkipped marks a stage as skipped for a media item.
-func (r *StatusRepository) MarkSkipped(ctx context.Context, mediaID int64, stage, pluginID string) error {
+func (r *StatusRepository) MarkSkipped(ctx context.Context, mediaType enrichment.MediaType, mediaID int64, stage, pluginID string) error {
 	return r.router.RouteVoid(
 		func() error {
 			return r.postgres.MarkEnrichmentSkipped(ctx, sqlc_postgres.MarkEnrichmentSkippedParams{
-				PluginID: sql.NullString{String: pluginID, Valid: pluginID != ""},
-				MediaID:  int32(mediaID),
-				Stage:    stage,
+				PluginID:  sql.NullString{String: pluginID, Valid: pluginID != ""},
+				MediaType: string(mediaType),
+				MediaID:   int32(mediaID),
+				Stage:     stage,
 			})
 		},
 		func() error {
 			return r.sqlite.MarkEnrichmentSkipped(ctx, sqlc_sqlite.MarkEnrichmentSkippedParams{
-				PluginID: sql.NullString{String: pluginID, Valid: pluginID != ""},
-				MediaID:  mediaID,
-				Stage:    stage,
+				PluginID:  sql.NullString{String: pluginID, Valid: pluginID != ""},
+				MediaType: string(mediaType),
+				MediaID:   mediaID,
+				Stage:     stage,
 			})
 		},
 	)
@@ -169,7 +183,11 @@ func (r *StatusRepository) GetLibraryProgress(ctx context.Context, libraryID int
 			return r.postgres.GetLibraryEnrichmentProgress(ctx, int32(libraryID))
 		},
 		func() (any, error) {
-			return r.sqlite.GetLibraryEnrichmentProgress(ctx, libraryID)
+			return r.sqlite.GetLibraryEnrichmentProgress(ctx, sqlc_sqlite.GetLibraryEnrichmentProgressParams{
+				LibraryID:   libraryID,
+				LibraryID_2: libraryID,
+				LibraryID_3: libraryID,
+			})
 		},
 	)
 	if err != nil {
@@ -210,13 +228,19 @@ func (r *StatusRepository) GetLibraryProgress(ctx context.Context, libraryID int
 }
 
 // DeleteByMedia removes all status records for a media item.
-func (r *StatusRepository) DeleteByMedia(ctx context.Context, mediaID int64) error {
+func (r *StatusRepository) DeleteByMedia(ctx context.Context, mediaType enrichment.MediaType, mediaID int64) error {
 	return r.router.RouteVoid(
 		func() error {
-			return r.postgres.DeleteEnrichmentStatusByMedia(ctx, int32(mediaID))
+			return r.postgres.DeleteEnrichmentStatusByMedia(ctx, sqlc_postgres.DeleteEnrichmentStatusByMediaParams{
+				MediaType: string(mediaType),
+				MediaID:   int32(mediaID),
+			})
 		},
 		func() error {
-			return r.sqlite.DeleteEnrichmentStatusByMedia(ctx, mediaID)
+			return r.sqlite.DeleteEnrichmentStatusByMedia(ctx, sqlc_sqlite.DeleteEnrichmentStatusByMediaParams{
+				MediaType: string(mediaType),
+				MediaID:   mediaID,
+			})
 		},
 	)
 }
@@ -226,6 +250,7 @@ func (r *StatusRepository) convertToStatus(result any) *enrichment.Status {
 	if r.router.IsPostgresDB() {
 		pgStatus := result.(sqlc_postgres.EnrichmentStatus)
 		return &enrichment.Status{
+			MediaType:    enrichment.MediaType(pgStatus.MediaType),
 			MediaID:      int64(pgStatus.MediaID),
 			Stage:        pgStatus.Stage,
 			Status:       enrichment.JobStatus(common.ParseNullString(pgStatus.Status)),
@@ -238,6 +263,7 @@ func (r *StatusRepository) convertToStatus(result any) *enrichment.Status {
 
 	sqStatus := result.(sqlc_sqlite.EnrichmentStatus)
 	return &enrichment.Status{
+		MediaType:    enrichment.MediaType(sqStatus.MediaType),
 		MediaID:      sqStatus.MediaID,
 		Stage:        sqStatus.Stage,
 		Status:       enrichment.JobStatus(common.ParseNullString(sqStatus.Status)),

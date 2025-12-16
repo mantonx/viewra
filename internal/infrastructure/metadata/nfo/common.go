@@ -224,3 +224,80 @@ func getBestRating(ratings []Rating) float32 {
 	// Otherwise return first rating
 	return ratings[0].Value
 }
+
+// ErrEmptyNFO is returned when an NFO file is empty
+var ErrEmptyNFO = fmt.Errorf("NFO file is empty")
+
+// ErrWrongNFOType is returned when an NFO file contains the wrong root element
+type ErrWrongNFOType struct {
+	Expected string
+	Actual   string
+}
+
+func (e ErrWrongNFOType) Error() string {
+	return fmt.Sprintf("NFO contains <%s> instead of expected <%s>", e.Actual, e.Expected)
+}
+
+// detectNFORootElement reads the start of an NFO file to determine its root element type.
+// Returns the root element name (e.g., "movie", "tvshow", "episodedetails") or empty string if undetermined.
+func detectNFORootElement(data []byte) string {
+	// Skip BOM and whitespace
+	content := strings.TrimSpace(string(data))
+
+	// Skip XML declaration if present
+	if strings.HasPrefix(content, "<?xml") {
+		if idx := strings.Index(content, "?>"); idx != -1 {
+			content = strings.TrimSpace(content[idx+2:])
+		}
+	}
+
+	// Find the first opening tag (skip comments)
+	for strings.HasPrefix(content, "<!--") {
+		if idx := strings.Index(content, "-->"); idx != -1 {
+			content = strings.TrimSpace(content[idx+3:])
+		} else {
+			break
+		}
+	}
+
+	// Extract root element name
+	if !strings.HasPrefix(content, "<") {
+		return ""
+	}
+
+	content = content[1:] // Remove leading <
+
+	// Find end of tag name (space, >, or /)
+	endIdx := strings.IndexAny(content, " \t\n\r>/?")
+	if endIdx == -1 {
+		return ""
+	}
+
+	return strings.ToLower(content[:endIdx])
+}
+
+// validateNFOData checks if NFO data is valid and matches the expected type.
+// Returns nil if valid, ErrEmptyNFO if empty, or ErrWrongNFOType if mismatched.
+func validateNFOData(data []byte, expectedRoot string) error {
+	if len(data) == 0 {
+		return ErrEmptyNFO
+	}
+
+	// Check for only whitespace
+	if len(strings.TrimSpace(string(data))) == 0 {
+		return ErrEmptyNFO
+	}
+
+	// Detect actual root element
+	actualRoot := detectNFORootElement(data)
+	if actualRoot == "" {
+		return ErrEmptyNFO
+	}
+
+	// Check if it matches expected
+	if actualRoot != expectedRoot {
+		return ErrWrongNFOType{Expected: expectedRoot, Actual: actualRoot}
+	}
+
+	return nil
+}

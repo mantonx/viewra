@@ -15,6 +15,24 @@ INSERT INTO tv_shows (
     ?, ?, ?, ?
 ) RETURNING *;
 
+-- name: UpsertTVShow :one
+-- Atomically creates a TV show or returns existing one if title already exists.
+-- Uses ON CONFLICT to handle race conditions during concurrent episode scans.
+-- On conflict, updates directory if it was previously empty.
+INSERT INTO tv_shows (
+    library_id, title, sort_title, directory
+) VALUES (
+    ?1, ?2, ?3, ?4
+)
+ON CONFLICT(library_id, LOWER(title)) DO UPDATE SET
+    directory = CASE
+        WHEN tv_shows.directory IS NULL OR tv_shows.directory = ''
+        THEN excluded.directory
+        ELSE tv_shows.directory
+    END,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING *;
+
 -- name: GetTVShowByID :one
 SELECT * FROM tv_shows
 WHERE id = ?;

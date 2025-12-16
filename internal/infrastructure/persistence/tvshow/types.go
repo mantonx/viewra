@@ -346,6 +346,32 @@ func buildSQLiteCreateTVShowParams(libraryID int64, title, directory string) sql
 	}
 }
 
+// buildPostgresUpsertTVShowParams builds UpsertTVShowParams for PostgreSQL
+func buildPostgresUpsertTVShowParams(libraryID int64, title, directory string) sqlc_postgres.UpsertTVShowParams {
+	// Normalize title to handle punctuation variants (e.g., "Star Trek: Voyager" vs "Star Trek Voyager")
+	normalizedTitle := domainCommon.NormalizeTitle(title)
+	sortTitle := domainCommon.NormalizeSortTitle(normalizedTitle)
+	return sqlc_postgres.UpsertTVShowParams{
+		LibraryID: int32(libraryID),
+		Title:     normalizedTitle,
+		SortTitle: sql.NullString{String: sortTitle, Valid: true},
+		Directory: sql.NullString{String: directory, Valid: directory != ""},
+	}
+}
+
+// buildSQLiteUpsertTVShowParams builds UpsertTVShowParams for SQLite
+func buildSQLiteUpsertTVShowParams(libraryID int64, title, directory string) sqlc_sqlite.UpsertTVShowParams {
+	// Normalize title to handle punctuation variants (e.g., "Star Trek: Voyager" vs "Star Trek Voyager")
+	normalizedTitle := domainCommon.NormalizeTitle(title)
+	sortTitle := domainCommon.NormalizeSortTitle(normalizedTitle)
+	return sqlc_sqlite.UpsertTVShowParams{
+		LibraryID: libraryID,
+		Title:     normalizedTitle,
+		SortTitle: sql.NullString{String: sortTitle, Valid: true},
+		Directory: sql.NullString{String: directory, Valid: directory != ""},
+	}
+}
+
 // buildPostgresUpdateTVShowParams builds UpdateTVShowParams for Postgres from domain TVShow
 func buildPostgresUpdateTVShowParams(show media.TVShow) sqlc_postgres.UpdateTVShowParams {
 	// Join genres back to comma-separated string

@@ -115,6 +115,11 @@ func ParseMovieNFO(nfoPath string) (*MovieMetadata, error) {
 		return nil, fmt.Errorf("failed to read NFO file: %w", err)
 	}
 
+	// Validate NFO content before parsing
+	if err := validateNFOData(data, "movie"); err != nil {
+		return nil, err
+	}
+
 	// Parse XML
 	var nfo MovieNFO
 	if err := xml.Unmarshal(data, &nfo); err != nil {

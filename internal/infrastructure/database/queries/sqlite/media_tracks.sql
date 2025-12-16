@@ -5,6 +5,18 @@ INSERT INTO media_audio_tracks (
     media_id, stream_index, codec, codec_profile, channels, channel_layout,
     sample_rate, bit_rate, language, title, is_default, is_commentary, is_descriptive
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(media_id, stream_index) DO UPDATE SET
+    codec = excluded.codec,
+    codec_profile = excluded.codec_profile,
+    channels = excluded.channels,
+    channel_layout = excluded.channel_layout,
+    sample_rate = excluded.sample_rate,
+    bit_rate = excluded.bit_rate,
+    language = excluded.language,
+    title = excluded.title,
+    is_default = excluded.is_default,
+    is_commentary = excluded.is_commentary,
+    is_descriptive = excluded.is_descriptive
 RETURNING id, created_at;
 
 -- name: GetAudioTracksByMediaID :many

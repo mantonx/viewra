@@ -63,6 +63,7 @@ type EnrichmentStatus struct {
 	CompletedAt  sql.NullTime          `json:"completed_at"`
 	ErrorMessage sql.NullString        `json:"error_message"`
 	MetadataJson pqtype.NullRawMessage `json:"metadata_json"`
+	MediaType    string                `json:"media_type"`
 }
 
 type Library struct {

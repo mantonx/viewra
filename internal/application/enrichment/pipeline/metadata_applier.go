@@ -2,13 +2,16 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	domainCommon "github.com/mantonx/viewra/internal/domain/common"
 	"github.com/mantonx/viewra/internal/domain/enrichment"
+	"github.com/mantonx/viewra/internal/domain/media"
 )
 
 // parseDate parses a date string in YYYY-MM-DD format.
@@ -68,17 +71,26 @@ func (a *MetadataApplier) applyMovieMetadata(ctx context.Context, mediaID int64,
 
 	movie, err := a.typedRepos.Movie.GetMovieByID(ctx, mediaID)
 	if err != nil {
+		// If the movie entity doesn't exist (orphaned media row), skip gracefully.
+		if errors.Is(err, media.ErrMediaNotFound) {
+			a.logger.Debug("skipping metadata for orphaned movie",
+				slog.Int64("media_id", mediaID))
+			return nil
+		}
 		return fmt.Errorf("get movie: %w", err)
 	}
 
 	updated := false
 
-	// Apply optional fields only if present in the response
-	if metadata.Title != nil && *metadata.Title != "" {
-		movie.Title = *metadata.Title
+	// Note: We intentionally do NOT update movie.Title from enrichment.
+	// The title is derived from the folder/filename and may include year or other
+	// disambiguation. NFO/TMDb titles could conflict with existing entries.
+	// Instead, store the enriched title in OriginalTitle if not already set.
+	if metadata.Title != nil && *metadata.Title != "" && movie.OriginalTitle == "" {
+		movie.OriginalTitle = *metadata.Title
 		updated = true
 	}
-	if metadata.OriginalTitle != nil {
+	if metadata.OriginalTitle != nil && *metadata.OriginalTitle != "" {
 		movie.OriginalTitle = *metadata.OriginalTitle
 		updated = true
 	}
@@ -175,13 +187,20 @@ func (a *MetadataApplier) applyTVEpisodeMetadata(ctx context.Context, mediaID in
 
 	episode, err := a.typedRepos.TV.GetTVEpisodeByID(ctx, mediaID)
 	if err != nil {
+		// If the episode entity doesn't exist (orphaned media row), skip gracefully.
+		// This can happen when media was created but tv_episodes insert failed.
+		if errors.Is(err, media.ErrMediaNotFound) {
+			a.logger.Debug("skipping metadata for orphaned tv episode",
+				slog.Int64("media_id", mediaID))
+			return nil
+		}
 		return fmt.Errorf("get episode: %w", err)
 	}
 
 	updated := false
 
 	if metadata.Title != nil && *metadata.Title != "" {
-		episode.EpisodeTitle = *metadata.Title
+		episode.EpisodeTitle = domainCommon.NormalizeTitle(*metadata.Title)
 		updated = true
 	}
 	if metadata.Plot != nil {
@@ -222,16 +241,28 @@ func (a *MetadataApplier) applyTVShowMetadata(ctx context.Context, mediaID int64
 
 	show, err := a.typedRepos.TV.GetTVShowByID(ctx, mediaID)
 	if err != nil {
+		// If the show entity doesn't exist, skip gracefully.
+		if errors.Is(err, media.ErrMediaNotFound) {
+			a.logger.Debug("skipping metadata for missing tv show",
+				slog.Int64("media_id", mediaID))
+			return nil
+		}
 		return fmt.Errorf("get show: %w", err)
 	}
 
 	updated := false
 
-	if metadata.Title != nil && *metadata.Title != "" {
-		show.Title = *metadata.Title
+	// Note: We intentionally do NOT update show.Title from enrichment.
+	// The title is derived from the folder name and may include year disambiguation
+	// (e.g., "The Outer Limits (1995)") to distinguish shows with the same name.
+	// NFO files typically contain the "pure" title without year, which would cause
+	// UNIQUE constraint violations when multiple versions of a show exist.
+	// Instead, store the NFO title in OriginalTitle if not already set.
+	if metadata.Title != nil && *metadata.Title != "" && show.OriginalTitle == "" {
+		show.OriginalTitle = *metadata.Title
 		updated = true
 	}
-	if metadata.OriginalTitle != nil {
+	if metadata.OriginalTitle != nil && *metadata.OriginalTitle != "" {
 		show.OriginalTitle = *metadata.OriginalTitle
 		updated = true
 	}
@@ -311,6 +342,12 @@ func (a *MetadataApplier) applyMusicMetadata(ctx context.Context, mediaID int64,
 
 	track, err := a.typedRepos.Music.GetMusicTrackByID(ctx, mediaID)
 	if err != nil {
+		// If the track entity doesn't exist (orphaned media row), skip gracefully.
+		if errors.Is(err, media.ErrMediaNotFound) {
+			a.logger.Debug("skipping metadata for orphaned music track",
+				slog.Int64("media_id", mediaID))
+			return nil
+		}
 		return fmt.Errorf("get track: %w", err)
 	}
 
@@ -386,6 +423,12 @@ func (a *MetadataApplier) applyAlbumMetadata(ctx context.Context, mediaID int64,
 
 	album, err := a.typedRepos.Music.GetAlbumByID(ctx, mediaID)
 	if err != nil {
+		// If the album entity doesn't exist (orphaned media row), skip gracefully.
+		if errors.Is(err, media.ErrMediaNotFound) {
+			a.logger.Debug("skipping metadata for orphaned music album",
+				slog.Int64("media_id", mediaID))
+			return nil
+		}
 		return fmt.Errorf("get album: %w", err)
 	}
 
@@ -464,6 +507,12 @@ func (a *MetadataApplier) applyArtistMetadata(ctx context.Context, mediaID int64
 
 	artist, err := a.typedRepos.Music.GetArtistByID(ctx, mediaID)
 	if err != nil {
+		// If the artist entity doesn't exist (orphaned media row), skip gracefully.
+		if errors.Is(err, media.ErrMediaNotFound) {
+			a.logger.Debug("skipping metadata for orphaned music artist",
+				slog.Int64("media_id", mediaID))
+			return nil
+		}
 		return fmt.Errorf("get artist: %w", err)
 	}
 

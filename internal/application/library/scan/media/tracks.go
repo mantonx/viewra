@@ -3,6 +3,7 @@ package media
 import (
 	"context"
 	"path/filepath"
+	"strings"
 
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/domain/scanner"
@@ -68,10 +69,13 @@ func PersistMediaTracks(ctx context.Context, deps *Deps, mediaID int64, result *
 			IsBitmap:     t.IsBitmap,
 		}
 		if err := deps.MediaRepos.Media.InsertSubtitleTrack(ctx, subtitleTrack); err != nil {
-			deps.Logger.Warn("Failed to insert subtitle track",
-				"media_id", mediaID,
-				"stream_index", t.StreamIndex,
-				"error", err)
+			// Ignore duplicate errors (can happen with concurrent scans due to partial unique indexes)
+			if !strings.Contains(err.Error(), "UNIQUE constraint") {
+				deps.Logger.Warn("Failed to insert subtitle track",
+					"media_id", mediaID,
+					"stream_index", t.StreamIndex,
+					"error", err)
+			}
 		}
 	}
 
@@ -134,10 +138,13 @@ func DiscoverExternalSubtitles(ctx context.Context, deps *Deps, mediaID int64, v
 		}
 
 		if err := deps.MediaRepos.Media.InsertSubtitleTrack(ctx, subtitleTrack); err != nil {
-			deps.Logger.Warn("Failed to insert external subtitle track",
-				"media_id", mediaID,
-				"subtitle_path", relPath,
-				"error", err)
+			// Ignore duplicate errors (can happen with concurrent scans due to partial unique indexes)
+			if !strings.Contains(err.Error(), "UNIQUE constraint") {
+				deps.Logger.Warn("Failed to insert external subtitle track",
+					"media_id", mediaID,
+					"subtitle_path", relPath,
+					"error", err)
+			}
 		}
 	}
 }
