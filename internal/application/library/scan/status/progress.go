@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/infrastructure/events"
 )
 
 // ProgressUpdater defines the interface for updating scan progress.
@@ -28,6 +29,10 @@ type ProgressUpdate struct {
 	warningCount   int64
 	estimatedTotal int64
 	discoveryDone  bool
+
+	// Optional event publishing
+	eventBus  *events.Bus
+	libraryID int64
 }
 
 // NewProgressUpdate creates a progress update builder for the given job.
@@ -81,6 +86,18 @@ func (p *ProgressUpdate) DiscoveryDone() *ProgressUpdate {
 	return p
 }
 
+// WithEventBus enables event publishing for this progress update.
+func (p *ProgressUpdate) WithEventBus(bus *events.Bus) *ProgressUpdate {
+	p.eventBus = bus
+	return p
+}
+
+// WithLibraryID sets the library ID for event publishing.
+func (p *ProgressUpdate) WithLibraryID(libraryID int64) *ProgressUpdate {
+	p.libraryID = libraryID
+	return p
+}
+
 // FromCheckpointStats populates progress from checkpoint statistics.
 func (p *ProgressUpdate) FromCheckpointStats(stats *scanner.CheckpointStats) *ProgressUpdate {
 	if stats != nil {
@@ -102,7 +119,7 @@ func (p *ProgressUpdate) FromJob(job *scanner.ScanJob) *ProgressUpdate {
 	return p
 }
 
-// Update persists the progress to the database.
+// Update persists the progress to the database and publishes a progress event.
 // Returns any error from the repository.
 func (p *ProgressUpdate) Update(ctx context.Context) error {
 	progress := &scanner.Progress{
@@ -115,7 +132,40 @@ func (p *ProgressUpdate) Update(ctx context.Context) error {
 		EstimatedTotal: p.estimatedTotal,
 		DiscoveryDone:  p.discoveryDone,
 	}
-	return p.updater.UpdateProgress(ctx, p.jobID, progress)
+
+	err := p.updater.UpdateProgress(ctx, p.jobID, progress)
+
+	// Publish progress event if event bus is configured
+	p.publishProgressEvent()
+
+	return err
+}
+
+// publishProgressEvent publishes a scan.progress event if EventBus is configured.
+func (p *ProgressUpdate) publishProgressEvent() {
+	if p.eventBus == nil {
+		return
+	}
+
+	// Calculate progress percentage
+	var progressPercent float64
+	if p.filesFound > 0 {
+		progressPercent = float64(p.filesProcessed) / float64(p.filesFound) * 100
+	}
+
+	p.eventBus.Publish(events.NewEvent(events.EventScanProgress, "scanner").
+		WithLibraryID(p.libraryID).
+		WithData("job_id", p.jobID).
+		WithData("status", "running").
+		WithData("phase", string(p.phase)).
+		WithData("progress", progressPercent).
+		WithData("files_found", p.filesFound).
+		WithData("files_processed", p.filesProcessed).
+		WithData("error_count", p.errorCount).
+		WithData("warning_count", p.warningCount).
+		WithData("estimated_total", p.estimatedTotal).
+		WithData("discovery_done", p.discoveryDone).
+		Build())
 }
 
 // UpdateAsync persists the progress in a background goroutine.

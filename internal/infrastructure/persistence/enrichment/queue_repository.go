@@ -38,6 +38,7 @@ func (r *QueueRepository) Enqueue(ctx context.Context, job *enrichment.QueueJob)
 		func() (any, error) {
 			return r.postgres.EnqueueEnrichmentJob(ctx, sqlc_postgres.EnqueueEnrichmentJobParams{
 				MediaID:     int32(job.MediaID),
+				LibraryID:   sql.NullInt32{Int32: int32(job.LibraryID), Valid: job.LibraryID > 0},
 				MediaType:   string(job.MediaType),
 				Stage:       job.Stage,
 				Priority:    sql.NullInt32{Int32: int32(job.Priority), Valid: true},
@@ -47,6 +48,7 @@ func (r *QueueRepository) Enqueue(ctx context.Context, job *enrichment.QueueJob)
 		func() (any, error) {
 			return r.sqlite.EnqueueEnrichmentJob(ctx, sqlc_sqlite.EnqueueEnrichmentJobParams{
 				MediaID:     job.MediaID,
+				LibraryID:   sql.NullInt64{Int64: job.LibraryID, Valid: job.LibraryID > 0},
 				MediaType:   string(job.MediaType),
 				Stage:       job.Stage,
 				Priority:    sql.NullInt64{Int64: int64(job.Priority), Valid: true},
@@ -279,6 +281,7 @@ func (r *QueueRepository) convertToQueueJob(result any) *enrichment.QueueJob {
 		return &enrichment.QueueJob{
 			ID:            int64(pgJob.ID),
 			MediaID:       int64(pgJob.MediaID),
+			LibraryID:     int64(pgJob.LibraryID.Int32),
 			MediaType:     enrichment.MediaType(pgJob.MediaType),
 			Stage:         pgJob.Stage,
 			Priority:      int(pgJob.Priority.Int32),
@@ -299,6 +302,7 @@ func (r *QueueRepository) convertToQueueJob(result any) *enrichment.QueueJob {
 	return &enrichment.QueueJob{
 		ID:            sqJob.ID,
 		MediaID:       sqJob.MediaID,
+		LibraryID:     sqJob.LibraryID.Int64,
 		MediaType:     enrichment.MediaType(sqJob.MediaType),
 		Stage:         sqJob.Stage,
 		Priority:      int(sqJob.Priority.Int64),

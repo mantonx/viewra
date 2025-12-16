@@ -5,10 +5,10 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
-import type { GithubComMantonxViewraInternalInfrastructureTranscodingLogInfo } from './githubComMantonxViewraInternalInfrastructureTranscodingLogInfo'
+import type { GithubComMantonxViewraInternalInfrastructureTranscodingLoggingLogInfo } from './githubComMantonxViewraInternalInfrastructureTranscodingLoggingLogInfo'
 
 export interface InternalApiHandlersLogListResponse {
   count?: number
-  logs?: GithubComMantonxViewraInternalInfrastructureTranscodingLogInfo[]
+  logs?: GithubComMantonxViewraInternalInfrastructureTranscodingLoggingLogInfo[]
   media_id?: number
 }

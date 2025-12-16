@@ -49,6 +49,7 @@ const (
 type QueueJob struct {
 	ID            int64
 	MediaID       int64
+	LibraryID     int64     // Library containing this media item (for SSE event filtering)
 	MediaType     MediaType // Type of entity (movie, tv, tv_show, music) - determines which table MediaID references
 	Stage         string
 	Priority      int

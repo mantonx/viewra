@@ -50,6 +50,7 @@ type EnrichmentQueue struct {
 	LockedAt      sql.NullString `json:"locked_at"`
 	CreatedAt     sql.NullString `json:"created_at"`
 	UpdatedAt     sql.NullString `json:"updated_at"`
+	LibraryID     sql.NullInt64  `json:"library_id"`
 }
 
 type EnrichmentStatus struct {

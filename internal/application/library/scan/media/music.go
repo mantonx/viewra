@@ -266,9 +266,9 @@ func ProcessMusicTrack(
 		},
 		PostSave: func(ctx context.Context) {
 			// Enqueue track for enrichment - images are now extracted via the enrichment pipeline
-			enqueueForEnrichment(ctx, deps, track.Media.ID, enrichment.MediaTypeMusic)
+			enqueueForEnrichment(ctx, deps, track.Media.ID, libraryID, enrichment.MediaTypeMusic)
 			// Enqueue parent entities (album/artist) for enrichment
-			EnqueueMusicParentEntities(ctx, deps, track, result.FilePath)
+			EnqueueMusicParentEntities(ctx, deps, track, libraryID, result.FilePath)
 		},
 	})
 }

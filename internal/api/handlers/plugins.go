@@ -34,8 +34,13 @@ type UpdatePluginSettingsRequest struct {
 
 // PluginLogsResponse is the response for GET /api/plugins/:id/logs.
 type PluginLogsResponse struct {
-	PluginID string               `json:"plugin_id"`
-	Logs     []plugins.LogEntry   `json:"logs"`
+	PluginID string             `json:"plugin_id"`
+	Logs     []plugins.LogEntry `json:"logs"`
+}
+
+// SuccessResponse is a generic success response.
+type SuccessResponse struct {
+	Success bool `json:"success"`
 }
 
 // --- Handlers ---

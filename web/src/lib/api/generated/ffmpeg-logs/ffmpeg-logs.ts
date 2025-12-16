@@ -24,7 +24,7 @@ import type {
 import type {
   DeleteApiMediaMediaIdFfmpegLogsSessionId200,
   GetApiMediaMediaIdFfmpegLogsSessionIdParams,
-  GithubComMantonxViewraInternalInfrastructureTranscodingLogInfo,
+  GithubComMantonxViewraInternalInfrastructureTranscodingLoggingLogInfo,
   InternalApiHandlersActiveSessionsResponse,
   InternalApiHandlersErrorResponse,
   InternalApiHandlersLogContentResponse,
@@ -587,7 +587,7 @@ export const useDeleteApiMediaMediaIdFfmpegLogsSessionId = <
  * @summary Get FFmpeg log info
  */
 export type getApiMediaMediaIdFfmpegLogsSessionIdInfoResponse200 = {
-  data: GithubComMantonxViewraInternalInfrastructureTranscodingLogInfo
+  data: GithubComMantonxViewraInternalInfrastructureTranscodingLoggingLogInfo
   status: 200
 }
 

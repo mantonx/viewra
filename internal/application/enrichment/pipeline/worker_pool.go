@@ -24,7 +24,7 @@ type WorkerPool struct {
 
 	// enqueueNext is called to enqueue the next stage after successful completion.
 	// Set by Manager after creation.
-	enqueueNext func(ctx context.Context, mediaID int64, mediaType enrichment.MediaType, currentPosition int) error
+	enqueueNext func(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType, currentPosition int) error
 }
 
 // NewWorkerPool creates a new worker pool for a stage.
@@ -68,7 +68,7 @@ func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMed
 }
 
 // SetEnqueueNext sets the callback for enqueueing the next pipeline stage.
-func (p *WorkerPool) SetEnqueueNext(fn func(ctx context.Context, mediaID int64, mediaType enrichment.MediaType, currentPosition int) error) {
+func (p *WorkerPool) SetEnqueueNext(fn func(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType, currentPosition int) error) {
 	p.enqueueNext = fn
 	p.jobProcessor.SetEnqueueNext(fn)
 }

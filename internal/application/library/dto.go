@@ -3,8 +3,12 @@ package library
 import (
 	"time"
 
+	"github.com/mantonx/viewra/internal/application/library/scan"
 	"github.com/mantonx/viewra/internal/domain/library"
 )
+
+// StartScanResponse is an alias to scan.StartScanResponse for swagger documentation.
+type StartScanResponse = scan.StartScanResponse
 
 // CreateLibraryRequest represents the input for creating a new library
 type CreateLibraryRequest struct {

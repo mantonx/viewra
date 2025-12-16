@@ -22,7 +22,7 @@ type JobProcessor struct {
 	logger          *slog.Logger
 
 	// enqueueNext is called to enqueue the next stage after successful completion.
-	enqueueNext func(ctx context.Context, mediaID int64, mediaType enrichment.MediaType, currentPosition int) error
+	enqueueNext func(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType, currentPosition int) error
 }
 
 // NewJobProcessor creates a new JobProcessor.
@@ -45,7 +45,7 @@ func NewJobProcessor(
 }
 
 // SetEnqueueNext sets the callback for enqueueing the next pipeline stage.
-func (p *JobProcessor) SetEnqueueNext(fn func(ctx context.Context, mediaID int64, mediaType enrichment.MediaType, currentPosition int) error) {
+func (p *JobProcessor) SetEnqueueNext(fn func(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType, currentPosition int) error) {
 	p.enqueueNext = fn
 }
 
@@ -61,9 +61,10 @@ func (p *JobProcessor) Process(ctx context.Context, job *enrichment.QueueJob) {
 	jobCtx, cancel := context.WithTimeout(ctx, time.Duration(p.config.Timeout)*time.Second)
 	defer cancel()
 
-	// Publish start event
+	// Publish start event with library_id for SSE filtering
 	p.deps.EventBus.Publish(events.NewEvent(events.EventEnrichmentStarted, "worker").
 		WithMediaID(job.MediaID).
+		WithLibraryID(job.LibraryID).
 		WithStage(p.config.Stage).
 		Build())
 
@@ -127,9 +128,10 @@ func (p *JobProcessor) handleSuccess(ctx context.Context, logger *slog.Logger, j
 		logger.Error("failed to update status", slog.Any("error", err))
 	}
 
-	// Publish completion event
+	// Publish completion event with library_id for SSE filtering
 	p.deps.EventBus.Publish(events.NewEvent(events.EventEnrichmentStageComplete, "worker").
 		WithMediaID(job.MediaID).
+		WithLibraryID(job.LibraryID).
 		WithStage(p.config.Stage).
 		Build())
 
@@ -145,7 +147,7 @@ func (p *JobProcessor) handleSuccess(ctx context.Context, logger *slog.Logger, j
 			currentPosition = stage.Position
 		}
 
-		if err := p.enqueueNext(ctx, job.MediaID, mediaType, currentPosition); err != nil {
+		if err := p.enqueueNext(ctx, job.MediaID, job.LibraryID, mediaType, currentPosition); err != nil {
 			logger.Error("failed to enqueue next stage", slog.Any("error", err))
 		}
 	}
@@ -179,9 +181,10 @@ func (p *JobProcessor) handleFailure(ctx context.Context, logger *slog.Logger, j
 		logger.Error("failed to update status", slog.Any("error", dbErr))
 	}
 
-	// Publish failure event
+	// Publish failure event with library_id for SSE filtering
 	p.deps.EventBus.Publish(events.NewEvent(events.EventEnrichmentFailed, "worker").
 		WithMediaID(job.MediaID).
+		WithLibraryID(job.LibraryID).
 		WithStage(p.config.Stage).
 		WithError(err).
 		Build())

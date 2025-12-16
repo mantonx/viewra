@@ -142,7 +142,7 @@ func ProcessTVEpisode(
 		PostSave: func(ctx context.Context) {
 			PersistMediaTracks(ctx, deps, episode.Media.ID, result)
 			// Enqueue episode for enrichment - images are now extracted via the enrichment pipeline
-			enqueueForEnrichment(ctx, deps, episode.Media.ID, enrichment.MediaTypeTV)
+			enqueueForEnrichment(ctx, deps, episode.Media.ID, libraryID, enrichment.MediaTypeTV)
 			// Enqueue parent entities (show/season) for enrichment
 			EnqueueTVParentEntities(ctx, deps, episode.ShowTitle, libraryID, result.FilePath, episode.Season)
 		},
@@ -231,7 +231,7 @@ func ProcessMultiEpisodeFile(
 				continue
 			}
 			// Enqueue for enrichment after successful update
-			enqueueForEnrichment(ctx, deps, episode.Media.ID, enrichment.MediaTypeTV)
+			enqueueForEnrichment(ctx, deps, episode.Media.ID, libraryID, enrichment.MediaTypeTV)
 			if firstMediaID == nil {
 				firstMediaID = &episode.Media.ID
 				// Enqueue parent entities for first episode only (they're shared)
@@ -262,7 +262,7 @@ func ProcessMultiEpisodeFile(
 		existingMediaCache.Store(filePath, episode.Media.ID)
 
 		// Enqueue for enrichment after successful creation
-		enqueueForEnrichment(ctx, deps, episode.Media.ID, enrichment.MediaTypeTV)
+		enqueueForEnrichment(ctx, deps, episode.Media.ID, libraryID, enrichment.MediaTypeTV)
 
 		if firstMediaID == nil {
 			firstMediaID = &episode.Media.ID

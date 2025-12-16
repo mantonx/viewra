@@ -24,6 +24,7 @@ import type {
   GetApiTvShowsParams,
   GetApiTvShowsShowTitleEpisodesParams,
   GithubComMantonxViewraInternalApplicationImagesListImagesResponse,
+  GithubComMantonxViewraInternalApplicationPeopleCreditsResponse,
   GithubComMantonxViewraInternalApplicationTvListIDsResponse,
   GithubComMantonxViewraInternalApplicationTvListTVEpisodesResponse,
   GithubComMantonxViewraInternalApplicationTvListTVShowsResponse,
@@ -189,6 +190,178 @@ export function useGetApiTvEpisodesId<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetApiTvEpisodesIdQueryOptions(id, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Returns cast and crew for a specific TV episode
+ * @summary Get credits for a TV episode
+ */
+export type getApiTvEpisodesIdCreditsResponse200 = {
+  data: GithubComMantonxViewraInternalApplicationPeopleCreditsResponse
+  status: 200
+}
+
+export type getApiTvEpisodesIdCreditsResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type getApiTvEpisodesIdCreditsResponse404 = {
+  data: InternalApiHandlersErrorResponse
+  status: 404
+}
+
+export type getApiTvEpisodesIdCreditsResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type getApiTvEpisodesIdCreditsResponseSuccess = getApiTvEpisodesIdCreditsResponse200 & {
+  headers: Headers
+}
+export type getApiTvEpisodesIdCreditsResponseError = (
+  | getApiTvEpisodesIdCreditsResponse400
+  | getApiTvEpisodesIdCreditsResponse404
+  | getApiTvEpisodesIdCreditsResponse500
+) & {
+  headers: Headers
+}
+
+export type getApiTvEpisodesIdCreditsResponse =
+  | getApiTvEpisodesIdCreditsResponseSuccess
+  | getApiTvEpisodesIdCreditsResponseError
+
+export const getGetApiTvEpisodesIdCreditsUrl = (id: number) => {
+  return `/api/tv/episodes/${id}/credits`
+}
+
+export const getApiTvEpisodesIdCredits = async (
+  id: number,
+  options?: RequestInit
+): Promise<getApiTvEpisodesIdCreditsResponse> => {
+  return customInstance<getApiTvEpisodesIdCreditsResponse>(getGetApiTvEpisodesIdCreditsUrl(id), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiTvEpisodesIdCreditsQueryKey = (id?: number) => {
+  return [`/api/tv/episodes/${id}/credits`] as const
+}
+
+export const getGetApiTvEpisodesIdCreditsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiTvEpisodesIdCreditsQueryKey(id)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>> = ({
+    signal,
+  }) => getApiTvEpisodesIdCredits(id, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiTvEpisodesIdCreditsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>
+>
+export type GetApiTvEpisodesIdCreditsQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiTvEpisodesIdCredits<
+  TData = Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>,
+          TError,
+          Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiTvEpisodesIdCredits<
+  TData = Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>,
+          TError,
+          Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiTvEpisodesIdCredits<
+  TData = Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get credits for a TV episode
+ */
+
+export function useGetApiTvEpisodesIdCredits<
+  TData = Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiTvEpisodesIdCreditsQueryOptions(id, options)
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>
@@ -1155,6 +1328,177 @@ export function useGetApiTvShowsId<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetApiTvShowsIdQueryOptions(id, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Returns cast, creators, and other credits for a specific TV show
+ * @summary Get credits for a TV show
+ */
+export type getApiTvShowsIdCreditsResponse200 = {
+  data: GithubComMantonxViewraInternalApplicationPeopleCreditsResponse
+  status: 200
+}
+
+export type getApiTvShowsIdCreditsResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type getApiTvShowsIdCreditsResponse404 = {
+  data: InternalApiHandlersErrorResponse
+  status: 404
+}
+
+export type getApiTvShowsIdCreditsResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type getApiTvShowsIdCreditsResponseSuccess = getApiTvShowsIdCreditsResponse200 & {
+  headers: Headers
+}
+export type getApiTvShowsIdCreditsResponseError = (
+  | getApiTvShowsIdCreditsResponse400
+  | getApiTvShowsIdCreditsResponse404
+  | getApiTvShowsIdCreditsResponse500
+) & {
+  headers: Headers
+}
+
+export type getApiTvShowsIdCreditsResponse =
+  | getApiTvShowsIdCreditsResponseSuccess
+  | getApiTvShowsIdCreditsResponseError
+
+export const getGetApiTvShowsIdCreditsUrl = (id: number) => {
+  return `/api/tv/shows/${id}/credits`
+}
+
+export const getApiTvShowsIdCredits = async (
+  id: number,
+  options?: RequestInit
+): Promise<getApiTvShowsIdCreditsResponse> => {
+  return customInstance<getApiTvShowsIdCreditsResponse>(getGetApiTvShowsIdCreditsUrl(id), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiTvShowsIdCreditsQueryKey = (id?: number) => {
+  return [`/api/tv/shows/${id}/credits`] as const
+}
+
+export const getGetApiTvShowsIdCreditsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiTvShowsIdCredits>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTvShowsIdCredits>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiTvShowsIdCreditsQueryKey(id)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiTvShowsIdCredits>>> = ({ signal }) =>
+    getApiTvShowsIdCredits(id, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiTvShowsIdCredits>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiTvShowsIdCreditsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiTvShowsIdCredits>>
+>
+export type GetApiTvShowsIdCreditsQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiTvShowsIdCredits<
+  TData = Awaited<ReturnType<typeof getApiTvShowsIdCredits>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTvShowsIdCredits>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiTvShowsIdCredits>>,
+          TError,
+          Awaited<ReturnType<typeof getApiTvShowsIdCredits>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiTvShowsIdCredits<
+  TData = Awaited<ReturnType<typeof getApiTvShowsIdCredits>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTvShowsIdCredits>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiTvShowsIdCredits>>,
+          TError,
+          Awaited<ReturnType<typeof getApiTvShowsIdCredits>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiTvShowsIdCredits<
+  TData = Awaited<ReturnType<typeof getApiTvShowsIdCredits>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTvShowsIdCredits>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get credits for a TV show
+ */
+
+export function useGetApiTvShowsIdCredits<
+  TData = Awaited<ReturnType<typeof getApiTvShowsIdCredits>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTvShowsIdCredits>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiTvShowsIdCreditsQueryOptions(id, options)
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>

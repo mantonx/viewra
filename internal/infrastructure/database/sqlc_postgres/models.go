@@ -53,6 +53,7 @@ type EnrichmentQueue struct {
 	CreatedAt     sql.NullTime   `json:"created_at"`
 	UpdatedAt     sql.NullTime   `json:"updated_at"`
 	MediaType     string         `json:"media_type"`
+	LibraryID     sql.NullInt32  `json:"library_id"`
 }
 
 type EnrichmentStatus struct {

@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export interface GithubComMantonxViewraInternalInfrastructureTranscodingLogInfo {
+export interface GithubComMantonxViewraInternalInfrastructureTranscodingLoggingLogInfo {
   created_at?: string
   error_count?: number
   file_path?: string

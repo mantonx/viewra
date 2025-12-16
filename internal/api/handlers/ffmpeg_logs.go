@@ -224,7 +224,7 @@ func (h *FFmpegLogsHandler) StreamLog(c *gin.Context) {
 // @Produce json
 // @Param media_id path int true "Media ID"
 // @Param session_id path string true "Session ID"
-// @Success 200 {object} transcoding.LogInfo
+// @Success 200 {object} logging.LogInfo
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 404 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse

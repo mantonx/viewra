@@ -2,16 +2,17 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/application/library/scan/status"
 	"github.com/mantonx/viewra/internal/application/scanjob"
 	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/infrastructure/events"
 )
 
 // ScanLibraryExecutor defines the interface for resuming scans.
@@ -29,6 +30,7 @@ type ScanJobHandler struct {
 	service        *scanjob.Service
 	scanLibrary    ScanLibraryExecutor
 	statusProvider ScanStatusProvider
+	eventBus       *events.Bus
 	logger         *slog.Logger
 }
 
@@ -37,12 +39,14 @@ func NewScanJobHandler(
 	service *scanjob.Service,
 	scanLibrary ScanLibraryExecutor,
 	statusProvider ScanStatusProvider,
+	eventBus *events.Bus,
 	logger *slog.Logger,
 ) *ScanJobHandler {
 	return &ScanJobHandler{
 		service:        service,
 		scanLibrary:    scanLibrary,
 		statusProvider: statusProvider,
+		eventBus:       eventBus,
 		logger:         logger,
 	}
 }
@@ -254,73 +258,119 @@ func (h *ScanJobHandler) StreamProgress(c *gin.Context) {
 	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no") // Disable nginx buffering
 
-	// Create a ticker for polling progress updates
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
+	// Send initial state immediately
+	initialStatus, err := h.statusProvider.GetScanStatus(c.Request.Context(), libraryID)
+	if err != nil {
+		if err == scanner.ErrNotFound {
+			fmt.Fprintf(c.Writer, "event: error\ndata: {\"error\": \"No scan found for this library\"}\n\n")
+			c.Writer.(http.Flusher).Flush()
+			return
+		}
+		fmt.Fprintf(c.Writer, "event: error\ndata: {\"error\": \"Failed to get scan status\"}\n\n")
+		c.Writer.(http.Flusher).Flush()
+		return
+	}
 
-	// Track last known status to detect completion
-	var lastStatus scanner.ScanStatus
+	initialData := h.buildScanProgressData(initialStatus)
+	jsonData, _ := json.Marshal(initialData)
+	fmt.Fprintf(c.Writer, "event: init\ndata: %s\n\n", jsonData)
+	c.Writer.(http.Flusher).Flush()
 
-	// Create a done channel for cleanup
+	// If scan is already completed/failed, close the stream
+	if initialStatus.Status == scanner.ScanStatusCompleted || initialStatus.Status == scanner.ScanStatusFailed {
+		return
+	}
+
+	// Subscribe to scan events
+	sub := h.eventBus.Subscribe(
+		events.WithBufferSize(100),
+		events.WithEventPrefix("scan."),
+	)
+	defer h.eventBus.Unsubscribe(sub)
+
 	clientGone := c.Request.Context().Done()
 
 	for {
 		select {
 		case <-clientGone:
-			// Client disconnected
+			h.logger.Debug("SSE client disconnected", "library_id", libraryID)
 			return
-		case <-ticker.C:
-			// Get current scan status
-			job, err := h.service.GetLatestByLibrary(c.Request.Context(), libraryID)
-			if err != nil {
-				if err == scanner.ErrNotFound {
-					// No scan found - send error and close
-					fmt.Fprintf(c.Writer, "event: error\ndata: {\"error\": \"No scan found for this library\"}\n\n")
-					c.Writer.(http.Flusher).Flush()
-					return
-				}
-				// Other error - send error and close
-				fmt.Fprintf(c.Writer, "event: error\ndata: {\"error\": \"Failed to get scan status\"}\n\n")
-				c.Writer.(http.Flusher).Flush()
+		case event, ok := <-sub.Events():
+			if !ok {
 				return
 			}
 
-			// Send progress update
-			progressData := fmt.Sprintf(
-				`{"status":"%s","progress":%.2f,"files_found":%d,"files_processed":%d,"bytes_processed":%d,"error_count":%d,"warning_count":%d}`,
-				job.Status,
-				job.Progress,
-				job.FilesFound,
-				job.FilesProcessed,
-				job.BytesProcessed,
-				job.ErrorCount,
-				job.WarningCount,
-			)
-			fmt.Fprintf(c.Writer, "event: progress\ndata: %s\n\n", progressData)
+			// Filter events by library ID
+			// Handle both int64 (direct) and float64 (from JSON unmarshal) types
+			var eventLibraryID int64
+			switch v := event.Data["library_id"].(type) {
+			case int64:
+				eventLibraryID = v
+			case float64:
+				eventLibraryID = int64(v)
+			case int:
+				eventLibraryID = int64(v)
+			default:
+				// Skip events without valid library_id
+				continue
+			}
+			if eventLibraryID != libraryID {
+				continue
+			}
+
+			// Send the event
+			jsonData, err := json.Marshal(event.Data)
+			if err != nil {
+				h.logger.Error("Failed to marshal scan event", "error", err)
+				continue
+			}
+
+			// Map event type to SSE event name
+			eventName := "update"
+			if event.Type == events.EventScanCompleted || event.Type == events.EventScanFailed {
+				eventName = "complete"
+			}
+
+			fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", eventName, jsonData)
 			c.Writer.(http.Flusher).Flush()
 
-			// Check if scan completed or failed
-			if job.Status == scanner.ScanStatusCompleted || job.Status == scanner.ScanStatusFailed {
-				if lastStatus != job.Status {
-					// Status just changed - send completion event
-					completionData := fmt.Sprintf(
-						`{"status":"%s","progress":%.2f,"files_found":%d,"files_processed":%d,"error_message":"%s"}`,
-						job.Status,
-						job.Progress,
-						job.FilesFound,
-						job.FilesProcessed,
-						job.ErrorMessage,
-					)
-					fmt.Fprintf(c.Writer, "event: complete\ndata: %s\n\n", completionData)
-					c.Writer.(http.Flusher).Flush()
-				}
-				// Close stream after completion
+			// Close stream on completion
+			if event.Type == events.EventScanCompleted || event.Type == events.EventScanFailed {
 				return
 			}
-
-			lastStatus = job.Status
 		}
 	}
+}
+
+// buildScanProgressData converts status.Result to a map for JSON serialization.
+func (h *ScanJobHandler) buildScanProgressData(s *status.Result) map[string]any {
+	data := map[string]any{
+		"job_id":            s.JobID,
+		"status":            string(s.Status),
+		"progress":          s.Progress,
+		"phase":             string(s.Phase),
+		"files_found":       s.FilesFound,
+		"files_processed":   s.FilesProcessed,
+		"error_count":       s.ErrorCount,
+		"warning_count":     s.WarningCount,
+		"estimated_total":   s.EstimatedTotal,
+		"discovery_done":    s.DiscoveryDone,
+		"discovery_errors":  s.DiscoveryErrors,
+		"discovery_warnings": s.DiscoveryWarnings,
+		"dirs_scanned":      s.DirsScanned,
+		"dirs_skipped":      s.DirsSkipped,
+		"files_skipped":     s.FilesSkipped,
+	}
+
+	if s.ETASeconds != nil {
+		data["eta_seconds"] = *s.ETASeconds
+	}
+
+	if s.ErrorMessage != "" {
+		data["error_message"] = s.ErrorMessage
+	}
+
+	return data
 }
 
 // ScanErrorDetail represents a single file processing error or warning

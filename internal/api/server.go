@@ -173,7 +173,7 @@ func (s *Server) setupRoutes() {
 	}
 
 	// Register protected route groups
-	routes.RegisterLibraryRoutes(protected, h.Library, h.ScanJob)
+	routes.RegisterLibraryRoutes(protected, h.Library, h.ScanJob, h.Enrichment)
 	routes.RegisterMediaRoutes(protected, h.Media)
 	routes.RegisterSubtitleRoutes(protected, h.Subtitle)
 	routes.RegisterStreamRoutes(protected, h.Stream)

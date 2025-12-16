@@ -164,18 +164,25 @@ func buildLibraryUseCases(
 		ProgressInterval: cfg.Media.ScanProgressInterval,
 	}
 
+	scanUseCase := library.NewScanLibraryUseCase(
+		mediaRepos,
+		scanRepos,
+		repos.Image,
+		imageCleanup,
+		svcs.PipelineManager, // Enrichment pipeline handles image extraction
+		scanConfig,
+		cfg.SystemProfile,
+		logger,
+	)
+
+	// Wire up event bus for SSE streaming
+	if svcs.EventBus != nil {
+		scanUseCase.SetEventBus(svcs.EventBus)
+	}
+
 	return &LibraryUseCases{
 		Service: library.NewLibraryService(repos.Library, repos.Image, imageCleanup, txManager, logger),
-		Scan: library.NewScanLibraryUseCase(
-			mediaRepos,
-			scanRepos,
-			repos.Image,
-			imageCleanup,
-			svcs.PipelineManager, // Enrichment pipeline handles image extraction
-			scanConfig,
-			cfg.SystemProfile,
-			logger,
-		),
+		Scan:    scanUseCase,
 	}
 }
 

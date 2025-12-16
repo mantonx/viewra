@@ -26,6 +26,7 @@ import type {
   GithubComMantonxViewraInternalApplicationMoviesListIDsResponse,
   GithubComMantonxViewraInternalApplicationMoviesListMoviesResponse,
   GithubComMantonxViewraInternalApplicationMoviesMovieResponse,
+  GithubComMantonxViewraInternalApplicationPeopleCreditsResponse,
   InternalApiHandlersErrorResponse,
 } from '.././models'
 
@@ -668,6 +669,177 @@ export function useGetApiMoviesId<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetApiMoviesIdQueryOptions(id, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Returns cast, directors, and writers for a specific movie
+ * @summary Get credits for a movie
+ */
+export type getApiMoviesIdCreditsResponse200 = {
+  data: GithubComMantonxViewraInternalApplicationPeopleCreditsResponse
+  status: 200
+}
+
+export type getApiMoviesIdCreditsResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type getApiMoviesIdCreditsResponse404 = {
+  data: InternalApiHandlersErrorResponse
+  status: 404
+}
+
+export type getApiMoviesIdCreditsResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type getApiMoviesIdCreditsResponseSuccess = getApiMoviesIdCreditsResponse200 & {
+  headers: Headers
+}
+export type getApiMoviesIdCreditsResponseError = (
+  | getApiMoviesIdCreditsResponse400
+  | getApiMoviesIdCreditsResponse404
+  | getApiMoviesIdCreditsResponse500
+) & {
+  headers: Headers
+}
+
+export type getApiMoviesIdCreditsResponse =
+  | getApiMoviesIdCreditsResponseSuccess
+  | getApiMoviesIdCreditsResponseError
+
+export const getGetApiMoviesIdCreditsUrl = (id: number) => {
+  return `/api/movies/${id}/credits`
+}
+
+export const getApiMoviesIdCredits = async (
+  id: number,
+  options?: RequestInit
+): Promise<getApiMoviesIdCreditsResponse> => {
+  return customInstance<getApiMoviesIdCreditsResponse>(getGetApiMoviesIdCreditsUrl(id), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiMoviesIdCreditsQueryKey = (id?: number) => {
+  return [`/api/movies/${id}/credits`] as const
+}
+
+export const getGetApiMoviesIdCreditsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMoviesIdCredits>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMoviesIdCredits>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiMoviesIdCreditsQueryKey(id)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMoviesIdCredits>>> = ({ signal }) =>
+    getApiMoviesIdCredits(id, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMoviesIdCredits>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiMoviesIdCreditsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMoviesIdCredits>>
+>
+export type GetApiMoviesIdCreditsQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiMoviesIdCredits<
+  TData = Awaited<ReturnType<typeof getApiMoviesIdCredits>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMoviesIdCredits>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMoviesIdCredits>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMoviesIdCredits>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMoviesIdCredits<
+  TData = Awaited<ReturnType<typeof getApiMoviesIdCredits>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMoviesIdCredits>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMoviesIdCredits>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMoviesIdCredits>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMoviesIdCredits<
+  TData = Awaited<ReturnType<typeof getApiMoviesIdCredits>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMoviesIdCredits>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get credits for a movie
+ */
+
+export function useGetApiMoviesIdCredits<
+  TData = Awaited<ReturnType<typeof getApiMoviesIdCredits>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMoviesIdCredits>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiMoviesIdCreditsQueryOptions(id, options)
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>

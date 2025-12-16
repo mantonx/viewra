@@ -92,7 +92,8 @@ func EnrichWithScanState(ctx context.Context, deps *Deps, libraryID int64, job *
 	if counts, err := deps.ScanRepos.ScanState.CountLibraryIssues(ctx, libraryID); err == nil && counts != nil {
 		status.ErrorCount = counts.ErrorCount
 		status.WarningCount = counts.WarningCount
-	} else {
+	} else if ctx.Err() == nil {
+		// Only log if context wasn't canceled (expected for SSE disconnects)
 		deps.Logger.Warn("failed to get library issue counts, using job counts",
 			"library_id", libraryID,
 			"error", err)
@@ -106,7 +107,8 @@ func EnrichWithScanState(ctx context.Context, deps *Deps, libraryID int64, job *
 		if job.FilesFound > 0 {
 			status.Progress = float64(totalProcessed) / float64(job.FilesFound) * 100.0
 		}
-	} else {
+	} else if ctx.Err() == nil {
+		// Only log if context wasn't canceled (expected for SSE disconnects)
 		deps.Logger.Warn("failed to get total processed count, using job count",
 			"library_id", libraryID,
 			"error", err)

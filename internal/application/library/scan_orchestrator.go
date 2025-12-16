@@ -20,6 +20,7 @@ import (
 	domainImages "github.com/mantonx/viewra/internal/domain/images"
 	"github.com/mantonx/viewra/internal/domain/library"
 	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/infrastructure/events"
 	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
 	"github.com/mantonx/viewra/internal/infrastructure/system"
 )
@@ -42,6 +43,9 @@ type ScanLibraryUseCase struct {
 
 	// Enrichment - optional, if set, media is enqueued for enrichment after scanning
 	enrichmentEnqueuer scanmedia.EnrichmentEnqueuer
+
+	// Event bus - optional, if set, scan events are published for SSE streaming
+	eventBus *events.Bus
 
 	// Per-session deduplication
 	processedArtists scanutil.AtomicDeduplicator
@@ -82,6 +86,12 @@ func NewScanLibraryUseCase(
 		systemProfile:      systemProfile,
 		logger:             logger,
 	}
+}
+
+// SetEventBus sets the event bus for publishing scan events.
+// This is optional - if not set, no events will be published.
+func (uc *ScanLibraryUseCase) SetEventBus(bus *events.Bus) {
+	uc.eventBus = bus
 }
 
 // =============================================================================
@@ -138,8 +148,26 @@ func (uc *ScanLibraryUseCase) StartScan(ctx context.Context, libraryID int64) (s
 		return scan.StartScanResponse{}, fmt.Errorf("failed to create scan job: %w", err)
 	}
 
+	// Publish scan started event
+	uc.publishScanStarted(job)
+
 	uc.startScanBackground(job.ID, lib, "scan goroutine panicked")
 	return scan.ToStartScanResponse(job), nil
+}
+
+// publishScanStarted publishes a scan.started event if EventBus is configured.
+func (uc *ScanLibraryUseCase) publishScanStarted(job *scanner.ScanJob) {
+	if uc.eventBus == nil {
+		return
+	}
+
+	uc.eventBus.Publish(events.NewEvent(events.EventScanStarted, "scanner").
+		WithLibraryID(job.LibraryID).
+		WithData("job_id", job.ID).
+		WithData("status", string(job.Status)).
+		WithData("phase", string(job.Phase)).
+		WithData("estimated_total", job.EstimatedTotal).
+		Build())
 }
 
 // ResumeScan resumes a paused scan job
@@ -266,6 +294,7 @@ func (uc *ScanLibraryUseCase) discoveryDeps() *discovery.Deps {
 func (uc *ScanLibraryUseCase) statusDeps() *status.Deps {
 	return &status.Deps{
 		ScanRepos: uc.scanRepos,
+		EventBus:  uc.eventBus,
 		Logger:    uc.logger,
 	}
 }

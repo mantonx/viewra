@@ -1,20 +1,19 @@
+import { EnrichmentIndicator } from '@/components/library/EnrichmentIndicator'
 import { ScanErrorsDialog } from '@/components/library/ScanErrorsDialog'
 import { Button, Progress } from '@/components/ui'
 import {
   useDeleteApiLibrariesId,
-  useGetApiLibrariesIdScanStatus,
   useGetApiMedia,
   usePostApiLibrariesIdScan,
   usePostApiLibrariesIdScanJobIdPause,
   usePostApiLibrariesIdScanJobIdResume,
 } from '@/lib/api'
-import { SCAN_POLL_INTERVAL_MS } from '@/lib/constants/scan'
 import { useConfirm } from '@/lib/hooks/useConfirm'
 import { useInvalidateLibraries } from '@/lib/hooks/useInvalidateLibraries'
+import { useScanProgress } from '@/lib/hooks/useScanProgress'
 import { useToast } from '@/lib/hooks/useToast'
 import { getErrorMessage } from '@/lib/utils/error'
 import { pluralize, formatETA } from '@/lib/utils/format'
-import { isScanStatusResponse } from '@/lib/utils/type-guards'
 import { useState } from 'react'
 import type { LibraryCardProps } from './LibraryCard.types'
 
@@ -31,12 +30,9 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   // Safe library ID with fallback (hooks require a number, but ID is optional in generated type)
   const libraryId = library.id ?? 0
 
-  // Get latest scan status to show error count
-  const { data: scanStatus } = useGetApiLibrariesIdScanStatus(libraryId, {
-    query: {
-      enabled: libraryId > 0,
-      refetchInterval: SCAN_POLL_INTERVAL_MS,
-    },
+  // Get real-time scan status via SSE
+  const { scanStatus, isScanning, isPaused } = useScanProgress(libraryId, {
+    enabled: libraryId > 0,
   })
 
   // Get total media count for this library
@@ -89,11 +85,11 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   }
 
   const handlePause = async () => {
-    if (!library.id || !scanData?.job_id) {
+    if (!library.id || !scanStatus?.jobId) {
       return
     }
     try {
-      await pauseMutation.mutateAsync({ id: library.id, jobId: scanData.job_id })
+      await pauseMutation.mutateAsync({ id: library.id, jobId: scanStatus.jobId })
       toast.success('Scan paused')
       invalidateLibraries()
     } catch (error) {
@@ -102,11 +98,11 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   }
 
   const handleResume = async () => {
-    if (!library.id || !scanData?.job_id) {
+    if (!library.id || !scanStatus?.jobId) {
       return
     }
     try {
-      await resumeMutation.mutateAsync({ id: library.id, jobId: scanData.job_id })
+      await resumeMutation.mutateAsync({ id: library.id, jobId: scanStatus.jobId })
       toast.success('Scan resumed')
       invalidateLibraries()
     } catch (error) {
@@ -114,28 +110,25 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
     }
   }
 
-  const scanData =
-    scanStatus?.data && isScanStatusResponse(scanStatus.data) ? scanStatus.data : null
-  const hasErrors = scanData && (scanData.error_count ?? 0) > 0
-  const hasWarnings = scanData && (scanData.warning_count ?? 0) > 0
+  // Derive display states from SSE scan status (using camelCase from hook)
+  const hasErrors = scanStatus && scanStatus.errorCount > 0
+  const hasWarnings = scanStatus && scanStatus.warningCount > 0
   const hasIssues = hasErrors || hasWarnings
-  const isScanning = scanData?.status === 'running'
-  const isPaused = scanData?.status === 'paused'
-  const isCompleted = scanData?.status === 'completed'
+  const isCompleted = scanStatus?.isCompleted ?? false
   const totalMediaCount =
     mediaCount?.data && 'total' in mediaCount.data ? (mediaCount.data.total ?? 0) : 0
 
   // Discovery health checks
   const hasDiscoveryIssues =
-    scanData &&
-    ((scanData.dirs_skipped ?? 0) > 0 ||
-      (scanData.discovery_errors ?? 0) > 0 ||
-      (scanData.files_skipped ?? 0) > 0)
+    scanStatus &&
+    (scanStatus.dirsSkipped > 0 ||
+      scanStatus.discoveryErrors > 0 ||
+      scanStatus.filesSkipped > 0)
   const discoveryWarningsCount =
-    (scanData?.discovery_warnings ?? 0) + (scanData?.discovery_errors ?? 0)
+    (scanStatus?.discoveryWarnings ?? 0) + (scanStatus?.discoveryErrors ?? 0)
 
   // Calculate ETA display
-  const etaDisplay = scanData?.eta_seconds ? formatETA(scanData.eta_seconds) : null
+  const etaDisplay = scanStatus?.etaSeconds ? formatETA(scanStatus.etaSeconds) : null
 
   return (
     <>
@@ -147,23 +140,23 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
               <p className="text-sm text-neutral-600 dark:text-neutral-400">{library.path}</p>
               <div className="mt-2 flex gap-4 items-center text-sm text-neutral-500 dark:text-neutral-500 flex-wrap">
                 <span>Type: {library.type}</span>
-                {isCompleted && scanData && (
+                {isCompleted && scanStatus && (
                   <span
                     className={
                       hasIssues ? 'text-yellow-600 dark:text-yellow-500 font-medium' : 'text-green-600 dark:text-green-500 font-medium'
                     }
-                    title={`${(scanData.files_processed ?? 0).toLocaleString()} files processed, ${totalMediaCount.toLocaleString()} total media items in library`}
+                    title={`${scanStatus.filesProcessed.toLocaleString()} files processed, ${totalMediaCount.toLocaleString()} total media items in library`}
                   >
-                    ✓ Scan complete ({(scanData.files_processed ?? 0).toLocaleString()}{' '}
-                    {(scanData.files_processed ?? 0) === 1 ? 'file' : 'files'})
+                    ✓ Scan complete ({scanStatus.filesProcessed.toLocaleString()}{' '}
+                    {scanStatus.filesProcessed === 1 ? 'file' : 'files'})
                   </span>
                 )}
-                {hasErrors && scanData && (
+                {hasErrors && scanStatus && (
                   <button
                     onClick={() => setShowErrorsDialog(true)}
                     className="cursor-pointer text-red-600 dark:text-red-500 font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 rounded-sm flex items-center gap-1.5 transition-colors"
                     title={isScanning ? 'View errors (scan in progress)' : 'View scan errors'}
-                    aria-label={`View ${pluralize(scanData.error_count, 'error')}${isScanning ? ' from ongoing scan' : ''}`}
+                    aria-label={`View ${pluralize(scanStatus.errorCount, 'error')}${isScanning ? ' from ongoing scan' : ''}`}
                   >
                     <svg
                       className="w-4 h-4"
@@ -179,15 +172,15 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                         d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                       />
                     </svg>
-                    <span>{pluralize(scanData.error_count, 'error')}</span>
+                    <span>{pluralize(scanStatus.errorCount, 'error')}</span>
                   </button>
                 )}
-                {hasWarnings && scanData && (
+                {hasWarnings && scanStatus && (
                   <button
                     onClick={() => setShowErrorsDialog(true)}
                     className="cursor-pointer text-yellow-600 dark:text-yellow-500 font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-1 rounded-sm flex items-center gap-1.5 transition-colors"
                     title={isScanning ? 'View warnings (scan in progress)' : 'View scan warnings'}
-                    aria-label={`View ${pluralize(scanData.warning_count, 'warning')}${isScanning ? ' from ongoing scan' : ''}`}
+                    aria-label={`View ${pluralize(scanStatus.warningCount, 'warning')}${isScanning ? ' from ongoing scan' : ''}`}
                   >
                     <svg
                       className="w-4 h-4"
@@ -203,7 +196,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                         d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                       />
                     </svg>
-                    <span>{pluralize(scanData.warning_count, 'warning')}</span>
+                    <span>{pluralize(scanStatus.warningCount, 'warning')}</span>
                   </button>
                 )}
               </div>
@@ -249,32 +242,38 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
             </div>
           </div>
         </div>
-        {(isScanning || isPaused) && scanData && (
-          <div className="px-4 pb-4">
+        {(isScanning || isPaused) && scanStatus && (
+          <div className="px-4 pb-4 space-y-2">
             <Progress
               value={
-                scanData.phase === 'discovering' && !scanData.discovery_done ? 0 : scanData.progress ?? 0
+                scanStatus.phase === 'discovering' && !scanStatus.discoveryDone ? 0 : scanStatus.progress
               }
               label={
                 isPaused
                   ? 'Scan paused'
-                  : scanData.phase === 'discovering' && !scanData.discovery_done
-                    ? `Discovering files... ${(scanData.files_found ?? 0).toLocaleString()} found${
-                        (scanData.estimated_total ?? 0) > 0
-                          ? ` (est. ${(scanData.estimated_total ?? 0).toLocaleString()} total)`
+                  : scanStatus.phase === 'discovering' && !scanStatus.discoveryDone
+                    ? `Discovering files... ${scanStatus.filesFound.toLocaleString()} found${
+                        scanStatus.estimatedTotal > 0
+                          ? ` (est. ${scanStatus.estimatedTotal.toLocaleString()} total)`
                           : ''
                       }`
-                    : `${(scanData.files_processed ?? 0).toLocaleString()} / ${(scanData.files_found ?? 0).toLocaleString()} files scanned${
+                    : `${scanStatus.filesProcessed.toLocaleString()} / ${scanStatus.filesFound.toLocaleString()} files scanned${
                         etaDisplay ? ` • ETA ${etaDisplay}` : ''
                       }`
               }
               variant={isPaused ? 'warning' : 'default'}
               size="sm"
-              showPercentage={scanData.phase !== 'discovering' || scanData.discovery_done}
+              showPercentage={scanStatus.phase !== 'discovering' || scanStatus.discoveryDone}
             />
+            {/* Compact enrichment indicator during scan */}
+            {libraryId > 0 && <EnrichmentIndicator libraryId={libraryId} compact />}
           </div>
         )}
-        {isCompleted && hasDiscoveryIssues && scanData && (
+        {/* Full enrichment progress when scan is not active */}
+        {!isScanning && !isPaused && libraryId > 0 && (
+          <EnrichmentIndicator libraryId={libraryId} />
+        )}
+        {isCompleted && hasDiscoveryIssues && scanStatus && (
           <div className="px-4 pb-4">
             <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-md p-3">
               <div className="flex items-start gap-2">
@@ -296,23 +295,23 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                   <div className="mt-2 flex items-center gap-4 text-sm">
                     <div className="flex items-baseline gap-2">
                       <span className="text-green-700 dark:text-green-400 font-semibold text-lg">
-                        {(scanData.files_found ?? 0).toLocaleString()}
+                        {scanStatus.filesFound.toLocaleString()}
                       </span>
                       <span className="text-yellow-700 dark:text-yellow-300">files found</span>
                     </div>
                     <span className="text-yellow-400 dark:text-yellow-600">•</span>
                     <div className="flex items-baseline gap-2">
                       <span className="text-red-600 dark:text-red-400 font-semibold text-lg">
-                        {(scanData.files_skipped ?? 0).toLocaleString()}
+                        {scanStatus.filesSkipped.toLocaleString()}
                       </span>
                       <span className="text-yellow-700 dark:text-yellow-300">skipped</span>
                     </div>
                   </div>
                   <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-2">
-                    {scanData.dirs_skipped && scanData.dirs_skipped > 0 && (
+                    {scanStatus.dirsSkipped > 0 && (
                       <span>
-                        Could not read {scanData.dirs_skipped.toLocaleString()}{' '}
-                        {pluralize(scanData.dirs_skipped, 'directory', 'directories')}.{' '}
+                        Could not read {scanStatus.dirsSkipped.toLocaleString()}{' '}
+                        {pluralize(scanStatus.dirsSkipped, 'directory', 'directories')}.{' '}
                       </span>
                     )}
                     Check permissions and network connectivity.
@@ -333,7 +332,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
       {hasIssues && library.id && (
         <ScanErrorsDialog
           libraryId={library.id}
-          jobId={scanData?.job_id}
+          jobId={scanStatus?.jobId}
           isOpen={showErrorsDialog}
           onClose={() => setShowErrorsDialog(false)}
           onRetrySuccess={() => {

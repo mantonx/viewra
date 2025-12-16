@@ -6,7 +6,7 @@ import (
 )
 
 // RegisterLibraryRoutes registers all library-related routes
-func RegisterLibraryRoutes(rg *gin.RouterGroup, handler *handlers.LibraryHandler, scanHandler *handlers.ScanJobHandler) {
+func RegisterLibraryRoutes(rg *gin.RouterGroup, handler *handlers.LibraryHandler, scanHandler *handlers.ScanJobHandler, enrichmentHandler *handlers.EnrichmentHandler) {
 	libraries := rg.Group("/libraries")
 	libraries.POST("", handler.Create)
 	libraries.GET("", handler.List)
@@ -26,4 +26,10 @@ func RegisterLibraryRoutes(rg *gin.RouterGroup, handler *handlers.LibraryHandler
 
 	// Library-level persistent issues (warnings/errors from scan_state)
 	libraries.GET("/:id/issues", scanHandler.GetLibraryIssues)
+
+	// Enrichment progress (per-library)
+	if enrichmentHandler != nil {
+		libraries.GET("/:id/enrichment/progress", enrichmentHandler.GetLibraryProgress)
+		libraries.GET("/:id/enrichment/stream", enrichmentHandler.StreamLibraryProgress)
+	}
 }

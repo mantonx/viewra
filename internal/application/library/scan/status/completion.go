@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/infrastructure/events"
 )
 
 // CompleteFromStats marks a scan job as completed using checkpoint statistics.
@@ -37,6 +38,7 @@ func CompleteWithError(ctx context.Context, deps *Deps, jobID int64, err error) 
 }
 
 // CompleteSafely persists the job completion, handling deleted jobs gracefully.
+// Also publishes scan.completed or scan.failed events if EventBus is configured.
 func CompleteSafely(ctx context.Context, deps *Deps, job *scanner.ScanJob) {
 	if err := deps.ScanRepos.ScanJob.Complete(ctx, job); err != nil {
 		if scanner.IsScanJobDeleted(err) {
@@ -49,7 +51,11 @@ func CompleteSafely(ctx context.Context, deps *Deps, job *scanner.ScanJob) {
 			"job_id", job.ID,
 			"status", job.Status,
 			"error", err)
+		return
 	}
+
+	// Publish completion event if event bus is configured
+	publishCompletionEvent(deps, job)
 }
 
 // MarkFailed marks a scan job as failed with a formatted error message.
@@ -64,6 +70,42 @@ func MarkFailed(ctx context.Context, deps *Deps, jobID int64, errMsg string, log
 		CompletedAt:  ptrTime(time.Now()),
 	}
 	CompleteSafely(ctx, deps, job)
+}
+
+// publishCompletionEvent publishes scan.completed or scan.failed events.
+func publishCompletionEvent(deps *Deps, job *scanner.ScanJob) {
+	if deps.EventBus == nil {
+		return
+	}
+
+	// Determine event type based on status
+	var eventType events.EventType
+	switch job.Status {
+	case scanner.ScanStatusCompleted:
+		eventType = events.EventScanCompleted
+	case scanner.ScanStatusFailed:
+		eventType = events.EventScanFailed
+	default:
+		return // Don't publish for other statuses
+	}
+
+	event := events.NewEvent(eventType, "scanner").
+		WithLibraryID(job.LibraryID).
+		WithData("job_id", job.ID).
+		WithData("status", string(job.Status)).
+		WithData("progress", job.Progress).
+		WithData("files_found", job.FilesFound).
+		WithData("files_processed", job.FilesProcessed).
+		WithData("error_count", job.ErrorCount).
+		WithData("warning_count", job.WarningCount).
+		WithData("phase", string(job.Phase)).
+		WithData("discovery_done", job.DiscoveryDone)
+
+	if job.ErrorMessage != "" {
+		event = event.WithData("error_message", job.ErrorMessage)
+	}
+
+	deps.EventBus.Publish(event.Build())
 }
 
 // ptrTime returns a pointer to the given time value.

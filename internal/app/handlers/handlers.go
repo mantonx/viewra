@@ -44,7 +44,7 @@ func BuildHandlers(
 
 	// Library handlers
 	libraryHandler := handlers.NewLibraryHandler(cases.Library.Service, cases.Library.Scan)
-	scanJobHandler := handlers.NewScanJobHandler(cases.ScanJob, cases.Library.Scan, cases.Library.Scan, logger)
+	scanJobHandler := handlers.NewScanJobHandler(cases.ScanJob, cases.Library.Scan, cases.Library.Scan, svcs.EventBus, logger)
 
 	// Media handlers
 	mediaHandler := handlers.NewMediaHandler(cases.Media.Get, cases.Media.List, cases.Media.StreamInfo, cases.Media.GetTracks)
@@ -147,9 +147,10 @@ func BuildHandlers(
 
 	// Enrichment handler
 	var enrichmentHandler *handlers.EnrichmentHandler
-	if svcs.PipelineManager != nil && svcs.EventBus != nil {
+	if svcs.PipelineManager != nil && svcs.EventBus != nil && infra.Repos.EnrichmentStatus != nil {
 		enrichmentHandler = handlers.NewEnrichmentHandler(
 			svcs.PipelineManager,
+			infra.Repos.EnrichmentStatus,
 			svcs.EventBus,
 			logger.With("handler", "enrichment"),
 		)

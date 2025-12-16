@@ -5,6 +5,7 @@
 -- Always returns the row (new or existing) to avoid "no rows" errors.
 INSERT INTO enrichment_queue (
     media_id,
+    library_id,
     media_type,
     stage,
     priority,
@@ -13,8 +14,9 @@ INSERT INTO enrichment_queue (
     max_attempts,
     created_at,
     updated_at
-) VALUES (?, ?, ?, ?, 'pending', 0, ?, datetime('now'), datetime('now'))
+) VALUES (?, ?, ?, ?, ?, 'pending', 0, ?, datetime('now'), datetime('now'))
 ON CONFLICT(media_id, media_type, stage) DO UPDATE SET
+    library_id = COALESCE(excluded.library_id, enrichment_queue.library_id),
     priority = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN excluded.priority ELSE enrichment_queue.priority END,
     status = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN 'pending' ELSE enrichment_queue.status END,
     attempts = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN 0 ELSE enrichment_queue.attempts END,

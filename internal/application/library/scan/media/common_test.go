@@ -17,16 +17,18 @@ import (
 type mockEnrichmentEnqueuer struct {
 	enqueueCalls []struct {
 		mediaID   int64
+		libraryID int64
 		mediaType enrichment.MediaType
 	}
 	enqueueErr error
 }
 
-func (m *mockEnrichmentEnqueuer) EnqueueFirstStage(ctx context.Context, mediaID int64, mediaType enrichment.MediaType) error {
+func (m *mockEnrichmentEnqueuer) EnqueueFirstStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType) error {
 	m.enqueueCalls = append(m.enqueueCalls, struct {
 		mediaID   int64
+		libraryID int64
 		mediaType enrichment.MediaType
-	}{mediaID, mediaType})
+	}{mediaID, libraryID, mediaType})
 	return m.enqueueErr
 }
 
@@ -37,7 +39,7 @@ func TestEnqueueForEnrichment_NilEnqueuer(t *testing.T) {
 	}
 
 	// Should not panic with nil enqueuer
-	enqueueForEnrichment(context.Background(), deps, 1, enrichment.MediaTypeMovie)
+	enqueueForEnrichment(context.Background(), deps, 1, 1, enrichment.MediaTypeMovie)
 }
 
 func TestEnqueueForEnrichment_Success(t *testing.T) {
@@ -47,7 +49,7 @@ func TestEnqueueForEnrichment_Success(t *testing.T) {
 		Logger:             testLogger(),
 	}
 
-	enqueueForEnrichment(context.Background(), deps, 123, enrichment.MediaTypeMovie)
+	enqueueForEnrichment(context.Background(), deps, 123, 1, enrichment.MediaTypeMovie)
 
 	// Wait briefly for goroutine to execute
 	time.Sleep(50 * time.Millisecond)
@@ -75,7 +77,7 @@ func TestEnqueueForEnrichment_Error(t *testing.T) {
 	}
 
 	// Should not panic on error (just logs warning)
-	enqueueForEnrichment(context.Background(), deps, 456, enrichment.MediaTypeTV)
+	enqueueForEnrichment(context.Background(), deps, 456, 1, enrichment.MediaTypeTV)
 
 	// Wait briefly for goroutine to execute
 	time.Sleep(50 * time.Millisecond)
@@ -104,7 +106,7 @@ func TestEnqueueForEnrichment_AllMediaTypes(t *testing.T) {
 				Logger:             testLogger(),
 			}
 
-			enqueueForEnrichment(context.Background(), deps, 1, tt.mediaType)
+			enqueueForEnrichment(context.Background(), deps, 1, 1, tt.mediaType)
 
 			// Wait briefly for goroutine
 			time.Sleep(50 * time.Millisecond)

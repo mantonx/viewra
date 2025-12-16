@@ -233,7 +233,8 @@ func (m *Manager) recoverStuckJobs(ctx context.Context) error {
 
 // EnqueueFirstStage enqueues a media item for the first stage of its pipeline.
 // Called after media is discovered/saved during scanning.
-func (m *Manager) EnqueueFirstStage(ctx context.Context, mediaID int64, mediaType enrichment.MediaType) error {
+// libraryID is used for SSE event filtering so clients can subscribe to a specific library's progress.
+func (m *Manager) EnqueueFirstStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType) error {
 	// Get the first enabled stage for this media type
 	firstStage, err := m.deps.PipelineRepo.GetFirstStage(ctx, mediaType)
 	if err != nil {
@@ -251,6 +252,7 @@ func (m *Manager) EnqueueFirstStage(ctx context.Context, mediaID int64, mediaTyp
 	// Enqueue for the first stage
 	job := &enrichment.QueueJob{
 		MediaID:     mediaID,
+		LibraryID:   libraryID,
 		MediaType:   mediaType,
 		Stage:       firstStage.StageName,
 		Priority:    0, // Default priority
@@ -262,9 +264,10 @@ func (m *Manager) EnqueueFirstStage(ctx context.Context, mediaID int64, mediaTyp
 		return fmt.Errorf("enqueue first stage: %w", err)
 	}
 
-	// Publish event
+	// Publish event with library_id for SSE filtering
 	m.deps.EventBus.Publish(events.NewEvent(events.EventEnrichmentQueued, "pipeline").
 		WithMediaID(mediaID).
+		WithLibraryID(libraryID).
 		WithStage(firstStage.StageName).
 		Build())
 
@@ -273,7 +276,8 @@ func (m *Manager) EnqueueFirstStage(ctx context.Context, mediaID int64, mediaTyp
 
 // EnqueueNextStage enqueues a media item for the next pipeline stage.
 // Called after a stage completes successfully.
-func (m *Manager) EnqueueNextStage(ctx context.Context, mediaID int64, mediaType enrichment.MediaType, currentPosition int) error {
+// libraryID is passed through from the completing job for SSE event filtering.
+func (m *Manager) EnqueueNextStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType, currentPosition int) error {
 	// Get the next enabled stage after the current position
 	nextStage, err := m.deps.PipelineRepo.GetNextStage(ctx, mediaType, currentPosition)
 	if err != nil {
@@ -284,6 +288,7 @@ func (m *Manager) EnqueueNextStage(ctx context.Context, mediaID int64, mediaType
 		// No more stages - enrichment complete
 		m.deps.EventBus.Publish(events.NewEvent(events.EventEnrichmentComplete, "pipeline").
 			WithMediaID(mediaID).
+			WithLibraryID(libraryID).
 			Build())
 		return nil
 	}
@@ -291,6 +296,7 @@ func (m *Manager) EnqueueNextStage(ctx context.Context, mediaID int64, mediaType
 	// Enqueue for next stage
 	job := &enrichment.QueueJob{
 		MediaID:     mediaID,
+		LibraryID:   libraryID,
 		MediaType:   mediaType,
 		Stage:       nextStage.StageName,
 		Priority:    0,
@@ -304,6 +310,7 @@ func (m *Manager) EnqueueNextStage(ctx context.Context, mediaID int64, mediaType
 
 	m.deps.EventBus.Publish(events.NewEvent(events.EventEnrichmentQueued, "pipeline").
 		WithMediaID(mediaID).
+		WithLibraryID(libraryID).
 		WithStage(nextStage.StageName).
 		Build())
 
@@ -312,9 +319,11 @@ func (m *Manager) EnqueueNextStage(ctx context.Context, mediaID int64, mediaType
 
 // EnqueueStage enqueues a media item for a specific stage.
 // Useful for manual re-processing or custom stage triggers.
-func (m *Manager) EnqueueStage(ctx context.Context, mediaID int64, mediaType enrichment.MediaType, stage string, priority int) error {
+// libraryID is used for SSE event filtering.
+func (m *Manager) EnqueueStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType, stage string, priority int) error {
 	job := &enrichment.QueueJob{
 		MediaID:     mediaID,
+		LibraryID:   libraryID,
 		MediaType:   mediaType,
 		Stage:       stage,
 		Priority:    priority,
@@ -328,6 +337,7 @@ func (m *Manager) EnqueueStage(ctx context.Context, mediaID int64, mediaType enr
 
 	m.deps.EventBus.Publish(events.NewEvent(events.EventEnrichmentQueued, "pipeline").
 		WithMediaID(mediaID).
+		WithLibraryID(libraryID).
 		WithStage(stage).
 		Build())
 

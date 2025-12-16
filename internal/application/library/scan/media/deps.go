@@ -15,7 +15,7 @@ import (
 // EnrichmentEnqueuer enqueues media for enrichment after scanning.
 // This is an optional dependency - if nil, enrichment is skipped.
 type EnrichmentEnqueuer interface {
-	EnqueueFirstStage(ctx context.Context, mediaID int64, mediaType enrichment.MediaType) error
+	EnqueueFirstStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType) error
 }
 
 // Deps bundles all dependencies needed by media processing functions.

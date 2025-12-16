@@ -23,7 +23,7 @@ WHERE id IN (
     ORDER BY eq.priority DESC, eq.created_at ASC
     LIMIT ?
 )
-RETURNING id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at
+RETURNING id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, library_id
 `
 
 type ClaimEnrichmentJobsParams struct {
@@ -57,6 +57,7 @@ func (q *Queries) ClaimEnrichmentJobs(ctx context.Context, arg ClaimEnrichmentJo
 			&i.LockedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LibraryID,
 		); err != nil {
 			return nil, err
 		}
@@ -103,6 +104,7 @@ func (q *Queries) DeleteEnrichmentJobsByMedia(ctx context.Context, arg DeleteEnr
 const enqueueEnrichmentJob = `-- name: EnqueueEnrichmentJob :one
 INSERT INTO enrichment_queue (
     media_id,
+    library_id,
     media_type,
     stage,
     priority,
@@ -111,19 +113,21 @@ INSERT INTO enrichment_queue (
     max_attempts,
     created_at,
     updated_at
-) VALUES (?, ?, ?, ?, 'pending', 0, ?, datetime('now'), datetime('now'))
+) VALUES (?, ?, ?, ?, ?, 'pending', 0, ?, datetime('now'), datetime('now'))
 ON CONFLICT(media_id, media_type, stage) DO UPDATE SET
+    library_id = COALESCE(excluded.library_id, enrichment_queue.library_id),
     priority = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN excluded.priority ELSE enrichment_queue.priority END,
     status = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN 'pending' ELSE enrichment_queue.status END,
     attempts = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN 0 ELSE enrichment_queue.attempts END,
     error_message = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN NULL ELSE enrichment_queue.error_message END,
     error_category = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN NULL ELSE enrichment_queue.error_category END,
     updated_at = datetime('now')
-RETURNING id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at
+RETURNING id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, library_id
 `
 
 type EnqueueEnrichmentJobParams struct {
 	MediaID     int64         `json:"media_id"`
+	LibraryID   sql.NullInt64 `json:"library_id"`
 	MediaType   string        `json:"media_type"`
 	Stage       string        `json:"stage"`
 	Priority    sql.NullInt64 `json:"priority"`
@@ -137,6 +141,7 @@ type EnqueueEnrichmentJobParams struct {
 func (q *Queries) EnqueueEnrichmentJob(ctx context.Context, arg EnqueueEnrichmentJobParams) (EnrichmentQueue, error) {
 	row := q.db.QueryRowContext(ctx, enqueueEnrichmentJob,
 		arg.MediaID,
+		arg.LibraryID,
 		arg.MediaType,
 		arg.Stage,
 		arg.Priority,
@@ -159,6 +164,7 @@ func (q *Queries) EnqueueEnrichmentJob(ctx context.Context, arg EnqueueEnrichmen
 		&i.LockedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LibraryID,
 	)
 	return i, err
 }
@@ -195,7 +201,7 @@ func (q *Queries) FailEnrichmentJob(ctx context.Context, arg FailEnrichmentJobPa
 }
 
 const getEnrichmentJob = `-- name: GetEnrichmentJob :one
-SELECT id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at FROM enrichment_queue WHERE id = ?
+SELECT id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, library_id FROM enrichment_queue WHERE id = ?
 `
 
 func (q *Queries) GetEnrichmentJob(ctx context.Context, id int64) (EnrichmentQueue, error) {
@@ -217,12 +223,13 @@ func (q *Queries) GetEnrichmentJob(ctx context.Context, id int64) (EnrichmentQue
 		&i.LockedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LibraryID,
 	)
 	return i, err
 }
 
 const getEnrichmentJobByMediaAndStage = `-- name: GetEnrichmentJobByMediaAndStage :one
-SELECT id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at FROM enrichment_queue WHERE media_id = ? AND media_type = ? AND stage = ?
+SELECT id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, library_id FROM enrichment_queue WHERE media_id = ? AND media_type = ? AND stage = ?
 `
 
 type GetEnrichmentJobByMediaAndStageParams struct {
@@ -250,6 +257,7 @@ func (q *Queries) GetEnrichmentJobByMediaAndStage(ctx context.Context, arg GetEn
 		&i.LockedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LibraryID,
 	)
 	return i, err
 }
@@ -421,7 +429,7 @@ func (q *Queries) GetOrphanedPipelineStates(ctx context.Context) ([]GetOrphanedP
 }
 
 const getRetryableEnrichmentJobs = `-- name: GetRetryableEnrichmentJobs :many
-SELECT id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at FROM enrichment_queue
+SELECT id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, library_id FROM enrichment_queue
 WHERE status = 'failed'
   AND next_retry_at IS NOT NULL
   AND next_retry_at <= datetime('now')
@@ -460,6 +468,7 @@ func (q *Queries) GetRetryableEnrichmentJobs(ctx context.Context, arg GetRetryab
 			&i.LockedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LibraryID,
 		); err != nil {
 			return nil, err
 		}
