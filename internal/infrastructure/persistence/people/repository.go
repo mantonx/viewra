@@ -108,6 +108,12 @@ func (r *Repository) UpdatePerson(person *media.Person) error {
 	)
 }
 
+// isNotFoundError checks if the error indicates a record was not found.
+// This handles both sql.ErrNoRows (direct DB access) and media.ErrMediaNotFound (via QuerySingle).
+func isNotFoundError(err error) bool {
+	return err == sql.ErrNoRows || err == media.ErrMediaNotFound
+}
+
 // FindOrCreatePerson finds a person by TMDb ID or name, creating them if they don't exist.
 func (r *Repository) FindOrCreatePerson(name string, tmdbID int) (*media.Person, error) {
 	// First try to find by TMDb ID if provided
@@ -116,7 +122,7 @@ func (r *Repository) FindOrCreatePerson(name string, tmdbID int) (*media.Person,
 		if err == nil {
 			return person, nil
 		}
-		if err != sql.ErrNoRows {
+		if !isNotFoundError(err) {
 			return nil, fmt.Errorf("find person by tmdb id: %w", err)
 		}
 	}
@@ -134,7 +140,7 @@ func (r *Repository) FindOrCreatePerson(name string, tmdbID int) (*media.Person,
 		}
 		return person, nil
 	}
-	if err != sql.ErrNoRows {
+	if !isNotFoundError(err) {
 		return nil, fmt.Errorf("find person by name: %w", err)
 	}
 
@@ -142,6 +148,60 @@ func (r *Repository) FindOrCreatePerson(name string, tmdbID int) (*media.Person,
 	person = &media.Person{
 		Name:   name,
 		TMDbID: tmdbID,
+	}
+	if err := r.CreatePerson(person); err != nil {
+		return nil, fmt.Errorf("create person: %w", err)
+	}
+
+	return person, nil
+}
+
+// FindOrCreatePersonWithPhoto finds or creates a person, also setting/updating their photo URL.
+func (r *Repository) FindOrCreatePersonWithPhoto(name string, tmdbID int, photoURL string) (*media.Person, error) {
+	// First try to find by TMDb ID if provided
+	if tmdbID > 0 {
+		person, err := r.GetPersonByTMDbID(tmdbID)
+		if err == nil {
+			// Update photo URL if we have one and they don't
+			if photoURL != "" && person.PhotoURL == "" {
+				person.PhotoURL = photoURL
+				_ = r.UpdatePerson(person) // Non-fatal if update fails
+			}
+			return person, nil
+		}
+		if !isNotFoundError(err) {
+			return nil, fmt.Errorf("find person by tmdb id: %w", err)
+		}
+	}
+
+	// Try to find by name
+	person, err := r.GetPersonByName(name)
+	if err == nil {
+		needsUpdate := false
+		// Update TMDb ID if we have one and they don't
+		if tmdbID > 0 && person.TMDbID == 0 {
+			person.TMDbID = tmdbID
+			needsUpdate = true
+		}
+		// Update photo URL if we have one and they don't
+		if photoURL != "" && person.PhotoURL == "" {
+			person.PhotoURL = photoURL
+			needsUpdate = true
+		}
+		if needsUpdate {
+			_ = r.UpdatePerson(person) // Non-fatal if update fails
+		}
+		return person, nil
+	}
+	if !isNotFoundError(err) {
+		return nil, fmt.Errorf("find person by name: %w", err)
+	}
+
+	// Create new person with all available info
+	person = &media.Person{
+		Name:     name,
+		TMDbID:   tmdbID,
+		PhotoURL: photoURL,
 	}
 	if err := r.CreatePerson(person); err != nil {
 		return nil, fmt.Errorf("create person: %w", err)

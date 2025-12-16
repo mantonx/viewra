@@ -1047,8 +1047,9 @@ type CastMember struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Role          string                 `protobuf:"bytes,2,opt,name=role,proto3" json:"role,omitempty"`
-	Thumb         string                 `protobuf:"bytes,3,opt,name=thumb,proto3" json:"thumb,omitempty"`  // URL to actor thumbnail
-	Order         int32                  `protobuf:"varint,4,opt,name=order,proto3" json:"order,omitempty"` // Billing order
+	Thumb         string                 `protobuf:"bytes,3,opt,name=thumb,proto3" json:"thumb,omitempty"`                  // URL to actor thumbnail
+	Order         int32                  `protobuf:"varint,4,opt,name=order,proto3" json:"order,omitempty"`                 // Billing order
+	TmdbId        int32                  `protobuf:"varint,5,opt,name=tmdb_id,json=tmdbId,proto3" json:"tmdb_id,omitempty"` // TMDb person ID
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1107,6 +1108,13 @@ func (x *CastMember) GetThumb() string {
 func (x *CastMember) GetOrder() int32 {
 	if x != nil {
 		return x.Order
+	}
+	return 0
+}
+
+func (x *CastMember) GetTmdbId() int32 {
+	if x != nil {
+		return x.TmdbId
 	}
 	return 0
 }
@@ -1404,13 +1412,14 @@ const file_api_proto_plugin_enricher_proto_rawDesc = "" +
 	"\n" +
 	"\b_countryB\x0e\n" +
 	"\f_formed_yearB\b\n" +
-	"\x06_genre\"`\n" +
+	"\x06_genre\"y\n" +
 	"\n" +
 	"CastMember\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04role\x18\x02 \x01(\tR\x04role\x12\x14\n" +
 	"\x05thumb\x18\x03 \x01(\tR\x05thumb\x12\x14\n" +
-	"\x05order\x18\x04 \x01(\x05R\x05order\"\xe4\x01\n" +
+	"\x05order\x18\x04 \x01(\x05R\x05order\x12\x17\n" +
+	"\atmdb_id\x18\x05 \x01(\x05R\x06tmdbId\"\xe4\x01\n" +
 	"\rEnrichedImage\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x1b\n" +

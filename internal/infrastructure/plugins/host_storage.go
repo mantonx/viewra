@@ -83,6 +83,7 @@ func NewHostStorageServer(cfg HostStorageConfig, db *sql.DB, driver string, logg
 // KVGet retrieves a value from the plugin's key-value store.
 func (s *HostStorageServer) KVGet(ctx context.Context, req *pluginv1.KVKey) (*pluginv1.KVValue, error) {
 	pluginID := getPluginIDFromContext(ctx)
+	s.logger.Debug("KVGet called", "plugin_id", pluginID, "key", req.Key)
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
 	}
@@ -132,6 +133,7 @@ func (s *HostStorageServer) KVGet(ctx context.Context, req *pluginv1.KVKey) (*pl
 // KVSet stores a value in the plugin's key-value store.
 func (s *HostStorageServer) KVSet(ctx context.Context, req *pluginv1.KVEntry) (*pluginv1.Empty, error) {
 	pluginID := getPluginIDFromContext(ctx)
+	s.logger.Debug("KVSet called", "plugin_id", pluginID, "key", req.Key, "value_size", len(req.Value))
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
 	}

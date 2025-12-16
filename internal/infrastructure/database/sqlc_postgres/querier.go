@@ -234,10 +234,14 @@ type Querier interface {
 	GetNextPipelinePosition(ctx context.Context, mediaType string) (int32, error)
 	GetNextPipelineStage(ctx context.Context, arg GetNextPipelineStageParams) (EnrichmentPipeline, error)
 	GetPendingScanCheckpoints(ctx context.Context, arg GetPendingScanCheckpointsParams) ([]ScanCheckpoint, error)
+	// Looks up a person by external ID (e.g., TMDb person ID)
+	GetPersonByExternalID(ctx context.Context, arg GetPersonByExternalIDParams) (int32, error)
 	GetPersonByID(ctx context.Context, id int32) (Person, error)
 	GetPersonByIMDbID(ctx context.Context, imdbID sql.NullString) (Person, error)
 	GetPersonByName(ctx context.Context, name string) (Person, error)
 	GetPersonByTMDbID(ctx context.Context, tmdbID sql.NullInt32) (Person, error)
+	// Gets all external IDs for a person
+	GetPersonExternalIDs(ctx context.Context, entityID int32) ([]GetPersonExternalIDsRow, error)
 	GetPipelineStage(ctx context.Context, id int32) (EnrichmentPipeline, error)
 	GetPipelineStageByName(ctx context.Context, arg GetPipelineStageByNameParams) (EnrichmentPipeline, error)
 	GetPipelineStageByPlugin(ctx context.Context, arg GetPipelineStageByPluginParams) (EnrichmentPipeline, error)
@@ -261,9 +265,13 @@ type Querier interface {
 	GetSessionByPublicID(ctx context.Context, publicID string) (Session, error)
 	GetSessionByTokenHash(ctx context.Context, refreshTokenHash string) (Session, error)
 	GetSessionsByUserID(ctx context.Context, userID int32) ([]Session, error)
+	// Looks up a studio by external ID (e.g., TMDb company ID)
+	GetStudioByExternalID(ctx context.Context, arg GetStudioByExternalIDParams) (int32, error)
 	GetStudioByID(ctx context.Context, id int32) (Studio, error)
 	GetStudioByName(ctx context.Context, name string) (Studio, error)
 	GetStudioByTMDbID(ctx context.Context, tmdbID sql.NullInt32) (Studio, error)
+	// Gets all external IDs for a studio
+	GetStudioExternalIDs(ctx context.Context, entityID int32) ([]GetStudioExternalIDsRow, error)
 	GetStudiosForEntity(ctx context.Context, arg GetStudiosForEntityParams) ([]Studio, error)
 	GetSubtitleTracksByMediaID(ctx context.Context, mediaID int32) ([]MediaSubtitleTrack, error)
 	// Settings queries for PostgreSQL
@@ -432,6 +440,7 @@ type Querier interface {
 	UpsertExternalID(ctx context.Context, arg UpsertExternalIDParams) error
 	UpsertMetadataSource(ctx context.Context, arg UpsertMetadataSourceParams) error
 	UpsertPlaybackSession(ctx context.Context, arg UpsertPlaybackSessionParams) (PlaybackSession, error)
+	UpsertPlugin(ctx context.Context, arg UpsertPluginParams) error
 	UpsertScanState(ctx context.Context, arg UpsertScanStateParams) error
 	UpsertSystemSetting(ctx context.Context, arg UpsertSystemSettingParams) error
 	UpsertUserSetting(ctx context.Context, arg UpsertUserSettingParams) error

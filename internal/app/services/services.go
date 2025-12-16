@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"os"
@@ -74,6 +75,8 @@ type Services struct {
 func BuildServices(
 	cfg *config.Config,
 	repos *repositories.Repositories,
+	db *sql.DB,
+	dbDriver string,
 	logger *slog.Logger,
 ) (*Services, error) {
 	// Create image cache directory
@@ -280,12 +283,26 @@ func BuildServices(
 	var pluginManager *plugins.Manager
 	if cfg.Plugins.Enabled {
 		pluginLogger := logger.With("component", "plugin-manager")
+
+		// Create HostStorageServer for plugin KV storage
+		var hostStorageServer *plugins.HostStorageServer
+		if db != nil {
+			var storageErr error
+			hostStorageServer, storageErr = plugins.NewHostStorageServer(plugins.HostStorageConfig{
+				BaseDir: cfg.Plugins.StorageDir,
+			}, db, dbDriver, logger.With("component", "host-storage"))
+			if storageErr != nil {
+				logger.Warn("Failed to create host storage server", "error", storageErr)
+			}
+		}
+
 		var err error
 		pluginManager, err = plugins.NewManager(plugins.ManagerConfig{
-			PluginDir:    cfg.Plugins.Dir,
-			StorageDir:   cfg.Plugins.StorageDir,
-			HostVersion:  version.Version,
-			MediaQuerier: repos.PluginMediaQuerier,
+			PluginDir:         cfg.Plugins.Dir,
+			StorageDir:        cfg.Plugins.StorageDir,
+			HostVersion:       version.Version,
+			MediaQuerier:      repos.PluginMediaQuerier,
+			HostStorageServer: hostStorageServer,
 		}, pluginLogger)
 		if err != nil {
 			logger.Warn("Failed to create plugin manager", "error", err)

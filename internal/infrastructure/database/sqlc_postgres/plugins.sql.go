@@ -359,3 +359,49 @@ func (q *Queries) UpdatePluginHealth(ctx context.Context, arg UpdatePluginHealth
 	_, err := q.db.ExecContext(ctx, updatePluginHealth, arg.HealthStatus, arg.ID)
 	return err
 }
+
+const upsertPlugin = `-- name: UpsertPlugin :exec
+INSERT INTO plugins (
+    id, name, version, description, author, license, homepage,
+    categories, is_builtin, enabled, path,
+    health_status, restart_count,
+    installed_at, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE, TRUE, $9, 'unknown', 0, NOW(), NOW())
+ON CONFLICT(id) DO UPDATE SET
+    name = EXCLUDED.name,
+    version = EXCLUDED.version,
+    description = EXCLUDED.description,
+    author = EXCLUDED.author,
+    license = EXCLUDED.license,
+    homepage = EXCLUDED.homepage,
+    categories = EXCLUDED.categories,
+    path = EXCLUDED.path,
+    updated_at = NOW()
+`
+
+type UpsertPluginParams struct {
+	ID          string          `json:"id"`
+	Name        string          `json:"name"`
+	Version     string          `json:"version"`
+	Description sql.NullString  `json:"description"`
+	Author      sql.NullString  `json:"author"`
+	License     sql.NullString  `json:"license"`
+	Homepage    sql.NullString  `json:"homepage"`
+	Categories  json.RawMessage `json:"categories"`
+	Path        sql.NullString  `json:"path"`
+}
+
+func (q *Queries) UpsertPlugin(ctx context.Context, arg UpsertPluginParams) error {
+	_, err := q.db.ExecContext(ctx, upsertPlugin,
+		arg.ID,
+		arg.Name,
+		arg.Version,
+		arg.Description,
+		arg.Author,
+		arg.License,
+		arg.Homepage,
+		arg.Categories,
+		arg.Path,
+	)
+	return err
+}

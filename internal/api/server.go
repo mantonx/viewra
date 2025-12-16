@@ -91,6 +91,7 @@ type Handlers struct {
 	Users     *handlers.UsersHandler
 	Settings   *handlers.SettingsHandler
 	Enrichment *handlers.EnrichmentHandler
+	Plugins    *handlers.PluginHandler
 
 	// AuthValidator is used by routes to set up auth middleware
 	AuthValidator middleware.AuthValidator
@@ -195,6 +196,9 @@ func (s *Server) setupRoutes() {
 
 	// Register enrichment routes (protected)
 	routes.RegisterEnrichmentRoutes(protected, h.Enrichment)
+
+	// Register plugin routes (protected, with admin requirement for mutations)
+	routes.RegisterPluginRoutes(protected, h.Plugins, h.AuthValidator)
 
 	// Register image routes (protected via api group)
 	routes.RegisterImageRoutes(s.router, h.Images)

@@ -13,6 +13,7 @@ import (
 	"github.com/mantonx/viewra/internal/app/usecases"
 	"github.com/mantonx/viewra/internal/application/auth"
 	"github.com/mantonx/viewra/internal/application/common"
+	appplugins "github.com/mantonx/viewra/internal/application/plugins"
 	"github.com/mantonx/viewra/internal/application/transcode"
 	"github.com/mantonx/viewra/internal/infrastructure/plugins"
 	"github.com/mantonx/viewra/internal/infrastructure/scheduler"
@@ -36,7 +37,7 @@ type Container struct {
 func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *slog.Logger) *Container {
 	// Build all layers using builder functions
 	repos := repositories.BuildRepositories(db, dbDriver)
-	svcs, err := services.BuildServices(cfg, repos, logger)
+	svcs, err := services.BuildServices(cfg, repos, db, dbDriver, logger)
 	if err != nil {
 		logger.Error("Failed to build services", "error", err)
 	}
@@ -89,7 +90,7 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 
 	// Load and register external plugins before starting the pipeline
 	if svcs.PluginManager != nil && svcs.PipelineManager != nil {
-		loadExternalPlugins(context.Background(), svcs, logger)
+		loadExternalPlugins(context.Background(), svcs, repos, logger)
 	}
 
 	// Start the enrichment pipeline manager (background workers)
@@ -396,7 +397,7 @@ func seedDevUser(
 
 // loadExternalPlugins discovers, loads, and registers external plugins with the pipeline.
 // External plugins are registered as disabled by default - users must explicitly enable them.
-func loadExternalPlugins(ctx context.Context, svcs *services.Services, logger *slog.Logger) {
+func loadExternalPlugins(ctx context.Context, svcs *services.Services, repos *repositories.Repositories, logger *slog.Logger) {
 	pm := svcs.PluginManager
 	pipeline := svcs.PipelineManager
 
@@ -408,6 +409,37 @@ func loadExternalPlugins(ctx context.Context, svcs *services.Services, logger *s
 
 	// Get all loaded plugins and register enrichers with the pipeline
 	for _, instance := range pm.GetEnrichers() {
+		// Persist plugin to database (upsert to handle version updates)
+		if repos.Plugin != nil {
+			manifest := instance.Manifest
+			categories := "[]"
+			if len(manifest.Categories) > 0 {
+				// Convert to JSON array format
+				categories = `["` + manifest.Categories[0] + `"]`
+				if len(manifest.Categories) > 1 {
+					for _, c := range manifest.Categories[1:] {
+						categories = categories[:len(categories)-1] + `","` + c + `"]`
+					}
+				}
+			}
+
+			if err := repos.Plugin.UpsertPlugin(ctx, appplugins.Plugin{
+				ID:          instance.ID,
+				Name:        manifest.Name,
+				Version:     manifest.Version,
+				Description: manifest.Description,
+				Author:      manifest.Author,
+				License:     manifest.License,
+				Homepage:    manifest.Homepage,
+				Categories:  categories,
+				Path:        instance.Path,
+			}); err != nil {
+				logger.Error("Failed to persist plugin to database",
+					"plugin", instance.ID,
+					"error", err)
+			}
+		}
+
 		// Wrap the plugin's enricher client as an application Enricher
 		enricher, err := plugins.NewGRPCEnricher(
 			instance.ID,

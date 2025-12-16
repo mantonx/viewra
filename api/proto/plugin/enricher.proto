@@ -201,6 +201,7 @@ message CastMember {
   string role = 2;
   string thumb = 3;  // URL to actor thumbnail
   int32 order = 4;   // Billing order
+  int32 tmdb_id = 5; // TMDb person ID
 }
 
 message EnrichedImage {

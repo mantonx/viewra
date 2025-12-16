@@ -9,124 +9,60 @@ import (
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 )
 
-// enrichMovie fetches movie metadata from TMDb.
-func (p *TMDbPlugin) enrichMovie(ctx context.Context, client *Client, req *pluginv1.EnrichRequest) (*pluginv1.EnrichResponse, error) {
-	var tmdbID int
-	var err error
-
-	// Strategy 1: Use existing TMDb ID if available
-	if idStr, ok := req.ExistingIds["tmdb"]; ok {
-		tmdbID, err = strconv.Atoi(idStr)
-		if err != nil {
-			p.logger.Warn("invalid tmdb ID", "id", idStr, "error", err)
-		}
-	}
-
-	// Strategy 2: Look up by IMDb ID if available
-	if tmdbID == 0 {
-		if imdbID, ok := req.ExistingIds["imdb"]; ok && imdbID != "" {
-			p.logger.Debug("looking up movie by IMDb ID", "imdb_id", imdbID)
-			findResp, err := client.FindByIMDbID(ctx, imdbID)
-			if err != nil {
-				p.mu.Lock()
-				p.errorsTotal++
-				p.mu.Unlock()
-				return nil, fmt.Errorf("IMDb lookup failed: %w", err)
-			}
-			if len(findResp.MovieResults) > 0 {
-				tmdbID = findResp.MovieResults[0].ID
-				p.logger.Debug("found movie via IMDb ID", "tmdb_id", tmdbID)
-			}
-		}
-	}
-
-	// Strategy 3: Search by title/year
-	if tmdbID == 0 && req.Title != "" {
-		p.logger.Debug("searching movie by title", "title", req.Title, "year", req.Year)
-		searchResp, err := client.SearchMovies(ctx, req.Title, int(req.Year))
-		if err != nil {
-			p.mu.Lock()
-			p.errorsTotal++
-			p.mu.Unlock()
-			return nil, fmt.Errorf("movie search failed: %w", err)
-		}
-		if len(searchResp.Results) > 0 {
-			// Take the first result (most popular/relevant)
-			tmdbID = searchResp.Results[0].ID
-			p.logger.Debug("found movie via search", "tmdb_id", tmdbID, "match_title", searchResp.Results[0].Title)
-		}
-	}
-
-	if tmdbID == 0 {
-		return &pluginv1.EnrichResponse{
-			Matched:    false,
-			Skipped:    true,
-			SkipReason: "no match found",
-		}, nil
-	}
-
-	// Fetch full details
-	details, err := client.GetMovieDetails(ctx, tmdbID)
-	if err != nil {
-		p.mu.Lock()
-		p.errorsTotal++
-		p.mu.Unlock()
-		return nil, fmt.Errorf("failed to get movie details: %w", err)
-	}
-
-	return p.buildMovieResponse(details), nil
+// lookupStrategy defines media-type-specific lookup and response building.
+type lookupStrategy interface {
+	// extractTitle returns the title to search for.
+	extractTitle(req *pluginv1.EnrichRequest) string
+	// findByIMDb extracts the TMDb ID from an IMDb lookup response.
+	findByIMDb(resp *FindByExternalIDResponse) int
+	// search performs a title/year search and returns the best match ID.
+	search(ctx context.Context, client *Client, title string, year int) (int, error)
+	// getDetails fetches full details and builds the response.
+	getDetails(ctx context.Context, client *Client, tmdbID int) (*pluginv1.EnrichResponse, error)
 }
 
-// enrichTV fetches TV show metadata from TMDb.
-func (p *TMDbPlugin) enrichTV(ctx context.Context, client *Client, req *pluginv1.EnrichRequest) (*pluginv1.EnrichResponse, error) {
+// enrich performs the common lookup flow using a media-type-specific strategy.
+func (p *TMDbPlugin) enrich(ctx context.Context, client *Client, req *pluginv1.EnrichRequest, strategy lookupStrategy) (*pluginv1.EnrichResponse, error) {
 	var tmdbID int
 	var err error
 
-	// Use show title for TV shows/episodes
-	title := req.Title
-	if req.Tv != nil && req.Tv.ShowTitle != "" {
-		title = req.Tv.ShowTitle
-	}
+	title := strategy.extractTitle(req)
 
 	// Strategy 1: Use existing TMDb ID if available
 	if idStr, ok := req.ExistingIds["tmdb"]; ok {
 		tmdbID, err = strconv.Atoi(idStr)
 		if err != nil {
 			p.logger.Warn("invalid tmdb ID", "id", idStr, "error", err)
+			tmdbID = 0
 		}
 	}
 
 	// Strategy 2: Look up by IMDb ID if available
 	if tmdbID == 0 {
 		if imdbID, ok := req.ExistingIds["imdb"]; ok && imdbID != "" {
-			p.logger.Debug("looking up TV show by IMDb ID", "imdb_id", imdbID)
+			p.logger.Debug("looking up by IMDb ID", "imdb_id", imdbID)
 			findResp, err := client.FindByIMDbID(ctx, imdbID)
 			if err != nil {
-				p.mu.Lock()
-				p.errorsTotal++
-				p.mu.Unlock()
+				p.recordError()
 				return nil, fmt.Errorf("IMDb lookup failed: %w", err)
 			}
-			if len(findResp.TVResults) > 0 {
-				tmdbID = findResp.TVResults[0].ID
-				p.logger.Debug("found TV show via IMDb ID", "tmdb_id", tmdbID)
+			tmdbID = strategy.findByIMDb(findResp)
+			if tmdbID > 0 {
+				p.logger.Debug("found via IMDb ID", "tmdb_id", tmdbID)
 			}
 		}
 	}
 
 	// Strategy 3: Search by title/year
 	if tmdbID == 0 && title != "" {
-		p.logger.Debug("searching TV show by title", "title", title, "year", req.Year)
-		searchResp, err := client.SearchTV(ctx, title, int(req.Year))
+		p.logger.Debug("searching by title", "title", title, "year", req.Year)
+		tmdbID, err = strategy.search(ctx, client, title, int(req.Year))
 		if err != nil {
-			p.mu.Lock()
-			p.errorsTotal++
-			p.mu.Unlock()
-			return nil, fmt.Errorf("TV search failed: %w", err)
+			p.recordError()
+			return nil, err
 		}
-		if len(searchResp.Results) > 0 {
-			tmdbID = searchResp.Results[0].ID
-			p.logger.Debug("found TV show via search", "tmdb_id", tmdbID, "match_title", searchResp.Results[0].Name)
+		if tmdbID > 0 {
+			p.logger.Debug("found via search", "tmdb_id", tmdbID)
 		}
 	}
 
@@ -139,15 +75,95 @@ func (p *TMDbPlugin) enrichTV(ctx context.Context, client *Client, req *pluginv1
 	}
 
 	// Fetch full details
+	resp, err := strategy.getDetails(ctx, client, tmdbID)
+	if err != nil {
+		p.recordError()
+		return nil, err
+	}
+	return resp, nil
+}
+
+// movieStrategy implements lookupStrategy for movies.
+type movieStrategy struct {
+	plugin *TMDbPlugin
+}
+
+func (s *movieStrategy) extractTitle(req *pluginv1.EnrichRequest) string {
+	return req.Title
+}
+
+func (s *movieStrategy) findByIMDb(resp *FindByExternalIDResponse) int {
+	if len(resp.MovieResults) > 0 {
+		return resp.MovieResults[0].ID
+	}
+	return 0
+}
+
+func (s *movieStrategy) search(ctx context.Context, client *Client, title string, year int) (int, error) {
+	searchResp, err := client.SearchMovies(ctx, title, year)
+	if err != nil {
+		return 0, fmt.Errorf("movie search failed: %w", err)
+	}
+	if len(searchResp.Results) > 0 {
+		return searchResp.Results[0].ID, nil
+	}
+	return 0, nil
+}
+
+func (s *movieStrategy) getDetails(ctx context.Context, client *Client, tmdbID int) (*pluginv1.EnrichResponse, error) {
+	details, err := client.GetMovieDetails(ctx, tmdbID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get movie details: %w", err)
+	}
+	return s.plugin.buildMovieResponse(details), nil
+}
+
+// tvStrategy implements lookupStrategy for TV shows.
+type tvStrategy struct {
+	plugin *TMDbPlugin
+}
+
+func (s *tvStrategy) extractTitle(req *pluginv1.EnrichRequest) string {
+	if req.Tv != nil && req.Tv.ShowTitle != "" {
+		return req.Tv.ShowTitle
+	}
+	return req.Title
+}
+
+func (s *tvStrategy) findByIMDb(resp *FindByExternalIDResponse) int {
+	if len(resp.TVResults) > 0 {
+		return resp.TVResults[0].ID
+	}
+	return 0
+}
+
+func (s *tvStrategy) search(ctx context.Context, client *Client, title string, year int) (int, error) {
+	searchResp, err := client.SearchTV(ctx, title, year)
+	if err != nil {
+		return 0, fmt.Errorf("TV search failed: %w", err)
+	}
+	if len(searchResp.Results) > 0 {
+		return searchResp.Results[0].ID, nil
+	}
+	return 0, nil
+}
+
+func (s *tvStrategy) getDetails(ctx context.Context, client *Client, tmdbID int) (*pluginv1.EnrichResponse, error) {
 	details, err := client.GetTVDetails(ctx, tmdbID)
 	if err != nil {
-		p.mu.Lock()
-		p.errorsTotal++
-		p.mu.Unlock()
 		return nil, fmt.Errorf("failed to get TV details: %w", err)
 	}
+	return s.plugin.buildTVResponse(details), nil
+}
 
-	return p.buildTVResponse(details), nil
+// enrichMovie fetches movie metadata from TMDb.
+func (p *TMDbPlugin) enrichMovie(ctx context.Context, client *Client, req *pluginv1.EnrichRequest) (*pluginv1.EnrichResponse, error) {
+	return p.enrich(ctx, client, req, &movieStrategy{plugin: p})
+}
+
+// enrichTV fetches TV show metadata from TMDb.
+func (p *TMDbPlugin) enrichTV(ctx context.Context, client *Client, req *pluginv1.EnrichRequest) (*pluginv1.EnrichResponse, error) {
+	return p.enrich(ctx, client, req, &tvStrategy{plugin: p})
 }
 
 // buildMovieResponse converts TMDb movie details to EnrichResponse.
@@ -225,10 +241,11 @@ func (p *TMDbPlugin) buildMovieResponse(movie *MovieDetails) *pluginv1.EnrichRes
 				break
 			}
 			metadata.Cast = append(metadata.Cast, &pluginv1.CastMember{
-				Name:  cast.Name,
-				Role:  cast.Character,
-				Thumb: ImageURL(cast.ProfilePath, "w185"),
-				Order: int32(cast.Order),
+				Name:   cast.Name,
+				Role:   cast.Character,
+				Thumb:  ImageURL(cast.ProfilePath, "w185"),
+				Order:  int32(cast.Order),
+				TmdbId: int32(cast.ID),
 			})
 		}
 	}
@@ -350,10 +367,11 @@ func (p *TMDbPlugin) buildTVResponse(tv *TVDetails) *pluginv1.EnrichResponse {
 				break
 			}
 			metadata.Cast = append(metadata.Cast, &pluginv1.CastMember{
-				Name:  cast.Name,
-				Role:  cast.Character,
-				Thumb: ImageURL(cast.ProfilePath, "w185"),
-				Order: int32(cast.Order),
+				Name:   cast.Name,
+				Role:   cast.Character,
+				Thumb:  ImageURL(cast.ProfilePath, "w185"),
+				Order:  int32(cast.Order),
+				TmdbId: int32(cast.ID),
 			})
 		}
 	}

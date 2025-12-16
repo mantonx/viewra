@@ -45,6 +45,14 @@ message InitRequest {
 
   // Initial configuration (if any)
   bytes config = 3;
+
+  // Broker ID for host storage service (0 = not available)
+  // Plugin can dial this ID to get a HostStorageClient
+  uint32 host_storage_broker_id = 4;
+
+  // Broker ID for host data service (0 = not available)
+  // Plugin can dial this ID to get a HostDataClient
+  uint32 host_data_broker_id = 5;
 }
 
 message InitResponse {

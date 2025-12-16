@@ -1,8 +1,8 @@
 # TMDb Plugin Configuration
 
-# Required: Your TMDb API key (v3 auth)
+# Required: Your TMDb API key (v4 bearer token)
 # Get one at https://www.themoviedb.org/settings/api
-api_key: ""
+api_key: "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI1YTU2ODc0YjRmMzU4YjIzZDhkM2YzZmI5ZDc4NDNiOSIsIm5iZiI6MTc0ODYzOTc1Ny40MDEsInN1YiI6IjY4M2EyMDBkNzA5OGI4MzMzNThmZThmOSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.OXT68T0EtU-WXhcP7nwyWjMePuEuCpfWtDlvdntWKw8"
 
 # Optional: Rate limit (requests per 10 seconds)
 # TMDb allows ~40 requests per 10 seconds for free accounts

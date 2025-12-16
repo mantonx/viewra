@@ -2,231 +2,87 @@ package internal
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
+
+	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 )
 
 const (
-	baseURL       = "https://api.themoviedb.org/3"
-	imageBaseURL  = "https://image.tmdb.org/t/p"
-	requestTimout = 10 * time.Second
+	baseURL        = "https://api.themoviedb.org/3"
+	imageBaseURL   = "https://image.tmdb.org/t/p"
+	requestTimeout = 30 * time.Second
+
+	// Rate limiting: TMDb allows ~40 requests per 10 seconds
+	// We use 250ms between requests (4 req/sec = 40 req/10sec)
+	minRequestInterval = 250 * time.Millisecond
+
+	// Retry settings
+	maxRetries        = 3
+	initialRetryDelay = 1 * time.Second
+	maxRetryDelay     = 30 * time.Second
+	backoffMultiplier = 2.0
+
+	// Cache key prefix
+	cachePrefix = "cache:"
 )
 
-// Client handles TMDb API requests.
+// Client handles TMDb API requests with rate limiting, caching, and retries.
 type Client struct {
 	apiKey     string
 	httpClient *http.Client
 	logger     *slog.Logger
+
+	// Rate limiting
+	lastRequest time.Time
+	rateMu      sync.Mutex
+
+	// Caching via host storage
+	storage      pluginv1.HostStorageClient
+	cacheTTLSecs int64
 }
 
-// NewClient creates a new TMDb API client.
-func NewClient(apiKey string, logger *slog.Logger) *Client {
-	return &Client{
-		apiKey: apiKey,
-		httpClient: &http.Client{
-			Timeout: requestTimout,
-		},
-		logger: logger,
+// ClientConfig holds configuration for the TMDb client.
+type ClientConfig struct {
+	APIKey        string
+	CacheTTLHours int
+	Storage       pluginv1.HostStorageClient
+	Logger        *slog.Logger
+}
+
+// NewClient creates a new TMDb API client with caching and rate limiting.
+func NewClient(cfg ClientConfig) (*Client, error) {
+	ttlHours := cfg.CacheTTLHours
+	if ttlHours == 0 {
+		ttlHours = 24
 	}
+
+	c := &Client{
+		apiKey: cfg.APIKey,
+		httpClient: &http.Client{
+			Timeout: requestTimeout,
+		},
+		logger:       cfg.Logger,
+		storage:      cfg.Storage,
+		cacheTTLSecs: int64(ttlHours) * 3600,
+	}
+
+	return c, nil
 }
 
-// MovieSearchResult represents a movie from TMDb search results.
-type MovieSearchResult struct {
-	ID               int     `json:"id"`
-	Title            string  `json:"title"`
-	OriginalTitle    string  `json:"original_title"`
-	Overview         string  `json:"overview"`
-	ReleaseDate      string  `json:"release_date"`
-	PosterPath       string  `json:"poster_path"`
-	BackdropPath     string  `json:"backdrop_path"`
-	VoteAverage      float64 `json:"vote_average"`
-	VoteCount        int     `json:"vote_count"`
-	OriginalLanguage string  `json:"original_language"`
-	Popularity       float64 `json:"popularity"`
-}
-
-// MovieSearchResponse is the response from TMDb movie search.
-type MovieSearchResponse struct {
-	Page         int                 `json:"page"`
-	TotalPages   int                 `json:"total_pages"`
-	TotalResults int                 `json:"total_results"`
-	Results      []MovieSearchResult `json:"results"`
-}
-
-// MovieDetails contains full movie information from TMDb.
-type MovieDetails struct {
-	ID               int      `json:"id"`
-	IMDbID           string   `json:"imdb_id"`
-	Title            string   `json:"title"`
-	OriginalTitle    string   `json:"original_title"`
-	Overview         string   `json:"overview"`
-	Tagline          string   `json:"tagline"`
-	ReleaseDate      string   `json:"release_date"`
-	Runtime          int      `json:"runtime"`
-	Budget           int64    `json:"budget"`
-	Revenue          int64    `json:"revenue"`
-	VoteAverage      float64  `json:"vote_average"`
-	VoteCount        int      `json:"vote_count"`
-	PosterPath       string   `json:"poster_path"`
-	BackdropPath     string   `json:"backdrop_path"`
-	OriginalLanguage string   `json:"original_language"`
-	Genres           []Genre  `json:"genres"`
-	ProductionCompanies []ProductionCompany `json:"production_companies"`
-	ProductionCountries []ProductionCountry `json:"production_countries"`
-
-	// Appended responses (when using append_to_response)
-	Credits *Credits `json:"credits,omitempty"`
-	Images  *Images  `json:"images,omitempty"`
-}
-
-// TVSearchResult represents a TV show from TMDb search results.
-type TVSearchResult struct {
-	ID               int     `json:"id"`
-	Name             string  `json:"name"`
-	OriginalName     string  `json:"original_name"`
-	Overview         string  `json:"overview"`
-	FirstAirDate     string  `json:"first_air_date"`
-	PosterPath       string  `json:"poster_path"`
-	BackdropPath     string  `json:"backdrop_path"`
-	VoteAverage      float64 `json:"vote_average"`
-	VoteCount        int     `json:"vote_count"`
-	OriginalLanguage string  `json:"original_language"`
-	Popularity       float64 `json:"popularity"`
-}
-
-// TVSearchResponse is the response from TMDb TV search.
-type TVSearchResponse struct {
-	Page         int              `json:"page"`
-	TotalPages   int              `json:"total_pages"`
-	TotalResults int              `json:"total_results"`
-	Results      []TVSearchResult `json:"results"`
-}
-
-// TVDetails contains full TV show information from TMDb.
-type TVDetails struct {
-	ID               int       `json:"id"`
-	Name             string    `json:"name"`
-	OriginalName     string    `json:"original_name"`
-	Overview         string    `json:"overview"`
-	Tagline          string    `json:"tagline"`
-	FirstAirDate     string    `json:"first_air_date"`
-	LastAirDate      string    `json:"last_air_date"`
-	Status           string    `json:"status"`
-	Type             string    `json:"type"`
-	NumberOfSeasons  int       `json:"number_of_seasons"`
-	NumberOfEpisodes int       `json:"number_of_episodes"`
-	EpisodeRunTime   []int     `json:"episode_run_time"`
-	VoteAverage      float64   `json:"vote_average"`
-	VoteCount        int       `json:"vote_count"`
-	PosterPath       string    `json:"poster_path"`
-	BackdropPath     string    `json:"backdrop_path"`
-	OriginalLanguage string    `json:"original_language"`
-	Genres           []Genre   `json:"genres"`
-	Networks         []Network `json:"networks"`
-	ProductionCompanies []ProductionCompany `json:"production_companies"`
-	CreatedBy        []Creator `json:"created_by"`
-
-	// External IDs (when using append_to_response)
-	ExternalIDs *ExternalIDs `json:"external_ids,omitempty"`
-	Credits     *Credits     `json:"credits,omitempty"`
-	Images      *Images      `json:"images,omitempty"`
-}
-
-// Genre represents a genre.
-type Genre struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-}
-
-// ProductionCompany represents a production company/studio.
-type ProductionCompany struct {
-	ID            int    `json:"id"`
-	Name          string `json:"name"`
-	LogoPath      string `json:"logo_path"`
-	OriginCountry string `json:"origin_country"`
-}
-
-// ProductionCountry represents a production country.
-type ProductionCountry struct {
-	ISO3166_1 string `json:"iso_3166_1"`
-	Name      string `json:"name"`
-}
-
-// Network represents a TV network.
-type Network struct {
-	ID            int    `json:"id"`
-	Name          string `json:"name"`
-	LogoPath      string `json:"logo_path"`
-	OriginCountry string `json:"origin_country"`
-}
-
-// Creator represents a TV show creator.
-type Creator struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	ProfilePath string `json:"profile_path"`
-}
-
-// Credits contains cast and crew information.
-type Credits struct {
-	Cast []CastMember `json:"cast"`
-	Crew []CrewMember `json:"crew"`
-}
-
-// CastMember represents an actor in the cast.
-type CastMember struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	Character   string `json:"character"`
-	Order       int    `json:"order"`
-	ProfilePath string `json:"profile_path"`
-}
-
-// CrewMember represents a crew member.
-type CrewMember struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	Job         string `json:"job"`
-	Department  string `json:"department"`
-	ProfilePath string `json:"profile_path"`
-}
-
-// Images contains image information.
-type Images struct {
-	Backdrops []Image `json:"backdrops"`
-	Posters   []Image `json:"posters"`
-	Logos     []Image `json:"logos"`
-}
-
-// Image represents an image from TMDb.
-type Image struct {
-	FilePath    string  `json:"file_path"`
-	Width       int     `json:"width"`
-	Height      int     `json:"height"`
-	AspectRatio float64 `json:"aspect_ratio"`
-	VoteAverage float64 `json:"vote_average"`
-	VoteCount   int     `json:"vote_count"`
-	ISO639_1    string  `json:"iso_639_1"`
-}
-
-// ExternalIDs contains external IDs for a TV show.
-type ExternalIDs struct {
-	IMDbID      string `json:"imdb_id"`
-	TVDbID      int    `json:"tvdb_id"`
-	FacebookID  string `json:"facebook_id"`
-	InstagramID string `json:"instagram_id"`
-	TwitterID   string `json:"twitter_id"`
-}
-
-// FindByExternalIDResponse is the response from TMDb find endpoint.
-type FindByExternalIDResponse struct {
-	MovieResults []MovieSearchResult `json:"movie_results"`
-	TVResults    []TVSearchResult    `json:"tv_results"`
+// Close closes the client and its resources.
+func (c *Client) Close() error {
+	// No resources to close - host manages storage
+	return nil
 }
 
 // SearchMovies searches for movies by title and optional year.
@@ -303,34 +159,178 @@ func ImageURL(path string, size string) string {
 	return fmt.Sprintf("%s/%s%s", imageBaseURL, size, path)
 }
 
-// get performs a GET request to the TMDb API.
+// cacheKey generates a cache key for a request.
+func cacheKey(path string, params url.Values) string {
+	h := sha256.New()
+	h.Write([]byte(path))
+	h.Write([]byte(params.Encode()))
+	return cachePrefix + hex.EncodeToString(h.Sum(nil))
+}
+
+// getFromCache retrieves a cached response if available.
+func (c *Client) getFromCache(ctx context.Context, key string) ([]byte, bool) {
+	if c.storage == nil {
+		return nil, false
+	}
+
+	resp, err := c.storage.KVGet(ctx, &pluginv1.KVKey{Key: key})
+	if err != nil {
+		c.logger.Debug("cache get error", "key", key, "error", err)
+		return nil, false
+	}
+
+	if !resp.Exists {
+		return nil, false
+	}
+
+	return resp.Value, true
+}
+
+// setCache stores a response in the cache with TTL.
+func (c *Client) setCache(ctx context.Context, key string, response []byte) {
+	if c.storage == nil {
+		return
+	}
+
+	_, err := c.storage.KVSet(ctx, &pluginv1.KVEntry{
+		Key:        key,
+		Value:      response,
+		TtlSeconds: c.cacheTTLSecs,
+	})
+	if err != nil {
+		c.logger.Warn("failed to cache response", "key", key, "error", err)
+	}
+}
+
+// waitForRateLimit blocks until we can make another request.
+func (c *Client) waitForRateLimit() {
+	c.rateMu.Lock()
+	defer c.rateMu.Unlock()
+
+	elapsed := time.Since(c.lastRequest)
+	if elapsed < minRequestInterval {
+		time.Sleep(minRequestInterval - elapsed)
+	}
+	c.lastRequest = time.Now()
+}
+
+// isRetryableError returns true if the error is transient and worth retrying.
+func isRetryableError(statusCode int) bool {
+	switch statusCode {
+	case http.StatusTooManyRequests, // 429
+		http.StatusServiceUnavailable, // 503
+		http.StatusGatewayTimeout,     // 504
+		http.StatusBadGateway:         // 502
+		return true
+	}
+	return false
+}
+
+// isRetryableNetworkError returns true for transient network errors.
+func isRetryableNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, context.Canceled)
+}
+
+// isJWTToken checks if the API key is a JWT bearer token (v4 auth).
+func (c *Client) isJWTToken() bool {
+	return len(c.apiKey) > 100 && len(c.apiKey) >= 3 && c.apiKey[:3] == "eyJ"
+}
+
+// get performs a GET request to the TMDb API with caching, rate limiting, and retries.
 func (c *Client) get(ctx context.Context, path string, params url.Values, result interface{}) error {
 	if params == nil {
 		params = url.Values{}
 	}
-	params.Set("api_key", c.apiKey)
+
+	// Check cache first
+	key := cacheKey(path, params)
+	if cached, ok := c.getFromCache(ctx, key); ok {
+		c.logger.Debug("cache hit", "path", path)
+		return json.Unmarshal(cached, result)
+	}
+
+	// For legacy API keys, add to query params
+	if !c.isJWTToken() {
+		params.Set("api_key", c.apiKey)
+	}
 
 	reqURL := fmt.Sprintf("%s%s?%s", baseURL, path, params.Encode())
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+	var lastErr error
+	delay := initialRetryDelay
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			c.logger.Debug("retrying request", "attempt", attempt, "delay", delay, "path", path)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+			delay = time.Duration(float64(delay) * backoffMultiplier)
+			if delay > maxRetryDelay {
+				delay = maxRetryDelay
+			}
+		}
+
+		// Rate limit
+		c.waitForRateLimit()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+		if err != nil {
+			return fmt.Errorf("failed to create request: %w", err)
+		}
+
+		// For JWT tokens (v4 auth), use Bearer authorization header
+		if c.isJWTToken() {
+			req.Header.Set("Authorization", "Bearer "+c.apiKey)
+		}
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			if isRetryableNetworkError(err) && attempt < maxRetries {
+				lastErr = err
+				continue
+			}
+			return fmt.Errorf("request failed: %w", err)
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if err != nil {
+			if attempt < maxRetries {
+				lastErr = err
+				continue
+			}
+			return fmt.Errorf("failed to read response: %w", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			if isRetryableError(resp.StatusCode) && attempt < maxRetries {
+				lastErr = fmt.Errorf("TMDb API error (status %d): %s", resp.StatusCode, string(body))
+				// For rate limiting, respect Retry-After header if present
+				if resp.StatusCode == http.StatusTooManyRequests {
+					delay = 10 * time.Second // TMDb typically rate limits for ~10 seconds
+				}
+				continue
+			}
+			return fmt.Errorf("TMDb API error (status %d): %s", resp.StatusCode, string(body))
+		}
+
+		// Cache the successful response
+		c.setCache(ctx, key, body)
+
+		if err := json.Unmarshal(body, result); err != nil {
+			return fmt.Errorf("failed to decode response: %w", err)
+		}
+
+		return nil
 	}
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("TMDb API error (status %d): %s", resp.StatusCode, string(body))
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	return nil
+	return fmt.Errorf("max retries exceeded: %w", lastErr)
 }

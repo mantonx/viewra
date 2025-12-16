@@ -336,6 +336,112 @@ func (q *Queries) GetMetadataSourcesByMedia(ctx context.Context, mediaID int64) 
 	return items, nil
 }
 
+const getPersonByExternalID = `-- name: GetPersonByExternalID :one
+SELECT entity_id FROM media_external_ids
+WHERE media_type = 'person' AND provider = ? AND external_id = ?
+`
+
+type GetPersonByExternalIDParams struct {
+	Provider   string `json:"provider"`
+	ExternalID string `json:"external_id"`
+}
+
+// Looks up a person by external ID (e.g., TMDb person ID)
+func (q *Queries) GetPersonByExternalID(ctx context.Context, arg GetPersonByExternalIDParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getPersonByExternalID, arg.Provider, arg.ExternalID)
+	var entity_id int64
+	err := row.Scan(&entity_id)
+	return entity_id, err
+}
+
+const getPersonExternalIDs = `-- name: GetPersonExternalIDs :many
+SELECT provider, external_id FROM media_external_ids
+WHERE media_type = 'person' AND entity_id = ?
+ORDER BY provider
+`
+
+type GetPersonExternalIDsRow struct {
+	Provider   string `json:"provider"`
+	ExternalID string `json:"external_id"`
+}
+
+// Gets all external IDs for a person
+func (q *Queries) GetPersonExternalIDs(ctx context.Context, entityID int64) ([]GetPersonExternalIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPersonExternalIDs, entityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetPersonExternalIDsRow{}
+	for rows.Next() {
+		var i GetPersonExternalIDsRow
+		if err := rows.Scan(&i.Provider, &i.ExternalID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getStudioByExternalID = `-- name: GetStudioByExternalID :one
+SELECT entity_id FROM media_external_ids
+WHERE media_type = 'studio' AND provider = ? AND external_id = ?
+`
+
+type GetStudioByExternalIDParams struct {
+	Provider   string `json:"provider"`
+	ExternalID string `json:"external_id"`
+}
+
+// Looks up a studio by external ID (e.g., TMDb company ID)
+func (q *Queries) GetStudioByExternalID(ctx context.Context, arg GetStudioByExternalIDParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getStudioByExternalID, arg.Provider, arg.ExternalID)
+	var entity_id int64
+	err := row.Scan(&entity_id)
+	return entity_id, err
+}
+
+const getStudioExternalIDs = `-- name: GetStudioExternalIDs :many
+SELECT provider, external_id FROM media_external_ids
+WHERE media_type = 'studio' AND entity_id = ?
+ORDER BY provider
+`
+
+type GetStudioExternalIDsRow struct {
+	Provider   string `json:"provider"`
+	ExternalID string `json:"external_id"`
+}
+
+// Gets all external IDs for a studio
+func (q *Queries) GetStudioExternalIDs(ctx context.Context, entityID int64) ([]GetStudioExternalIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getStudioExternalIDs, entityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetStudioExternalIDsRow{}
+	for rows.Next() {
+		var i GetStudioExternalIDsRow
+		if err := rows.Scan(&i.Provider, &i.ExternalID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertExternalID = `-- name: UpsertExternalID :exec
 INSERT INTO media_external_ids (
     media_id,

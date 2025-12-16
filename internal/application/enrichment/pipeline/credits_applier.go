@@ -40,7 +40,8 @@ func (a *CreditsApplier) Apply(ctx context.Context, mediaID int64, mediaType enr
 
 	// Process cast members
 	for i, castMember := range metadata.Cast {
-		person, err := a.findOrCreatePerson(castMember.Name, 0) // Cast doesn't have TMDb IDs in our proto
+		// Cast members have TMDb ID and photo URL, use the extended method
+		person, err := a.peopleRepo.FindOrCreatePersonWithPhoto(castMember.Name, int(castMember.TmdbId), castMember.Thumb)
 		if err != nil {
 			a.logger.Warn("failed to find/create person for cast",
 				slog.String("name", castMember.Name),

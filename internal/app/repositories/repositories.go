@@ -21,6 +21,7 @@ import (
 	tvRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/tvshow"
 	userRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/user"
 	"github.com/mantonx/viewra/internal/infrastructure/plugins"
+	pluginRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/plugins"
 )
 
 // Repositories holds all data access layer implementations.
@@ -56,7 +57,8 @@ type Repositories struct {
 	// Studios (production companies)
 	Studios *studiosRepo.Repository
 
-	// Plugin MediaQuerier for plugin access to media data
+	// Plugin repositories
+	Plugin             *pluginRepo.Repository
 	PluginMediaQuerier plugins.MediaQuerier
 }
 
@@ -107,7 +109,8 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	// Create studios repository
 	studiosRepository := studiosRepo.NewRepository(baseRepo)
 
-	// Create plugin MediaQuerier for plugin access to media data
+	// Create plugin repositories
+	pluginRepository := pluginRepo.NewRepository(db, driver)
 	pluginMediaQuerier := plugins.NewDBMediaQuerier(db, driver)
 
 	return &Repositories{
@@ -134,6 +137,7 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 		EnrichmentMetadataSource: enrichmentMetadataSourceRepository,
 		People:                   peopleRepository,
 		Studios:                  studiosRepository,
+		Plugin:                   pluginRepository,
 		PluginMediaQuerier:       pluginMediaQuerier,
 	}
 }

@@ -42,6 +42,8 @@ type PeopleRepository interface {
 	CreatePerson(person *Person) error
 	UpdatePerson(person *Person) error
 	FindOrCreatePerson(name string, tmdbID int) (*Person, error)
+	// FindOrCreatePersonWithPhoto finds or creates a person, also setting/updating their photo URL.
+	FindOrCreatePersonWithPhoto(name string, tmdbID int, photoURL string) (*Person, error)
 
 	// Credit operations
 	GetCreditsForEntity(mediaType string, entityID int64) ([]*Credit, error)

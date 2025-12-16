@@ -88,3 +88,25 @@ DELETE FROM media_metadata_sources WHERE media_id = ?;
 
 -- name: DeleteMetadataSourcesByPlugin :exec
 DELETE FROM media_metadata_sources WHERE plugin_id = ?;
+
+-- name: GetPersonByExternalID :one
+-- Looks up a person by external ID (e.g., TMDb person ID)
+SELECT entity_id FROM media_external_ids
+WHERE media_type = 'person' AND provider = ? AND external_id = ?;
+
+-- name: GetStudioByExternalID :one
+-- Looks up a studio by external ID (e.g., TMDb company ID)
+SELECT entity_id FROM media_external_ids
+WHERE media_type = 'studio' AND provider = ? AND external_id = ?;
+
+-- name: GetPersonExternalIDs :many
+-- Gets all external IDs for a person
+SELECT provider, external_id FROM media_external_ids
+WHERE media_type = 'person' AND entity_id = ?
+ORDER BY provider;
+
+-- name: GetStudioExternalIDs :many
+-- Gets all external IDs for a studio
+SELECT provider, external_id FROM media_external_ids
+WHERE media_type = 'studio' AND entity_id = ?
+ORDER BY provider;

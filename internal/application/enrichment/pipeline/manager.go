@@ -88,13 +88,13 @@ func (m *Manager) RegisterExternalEnricher(ctx context.Context, enricher appenri
 		// Position is one after the last stage
 		position := len(allStages) + 1
 
-		// Create new stage (disabled by default for external plugins)
+		// Create new stage (enabled by default for external plugins)
 		newStage := &enrichment.PipelineStage{
 			MediaType: mediaType,
 			PluginID:  stage,
 			StageName: stage,
 			Position:  position,
-			Enabled:   false, // External plugins are disabled by default
+			Enabled:   true,
 		}
 
 		if _, err := m.deps.PipelineRepo.Create(ctx, newStage); err != nil {

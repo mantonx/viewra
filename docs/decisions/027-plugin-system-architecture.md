@@ -1204,6 +1204,165 @@ func ProcessMovie(ctx context.Context, deps *Deps, ...) (*int64, error) {
 
 ---
 
+## Plugin API
+
+REST API for managing plugins from the UI. Admin-only for management operations.
+
+### Endpoints
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| GET | `/api/plugins` | List all plugins | User |
+| GET | `/api/plugins/:id` | Get plugin details | User |
+| GET | `/api/plugins/:id/settings` | Get plugin settings schema + current values | User |
+| PUT | `/api/plugins/:id/settings` | Update plugin settings | Admin |
+| POST | `/api/plugins/:id/enable` | Enable plugin | Admin |
+| POST | `/api/plugins/:id/disable` | Disable plugin | Admin |
+| POST | `/api/plugins/:id/restart` | Restart plugin process | Admin |
+| GET | `/api/plugins/:id/health` | Get plugin health details | User |
+| GET | `/api/plugins/:id/logs` | Get recent plugin logs | Admin |
+
+### Response Types
+
+```go
+// PluginSummary is returned by list endpoints
+type PluginSummary struct {
+    ID          string   `json:"id"`
+    Name        string   `json:"name"`
+    Version     string   `json:"version"`
+    Description string   `json:"description"`
+    Author      string   `json:"author"`
+    Categories  []string `json:"categories"`
+    Enabled     bool     `json:"enabled"`
+    IsBuiltin   bool     `json:"is_builtin"`
+    Health      string   `json:"health"` // "healthy", "degraded", "unhealthy", "unknown"
+}
+
+// PluginDetail is returned by GET /api/plugins/:id
+type PluginDetail struct {
+    PluginSummary
+    License         string    `json:"license"`
+    Homepage        string    `json:"homepage"`
+    InstalledAt     time.Time `json:"installed_at"`
+    UpdatedAt       time.Time `json:"updated_at"`
+    RestartCount    int       `json:"restart_count"`
+    LastHeartbeat   time.Time `json:"last_heartbeat"`
+    HealthMessage   string    `json:"health_message,omitempty"`
+    Capabilities    any       `json:"capabilities,omitempty"` // Enricher-specific capabilities
+}
+
+// PluginSettings is returned by GET /api/plugins/:id/settings
+type PluginSettings struct {
+    PluginID string          `json:"plugin_id"`
+    Schema   json.RawMessage `json:"schema"`  // JSON Schema for settings form
+    Values   json.RawMessage `json:"values"`  // Current settings values
+}
+
+// UpdateSettingsRequest is the request body for PUT /api/plugins/:id/settings
+type UpdateSettingsRequest struct {
+    Values json.RawMessage `json:"values"`
+}
+
+// PluginHealthDetail is returned by GET /api/plugins/:id/health
+type PluginHealthDetail struct {
+    Status        string        `json:"status"`
+    Message       string        `json:"message"`
+    LastHeartbeat time.Time     `json:"last_heartbeat"`
+    ErrorRate     float64       `json:"error_rate"`      // Errors per minute
+    AvgLatency    time.Duration `json:"avg_latency_ms"`  // Average response time
+    Restarts      int           `json:"restarts"`
+    Uptime        time.Duration `json:"uptime_seconds"`
+}
+```
+
+### Design Decisions
+
+**Q65: Should listing plugins require authentication?**
+
+Yes, but read-only access for regular users. Admin required for mutations.
+
+Rationale:
+- Users benefit from seeing which enrichers are active (explains why metadata appears)
+- Only admins should enable/disable plugins (affects all users)
+- Plugin settings may contain sensitive config (API keys) - admin only
+
+**Q66: How should plugin settings work?**
+
+Plugins declare a JSON Schema via `GetSettingsSchema()` RPC. The UI renders this as a form.
+
+```protobuf
+// Already in plugin.proto
+message SettingsSchema {
+  bytes json_schema = 1;  // JSON Schema document
+}
+```
+
+Settings are stored in the host database (not in `config.yml`):
+- Easier for UI to update
+- No file system access needed
+- Can be backed up with database
+
+**Q67: Should we support plugin installation/uninstallation via API?**
+
+Deferred to Phase 5+. Current scope:
+- Plugins are installed manually (copy to `plugins/` directory)
+- API manages lifecycle of already-installed plugins
+
+Future:
+- `POST /api/plugins/install` - Install from registry
+- `DELETE /api/plugins/:id` - Uninstall plugin
+
+**Q68: How do we handle built-in plugins in the API?**
+
+Built-in plugins appear in the list but with restrictions:
+- `is_builtin: true` flag
+- Cannot be disabled (attempt returns 400)
+- Cannot be uninstalled
+- Settings can still be modified (e.g., NFO parser options)
+
+**Q69: What logs are available via the API?**
+
+Recent logs from the Event Bus ring buffer, filtered by plugin ID:
+- Default: last 100 log entries
+- Supports `?level=error` filter
+- Supports `?since=<timestamp>` for pagination
+
+### Service Layer
+
+The API handler delegates to a `PluginService` in the application layer:
+
+```go
+// internal/application/plugins/service.go
+type Service struct {
+    manager    *plugins.Manager      // Infrastructure layer
+    queries    PluginQueries         // Database queries
+    eventBus   *events.Bus           // For log retrieval
+    logger     *slog.Logger
+}
+
+func (s *Service) List(ctx context.Context) ([]PluginSummary, error)
+func (s *Service) Get(ctx context.Context, id string) (*PluginDetail, error)
+func (s *Service) GetSettings(ctx context.Context, id string) (*PluginSettings, error)
+func (s *Service) UpdateSettings(ctx context.Context, id string, values json.RawMessage) error
+func (s *Service) Enable(ctx context.Context, id string) error
+func (s *Service) Disable(ctx context.Context, id string) error
+func (s *Service) Restart(ctx context.Context, id string) error
+func (s *Service) GetHealth(ctx context.Context, id string) (*PluginHealthDetail, error)
+func (s *Service) GetLogs(ctx context.Context, id string, opts LogOptions) ([]LogEntry, error)
+```
+
+### Wiring
+
+```go
+// internal/api/server.go - Add to Handlers struct
+Plugins *handlers.PluginHandler
+
+// internal/api/server.go - In setupRoutes()
+routes.RegisterPluginRoutes(protected, h.Plugins, h.AuthValidator)
+```
+
+---
+
 ## Implementation Phases
 
 ### Phase 1: Core Infrastructure (5-6 days) ✓ COMPLETE
@@ -2774,6 +2933,11 @@ Simpler but no isolation—a buggy plugin crashes ViewRA.
 | 62 | Capabilities | Rich fields (MediaTypes, Provides, IsLocal, etc.) |
 | 63 | Diagnostics | Exportable diagnostic bundles |
 | 64 | Phases | Reorganized for new components |
+| 65 | Plugin API auth | Read for users, write for admins |
+| 66 | Plugin settings | JSON Schema via RPC, stored in host DB |
+| 67 | Install/uninstall API | Deferred to Phase 5+ |
+| 68 | Built-in plugins | Visible but cannot be disabled |
+| 69 | Plugin logs | From Event Bus ring buffer, filtered by plugin ID |
 
 ---
 
@@ -2804,20 +2968,22 @@ As of December 2025, the plugin system is partially implemented. This section tr
 | Plugin User Metadata | `migrations/000037`, queries in `plugin_user_metadata.sql` | Per-user data storage |
 | Enrichment Pipelines FK | `migrations/000038` | FK constraint to plugins table |
 | Scanner → Pipeline Integration | `internal/application/library/scan/media/*.go` | Scanner enqueues to pipeline, no inline NFO/images |
+| MediaQuerier | `internal/infrastructure/plugins/media_querier.go` | DBMediaQuerier with global search queries |
+| HostDataServer Wiring | `internal/infrastructure/plugins/manager.go` | HostDataServer registered in plugin map |
+| Global Search Queries | `queries/*/movies.sql`, `queries/*/tv_shows.sql` | SearchMoviesGlobal, SearchTVShowsGlobal |
+| Person/Studio External IDs | `migrations/000039`, `queries/*/external_ids.sql` | Polymorphic external IDs for people and studios |
+| Plugin API | `internal/application/plugins/`, `internal/api/handlers/plugins.go`, `internal/infrastructure/persistence/plugins/` | REST API for plugin management with 9 endpoints |
 
 ### In Progress
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Plugin API endpoints | Planned | REST API to manage plugins from UI |
+| Event system | Not started | Notification plugin support |
 
 ### Known Gaps
 
 | Gap | Impact | Priority |
 |-----|--------|----------|
-| **MediaQuerier not implemented** | `host_data.go` defines interface but plugins can't query media beyond EnrichRequest | Medium |
-| **External IDs for people/studios** | `media_external_ids` only references `media.id`, can't store TMDB person_id etc. | Medium |
-| **Plugin API endpoints** | No REST API to list/enable/disable/configure plugins | Medium |
 | **Event system incomplete** | `GetSubscriptions`/`OnEvent` are stubs, no event types defined | Low |
 | **GetLibrary stub** | `host_data.go` returns "not implemented" for library queries | Low |
 
@@ -2825,10 +2991,730 @@ As of December 2025, the plugin system is partially implemented. This section tr
 
 Based on dependencies and impact:
 
-1. **MediaQuerier implementation** - Plugins need to query media
-2. **External IDs for people/studios** - Enable full enrichment chain
-3. **Plugin API endpoints** - UI management
-4. **Event system** - Notification plugins
+1. ~~**MediaQuerier implementation**~~ ✓ Complete
+2. ~~**External IDs for people/studios**~~ ✓ Complete
+3. ~~**Plugin API design**~~ ✓ Complete (see Plugin API section)
+4. ~~**Plugin API implementation**~~ ✓ Complete - Handler, service, routes, repository
+5. **Event system** - Notification plugins
+
+---
+
+## Plugin Build System
+
+This section documents the build system for developing, building, and distributing ViewRA plugins.
+
+### Directory Structure
+
+```
+viewra/
+├── plugins/                        # Plugin source code (in repository)
+│   ├── tmdb/                       # Example: TMDb enricher plugin
+│   │   ├── go.mod                  # Independent Go module
+│   │   ├── go.sum
+│   │   ├── main.go                 # Plugin entry point
+│   │   ├── internal/               # Plugin implementation
+│   │   │   ├── plugin.go           # Core + Enricher implementation
+│   │   │   ├── client.go           # TMDb API client
+│   │   │   └── enrich.go           # Enrichment logic
+│   │   ├── plugin.yml              # Plugin manifest (required)
+│   │   └── config.yml.example      # Configuration template
+│   │
+│   └── fanart/                     # Another plugin example
+│       ├── go.mod
+│       ├── main.go
+│       ├── internal/
+│       ├── plugin.yml
+│       └── config.yml.example
+│
+├── data/plugins/                   # Runtime plugin directory
+│   ├── tmdb/                       # Built plugin output
+│   │   ├── tmdb                    # Binary (must match directory name)
+│   │   ├── plugin.yml              # Copied from source
+│   │   └── config.yml              # User configuration (not tracked)
+│   └── fanart/
+│       ├── fanart
+│       ├── plugin.yml
+│       └── config.yml
+│
+└── api/proto/plugin/               # Shared protobuf definitions
+    ├── plugin.proto
+    └── *.pb.go                     # Generated Go code
+```
+
+### Design Decisions
+
+#### Q70: Why independent go.mod per plugin?
+
+**Decision**: Each plugin has its own `go.mod` file, making it an independent Go module.
+
+**Rationale**:
+1. **Independent versioning** - Plugins can be versioned separately from host and each other
+2. **Dependency isolation** - Plugins can use different versions of shared dependencies
+3. **Build isolation** - Changes to one plugin don't trigger rebuilds of others
+4. **Distribution** - Plugins can be distributed and installed independently
+5. **Developer experience** - Plugin authors don't need the full ViewRA source
+
+**Trade-off**: Requires `replace` directives for local proto package during development.
+
+#### Q71: How do plugins access the shared proto package?
+
+**Decision**: Plugins import the proto package directly from the main module. During development, use `replace` directive.
+
+```go
+// plugins/tmdb/go.mod
+module github.com/mantonx/viewra/plugins/tmdb
+
+go 1.21
+
+require (
+    github.com/mantonx/viewra v0.0.0
+    github.com/hashicorp/go-plugin v1.6.0
+    google.golang.org/grpc v1.60.0
+)
+
+// Development: point to local proto package
+replace github.com/mantonx/viewra => ../..
+```
+
+For distributed plugins (installed by users), they would depend on a published version or use vendoring.
+
+#### Q72: What is the plugin binary naming convention?
+
+**Decision**: Plugin binary name MUST match the directory name.
+
+```
+data/plugins/tmdb/tmdb       ✓ Correct
+data/plugins/tmdb/tmdb-plugin   ✗ Wrong
+data/plugins/my-plugin/my-plugin ✓ Correct (hyphens allowed)
+```
+
+**Rationale**: The plugin manager uses this convention for discovery:
+```go
+// manager.go - DiscoverPlugins()
+binaryPath := filepath.Join(m.pluginDir, entry.Name(), entry.Name())
+```
+
+#### Q73: What files must be present for a valid plugin?
+
+**Required files in runtime directory**:
+
+| File | Purpose | Source |
+|------|---------|--------|
+| `<name>` | Executable binary | Built from source |
+| `plugin.yml` | Manifest with ID, name, version, capabilities | Copied from source |
+
+**Optional files**:
+
+| File | Purpose | Source |
+|------|---------|--------|
+| `config.yml` | Runtime configuration | User creates from template |
+
+**Note**: `config.yml.example` stays in source, not copied to runtime.
+
+#### Q74: How does the build system work?
+
+**Makefile targets**:
+
+```makefile
+# Build all plugins
+make build-plugins
+
+# Build a specific plugin
+make build-plugin NAME=tmdb
+
+# Clean plugin builds
+make clean-plugins
+
+# Create a new plugin from template
+make new-plugin NAME=my-enricher
+```
+
+**Build process for each plugin**:
+
+1. Validate `plugin.yml` exists and has required fields
+2. Build Go binary: `go build -o <output-dir>/<name>/<name> .`
+3. Copy `plugin.yml` to output directory
+4. Set executable permissions
+
+**Output location**: `data/plugins/<plugin-id>/`
+
+#### Q75: What about cross-compilation?
+
+**Decision**: Plugins are built for the host architecture by default. Cross-compilation is opt-in.
+
+```makefile
+# Build for specific OS/arch
+make build-plugin NAME=tmdb GOOS=linux GOARCH=amd64
+
+# Build all plugins for multiple platforms (release builds)
+make build-plugins-release
+```
+
+**Rationale**: Most users run plugins on the same machine as ViewRA. Cross-compilation is needed only for plugin distribution.
+
+### Plugin Manifest (plugin.yml)
+
+The manifest is the source of truth for plugin identity and capabilities. It's read by the host before starting the plugin binary.
+
+```yaml
+# Required fields
+id: tmdb                          # Unique identifier (lowercase, alphanumeric, hyphens)
+name: TMDb Enricher               # Human-readable name
+version: 1.0.0                    # Semantic version
+
+# Recommended fields
+description: Fetches metadata from The Movie Database
+author: ViewRA Team
+license: MIT
+homepage: https://github.com/mantonx/viewra
+
+# Compatibility
+min_host_version: "0.1.0"         # Minimum ViewRA version
+
+# Plugin type(s)
+categories:
+  - enricher                      # Options: enricher, notification_sink
+
+# Enricher-specific (required if categories includes "enricher")
+capabilities:
+  media_types:                    # What media types this enricher handles
+    - movie
+    - tv_show
+  provides:                       # What data this enricher provides
+    - metadata
+    - artwork
+    - external_ids
+  is_local: false                 # true = local files, false = remote API
+  rate_limit: 40                  # Max requests per 10 seconds (for remote APIs)
+
+# Required permissions
+permissions:
+  - network                       # Can make network requests
+  - storage:database              # Can store data in plugin database
+  - data:media:read               # Can read media information
+  - data:metadata:write           # Can write metadata
+```
+
+### Plugin Configuration (config.yml)
+
+Runtime configuration is separate from the manifest. Users create this file.
+
+```yaml
+# Example: plugins/tmdb/config.yml.example
+# TMDb Plugin Configuration
+
+# Required: Your TMDb API key (v3 auth)
+# Get one at https://www.themoviedb.org/settings/api
+api_key: ""
+
+# Optional: Rate limit (requests per 10 seconds)
+rate_limit: 40
+
+# Optional: Cache TTL in hours
+cache_ttl_hours: 24
+
+# Optional: Preferred language for metadata
+language: "en-US"
+```
+
+The host reads this file and passes it to the plugin during initialization:
+
+```go
+// manager.go - LoadPlugin()
+configPath := filepath.Join(pluginDir, "config.yml")
+configBytes, _ := os.ReadFile(configPath)
+coreClient.Initialize(ctx, &pluginv1.InitRequest{
+    Config: configBytes,  // Raw YAML bytes
+})
+```
+
+### Creating a New Plugin
+
+#### Step 1: Create plugin directory structure
+
+```bash
+make new-plugin NAME=my-enricher
+# Creates:
+#   plugins/my-enricher/
+#   ├── go.mod
+#   ├── main.go           (boilerplate)
+#   ├── internal/
+#   │   └── plugin.go     (implement interfaces)
+#   ├── plugin.yml        (fill in metadata)
+#   └── config.yml.example
+```
+
+#### Step 2: Implement required interfaces
+
+Every plugin must implement `PluginCoreServer`:
+
+```go
+// Required for all plugins
+type PluginCoreServer interface {
+    Initialize(ctx context.Context, req *InitRequest) (*InitResponse, error)
+    Shutdown(ctx context.Context, req *Empty) (*Empty, error)
+    HealthCheck(ctx context.Context, req *Empty) (*HealthStatus, error)
+    GetSettingsSchema(ctx context.Context, req *Empty) (*SettingsSchema, error)
+    Configure(ctx context.Context, req *Settings) (*ConfigureResponse, error)
+}
+```
+
+For enricher plugins, also implement `EnricherServer`:
+
+```go
+// Required for enricher plugins
+type EnricherServer interface {
+    GetCapabilities(ctx context.Context, req *Empty) (*EnricherCapabilities, error)
+    Enrich(ctx context.Context, req *EnrichRequest) (*EnrichResponse, error)
+}
+```
+
+#### Step 3: Register with go-plugin
+
+```go
+// main.go
+func main() {
+    impl := internal.NewMyEnricher()
+
+    plugin.Serve(&plugin.ServeConfig{
+        HandshakeConfig: plugin.HandshakeConfig{
+            ProtocolVersion:  1,
+            MagicCookieKey:   "VIEWRA_PLUGIN",
+            MagicCookieValue: "viewra-plugin-v1",
+        },
+        Plugins: map[string]plugin.Plugin{
+            "core":     &PluginCoreGRPCPlugin{Impl: impl},
+            "enricher": &EnricherGRPCPlugin{Impl: impl},
+        },
+        GRPCServer: plugin.DefaultGRPCServer,
+    })
+}
+```
+
+#### Step 4: Build and test
+
+```bash
+# Build the plugin
+make build-plugin NAME=my-enricher
+
+# Start ViewRA with plugins enabled
+PLUGINS_ENABLED=true ./bin/viewra
+
+# Check plugin loaded via API
+curl http://localhost:8080/api/plugins
+```
+
+### Plugin Development Workflow
+
+```bash
+# 1. Create new plugin
+make new-plugin NAME=my-enricher
+
+# 2. Edit plugin.yml with your metadata
+
+# 3. Implement the plugin in internal/plugin.go
+
+# 4. Build during development
+cd plugins/my-enricher && go build -o ../../data/plugins/my-enricher/my-enricher .
+cp plugin.yml ../../data/plugins/my-enricher/
+
+# 5. Or use make target
+make build-plugin NAME=my-enricher
+
+# 6. Create config.yml from example
+cp data/plugins/my-enricher/config.yml.example data/plugins/my-enricher/config.yml
+# Edit config.yml with your API keys, etc.
+
+# 7. Restart ViewRA or use API to reload
+curl -X POST http://localhost:8080/api/plugins/my-enricher/restart
+```
+
+### Plugin Distribution
+
+For distributing plugins to users:
+
+**Option A: Source distribution**
+```bash
+# User clones and builds
+git clone https://github.com/someone/viewra-my-enricher
+cd viewra-my-enricher
+go build -o ~/.viewra/plugins/my-enricher/my-enricher .
+cp plugin.yml ~/.viewra/plugins/my-enricher/
+```
+
+**Option B: Binary distribution**
+```bash
+# Provide pre-built binaries for common platforms
+# linux-amd64, linux-arm64, darwin-amd64, darwin-arm64, windows-amd64
+
+# User downloads and extracts
+curl -L https://github.com/.../releases/download/v1.0.0/my-enricher-linux-amd64.tar.gz | tar xz -C ~/.viewra/plugins/
+```
+
+**Option C: Future - Plugin registry**
+```bash
+# Hypothetical future command
+viewra plugin install my-enricher
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PLUGINS_DIR` | `./data/plugins` | Directory containing plugin binaries |
+| `PLUGINS_STORAGE_DIR` | `./data/plugins/storage` | Base directory for plugin data storage |
+| `PLUGINS_ENABLED` | `true` | Enable/disable external plugin loading |
+
+---
+
+## Plugin Distribution & Releases
+
+This section documents how plugins are distributed, versioned, and installed.
+
+### Design Decisions
+
+#### Q76: Should plugin binaries be committed to git?
+
+**Decision**: No. Plugin binaries are never committed to git.
+
+**Rationale**:
+- Binaries are platform-specific (linux/darwin/windows × amd64/arm64)
+- Large files bloat repository history
+- Binaries should be reproducible from source
+- Users download pre-built binaries from releases
+
+#### Q77: Where do official plugin sources live?
+
+**Decision**: Official plugin source code lives in `plugins/` directory of the main ViewRA repository. Binaries are built and distributed via GitHub Releases.
+
+**Rationale**:
+- Convenient for development (single repo, shared tooling)
+- Ensures plugins stay in sync with host API changes
+- CI/CD can build all plugins together
+- Community plugins live in separate repositories
+
+#### Q78: What goes in .gitignore?
+
+```gitignore
+# Plugin binaries and runtime data (never commit)
+data/plugins/
+
+# Keep the directory structure placeholder
+!data/plugins/.gitkeep
+
+# Plugin source IS committed
+# (plugins/ directory is NOT ignored)
+```
+
+### Repository Structure
+
+| Content | Location | In Git? |
+|---------|----------|---------|
+| Official plugin source | `plugins/<name>/` | Yes |
+| Plugin binaries | `data/plugins/<name>/<name>` | No |
+| Plugin manifest (source) | `plugins/<name>/plugin.yml` | Yes |
+| Plugin manifest (runtime) | `data/plugins/<name>/plugin.yml` | No |
+| Config template | `plugins/<name>/config.yml.example` | Yes |
+| User config | `data/plugins/<name>/config.yml` | No |
+| Plugin data/cache | `data/plugins/storage/<name>/` | No |
+
+### Release Artifacts
+
+When ViewRA is released, plugin binaries are built for all platforms and included as separate downloadable artifacts.
+
+#### Release structure
+
+```text
+GitHub Release: v1.0.0
+
+Main binaries:
+├── viewra-v1.0.0-linux-amd64.tar.gz
+├── viewra-v1.0.0-linux-arm64.tar.gz
+├── viewra-v1.0.0-darwin-amd64.tar.gz
+├── viewra-v1.0.0-darwin-arm64.tar.gz
+└── viewra-v1.0.0-windows-amd64.zip
+
+Plugin bundles (all official plugins):
+├── viewra-plugins-v1.0.0-linux-amd64.tar.gz
+│   ├── tmdb/
+│   │   ├── tmdb              # Binary
+│   │   ├── plugin.yml        # Manifest
+│   │   └── config.yml.example
+│   └── fanart/
+│       ├── fanart
+│       ├── plugin.yml
+│       └── config.yml.example
+├── viewra-plugins-v1.0.0-linux-arm64.tar.gz
+├── viewra-plugins-v1.0.0-darwin-amd64.tar.gz
+├── viewra-plugins-v1.0.0-darwin-arm64.tar.gz
+└── viewra-plugins-v1.0.0-windows-amd64.zip
+```
+
+**Why separate downloads**:
+- Main binary stays small (~15-20MB)
+- Users choose which plugins to install
+- Plugin updates don't require full ViewRA update
+- Platform-specific builds reduce download size
+
+### Installation Methods
+
+#### Method 1: Download pre-built plugins (recommended for users)
+
+```bash
+# Download ViewRA
+curl -L https://github.com/mantonx/viewra/releases/download/v1.0.0/viewra-v1.0.0-linux-amd64.tar.gz \
+  | tar xz -C /opt/viewra/
+
+# Download plugins
+curl -L https://github.com/mantonx/viewra/releases/download/v1.0.0/viewra-plugins-v1.0.0-linux-amd64.tar.gz \
+  | tar xz -C /opt/viewra/data/plugins/
+
+# Configure plugins
+cp /opt/viewra/data/plugins/tmdb/config.yml.example /opt/viewra/data/plugins/tmdb/config.yml
+# Edit config.yml with your API keys
+```
+
+#### Method 2: Build from source (development)
+
+```bash
+# Clone repository
+git clone https://github.com/mantonx/viewra
+cd viewra
+
+# Build ViewRA
+make build
+
+# Build all plugins
+make build-plugins
+
+# Build specific plugin
+make build-plugin NAME=tmdb
+
+# Plugins are now in data/plugins/
+ls data/plugins/tmdb/
+# tmdb  plugin.yml
+```
+
+#### Method 3: Install community plugin
+
+Community plugins live in separate repositories:
+
+```bash
+# Option A: Build from source
+git clone https://github.com/someone/viewra-plugin-awesome
+cd viewra-plugin-awesome
+go build -o /opt/viewra/data/plugins/awesome/awesome .
+cp plugin.yml /opt/viewra/data/plugins/awesome/
+
+# Option B: Download release
+curl -L https://github.com/someone/viewra-plugin-awesome/releases/download/v1.0.0/awesome-linux-amd64.tar.gz \
+  | tar xz -C /opt/viewra/data/plugins/
+```
+
+### Community Plugin Development
+
+For developers creating third-party plugins:
+
+#### Recommended repository structure
+
+```text
+viewra-plugin-myenricher/
+├── go.mod                    # Independent module
+├── go.sum
+├── main.go                   # Entry point
+├── internal/
+│   └── plugin.go             # Implementation
+├── plugin.yml                # Manifest
+├── config.yml.example        # Config template
+├── README.md                 # Documentation
+├── LICENSE
+├── Makefile                  # Build helpers
+└── .github/
+    └── workflows/
+        └── release.yml       # Automated releases
+```
+
+#### go.mod for community plugins
+
+```go
+module github.com/yourname/viewra-plugin-myenricher
+
+go 1.21
+
+require (
+    // Depend on a published ViewRA version for proto package
+    github.com/mantonx/viewra v1.0.0
+    github.com/hashicorp/go-plugin v1.6.0
+    google.golang.org/grpc v1.60.0
+)
+```
+
+**Note**: Unlike official plugins (which use `replace` directive), community plugins depend on published ViewRA releases.
+
+#### Automated releases with GitHub Actions
+
+```yaml
+# .github/workflows/release.yml
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm64
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          PLUGIN_NAME=$(grep '^id:' plugin.yml | awk '{print $2}')
+          mkdir -p dist/${PLUGIN_NAME}
+          EXT=""
+          if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
+          go build -o dist/${PLUGIN_NAME}/${PLUGIN_NAME}${EXT} .
+          cp plugin.yml dist/${PLUGIN_NAME}/
+          cp config.yml.example dist/${PLUGIN_NAME}/ 2>/dev/null || true
+
+      - name: Package
+        run: |
+          PLUGIN_NAME=$(grep '^id:' plugin.yml | awk '{print $2}')
+          cd dist
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            zip -r ${PLUGIN_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}.zip ${PLUGIN_NAME}
+          else
+            tar czf ${PLUGIN_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz ${PLUGIN_NAME}
+          fi
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*.*
+```
+
+### Version Compatibility
+
+#### Host-Plugin compatibility
+
+The `min_host_version` field in `plugin.yml` declares the minimum ViewRA version:
+
+```yaml
+# plugin.yml
+min_host_version: "1.0.0"
+```
+
+The plugin manager validates this at load time:
+
+```go
+if semver.Compare(manifest.MinHostVersion, m.hostVersion) > 0 {
+    return nil, fmt.Errorf("plugin %s requires ViewRA %s+, running %s",
+        manifest.ID, manifest.MinHostVersion, m.hostVersion)
+}
+```
+
+#### Proto/gRPC interface versioning
+
+| Protocol Version | ViewRA Versions | Notes |
+|------------------|-----------------|-------|
+| 1 | 0.1.0+ | Initial release |
+
+**Compatibility rules**:
+- Adding new message fields: backwards compatible
+- Adding new RPC methods: backwards compatible (plugins can ignore)
+- Removing/renaming fields: **breaking** (requires version bump)
+- Changing field types: **breaking**
+
+When making breaking changes:
+1. Increment `ProtocolVersion` in handshake
+2. Document migration in release notes
+3. Plugins with old protocol will fail to load with clear error
+
+### CI/CD Configuration
+
+#### Official plugins CI (in main repo)
+
+```yaml
+# .github/workflows/build-plugins.yml
+name: Build Plugins
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'plugins/**'
+      - 'api/proto/plugin/**'
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm64
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build all plugins
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: make build-plugins
+
+      - name: Package
+        run: |
+          cd data/plugins
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            zip -r ../../viewra-plugins-${{ matrix.goos }}-${{ matrix.goarch }}.zip .
+          else
+            tar czf ../../viewra-plugins-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz .
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugins-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: viewra-plugins-*
+
+      - name: Upload to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: viewra-plugins-*
+```
+
+### Summary: Development vs Production
+
+| Aspect | Development | Production |
+|--------|-------------|------------|
+| Plugin directory | `./data/plugins/` | `/opt/viewra/data/plugins/` or `~/.viewra/plugins/` |
+| Build method | `make build-plugins` | Download from GitHub Releases |
+| Proto package access | `replace` directive in go.mod | Published ViewRA module |
+| Config management | Manual | User-managed |
+| Updates | Rebuild from source | Download new release |
 
 ---
 

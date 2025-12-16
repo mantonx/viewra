@@ -1,4 +1,4 @@
-.PHONY: help dev dev-debug dev-clean stop build build-tools build-ffmpeg clean-ffmpeg clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen install-tools setup
+.PHONY: help dev dev-debug dev-clean stop build build-tools build-ffmpeg clean-ffmpeg clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen install-tools setup build-plugins build-plugin clean-plugins new-plugin
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -165,4 +165,88 @@ setup: install-tools ## Initial project setup
 	mkdir -p tmp
 	cd web && npm install
 	@echo "Setup complete! Run 'make dev' to start development servers"
+
+# =============================================================================
+# Plugin Build System
+# =============================================================================
+
+build-plugins: ## Build all plugins from plugins/ directory
+	@echo "Building all plugins..."
+	@mkdir -p data/plugins
+	@for dir in plugins/*/; do \
+		if [ -f "$$dir/main.go" ] || [ -f "$$dir/go.mod" ]; then \
+			name=$$(basename "$$dir"); \
+			echo "Building plugin: $$name"; \
+			mkdir -p "data/plugins/$$name"; \
+			(cd "$$dir" && go build -o "../../data/plugins/$$name/$$name" .); \
+			if [ -f "$$dir/plugin.yml" ]; then \
+				cp "$$dir/plugin.yml" "data/plugins/$$name/"; \
+			fi; \
+			if [ -f "$$dir/config.yml" ]; then \
+				cp "$$dir/config.yml" "data/plugins/$$name/"; \
+			fi; \
+			echo "✓ $$name built -> data/plugins/$$name/$$name"; \
+		fi; \
+	done
+	@echo "All plugins built!"
+
+build-plugin: ## Build a single plugin (usage: make build-plugin NAME=tmdb)
+	@if [ -z "$(NAME)" ]; then echo "Usage: make build-plugin NAME=plugin_name"; exit 1; fi
+	@if [ ! -d "plugins/$(NAME)" ]; then echo "❌ Plugin not found: plugins/$(NAME)"; exit 1; fi
+	@echo "Building plugin: $(NAME)"
+	@mkdir -p "data/plugins/$(NAME)"
+	cd "plugins/$(NAME)" && go build -o "../../data/plugins/$(NAME)/$(NAME)" .
+	@if [ -f "plugins/$(NAME)/plugin.yml" ]; then \
+		cp "plugins/$(NAME)/plugin.yml" "data/plugins/$(NAME)/"; \
+	fi
+	@if [ -f "plugins/$(NAME)/config.yml" ]; then \
+		cp "plugins/$(NAME)/config.yml" "data/plugins/$(NAME)/"; \
+	fi
+	@echo "✓ $(NAME) built -> data/plugins/$(NAME)/$(NAME)"
+
+clean-plugins: ## Remove all built plugin binaries
+	rm -rf data/plugins/
+	@echo "✓ Plugin binaries cleaned"
+
+new-plugin: ## Create a new plugin scaffold (usage: make new-plugin NAME=myplugin)
+	@if [ -z "$(NAME)" ]; then echo "Usage: make new-plugin NAME=plugin_name"; exit 1; fi
+	@if [ -d "plugins/$(NAME)" ]; then echo "❌ Plugin already exists: plugins/$(NAME)"; exit 1; fi
+	@echo "Creating plugin scaffold: $(NAME)"
+	@mkdir -p "plugins/$(NAME)/internal"
+	@echo "# $(NAME) Plugin Manifest" > "plugins/$(NAME)/plugin.yml"
+	@echo "" >> "plugins/$(NAME)/plugin.yml"
+	@echo "id: $(NAME)" >> "plugins/$(NAME)/plugin.yml"
+	@echo "name: $(NAME)" >> "plugins/$(NAME)/plugin.yml"
+	@echo "version: 0.1.0" >> "plugins/$(NAME)/plugin.yml"
+	@echo "description: TODO: Add description" >> "plugins/$(NAME)/plugin.yml"
+	@echo "" >> "plugins/$(NAME)/plugin.yml"
+	@echo "author: TODO" >> "plugins/$(NAME)/plugin.yml"
+	@echo "license: MIT" >> "plugins/$(NAME)/plugin.yml"
+	@echo "" >> "plugins/$(NAME)/plugin.yml"
+	@echo "min_host_version: \"0.1.0\"" >> "plugins/$(NAME)/plugin.yml"
+	@echo "" >> "plugins/$(NAME)/plugin.yml"
+	@echo "categories:" >> "plugins/$(NAME)/plugin.yml"
+	@echo "  - enricher" >> "plugins/$(NAME)/plugin.yml"
+	@echo "" >> "plugins/$(NAME)/plugin.yml"
+	@echo "capabilities:" >> "plugins/$(NAME)/plugin.yml"
+	@echo "  media_types:" >> "plugins/$(NAME)/plugin.yml"
+	@echo "    - movie" >> "plugins/$(NAME)/plugin.yml"
+	@echo "  provides:" >> "plugins/$(NAME)/plugin.yml"
+	@echo "    - metadata" >> "plugins/$(NAME)/plugin.yml"
+	@echo "  is_local: false" >> "plugins/$(NAME)/plugin.yml"
+	@echo "  rate_limit: 10" >> "plugins/$(NAME)/plugin.yml"
+	@echo "" >> "plugins/$(NAME)/plugin.yml"
+	@echo "permissions:" >> "plugins/$(NAME)/plugin.yml"
+	@echo "  - network" >> "plugins/$(NAME)/plugin.yml"
+	@echo "" >> "plugins/$(NAME)/plugin.yml"
+	@echo "# $(NAME) Plugin Configuration" > "plugins/$(NAME)/config.yml"
+	@echo "" >> "plugins/$(NAME)/config.yml"
+	@echo "# Add your configuration options here" >> "plugins/$(NAME)/config.yml"
+	@echo "" >> "plugins/$(NAME)/config.yml"
+	@echo "✓ Plugin scaffold created: plugins/$(NAME)/"
+	@echo "  Next steps:"
+	@echo "    1. Edit plugins/$(NAME)/plugin.yml with your plugin details"
+	@echo "    2. Create plugins/$(NAME)/go.mod"
+	@echo "    3. Create plugins/$(NAME)/main.go"
+	@echo "    4. Build with: make build-plugin NAME=$(NAME)"
 

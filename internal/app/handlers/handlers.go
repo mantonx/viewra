@@ -11,6 +11,7 @@ import (
 	"github.com/mantonx/viewra/internal/app/services"
 	"github.com/mantonx/viewra/internal/app/usecases"
 	appauth "github.com/mantonx/viewra/internal/application/auth"
+	appplugins "github.com/mantonx/viewra/internal/application/plugins"
 	"github.com/mantonx/viewra/internal/infrastructure/scheduler"
 	"github.com/mantonx/viewra/internal/infrastructure/streaming"
 )
@@ -154,6 +155,18 @@ func BuildHandlers(
 		)
 	}
 
+	// Plugin handler
+	var pluginHandler *handlers.PluginHandler
+	if infra.Repos.Plugin != nil && svcs.PluginManager != nil && svcs.EventBus != nil {
+		pluginService := appplugins.NewService(
+			infra.Repos.Plugin,
+			svcs.PluginManager,
+			svcs.EventBus,
+			logger.With("service", "plugins"),
+		)
+		pluginHandler = handlers.NewPluginHandler(pluginService)
+	}
+
 	return &api.Handlers{
 		Health:        healthHandler,
 		Browser:       browserHandler,
@@ -176,6 +189,7 @@ func BuildHandlers(
 		Users:         usersHandler,
 		Settings:      settingsHandler,
 		Enrichment:    enrichmentHandler,
+		Plugins:       pluginHandler,
 		AuthValidator: authService,
 	}
 }

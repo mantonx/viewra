@@ -118,6 +118,9 @@ type Manager struct {
 
 	// hostDataServer provides media data access for plugins.
 	hostDataServer *HostDataServer
+
+	// hostStorageServer provides KV storage for plugins.
+	hostStorageServer *HostStorageServer
 }
 
 // ManagerConfig configures the plugin manager.
@@ -142,6 +145,10 @@ type ManagerConfig struct {
 	// MediaQuerier provides media data access for plugins.
 	// If nil, plugins will not be able to query media data.
 	MediaQuerier MediaQuerier
+
+	// HostStorageServer provides KV storage for plugins.
+	// If nil, plugins will not be able to use host storage.
+	HostStorageServer *HostStorageServer
 }
 
 // NewManager creates a new plugin manager.
@@ -182,6 +189,7 @@ func NewManager(cfg ManagerConfig, logger *slog.Logger) (*Manager, error) {
 		healthCheckInterval: cfg.HealthCheckInterval,
 		maxRestarts:         cfg.MaxRestarts,
 		hostDataServer:      hostDataServer,
+		hostStorageServer:   cfg.HostStorageServer,
 	}, nil
 }
 
@@ -239,6 +247,14 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 	// Add host data service if available
 	if m.hostDataServer != nil {
 		pluginMap["host_data"] = &HostDataGRPCPlugin{Impl: m.hostDataServer}
+	}
+
+	// Add host storage service if available (with plugin ID for context injection)
+	if m.hostStorageServer != nil {
+		pluginMap["host_storage"] = &HostStorageGRPCPlugin{
+			Impl:     m.hostStorageServer,
+			PluginID: manifest.ID,
+		}
 	}
 
 	// Create the go-plugin client
@@ -321,10 +337,33 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		m.logger.Debug("loaded plugin config", "plugin", manifest.ID, "config_path", configPath)
 	}
 
+	// Dispense host storage to get the broker ID (this starts the server on the broker)
+	var hostStorageBrokerID uint32
+	if m.hostStorageServer != nil {
+		m.logger.Debug("attempting to dispense host_storage", "plugin", manifest.ID)
+		storageRaw, err := rpcClient.Dispense("host_storage")
+		if err != nil {
+			m.logger.Warn("failed to dispense host_storage", "plugin", manifest.ID, "error", err)
+		} else if brokerInfo, ok := storageRaw.(*HostStorageBrokerInfo); ok && brokerInfo != nil {
+			hostStorageBrokerID = brokerInfo.BrokerID
+			m.logger.Info("host storage available for plugin",
+				"plugin", manifest.ID,
+				"broker_id", hostStorageBrokerID)
+		} else {
+			m.logger.Warn("host_storage dispense returned unexpected type",
+				"plugin", manifest.ID,
+				"got_type", fmt.Sprintf("%T", storageRaw),
+				"is_nil", storageRaw == nil)
+		}
+	} else {
+		m.logger.Debug("host storage server not configured", "plugin", manifest.ID)
+	}
+
 	initResp, err := coreClient.Initialize(ctx, &pluginv1.InitRequest{
-		HostVersion: m.hostVersion,
-		DataDir:     dataDir,
-		Config:      configBytes,
+		HostVersion:          m.hostVersion,
+		DataDir:              dataDir,
+		Config:               configBytes,
+		HostStorageBrokerId:  hostStorageBrokerID,
 	})
 	if err != nil {
 		client.Kill()

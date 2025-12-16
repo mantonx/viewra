@@ -28,6 +28,7 @@ type TMDbPlugin struct {
 	dataDir string
 	config  Config
 	client  *Client
+	storage pluginv1.HostStorageClient
 
 	mu sync.RWMutex
 
@@ -36,11 +37,26 @@ type TMDbPlugin struct {
 	errorsTotal   int64
 }
 
+// recordError increments the error counter (thread-safe).
+func (p *TMDbPlugin) recordError() {
+	p.mu.Lock()
+	p.errorsTotal++
+	p.mu.Unlock()
+}
+
 // NewTMDbPlugin creates a new TMDb plugin instance.
 func NewTMDbPlugin(logger *slog.Logger) *TMDbPlugin {
 	return &TMDbPlugin{
 		logger: logger,
 	}
+}
+
+// SetStorageClient sets the host storage client for caching.
+// This should be called before Initialize if host storage is available.
+func (p *TMDbPlugin) SetStorageClient(client pluginv1.HostStorageClient) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.storage = client
 }
 
 // PluginCore implementation
@@ -90,12 +106,29 @@ func (p *TMDbPlugin) Initialize(ctx context.Context, req *pluginv1.InitRequest) 
 		p.config.Language = "en-US"
 	}
 
-	// Create the API client
-	p.client = NewClient(p.config.APIKey, p.logger)
+	// Create the API client with rate limiting
+	// Note: Storage client will be set separately via SetStorageClient if available
+	client, err := NewClient(ClientConfig{
+		APIKey:        p.config.APIKey,
+		CacheTTLHours: p.config.CacheTTLHours,
+		Storage:       p.storage, // May be nil if host storage not available
+		Logger:        p.logger,
+	})
+	if err != nil {
+		return &pluginv1.InitResponse{
+			Success: false,
+			Error:   fmt.Sprintf("failed to create API client: %v", err),
+		}, nil
+	}
+	p.client = client
 
+	cacheStatus := "disabled (no host storage)"
+	if p.storage != nil {
+		cacheStatus = fmt.Sprintf("enabled (TTL: %dh)", p.config.CacheTTLHours)
+	}
 	p.logger.Info("TMDb plugin initialized",
 		"rate_limit", p.config.RateLimit,
-		"cache_ttl_hours", p.config.CacheTTLHours,
+		"cache", cacheStatus,
 		"language", p.config.Language)
 
 	return &pluginv1.InitResponse{Success: true}, nil
@@ -103,6 +136,9 @@ func (p *TMDbPlugin) Initialize(ctx context.Context, req *pluginv1.InitRequest) 
 
 func (p *TMDbPlugin) Shutdown(ctx context.Context, req *pluginv1.Empty) (*pluginv1.Empty, error) {
 	p.logger.Info("shutting down TMDb plugin")
+	if p.client != nil {
+		p.client.Close()
+	}
 	return &pluginv1.Empty{}, nil
 }
 

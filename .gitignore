@@ -16,9 +16,10 @@ backend/viewra-backend
 backend/main
 backend/server
 backend/test-*
-plugins/*/ffmpeg_*
-plugins/*/*_enricher
-backend/data/plugins/*/*_enricher
+
+# Plugin binaries (never commit - distributed via releases)
+# Source lives in plugins/, binaries in data/plugins/
+data/plugins/
 
 # Test binary, built with `go test -c`
 *.test

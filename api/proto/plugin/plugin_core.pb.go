@@ -80,9 +80,15 @@ type InitRequest struct {
 	// Path to plugin's data directory
 	DataDir string `protobuf:"bytes,2,opt,name=data_dir,json=dataDir,proto3" json:"data_dir,omitempty"`
 	// Initial configuration (if any)
-	Config        []byte `protobuf:"bytes,3,opt,name=config,proto3" json:"config,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Config []byte `protobuf:"bytes,3,opt,name=config,proto3" json:"config,omitempty"`
+	// Broker ID for host storage service (0 = not available)
+	// Plugin can dial this ID to get a HostStorageClient
+	HostStorageBrokerId uint32 `protobuf:"varint,4,opt,name=host_storage_broker_id,json=hostStorageBrokerId,proto3" json:"host_storage_broker_id,omitempty"`
+	// Broker ID for host data service (0 = not available)
+	// Plugin can dial this ID to get a HostDataClient
+	HostDataBrokerId uint32 `protobuf:"varint,5,opt,name=host_data_broker_id,json=hostDataBrokerId,proto3" json:"host_data_broker_id,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *InitRequest) Reset() {
@@ -134,6 +140,20 @@ func (x *InitRequest) GetConfig() []byte {
 		return x.Config
 	}
 	return nil
+}
+
+func (x *InitRequest) GetHostStorageBrokerId() uint32 {
+	if x != nil {
+		return x.HostStorageBrokerId
+	}
+	return 0
+}
+
+func (x *InitRequest) GetHostDataBrokerId() uint32 {
+	if x != nil {
+		return x.HostDataBrokerId
+	}
+	return 0
 }
 
 type InitResponse struct {
@@ -584,11 +604,13 @@ var File_api_proto_plugin_plugin_core_proto protoreflect.FileDescriptor
 
 const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
 	"\n" +
-	"\"api/proto/plugin/plugin_core.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"c\n" +
+	"\"api/proto/plugin/plugin_core.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"\xc7\x01\n" +
 	"\vInitRequest\x12!\n" +
 	"\fhost_version\x18\x01 \x01(\tR\vhostVersion\x12\x19\n" +
 	"\bdata_dir\x18\x02 \x01(\tR\adataDir\x12\x16\n" +
-	"\x06config\x18\x03 \x01(\fR\x06config\">\n" +
+	"\x06config\x18\x03 \x01(\fR\x06config\x123\n" +
+	"\x16host_storage_broker_id\x18\x04 \x01(\rR\x13hostStorageBrokerId\x12-\n" +
+	"\x13host_data_broker_id\x18\x05 \x01(\rR\x10hostDataBrokerId\">\n" +
 	"\fInitResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\"\x98\x02\n" +

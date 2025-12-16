@@ -83,3 +83,21 @@ WHERE id = $1;
 
 -- name: PluginExists :one
 SELECT EXISTS(SELECT 1 FROM plugins WHERE id = $1) as plugin_exists;
+
+-- name: UpsertPlugin :exec
+INSERT INTO plugins (
+    id, name, version, description, author, license, homepage,
+    categories, is_builtin, enabled, path,
+    health_status, restart_count,
+    installed_at, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE, TRUE, $9, 'unknown', 0, NOW(), NOW())
+ON CONFLICT(id) DO UPDATE SET
+    name = EXCLUDED.name,
+    version = EXCLUDED.version,
+    description = EXCLUDED.description,
+    author = EXCLUDED.author,
+    license = EXCLUDED.license,
+    homepage = EXCLUDED.homepage,
+    categories = EXCLUDED.categories,
+    path = EXCLUDED.path,
+    updated_at = NOW();
