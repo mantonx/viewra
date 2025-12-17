@@ -9,6 +9,7 @@ import {
   usePostApiLibrariesIdScanJobIdResume,
 } from '@/lib/api'
 import { useConfirm } from '@/lib/hooks/useConfirm'
+import { useEnrichmentProgress } from '@/lib/hooks/useEnrichmentProgress'
 import { useInvalidateLibraries } from '@/lib/hooks/useInvalidateLibraries'
 import { useScanProgress } from '@/lib/hooks/useScanProgress'
 import { useToast } from '@/lib/hooks/useToast'
@@ -34,6 +35,14 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   const { scanStatus, isScanning, isPaused } = useScanProgress(libraryId, {
     enabled: libraryId > 0,
   })
+
+  // Get enrichment progress to know if enrichment is still running
+  const { isActive: isEnriching, progress: enrichmentProgress } = useEnrichmentProgress(libraryId, {
+    enabled: libraryId > 0,
+  })
+  // Only show "Complete" if we've received enrichment data and it's not active
+  // If we haven't received data yet (enrichmentProgress is null), don't claim completion
+  const enrichmentConfirmedComplete = enrichmentProgress !== null && !isEnriching
 
   // Get total media count for this library
   const { data: mediaCount } = useGetApiMedia(
@@ -143,12 +152,22 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                 {isCompleted && scanStatus && (
                   <span
                     className={
-                      hasIssues ? 'text-yellow-600 dark:text-yellow-500 font-medium' : 'text-green-600 dark:text-green-500 font-medium'
+                      hasIssues
+                        ? 'text-yellow-600 dark:text-yellow-500 font-medium'
+                        : enrichmentConfirmedComplete
+                          ? 'text-green-600 dark:text-green-500 font-medium'
+                          : 'text-blue-600 dark:text-blue-400 font-medium'
                     }
                     title={`${scanStatus.filesProcessed.toLocaleString()} files processed, ${totalMediaCount.toLocaleString()} total media items in library`}
                   >
-                    ✓ Scan complete ({scanStatus.filesProcessed.toLocaleString()}{' '}
-                    {scanStatus.filesProcessed === 1 ? 'file' : 'files'})
+                    {enrichmentConfirmedComplete ? (
+                      <>
+                        ✓ Complete ({scanStatus.filesProcessed.toLocaleString()}{' '}
+                        {scanStatus.filesProcessed === 1 ? 'file' : 'files'})
+                      </>
+                    ) : (
+                      <>Enriching ({scanStatus.filesProcessed.toLocaleString()} files scanned)</>
+                    )}
                   </span>
                 )}
                 {hasErrors && scanStatus && (
