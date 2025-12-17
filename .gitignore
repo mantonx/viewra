@@ -121,6 +121,9 @@ Desktop.ini
 ffmpeg*.log
 ffprobe*.log
 
+# FFmpeg custom build artifacts
+tools/ffmpeg-viewra/build/
+
 # Generated API documentation
 docs/swagger/
 
