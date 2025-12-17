@@ -74,13 +74,44 @@ export const useSSE = <T = unknown>(
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isManualDisconnectRef = useRef(false)
 
-  const updateState = useCallback(
-    (newState: SSEConnectionState) => {
-      setConnectionState(newState)
-      onStateChange?.(newState)
-    },
-    [onStateChange]
-  )
+  // Store callbacks in refs to avoid recreating connect() when callbacks change
+  const onEventRef = useRef(onEvent)
+  const onErrorRef = useRef(onError)
+  const onStateChangeRef = useRef(onStateChange)
+  const eventTypesRef = useRef(eventTypes)
+  const connectRef = useRef<() => void>(() => {})
+
+  // Keep refs updated with latest callbacks
+  useEffect(() => {
+    onEventRef.current = onEvent
+    onErrorRef.current = onError
+    onStateChangeRef.current = onStateChange
+    eventTypesRef.current = eventTypes
+  }, [onEvent, onError, onStateChange, eventTypes])
+
+  const updateState = useCallback((newState: SSEConnectionState) => {
+    setConnectionState(newState)
+    onStateChangeRef.current?.(newState)
+  }, [])
+
+  // scheduleReconnect uses connectRef to avoid circular dependency
+  const scheduleReconnect = useCallback(() => {
+    if (maxReconnectAttempts > 0 && reconnectAttemptsRef.current >= maxReconnectAttempts) {
+      return
+    }
+
+    reconnectAttemptsRef.current++
+
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+    }
+
+    reconnectTimeoutRef.current = setTimeout(() => {
+      if (!isManualDisconnectRef.current) {
+        connectRef.current()
+      }
+    }, reconnectDelay)
+  }, [maxReconnectAttempts, reconnectDelay])
 
   const connect = useCallback(async () => {
     // Clean up any existing connection
@@ -92,7 +123,7 @@ export const useSSE = <T = unknown>(
     if (!token) {
       const authError = new Error('No authentication token available')
       setError(authError)
-      onError?.(authError)
+      onErrorRef.current?.(authError)
       updateState('error')
       return
     }
@@ -155,18 +186,19 @@ export const useSSE = <T = unknown>(
             currentEvent.data = line.slice(5).trim()
           } else if (line === '' && currentEvent.data) {
             // Empty line signals end of event
+            const eventTypesNow = eventTypesRef.current
             const shouldProcess =
-              !eventTypes || !currentEvent.type || eventTypes.includes(currentEvent.type)
+              !eventTypesNow || !currentEvent.type || eventTypesNow.includes(currentEvent.type)
 
             if (shouldProcess && currentEvent.data) {
               try {
                 const parsed = JSON.parse(currentEvent.data) as T
                 setLastEvent(parsed)
-                onEvent?.(parsed)
+                onEventRef.current?.(parsed)
               } catch {
                 // Non-JSON data, pass as-is if T is string-compatible
                 setLastEvent(currentEvent.data as T)
-                onEvent?.(currentEvent.data as T)
+                onEventRef.current?.(currentEvent.data as T)
               }
             }
             currentEvent = {}
@@ -187,32 +219,19 @@ export const useSSE = <T = unknown>(
 
       const connectionError = err instanceof Error ? err : new Error(String(err))
       setError(connectionError)
-      onError?.(connectionError)
+      onErrorRef.current?.(connectionError)
       updateState('error')
 
       if (!isManualDisconnectRef.current) {
         scheduleReconnect()
       }
     }
-  }, [url, eventTypes, onEvent, onError, updateState])
+  }, [url, updateState, scheduleReconnect])
 
-  const scheduleReconnect = useCallback(() => {
-    if (maxReconnectAttempts > 0 && reconnectAttemptsRef.current >= maxReconnectAttempts) {
-      return
-    }
-
-    reconnectAttemptsRef.current++
-
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current)
-    }
-
-    reconnectTimeoutRef.current = setTimeout(() => {
-      if (!isManualDisconnectRef.current) {
-        connect()
-      }
-    }, reconnectDelay)
-  }, [connect, maxReconnectAttempts, reconnectDelay])
+  // Keep connectRef updated so scheduleReconnect can call latest connect
+  useEffect(() => {
+    connectRef.current = connect
+  }, [connect])
 
   const disconnect = useCallback(() => {
     isManualDisconnectRef.current = true
