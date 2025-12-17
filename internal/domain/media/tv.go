@@ -12,9 +12,20 @@ type TVEpisode struct {
 	Episode      int
 	EpisodeTitle string // Different from Media.Title which is the filename
 	TVDbID       int
+	TMDbID       int64
 	IMDbID       string
 	AirDate      string // YYYY-MM-DD format
 	Description  string
+
+	// Alternative ordering (for anime/DVD releases)
+	AbsoluteNumber int // Sequential episode number across all seasons
+	DvdSeason      int // DVD release season number (may differ from broadcast)
+	DvdEpisode     int // DVD release episode number
+
+	// Additional metadata
+	OriginalTitle  string // Original language title
+	ContentRating  string // e.g., "TV-14", "TV-MA"
+	MaturityRating int    // Numeric maturity rating (0-100 scale)
 
 	// Ratings and runtime
 	RuntimeMinutes int     // Episode runtime in minutes

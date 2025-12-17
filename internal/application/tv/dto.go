@@ -65,9 +65,25 @@ type TVEpisodeResponse struct {
 	Episode      int    `json:"episode"`
 	EpisodeTitle string `json:"episode_title,omitempty"` // actual episode name
 	TVDbID       int    `json:"tvdb_id,omitempty"`
+	TMDbID       int64  `json:"tmdb_id,omitempty"`
 	IMDbID       string `json:"imdb_id,omitempty"`
 	AirDate      string `json:"air_date,omitempty"`
 	Description  string `json:"description,omitempty"`
+
+	// Alternative ordering (for anime/DVD releases)
+	AbsoluteNumber int `json:"absolute_number,omitempty"`
+	DvdSeason      int `json:"dvd_season,omitempty"`
+	DvdEpisode     int `json:"dvd_episode,omitempty"`
+
+	// Additional metadata
+	OriginalTitle  string `json:"original_title,omitempty"`
+	ContentRating  string `json:"content_rating,omitempty"`
+	MaturityRating int    `json:"maturity_rating,omitempty"`
+
+	// Ratings
+	RuntimeMinutes int     `json:"runtime_minutes,omitempty"`
+	Rating         float32 `json:"rating,omitempty"`
+	RatingVotes    int     `json:"rating_votes,omitempty"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -110,9 +126,19 @@ func ToTVEpisodeResponse(ep *media.TVEpisode) TVEpisodeResponse {
 		Episode:         ep.Episode,
 		EpisodeTitle:    ep.EpisodeTitle,
 		TVDbID:          ep.TVDbID,
+		TMDbID:          ep.TMDbID,
 		IMDbID:          ep.IMDbID,
 		AirDate:         ep.AirDate,
 		Description:     ep.Description,
+		AbsoluteNumber:  ep.AbsoluteNumber,
+		DvdSeason:       ep.DvdSeason,
+		DvdEpisode:      ep.DvdEpisode,
+		OriginalTitle:   ep.OriginalTitle,
+		ContentRating:   ep.ContentRating,
+		MaturityRating:  ep.MaturityRating,
+		RuntimeMinutes:  ep.RuntimeMinutes,
+		Rating:          ep.Rating,
+		RatingVotes:     ep.RatingVotes,
 		CreatedAt:       ep.CreatedAt,
 		UpdatedAt:       ep.UpdatedAt,
 	}

@@ -45,9 +45,21 @@ func mapEpisodeToDomain(row interface{}) *media.TVEpisode {
 		Episode:        int(common.IntFieldGetter(row, "EpisodeNumber")),
 		EpisodeTitle:   common.ParseNullString(common.NullStringFieldGetter(row, "EpisodeTitle")),
 		TVDbID:         int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TvdbID"))),
+		TMDbID:         common.ParseNullInt64(common.NullIntFieldGetter(row, "TmdbID")),
 		IMDbID:         common.ParseNullString(common.NullStringFieldGetter(row, "ImdbID")),
 		AirDate:        common.FormatNullDate(common.TimeFieldGetter(row, "AirDate")),
 		Description:    common.ParseNullString(common.NullStringFieldGetter(row, "Plot")),
+
+		// Alternative ordering
+		AbsoluteNumber: int(common.ParseNullInt64(common.NullIntFieldGetter(row, "AbsoluteNumber"))),
+		DvdSeason:      int(common.ParseNullInt64(common.NullIntFieldGetter(row, "DvdSeason"))),
+		DvdEpisode:     int(common.ParseNullInt64(common.NullIntFieldGetter(row, "DvdEpisode"))),
+
+		// Additional metadata
+		OriginalTitle:  common.ParseNullString(common.NullStringFieldGetter(row, "OriginalTitle")),
+		ContentRating:  common.ParseNullString(common.NullStringFieldGetter(row, "ContentRating")),
+		MaturityRating: int(common.ParseNullInt64(common.NullIntFieldGetter(row, "MaturityRating"))),
+
 		RuntimeMinutes: int(common.ParseNullInt64(common.NullIntFieldGetter(row, "RuntimeMinutes"))),
 		Rating:         float32(common.Float64FieldGetter(row, "Rating")),
 		RatingVotes:    int(common.ParseNullInt64(common.NullIntFieldGetter(row, "RatingVotes"))),
@@ -145,17 +157,17 @@ func buildSQLiteCreateEpisodeParams(e *media.TVEpisode, showID, seasonID int64) 
 		SeasonID:       seasonID,
 		SeasonNumber:   int64(e.Season),
 		EpisodeNumber:  int64(e.Episode),
-		AbsoluteNumber: sql.NullInt64{},                         // TODO: Add AbsoluteNumber to domain.TVEpisode
-		DvdSeason:      sql.NullInt64{},                         // TODO: Add DvdSeason to domain.TVEpisode
-		DvdEpisode:     sql.NullInt64{},                         // TODO: Add DvdEpisode to domain.TVEpisode
+		AbsoluteNumber: common.NullInt64(int64(e.AbsoluteNumber)),
+		DvdSeason:      common.NullInt64(int64(e.DvdSeason)),
+		DvdEpisode:     common.NullInt64(int64(e.DvdEpisode)),
 		EpisodeTitle:   common.NullString(e.EpisodeTitle),
-		OriginalTitle:  sql.NullString{},                        // TODO: Add OriginalTitle to domain.TVEpisode
+		OriginalTitle:  common.NullString(e.OriginalTitle),
 		AirDate:        airDate,
 		Plot:           common.NullString(e.Description),
-		ContentRating:  sql.NullString{},                        // TODO: Add ContentRating to domain.TVEpisode
-		MaturityRating: sql.NullInt64{},                         // TODO: Add MaturityRating to domain.TVEpisode
+		ContentRating:  common.NullString(e.ContentRating),
+		MaturityRating: common.NullInt64(int64(e.MaturityRating)),
 		ImdbID:         common.NullString(e.IMDbID),
-		TmdbID:         sql.NullInt64{},                         // TODO: Add TMDbID to domain.TVEpisode
+		TmdbID:         common.NullInt64(e.TMDbID),
 		TvdbID:         common.NullInt64(int64(e.TVDbID)),
 		Rating:         common.NullFloat64FromFloat32(e.Rating),
 		RatingVotes:    common.NullInt64(int64(e.RatingVotes)),
@@ -229,17 +241,17 @@ func buildPostgresCreateEpisodeParams(e *media.TVEpisode, showID, seasonID int64
 		SeasonID:       int32(seasonID),
 		SeasonNumber:   int32(e.Season),
 		EpisodeNumber:  int32(e.Episode),
-		AbsoluteNumber: sql.NullInt32{},
-		DvdSeason:      sql.NullInt32{},
-		DvdEpisode:     sql.NullInt32{},
+		AbsoluteNumber: common.NullInt32FromInt64(int64(e.AbsoluteNumber)),
+		DvdSeason:      common.NullInt32FromInt64(int64(e.DvdSeason)),
+		DvdEpisode:     common.NullInt32FromInt64(int64(e.DvdEpisode)),
 		EpisodeTitle:   common.NullString(e.EpisodeTitle),
-		OriginalTitle:  sql.NullString{},
+		OriginalTitle:  common.NullString(e.OriginalTitle),
 		AirDate:        airDate,
 		Plot:           common.NullString(e.Description),
-		ContentRating:  sql.NullString{},
-		MaturityRating: sql.NullInt32{},
+		ContentRating:  common.NullString(e.ContentRating),
+		MaturityRating: common.NullInt32FromInt64(int64(e.MaturityRating)),
 		ImdbID:         common.NullString(e.IMDbID),
-		TmdbID:         sql.NullInt32{},
+		TmdbID:         common.NullInt32FromInt64(e.TMDbID),
 		TvdbID:         common.NullInt32FromInt64(int64(e.TVDbID)),
 		Rating:         common.NullFloat64FromFloat32(e.Rating),
 		RatingVotes:    common.NullInt32FromInt64(int64(e.RatingVotes)),
