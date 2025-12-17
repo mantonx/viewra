@@ -182,15 +182,14 @@ func setupTestHandler(t *testing.T) (*TranscodeHandler, *MockTranscodeRepository
 		createJobUC,
 		getStatusUC,
 		serveManifestUC,
-		nil,          // ServeMasterPlaylistUseCase not needed for these tests
-		nil,          // ServeAudioPlaylistUseCase not needed for these tests
-		nil,          // GetMediaUseCase not needed for these tests
+		nil,         // ServeMasterPlaylistUseCase not needed for these tests
+		nil,         // GetMediaUseCase not needed for these tests
+		nil,         // GetTracksUseCase not needed for these tests
 		queue,
-		nil,          // CleanupService not needed for these tests
-		nil,          // SessionManager not needed for these tests
+		nil,         // CleanupService not needed for these tests
+		nil,         // SessionManager not needed for these tests
 		t.TempDir(),
-		nil,          // SubtitleConverter not needed for these tests
-		nil,          // TrackRepo not needed for these tests
+		nil,         // SubtitleConverter not needed for these tests
 	)
 
 	return handler, repo, queue, mediaRepo

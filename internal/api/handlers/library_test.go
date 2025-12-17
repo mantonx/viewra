@@ -64,6 +64,7 @@ func (m *mockLibraryService) Delete(ctx context.Context, id int64) error {
 
 type mockScanLibraryExecutor struct {
 	startScanFunc      func(ctx context.Context, libraryID int64) (scan.StartScanResponse, error)
+	resumeScanFunc     func(ctx context.Context, jobID int64) error
 	getProgressFunc    func(ctx context.Context, jobID int64) (scan.ScanProgressResponse, error)
 	getLatestScanFunc  func(ctx context.Context, libraryID int64) (scan.ScanProgressResponse, error)
 	getScanHistoryFunc func(ctx context.Context, libraryID int64, limit int32) (scan.ScanHistoryResponse, error)
@@ -74,6 +75,13 @@ func (m *mockScanLibraryExecutor) StartScan(ctx context.Context, libraryID int64
 		return m.startScanFunc(ctx, libraryID)
 	}
 	return scan.StartScanResponse{}, nil
+}
+
+func (m *mockScanLibraryExecutor) ResumeScan(ctx context.Context, jobID int64) error {
+	if m.resumeScanFunc != nil {
+		return m.resumeScanFunc(ctx, jobID)
+	}
+	return nil
 }
 
 func (m *mockScanLibraryExecutor) GetProgress(ctx context.Context, jobID int64) (scan.ScanProgressResponse, error) {

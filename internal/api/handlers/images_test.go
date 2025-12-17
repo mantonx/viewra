@@ -348,7 +348,7 @@ func TestGetMediaImages(t *testing.T) {
 
 			c, _ := gin.CreateTestContext(w)
 			c.Request = req
-			c.Params = gin.Params{{Key: "mediaId", Value: tt.mediaID}}
+			c.Params = gin.Params{{Key: "id", Value: tt.mediaID}}
 
 			handler.GetMediaImages(c)
 
