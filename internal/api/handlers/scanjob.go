@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mantonx/viewra/internal/api/sse"
 	"github.com/mantonx/viewra/internal/application/library/scan/status"
 	"github.com/mantonx/viewra/internal/application/scanjob"
 	"github.com/mantonx/viewra/internal/domain/scanner"
@@ -252,29 +253,25 @@ func (h *ScanJobHandler) StreamProgress(c *gin.Context) {
 		return
 	}
 
-	// Set SSE headers
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no") // Disable nginx buffering
+	sse.SetHeaders(c)
 
 	// Send initial state immediately
 	initialStatus, err := h.statusProvider.GetScanStatus(c.Request.Context(), libraryID)
 	if err != nil {
 		if err == scanner.ErrNotFound {
 			fmt.Fprintf(c.Writer, "event: error\ndata: {\"error\": \"No scan found for this library\"}\n\n")
-			c.Writer.(http.Flusher).Flush()
+			sse.Flush(c)
 			return
 		}
 		fmt.Fprintf(c.Writer, "event: error\ndata: {\"error\": \"Failed to get scan status\"}\n\n")
-		c.Writer.(http.Flusher).Flush()
+		sse.Flush(c)
 		return
 	}
 
 	initialData := h.buildScanProgressData(initialStatus)
 	jsonData, _ := json.Marshal(initialData)
 	fmt.Fprintf(c.Writer, "event: init\ndata: %s\n\n", jsonData)
-	c.Writer.(http.Flusher).Flush()
+	sse.Flush(c)
 
 	// If scan is already completed/failed, close the stream
 	if initialStatus.Status == scanner.ScanStatusCompleted || initialStatus.Status == scanner.ScanStatusFailed {
@@ -301,20 +298,8 @@ func (h *ScanJobHandler) StreamProgress(c *gin.Context) {
 			}
 
 			// Filter events by library ID
-			// Handle both int64 (direct) and float64 (from JSON unmarshal) types
-			var eventLibraryID int64
-			switch v := event.Data["library_id"].(type) {
-			case int64:
-				eventLibraryID = v
-			case float64:
-				eventLibraryID = int64(v)
-			case int:
-				eventLibraryID = int64(v)
-			default:
-				// Skip events without valid library_id
-				continue
-			}
-			if eventLibraryID != libraryID {
+			eventLibraryID, ok := sse.GetInt64FromEvent(event, "library_id")
+			if !ok || eventLibraryID != libraryID {
 				continue
 			}
 
@@ -332,7 +317,7 @@ func (h *ScanJobHandler) StreamProgress(c *gin.Context) {
 			}
 
 			fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", eventName, jsonData)
-			c.Writer.(http.Flusher).Flush()
+			sse.Flush(c)
 
 			// Close stream on completion
 			if event.Type == events.EventScanCompleted || event.Type == events.EventScanFailed {

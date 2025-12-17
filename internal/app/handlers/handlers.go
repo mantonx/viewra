@@ -147,10 +147,11 @@ func BuildHandlers(
 
 	// Enrichment handler
 	var enrichmentHandler *handlers.EnrichmentHandler
-	if svcs.PipelineManager != nil && svcs.EventBus != nil && infra.Repos.EnrichmentStatus != nil {
+	if svcs.PipelineManager != nil && svcs.EventBus != nil && infra.Repos.EnrichmentStatus != nil && infra.Repos.EnrichmentQueue != nil {
 		enrichmentHandler = handlers.NewEnrichmentHandler(
 			svcs.PipelineManager,
 			infra.Repos.EnrichmentStatus,
+			infra.Repos.EnrichmentQueue,
 			svcs.EventBus,
 			logger.With("handler", "enrichment"),
 		)

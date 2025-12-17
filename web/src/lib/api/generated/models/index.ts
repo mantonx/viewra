@@ -7,7 +7,6 @@
  */
 
 export * from './deleteApiMediaMediaIdFfmpegLogsSessionId200'
-export * from './getApiEnrichmentProgressParams'
 export * from './getApiEnrichmentStats200'
 export * from './getApiFilesystemBrowseParams'
 export * from './getApiImagesIdFileParams'

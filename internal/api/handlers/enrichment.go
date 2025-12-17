@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mantonx/viewra/internal/api/sse"
 	"github.com/mantonx/viewra/internal/application/enrichment/pipeline"
 	"github.com/mantonx/viewra/internal/domain/enrichment"
 	"github.com/mantonx/viewra/internal/infrastructure/events"
@@ -58,74 +59,6 @@ func (h *EnrichmentHandler) GetStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, stats)
-}
-
-// StreamProgress streams enrichment progress via Server-Sent Events.
-// Clients receive real-time updates about enrichment queue status.
-//
-// @Summary Stream enrichment progress
-// @Description Streams enrichment events in real-time via SSE
-// @Tags enrichment
-// @Produce text/event-stream
-// @Param stages query string false "Comma-separated stage names to filter (e.g., 'nfo,tmdb')"
-// @Success 200 {string} string "SSE stream"
-// @Router /api/enrichment/progress [get]
-func (h *EnrichmentHandler) StreamProgress(c *gin.Context) {
-	// Set SSE headers
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no") // Disable nginx buffering
-
-	// Subscribe to enrichment events
-	sub := h.eventBus.Subscribe(
-		events.WithBufferSize(100),
-		events.WithEventPrefix("enrichment."),
-		events.WithReplayLast(10), // Replay last 10 enrichment events for late joiners
-	)
-	defer h.eventBus.Unsubscribe(sub)
-
-	// Create a done channel for cleanup
-	clientGone := c.Request.Context().Done()
-
-	// Send initial connection confirmation
-	fmt.Fprintf(c.Writer, "event: connected\ndata: {\"status\": \"connected\"}\n\n")
-	c.Writer.(http.Flusher).Flush()
-
-	for {
-		select {
-		case <-clientGone:
-			// Client disconnected
-			h.logger.Debug("SSE client disconnected")
-			return
-		case event, ok := <-sub.Events():
-			if !ok {
-				// Subscription closed
-				return
-			}
-
-			// Convert event to JSON
-			eventData := map[string]any{
-				"type":      string(event.Type),
-				"timestamp": event.Timestamp,
-				"source":    event.Source,
-				"data":      event.Data,
-			}
-			if event.RequestID != "" {
-				eventData["request_id"] = event.RequestID
-			}
-
-			jsonData, err := json.Marshal(eventData)
-			if err != nil {
-				h.logger.Error("Failed to marshal event", "error", err)
-				continue
-			}
-
-			// Send SSE event
-			fmt.Fprintf(c.Writer, "event: enrichment\ndata: %s\n\n", jsonData)
-			c.Writer.(http.Flusher).Flush()
-		}
-	}
 }
 
 // EnqueueMedia manually enqueues a media item for enrichment.
@@ -289,11 +222,7 @@ func (h *EnrichmentHandler) StreamLibraryProgress(c *gin.Context) {
 		return
 	}
 
-	// Set SSE headers
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no")
+	sse.SetHeaders(c)
 
 	// Send initial state immediately
 	progress, err := h.statusRepo.GetLibraryProgress(c.Request.Context(), libraryID)
@@ -303,7 +232,7 @@ func (h *EnrichmentHandler) StreamLibraryProgress(c *gin.Context) {
 		initialData := h.buildProgressResponse(libraryID, progress, currentItem, overallProgress)
 		jsonData, _ := json.Marshal(initialData)
 		fmt.Fprintf(c.Writer, "event: init\ndata: %s\n\n", jsonData)
-		c.Writer.(http.Flusher).Flush()
+		sse.Flush(c)
 	}
 
 	// Subscribe to enrichment events
@@ -325,20 +254,8 @@ func (h *EnrichmentHandler) StreamLibraryProgress(c *gin.Context) {
 			}
 
 			// Filter events by library ID
-			// Handle both int64 (direct) and float64 (from JSON unmarshal) types
-			var eventLibraryID int64
-			switch v := event.Data["library_id"].(type) {
-			case int64:
-				eventLibraryID = v
-			case float64:
-				eventLibraryID = int64(v)
-			case int:
-				eventLibraryID = int64(v)
-			default:
-				// Skip events without valid library_id
-				continue
-			}
-			if eventLibraryID != libraryID {
+			eventLibraryID, ok := sse.GetInt64FromEvent(event, "library_id")
+			if !ok || eventLibraryID != libraryID {
 				continue
 			}
 
@@ -353,7 +270,7 @@ func (h *EnrichmentHandler) StreamLibraryProgress(c *gin.Context) {
 			updateData := h.buildProgressResponse(libraryID, progress, currentItem, overallProgress)
 			jsonData, _ := json.Marshal(updateData)
 			fmt.Fprintf(c.Writer, "event: update\ndata: %s\n\n", jsonData)
-			c.Writer.(http.Flusher).Flush()
+			sse.Flush(c)
 		}
 	}
 }
