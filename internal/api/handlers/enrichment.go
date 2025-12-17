@@ -18,6 +18,7 @@ import (
 type EnrichmentHandler struct {
 	manager    *pipeline.Manager
 	statusRepo *enrichmentRepo.StatusRepository
+	queueRepo  *enrichmentRepo.QueueRepository
 	eventBus   *events.Bus
 	logger     *slog.Logger
 }
@@ -26,12 +27,14 @@ type EnrichmentHandler struct {
 func NewEnrichmentHandler(
 	manager *pipeline.Manager,
 	statusRepo *enrichmentRepo.StatusRepository,
+	queueRepo *enrichmentRepo.QueueRepository,
 	eventBus *events.Bus,
 	logger *slog.Logger,
 ) *EnrichmentHandler {
 	return &EnrichmentHandler{
 		manager:    manager,
 		statusRepo: statusRepo,
+		queueRepo:  queueRepo,
 		eventBus:   eventBus,
 		logger:     logger,
 	}
@@ -198,15 +201,33 @@ type EnqueueMediaResponse struct {
 	Status  string `json:"status"`
 }
 
+// CurrentItemResponse represents the currently processing enrichment item.
+type CurrentItemResponse struct {
+	MediaID   int64  `json:"media_id"`
+	MediaType string `json:"media_type"`
+	Stage     string `json:"stage"`
+	Title     string `json:"title"`
+}
+
+// OverallProgressResponse represents unique item-based progress (not inflated by stages).
+type OverallProgressResponse struct {
+	TotalItems     int64   `json:"total_items"`
+	CompletedItems int64   `json:"completed_items"`
+	RemainingItems int64   `json:"remaining_items"`
+	Percentage     float64 `json:"percentage"`
+}
+
 // LibraryEnrichmentProgressResponse represents enrichment progress for a library.
 type LibraryEnrichmentProgressResponse struct {
-	LibraryID       int64                           `json:"library_id"`
+	LibraryID       int64                             `json:"library_id"`
 	StageProgress   map[string]*enrichment.QueueStats `json:"stage_progress"`
-	TotalPending    int64                           `json:"total_pending"`
-	TotalProcessing int64                           `json:"total_processing"`
-	TotalCompleted  int64                           `json:"total_completed"`
-	TotalFailed     int64                           `json:"total_failed"`
-	IsActive        bool                            `json:"is_active"`
+	TotalPending    int64                             `json:"total_pending"`
+	TotalProcessing int64                             `json:"total_processing"`
+	TotalCompleted  int64                             `json:"total_completed"`
+	TotalFailed     int64                             `json:"total_failed"`
+	IsActive        bool                              `json:"is_active"`
+	CurrentItem     *CurrentItemResponse              `json:"current_item,omitempty"`
+	OverallProgress *OverallProgressResponse          `json:"overall_progress,omitempty"`
 }
 
 // GetLibraryProgress returns current enrichment progress snapshot for a library.
@@ -234,7 +255,21 @@ func (h *EnrichmentHandler) GetLibraryProgress(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, h.buildProgressResponse(libraryID, progress))
+	// Get currently processing item
+	currentItem, err := h.queueRepo.GetCurrentItem(c.Request.Context(), libraryID)
+	if err != nil {
+		h.logger.Error("Failed to get current enrichment item", "library_id", libraryID, "error", err)
+		// Continue without current item - not critical
+	}
+
+	// Get overall progress (unique item count, not inflated by stages)
+	overallProgress, err := h.statusRepo.GetOverallProgress(c.Request.Context(), libraryID)
+	if err != nil {
+		h.logger.Error("Failed to get overall enrichment progress", "library_id", libraryID, "error", err)
+		// Continue without overall progress - not critical
+	}
+
+	c.JSON(http.StatusOK, h.buildProgressResponse(libraryID, progress, currentItem, overallProgress))
 }
 
 // StreamLibraryProgress streams enrichment progress for a specific library via SSE.
@@ -263,7 +298,9 @@ func (h *EnrichmentHandler) StreamLibraryProgress(c *gin.Context) {
 	// Send initial state immediately
 	progress, err := h.statusRepo.GetLibraryProgress(c.Request.Context(), libraryID)
 	if err == nil {
-		initialData := h.buildProgressResponse(libraryID, progress)
+		currentItem, _ := h.queueRepo.GetCurrentItem(c.Request.Context(), libraryID)
+		overallProgress, _ := h.statusRepo.GetOverallProgress(c.Request.Context(), libraryID)
+		initialData := h.buildProgressResponse(libraryID, progress, currentItem, overallProgress)
 		jsonData, _ := json.Marshal(initialData)
 		fmt.Fprintf(c.Writer, "event: init\ndata: %s\n\n", jsonData)
 		c.Writer.(http.Flusher).Flush()
@@ -311,7 +348,9 @@ func (h *EnrichmentHandler) StreamLibraryProgress(c *gin.Context) {
 				h.logger.Error("Failed to get library progress for SSE update", "library_id", libraryID, "error", err)
 				continue
 			}
-			updateData := h.buildProgressResponse(libraryID, progress)
+			currentItem, _ := h.queueRepo.GetCurrentItem(c.Request.Context(), libraryID)
+			overallProgress, _ := h.statusRepo.GetOverallProgress(c.Request.Context(), libraryID)
+			updateData := h.buildProgressResponse(libraryID, progress, currentItem, overallProgress)
 			jsonData, _ := json.Marshal(updateData)
 			fmt.Fprintf(c.Writer, "event: update\ndata: %s\n\n", jsonData)
 			c.Writer.(http.Flusher).Flush()
@@ -319,13 +358,34 @@ func (h *EnrichmentHandler) StreamLibraryProgress(c *gin.Context) {
 	}
 }
 
-func (h *EnrichmentHandler) buildProgressResponse(libraryID int64, progress map[string]*enrichment.QueueStats) *LibraryEnrichmentProgressResponse {
+func (h *EnrichmentHandler) buildProgressResponse(libraryID int64, progress map[string]*enrichment.QueueStats, currentItem *enrichmentRepo.CurrentEnrichmentItem, overallProgress *enrichmentRepo.OverallProgress) *LibraryEnrichmentProgressResponse {
 	var totalPending, totalProcessing, totalCompleted, totalFailed int64
 	for _, stats := range progress {
 		totalPending += stats.PendingCount
 		totalProcessing += stats.ProcessingCount
 		totalCompleted += stats.CompletedCount
 		totalFailed += stats.FailedCount
+	}
+
+	var currentItemResp *CurrentItemResponse
+	if currentItem != nil {
+		currentItemResp = &CurrentItemResponse{
+			MediaID:   currentItem.MediaID,
+			MediaType: string(currentItem.MediaType),
+			Stage:     currentItem.Stage,
+			Title:     currentItem.Title,
+		}
+	}
+
+	var overallProgressResp *OverallProgressResponse
+	if overallProgress != nil && overallProgress.TotalItems > 0 {
+		percentage := float64(overallProgress.CompletedItems) / float64(overallProgress.TotalItems) * 100
+		overallProgressResp = &OverallProgressResponse{
+			TotalItems:     overallProgress.TotalItems,
+			CompletedItems: overallProgress.CompletedItems,
+			RemainingItems: overallProgress.RemainingItems,
+			Percentage:     percentage,
+		}
 	}
 
 	return &LibraryEnrichmentProgressResponse{
@@ -336,5 +396,7 @@ func (h *EnrichmentHandler) buildProgressResponse(libraryID int64, progress map[
 		TotalCompleted:  totalCompleted,
 		TotalFailed:     totalFailed,
 		IsActive:        totalPending > 0 || totalProcessing > 0,
+		CurrentItem:     currentItemResp,
+		OverallProgress: overallProgressResp,
 	}
 }

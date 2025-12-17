@@ -350,6 +350,57 @@ func parseTimeString(s sql.NullString) time.Time {
 	return t
 }
 
+// CurrentEnrichmentItem represents the currently processing enrichment item.
+type CurrentEnrichmentItem struct {
+	ID        int64
+	MediaID   int64
+	LibraryID int64
+	MediaType enrichment.MediaType
+	Stage     string
+	Title     string
+}
+
+// GetCurrentItem returns the currently processing enrichment item for a library.
+// Returns nil if no item is currently being processed.
+func (r *QueueRepository) GetCurrentItem(ctx context.Context, libraryID int64) (*CurrentEnrichmentItem, error) {
+	result, err := r.router.Route(
+		func() (any, error) {
+			return r.postgres.GetCurrentEnrichmentItem(ctx, sql.NullInt32{Int32: int32(libraryID), Valid: true})
+		},
+		func() (any, error) {
+			return r.sqlite.GetCurrentEnrichmentItem(ctx, sql.NullInt64{Int64: libraryID, Valid: true})
+		},
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	if r.router.IsPostgresDB() {
+		row := result.(sqlc_postgres.GetCurrentEnrichmentItemRow)
+		return &CurrentEnrichmentItem{
+			ID:        int64(row.ID),
+			MediaID:   int64(row.MediaID),
+			LibraryID: int64(row.LibraryID.Int32),
+			MediaType: enrichment.MediaType(row.MediaType),
+			Stage:     row.Stage,
+			Title:     row.Title,
+		}, nil
+	}
+
+	row := result.(sqlc_sqlite.GetCurrentEnrichmentItemRow)
+	return &CurrentEnrichmentItem{
+		ID:        row.ID,
+		MediaID:   row.MediaID,
+		LibraryID: row.LibraryID.Int64,
+		MediaType: enrichment.MediaType(row.MediaType),
+		Stage:     row.Stage,
+		Title:     row.Title,
+	}, nil
+}
+
 // GetOrphanedPipelineStates finds media items where a stage completed but
 // the next stage was never enqueued. This happens when the server crashes
 // between marking a stage complete and enqueuing the next.

@@ -200,6 +200,55 @@ func (q *Queries) FailEnrichmentJob(ctx context.Context, arg FailEnrichmentJobPa
 	return err
 }
 
+const getCurrentEnrichmentItem = `-- name: GetCurrentEnrichmentItem :one
+SELECT
+    eq.id,
+    eq.media_id,
+    eq.library_id,
+    eq.media_type,
+    eq.stage,
+    COALESCE(
+        m.title,
+        ts.title,
+        tsn.name,
+        ''
+    ) as title
+FROM enrichment_queue eq
+LEFT JOIN media m ON eq.media_type IN ('movie', 'tv') AND eq.media_id = m.id
+LEFT JOIN tv_shows ts ON eq.media_type = 'tv_show' AND eq.media_id = ts.id
+LEFT JOIN tv_seasons tsn ON eq.media_type = 'tv_season' AND eq.media_id = tsn.id
+WHERE eq.library_id = ?
+  AND eq.status = 'processing'
+ORDER BY eq.locked_at ASC
+LIMIT 1
+`
+
+type GetCurrentEnrichmentItemRow struct {
+	ID        int64         `json:"id"`
+	MediaID   int64         `json:"media_id"`
+	LibraryID sql.NullInt64 `json:"library_id"`
+	MediaType string        `json:"media_type"`
+	Stage     string        `json:"stage"`
+	Title     string        `json:"title"`
+}
+
+// Get the currently processing enrichment item with its title for a library.
+// Joins with media/tv_shows/tv_seasons tables to get the title.
+// Returns the first processing item (by locked_at) for the library.
+func (q *Queries) GetCurrentEnrichmentItem(ctx context.Context, libraryID sql.NullInt64) (GetCurrentEnrichmentItemRow, error) {
+	row := q.db.QueryRowContext(ctx, getCurrentEnrichmentItem, libraryID)
+	var i GetCurrentEnrichmentItemRow
+	err := row.Scan(
+		&i.ID,
+		&i.MediaID,
+		&i.LibraryID,
+		&i.MediaType,
+		&i.Stage,
+		&i.Title,
+	)
+	return i, err
+}
+
 const getEnrichmentJob = `-- name: GetEnrichmentJob :one
 SELECT id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, library_id FROM enrichment_queue WHERE id = ?
 `

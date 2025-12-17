@@ -187,6 +187,10 @@ type Querier interface {
 	GetCreditsForEntity(ctx context.Context, arg GetCreditsForEntityParams) ([]GetCreditsForEntityRow, error)
 	GetCreditsForEntityByType(ctx context.Context, arg GetCreditsForEntityByTypeParams) ([]GetCreditsForEntityByTypeRow, error)
 	GetCreditsForPerson(ctx context.Context, personID int64) ([]GetCreditsForPersonRow, error)
+	// Get the currently processing enrichment item with its title for a library.
+	// Joins with media/tv_shows/tv_seasons tables to get the title.
+	// Returns the first processing item (by locked_at) for the library.
+	GetCurrentEnrichmentItem(ctx context.Context, libraryID sql.NullInt64) (GetCurrentEnrichmentItemRow, error)
 	GetDirectorsForEntity(ctx context.Context, arg GetDirectorsForEntityParams) ([]GetDirectorsForEntityRow, error)
 	GetEmbeddedSubtitlesByMediaID(ctx context.Context, mediaID int64) ([]MediaSubtitleTrack, error)
 	GetEnabledPipelineStages(ctx context.Context, mediaType string) ([]EnrichmentPipeline, error)
@@ -217,6 +221,10 @@ type Querier interface {
 	GetLatestScanJobByLibrary(ctx context.Context, libraryID int64) (ScanJob, error)
 	GetLibraryByID(ctx context.Context, id int64) (Library, error)
 	GetLibraryByPath(ctx context.Context, path string) (Library, error)
+	// Get overall enrichment progress for a library.
+	// Returns: items that completed all stages / total unique items that entered enrichment.
+	// "Fully enriched" means an item has completed the last stage in the pipeline.
+	GetLibraryEnrichmentOverallProgress(ctx context.Context, arg GetLibraryEnrichmentOverallProgressParams) (GetLibraryEnrichmentOverallProgressRow, error)
 	GetLibraryEnrichmentProgress(ctx context.Context, arg GetLibraryEnrichmentProgressParams) ([]GetLibraryEnrichmentProgressRow, error)
 	GetLibraryErrors(ctx context.Context, libraryID int64) ([]ScanState, error)
 	GetLibraryIssues(ctx context.Context, libraryID int64) ([]ScanState, error)

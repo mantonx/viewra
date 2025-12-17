@@ -41,6 +41,6 @@ export type { UseVideoControlsOptions, VideoControlHandlers } from './useVideoCo
 export { useSSE } from './useSSE'
 export type { UseSSEOptions, UseSSEReturn, SSEConnectionState } from './useSSE'
 export { useEnrichmentProgress } from './useEnrichmentProgress'
-export type { UseEnrichmentProgressOptions, UseEnrichmentProgressReturn, EnrichmentProgressState } from './useEnrichmentProgress'
+export type { UseEnrichmentProgressOptions, UseEnrichmentProgressReturn, EnrichmentProgressState, CurrentEnrichmentItem, OverallProgress } from './useEnrichmentProgress'
 export { useScanProgress } from './useScanProgress'
 export type { UseScanProgressOptions, UseScanProgressReturn, ScanProgressState, ScanProgressData } from './useScanProgress'

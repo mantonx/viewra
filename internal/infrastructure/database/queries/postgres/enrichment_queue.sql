@@ -135,6 +135,31 @@ SET
     updated_at = NOW()
 WHERE id = $1;
 
+-- name: GetCurrentEnrichmentItem :one
+-- Get the currently processing enrichment item with its title for a library.
+-- Joins with media/tv_shows/tv_seasons tables to get the title.
+-- Returns the first processing item (by locked_at) for the library.
+SELECT
+    eq.id,
+    eq.media_id,
+    eq.library_id,
+    eq.media_type,
+    eq.stage,
+    COALESCE(
+        m.title,
+        ts.title,
+        tsn.name,
+        ''
+    ) as title
+FROM enrichment_queue eq
+LEFT JOIN media m ON eq.media_type IN ('movie', 'tv') AND eq.media_id = m.id
+LEFT JOIN tv_shows ts ON eq.media_type = 'tv_show' AND eq.media_id = ts.id
+LEFT JOIN tv_seasons tsn ON eq.media_type = 'tv_season' AND eq.media_id = tsn.id
+WHERE eq.library_id = $1
+  AND eq.status = 'processing'
+ORDER BY eq.locked_at ASC
+LIMIT 1;
+
 -- name: GetOrphanedPipelineStates :many
 -- Find enrichment statuses where a stage completed but the next stage was never enqueued.
 -- This happens when the server crashes between marking a stage complete and enqueuing the next.

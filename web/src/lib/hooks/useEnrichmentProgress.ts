@@ -3,6 +3,26 @@ import { useSSE, type SSEConnectionState } from './useSSE'
 import type { InternalApiHandlersLibraryEnrichmentProgressResponse } from '@/lib/api/generated/models'
 
 /**
+ * Current item being enriched
+ */
+export interface CurrentEnrichmentItem {
+  mediaId: number
+  mediaType: string
+  stage: string
+  title: string
+}
+
+/**
+ * Overall progress based on unique media items (not inflated by stages)
+ */
+export interface OverallProgress {
+  totalItems: number
+  completedItems: number
+  remainingItems: number
+  percentage: number
+}
+
+/**
  * Enrichment progress state with computed fields
  */
 export interface EnrichmentProgressState {
@@ -20,10 +40,14 @@ export interface EnrichmentProgressState {
   isActive: boolean
   /** Total items that need enrichment (pending + processing + completed + failed) */
   total: number
-  /** Progress as percentage (0-100) */
+  /** Progress as percentage (0-100) - DEPRECATED: use overallProgress.percentage instead */
   progressPercent: number
   /** Per-stage breakdown if available */
   stageProgress?: InternalApiHandlersLibraryEnrichmentProgressResponse['stage_progress']
+  /** Currently processing item */
+  currentItem?: CurrentEnrichmentItem
+  /** Overall progress based on unique items (accurate, not inflated by stages) */
+  overallProgress?: OverallProgress
 }
 
 export interface UseEnrichmentProgressOptions {
@@ -84,6 +108,28 @@ export const useEnrichmentProgress = (
       const total = pending + processing + completed + failed
       const isActive = data.is_active ?? (pending > 0 || processing > 0)
 
+      // Parse current item if available
+      let currentItem: CurrentEnrichmentItem | undefined
+      if (data.current_item) {
+        currentItem = {
+          mediaId: data.current_item.media_id ?? 0,
+          mediaType: data.current_item.media_type ?? '',
+          stage: data.current_item.stage ?? '',
+          title: data.current_item.title ?? '',
+        }
+      }
+
+      // Parse overall progress (accurate unique-item based progress)
+      let overallProgress: OverallProgress | undefined
+      if (data.overall_progress) {
+        overallProgress = {
+          totalItems: data.overall_progress.total_items ?? 0,
+          completedItems: data.overall_progress.completed_items ?? 0,
+          remainingItems: data.overall_progress.remaining_items ?? 0,
+          percentage: data.overall_progress.percentage ?? 0,
+        }
+      }
+
       const state: EnrichmentProgressState = {
         libraryId,
         pending,
@@ -92,8 +138,13 @@ export const useEnrichmentProgress = (
         failed,
         isActive,
         total,
-        progressPercent: total > 0 ? Math.round((completed / total) * 100) : 0,
+        // Use overall progress percentage if available, fall back to stage-based calculation
+        progressPercent: overallProgress
+          ? Math.round(overallProgress.percentage)
+          : total > 0 ? Math.round((completed / total) * 100) : 0,
         stageProgress: data.stage_progress,
+        currentItem,
+        overallProgress,
       }
 
       setProgress(state)

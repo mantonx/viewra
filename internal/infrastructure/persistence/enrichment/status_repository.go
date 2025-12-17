@@ -262,6 +262,53 @@ func (r *StatusRepository) ResetStuck(ctx context.Context) (int64, error) {
 	return result.(int64), nil
 }
 
+// OverallProgress represents the overall enrichment progress for a library.
+// This counts unique media items rather than stage entries.
+type OverallProgress struct {
+	// TotalItems is the number of unique media items that have entered enrichment.
+	TotalItems int64
+	// RemainingItems is the number of unique media items still being processed.
+	RemainingItems int64
+	// CompletedItems is TotalItems - RemainingItems.
+	CompletedItems int64
+}
+
+// GetOverallProgress returns the overall enrichment progress for a library.
+// Unlike per-stage progress, this counts unique media items to avoid inflating totals.
+func (r *StatusRepository) GetOverallProgress(ctx context.Context, libraryID int64) (*OverallProgress, error) {
+	result, err := r.router.Route(
+		func() (any, error) {
+			return r.postgres.GetLibraryEnrichmentOverallProgress(ctx, sql.NullInt32{Int32: int32(libraryID), Valid: true})
+		},
+		func() (any, error) {
+			return r.sqlite.GetLibraryEnrichmentOverallProgress(ctx, sqlc_sqlite.GetLibraryEnrichmentOverallProgressParams{
+				LibraryID:   sql.NullInt64{Int64: libraryID, Valid: true},
+				LibraryID_2: sql.NullInt64{Int64: libraryID, Valid: true},
+			})
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var totalItems, remainingItems int64
+	if r.router.IsPostgresDB() {
+		row := result.(sqlc_postgres.GetLibraryEnrichmentOverallProgressRow)
+		totalItems = row.TotalItems
+		remainingItems = row.RemainingItems
+	} else {
+		row := result.(sqlc_sqlite.GetLibraryEnrichmentOverallProgressRow)
+		totalItems = row.TotalItems
+		remainingItems = row.RemainingItems
+	}
+
+	return &OverallProgress{
+		TotalItems:     totalItems,
+		RemainingItems: remainingItems,
+		CompletedItems: totalItems - remainingItems,
+	}, nil
+}
+
 // convertToStatus converts sqlc result to domain Status.
 func (r *StatusRepository) convertToStatus(result any) *enrichment.Status {
 	if r.router.IsPostgresDB() {

@@ -7,6 +7,8 @@
  */
 
 export interface InternalApiHandlersEnqueueMediaRequest {
+  /** Library containing the media */
+  library_id: number
   media_id: number
   /** movie, tv, tv_show, music */
   media_type: string

@@ -88,6 +88,22 @@ WHERE (
 )
 GROUP BY es.stage;
 
+-- name: GetLibraryEnrichmentOverallProgress :one
+-- Get overall enrichment progress for a library.
+-- Returns: items that completed all stages / total unique items that entered enrichment.
+-- "Fully enriched" means an item has completed the last stage in the pipeline.
+SELECT
+    -- Total unique media items in enrichment for this library
+    (SELECT COUNT(DISTINCT (eq.media_id::text || ':' || eq.media_type))
+     FROM enrichment_queue eq
+     WHERE eq.library_id = $1)::bigint as total_items,
+    -- Items still pending/processing (not fully done)
+    (SELECT COUNT(DISTINCT (eq.media_id::text || ':' || eq.media_type))
+     FROM enrichment_queue eq
+     WHERE eq.library_id = $1
+       AND eq.status IN ('pending', 'processing'))::bigint as remaining_items
+;
+
 -- name: ResetStuckEnrichmentStatus :execrows
 -- Reset all 'processing' status records to 'pending'.
 -- Called at startup to recover from crashed workers.

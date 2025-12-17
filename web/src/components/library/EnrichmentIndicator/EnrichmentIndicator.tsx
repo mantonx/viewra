@@ -1,13 +1,18 @@
-import { Sparkles } from 'lucide-react'
 import { useEnrichmentProgress } from '@/lib/hooks'
+import { Progress } from '@/components/ui'
 import type { EnrichmentIndicatorProps } from './EnrichmentIndicator.types'
+
+/** Format stage name for display (e.g., "local-images" -> "Local Images") */
+const formatStageName = (stage: string): string => {
+  return stage
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
 
 /**
  * Displays enrichment progress for a library.
- * Shows a compact inline indicator when enrichment is active.
- *
- * During active scans, this shows alongside scan progress.
- * When scan is complete, shows as standalone progress indicator.
+ * Shows current stage, item being enriched, and progress count.
  *
  * Uses SSE for real-time updates - no polling overhead.
  */
@@ -27,55 +32,65 @@ const EnrichmentIndicator = ({
     return null
   }
 
-  const { pending, processing, completed, failed } = progress
-  const inProgress = pending + processing
+  const { currentItem, failed, overallProgress } = progress
+
+  // Use overall progress for accurate percentage (unique items, not inflated by stages)
+  const progressPercent = overallProgress?.percentage ?? 0
+  const completedItems = overallProgress?.completedItems ?? 0
+  const totalItems = overallProgress?.totalItems ?? 0
+
+  // Build the status text: "stage: title"
+  const statusParts: string[] = []
+  if (currentItem?.stage) {
+    statusParts.push(formatStageName(currentItem.stage))
+  }
+  if (currentItem?.title) {
+    statusParts.push(currentItem.title)
+  }
+
+  const statusText = statusParts.length > 0
+    ? statusParts.join(': ')
+    : 'Enriching...'
 
   // Compact mode: just show inline text (for use alongside scan progress)
   if (compact) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400">
-        <Sparkles className="w-3.5 h-3.5 animate-pulse" aria-hidden="true" />
-        <span>
-          {inProgress > 0 && `${inProgress.toLocaleString()} enriching`}
-          {inProgress > 0 && completed > 0 && ', '}
-          {completed > 0 && `${completed.toLocaleString()} enriched`}
-          {failed > 0 && (
-            <span className="text-red-500 dark:text-red-400">
-              {' '}({failed.toLocaleString()} failed)
-            </span>
-          )}
-        </span>
+      <span className="text-sm text-zinc-600 dark:text-zinc-400">
+        {statusText} ({completedItems.toLocaleString()}/{totalItems.toLocaleString()})
+        {failed > 0 && (
+          <span className="text-red-500 dark:text-red-400">
+            {' '}• {failed.toLocaleString()} failed
+          </span>
+        )}
         {connectionState === 'error' && (
-          <span className="text-xs text-red-500 dark:text-red-400">(disconnected)</span>
+          <span className="text-red-500 dark:text-red-400"> (disconnected)</span>
         )}
       </span>
     )
   }
 
-  // Full mode: show as a standalone section
+  // Full mode: show progress bar with enrichment status
+  const label = `Enriching: ${statusText} (${completedItems.toLocaleString()}/${totalItems.toLocaleString()})`
+
   return (
     <div className="px-4 pb-4">
-      <div className="flex items-center gap-2">
-        <Sparkles
-          className="w-4 h-4 text-amber-500 dark:text-amber-400 animate-pulse"
-          aria-hidden="true"
-        />
-        <span className="text-sm text-amber-700 dark:text-amber-300">
-          <span className="font-medium">Enriching metadata:</span>
-          {' '}
-          {inProgress > 0 && `${inProgress.toLocaleString()} queued`}
-          {inProgress > 0 && completed > 0 && ', '}
-          {completed > 0 && `${completed.toLocaleString()} done`}
-          {failed > 0 && (
-            <span className="text-red-600 dark:text-red-400">
-              {' '}({failed.toLocaleString()} failed)
-            </span>
-          )}
-        </span>
-        {connectionState === 'error' && (
-          <span className="text-xs text-red-500 dark:text-red-400 ml-1">(disconnected)</span>
-        )}
-      </div>
+      <Progress
+        value={progressPercent}
+        label={label}
+        variant="default"
+        size="sm"
+        showPercentage
+      />
+      {failed > 0 && (
+        <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+          {failed.toLocaleString()} failed
+        </p>
+      )}
+      {connectionState === 'error' && (
+        <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+          Connection lost - reconnecting...
+        </p>
+      )}
     </div>
   )
 }

@@ -182,6 +182,34 @@ func (q *Queries) GetEnrichmentStatusByStage(ctx context.Context, arg GetEnrichm
 	return items, nil
 }
 
+const getLibraryEnrichmentOverallProgress = `-- name: GetLibraryEnrichmentOverallProgress :one
+SELECT
+    -- Total unique media items in enrichment for this library
+    (SELECT COUNT(DISTINCT (eq.media_id::text || ':' || eq.media_type))
+     FROM enrichment_queue eq
+     WHERE eq.library_id = $1)::bigint as total_items,
+    -- Items still pending/processing (not fully done)
+    (SELECT COUNT(DISTINCT (eq.media_id::text || ':' || eq.media_type))
+     FROM enrichment_queue eq
+     WHERE eq.library_id = $1
+       AND eq.status IN ('pending', 'processing'))::bigint as remaining_items
+`
+
+type GetLibraryEnrichmentOverallProgressRow struct {
+	TotalItems     int64 `json:"total_items"`
+	RemainingItems int64 `json:"remaining_items"`
+}
+
+// Get overall enrichment progress for a library.
+// Returns: items that completed all stages / total unique items that entered enrichment.
+// "Fully enriched" means an item has completed the last stage in the pipeline.
+func (q *Queries) GetLibraryEnrichmentOverallProgress(ctx context.Context, libraryID sql.NullInt32) (GetLibraryEnrichmentOverallProgressRow, error) {
+	row := q.db.QueryRowContext(ctx, getLibraryEnrichmentOverallProgress, libraryID)
+	var i GetLibraryEnrichmentOverallProgressRow
+	err := row.Scan(&i.TotalItems, &i.RemainingItems)
+	return i, err
+}
+
 const getLibraryEnrichmentProgress = `-- name: GetLibraryEnrichmentProgress :many
 SELECT
     es.stage,
