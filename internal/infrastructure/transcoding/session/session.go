@@ -15,6 +15,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
+	domainevents "github.com/mantonx/viewra/internal/domain/events"
 	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/hls"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/logging"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
@@ -68,6 +69,9 @@ type TranscodeSession struct {
 
 	// Progress watchdog to detect stalled FFmpeg processes
 	watchdog *ProgressWatchdog
+
+	// Event publisher for transcode lifecycle events (optional)
+	publisher domainevents.Publisher
 }
 
 // NewTranscodeSession creates a new transcode session but does not start it.
@@ -209,15 +213,36 @@ func (s *TranscodeSession) Start(params StartParams) error {
 	go func() {
 		s.waitOnce.Do(func() {
 			err := s.FFmpegCmd.Wait()
+			duration := time.Since(s.FFmpegStartedAt)
 			if err != nil {
 				s.logger.Error("FFmpeg process exited with error",
 					"session_id", s.ID,
 					"media_id", s.MediaID,
 					"error", err)
+				// Publish transcode.failed event
+				if s.publisher != nil {
+					s.publisher.Publish(domainevents.NewEvent(domainevents.EventTranscodeFailed, "transcode-session").
+						WithMediaID(s.MediaID).
+						WithData("session_id", s.ID).
+						WithData("quality", s.Quality).
+						WithData("reason", "ffmpeg_error").
+						WithError(err).
+						WithData("duration_ms", duration.Milliseconds()).
+						Build())
+				}
 			} else {
 				s.logger.Info("FFmpeg process completed successfully",
 					"session_id", s.ID,
 					"media_id", s.MediaID)
+				// Publish transcode.completed event
+				if s.publisher != nil {
+					s.publisher.Publish(domainevents.NewEvent(domainevents.EventTranscodeCompleted, "transcode-session").
+						WithMediaID(s.MediaID).
+						WithData("session_id", s.ID).
+						WithData("quality", s.Quality).
+						WithData("duration_ms", duration.Milliseconds()).
+						Build())
+				}
 			}
 		})
 	}()
@@ -246,11 +271,21 @@ func (s *TranscodeSession) monitorStdout(stdout io.Reader) {
 		// Count segment creations (.ts files)
 		if strings.Contains(line, "Opening") && strings.Contains(line, ".ts'") {
 			segmentCount++
-			// Log every 10 segments to avoid spam
+			// Log and publish progress event every 10 segments to avoid spam
 			if segmentCount%10 == 0 {
 				s.logger.Debug("HLS encoding progress",
 					"session_id", s.ID,
 					"segments_created", segmentCount)
+				// Publish transcode.progress event
+				if s.publisher != nil {
+					s.publisher.Publish(domainevents.NewEvent(domainevents.EventTranscodeProgress, "transcode-session").
+						WithMediaID(s.MediaID).
+						WithData("session_id", s.ID).
+						WithData("quality", s.Quality).
+						WithData("stage", "segments").
+						WithData("segments_created", segmentCount).
+						Build())
+				}
 			}
 		} else if strings.Contains(line, "playlist.m3u8") && strings.Contains(line, "Opening") {
 			// Playlist updates
@@ -300,6 +335,16 @@ func (s *TranscodeSession) monitorStderr(stderr io.Reader) {
 						s.FirstFrameAt.Format("15:04:05.000"),
 						float64(timeSinceStart.Milliseconds())))
 				}
+				// Publish transcode.progress event for first frame milestone
+				if s.publisher != nil {
+					s.publisher.Publish(domainevents.NewEvent(domainevents.EventTranscodeProgress, "transcode-session").
+						WithMediaID(s.MediaID).
+						WithData("session_id", s.ID).
+						WithData("quality", s.Quality).
+						WithData("stage", "first_frame").
+						WithData("time_to_first_frame_ms", timeSinceStart.Milliseconds()).
+						Build())
+				}
 			}
 
 			// Update watchdog whenever we see progress output
@@ -319,6 +364,16 @@ func (s *TranscodeSession) monitorStderr(stderr io.Reader) {
 					s.logWriter.WriteString(fmt.Sprintf("\n# TIMING: First segment at %s (%.0fms after FFmpeg start)\n",
 						s.FirstSegmentAt.Format("15:04:05.000"),
 						float64(timeSinceStart.Milliseconds())))
+				}
+				// Publish transcode.progress event for first segment milestone
+				if s.publisher != nil {
+					s.publisher.Publish(domainevents.NewEvent(domainevents.EventTranscodeProgress, "transcode-session").
+						WithMediaID(s.MediaID).
+						WithData("session_id", s.ID).
+						WithData("quality", s.Quality).
+						WithData("stage", "first_segment").
+						WithData("time_to_first_segment_ms", timeSinceStart.Milliseconds()).
+						Build())
 				}
 			}
 
@@ -412,6 +467,11 @@ func (s *TranscodeSession) GetLogWriter() *logging.LogWriter {
 // SetLogWriter sets the log writer for this session.
 func (s *TranscodeSession) SetLogWriter(w *logging.LogWriter) {
 	s.logWriter = w
+}
+
+// SetPublisher sets the event publisher for transcode lifecycle events.
+func (s *TranscodeSession) SetPublisher(pub domainevents.Publisher) {
+	s.publisher = pub
 }
 
 // GetPlaylistMetadata reads and parses the playlist for custom extension tags.

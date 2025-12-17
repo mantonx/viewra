@@ -146,6 +146,7 @@ func ProcessTVEpisode(
 			// Enqueue parent entities (show/season) for enrichment
 			EnqueueTVParentEntities(ctx, deps, episode.ShowTitle, libraryID, result.FilePath, episode.Season)
 		},
+		EventMeta: &EventMetadata{Type: "tv", Title: episode.Media.Title},
 	})
 }
 

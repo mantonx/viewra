@@ -270,5 +270,6 @@ func ProcessMusicTrack(
 			// Enqueue parent entities (album/artist) for enrichment
 			EnqueueMusicParentEntities(ctx, deps, track, libraryID, result.FilePath)
 		},
+		EventMeta: &EventMetadata{Type: "music", Title: track.Media.Title},
 	})
 }

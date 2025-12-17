@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/mantonx/viewra/internal/application/library/scan/cleanup"
+	domainevents "github.com/mantonx/viewra/internal/domain/events"
 	"github.com/mantonx/viewra/internal/domain/images"
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/pkg/logger"
@@ -17,6 +18,7 @@ type DeleteMediaUseCase struct {
 	imageRepo    images.Repository
 	imageCleanup cleanup.ImageCleanupExecutor
 	logger       *slog.Logger
+	publisher    domainevents.Publisher // Event publisher for media.removed events (optional)
 }
 
 // NewDeleteMediaUseCase creates a new delete media use case
@@ -34,12 +36,27 @@ func NewDeleteMediaUseCase(
 	}
 }
 
+// SetPublisher sets the event publisher for media lifecycle events.
+func (uc *DeleteMediaUseCase) SetPublisher(pub domainevents.Publisher) {
+	uc.publisher = pub
+}
+
 // Execute deletes a media database record and cleans up associated image cache files
 //
 // IMPORTANT: This ONLY deletes the database record, NOT the actual media file on disk.
 // Media files are user-managed and should never be deleted by the application.
 // Only cached/generated files (like image thumbnails, transcodes) are cleaned up.
 func (uc *DeleteMediaUseCase) Execute(ctx context.Context, mediaID int64) error {
+	// Fetch media info before deletion for event publishing
+	var mediaInfo *media.Media
+	if uc.publisher != nil {
+		m, err := uc.mediaRepo.GetByID(ctx, mediaID)
+		if err == nil {
+			mediaInfo = m
+		}
+		// If fetch fails, we still proceed with deletion but skip the event
+	}
+
 	// Collect image hashes before deletion for cache cleanup
 	hashes := cleanup.CollectImageHashesForMedia(ctx, uc.imageRepo, mediaID)
 
@@ -52,6 +69,17 @@ func (uc *DeleteMediaUseCase) Execute(ctx context.Context, mediaID int64) error 
 	// The actual media file on disk is NEVER touched.
 	if err := uc.mediaRepo.Delete(ctx, mediaID); err != nil {
 		return fmt.Errorf("failed to delete media: %w", err)
+	}
+
+	// Publish media.removed event
+	if uc.publisher != nil && mediaInfo != nil {
+		uc.publisher.Publish(domainevents.NewEvent(domainevents.EventMediaRemoved, "delete-media").
+			WithMediaID(mediaID).
+			WithLibraryID(mediaInfo.LibraryID).
+			WithData("file_path", mediaInfo.FilePath).
+			WithData("type", mediaInfo.Type).
+			WithData("reason", "user_deleted").
+			Build())
 	}
 
 	// Clean up image cache files for the collected hashes

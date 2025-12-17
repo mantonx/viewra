@@ -6,6 +6,7 @@ import (
 
 	appImages "github.com/mantonx/viewra/internal/application/images"
 	"github.com/mantonx/viewra/internal/application/library/scan"
+	domainevents "github.com/mantonx/viewra/internal/domain/events"
 	domainImages "github.com/mantonx/viewra/internal/domain/images"
 )
 
@@ -22,4 +23,5 @@ type Deps struct {
 	ImageRepo    domainImages.Repository
 	ImageCleanup ImageCleanupExecutor
 	Logger       *slog.Logger
+	Publisher    domainevents.Publisher // Event publisher for media.removed events (optional)
 }

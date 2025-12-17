@@ -8,6 +8,7 @@ import (
 	"github.com/mantonx/viewra/internal/application/library/scan"
 	"github.com/mantonx/viewra/internal/application/library/scan/scanutil"
 	"github.com/mantonx/viewra/internal/domain/enrichment"
+	domainevents "github.com/mantonx/viewra/internal/domain/events"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
 )
@@ -37,6 +38,9 @@ type Deps struct {
 
 	// Enrichment - optional, if set, media is enqueued for enrichment after scanning
 	EnrichmentEnqueuer EnrichmentEnqueuer
+
+	// Event publisher - optional, if set, media lifecycle events are published
+	Publisher domainevents.Publisher
 }
 
 // ProcessMediaResult holds the result of processing a single media file.

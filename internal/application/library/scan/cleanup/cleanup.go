@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/mantonx/viewra/internal/application/library/scan"
+	domainevents "github.com/mantonx/viewra/internal/domain/events"
 	domainImages "github.com/mantonx/viewra/internal/domain/images"
 )
 
@@ -78,6 +79,16 @@ func CleanupStaleMedia(ctx context.Context, deps *Deps, libraryID int64, foundFi
 				deps.Logger.Info("removed stale media from library",
 					"library_id", libraryID,
 					"file_path", m.FilePath)
+				// Publish media.removed event
+				if deps.Publisher != nil {
+					deps.Publisher.Publish(domainevents.NewEvent(domainevents.EventMediaRemoved, "cleanup").
+						WithMediaID(m.ID).
+						WithLibraryID(libraryID).
+						WithData("file_path", m.FilePath).
+						WithData("type", m.Type).
+						WithData("reason", "file_missing").
+						Build())
+				}
 			}
 		}
 	}

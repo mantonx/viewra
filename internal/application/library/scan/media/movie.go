@@ -100,5 +100,6 @@ func ProcessMovie(
 			// Enqueue for enrichment - images are now extracted via the enrichment pipeline
 			enqueueForEnrichment(ctx, deps, movie.Media.ID, libraryID, enrichment.MediaTypeMovie)
 		},
+		EventMeta: &EventMetadata{Type: "movie", Title: movie.Media.Title},
 	})
 }

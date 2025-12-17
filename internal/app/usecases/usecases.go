@@ -198,10 +198,16 @@ func buildMediaUseCases(
 	// to avoid circular dependencies
 	imageCleanup := images.NewCleanupUseCase(repos.Image, imageCacheDir, logger)
 
+	deleteUseCase := media.NewDeleteMediaUseCase(repos.Media, repos.Image, imageCleanup, logger)
+	// Wire event bus for media.removed events on user-initiated deletion
+	if svcs.EventBus != nil {
+		deleteUseCase.SetPublisher(svcs.EventBus)
+	}
+
 	return &MediaUseCases{
 		Get:        media.NewGetMediaUseCase(repos.Media),
 		List:       media.NewListMediaUseCase(repos.Media),
-		Delete:     media.NewDeleteMediaUseCase(repos.Media, repos.Image, imageCleanup, logger),
+		Delete:     deleteUseCase,
 		StreamInfo: media.NewStreamInfoUseCase(repos.Media, repos.Library),
 		GetTracks:  media.NewGetTracksUseCase(repos.Media),
 	}

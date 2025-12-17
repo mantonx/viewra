@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/mantonx/viewra/internal/domain/enrichment"
+	domainevents "github.com/mantonx/viewra/internal/domain/events"
 )
 
 // ProcessMediaWithCache handles the common pattern of cache-based media upsert with race condition handling.
@@ -37,6 +38,8 @@ func ProcessMediaWithCache(
 		}
 		callbacks.PostSave(ctx)
 		id := callbacks.GetMediaID()
+		// Publish media.updated event
+		publishMediaEvent(deps, domainevents.EventMediaUpdated, id, libraryID, filePath, callbacks.EventMeta)
 		return &id, nil
 	}
 
@@ -67,6 +70,8 @@ func ProcessMediaWithCache(
 		}
 		callbacks.PostSave(ctx)
 		id := callbacks.GetMediaID()
+		// Publish media.updated event (race condition path - another worker created it)
+		publishMediaEvent(deps, domainevents.EventMediaUpdated, id, libraryID, filePath, callbacks.EventMeta)
 		return &id, nil
 	}
 
@@ -74,6 +79,8 @@ func ProcessMediaWithCache(
 	cache.Store(filePath, callbacks.GetMediaID())
 	callbacks.PostSave(ctx)
 	id := callbacks.GetMediaID()
+	// Publish media.discovered event (new media created)
+	publishMediaEvent(deps, domainevents.EventMediaDiscovered, id, libraryID, filePath, callbacks.EventMeta)
 	return &id, nil
 }
 
@@ -94,4 +101,23 @@ func enqueueForEnrichment(ctx context.Context, deps *Deps, mediaID int64, librar
 				slog.Any("error", err))
 		}
 	}()
+}
+
+// publishMediaEvent publishes media lifecycle events (discovered, updated, removed).
+// This is non-blocking and errors are silently ignored to not affect scan performance.
+func publishMediaEvent(deps *Deps, eventType domainevents.EventType, mediaID int64, libraryID int64, filePath string, meta *EventMetadata) {
+	if deps.Publisher == nil {
+		return // Event publishing not configured
+	}
+
+	event := domainevents.NewEvent(eventType, "scanner").
+		WithMediaID(mediaID).
+		WithLibraryID(libraryID).
+		WithData("file_path", filePath)
+
+	if meta != nil {
+		event.WithData("type", meta.Type).WithData("title", meta.Title)
+	}
+
+	deps.Publisher.Publish(event.Build())
 }

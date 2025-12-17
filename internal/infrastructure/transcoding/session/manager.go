@@ -6,10 +6,11 @@ import (
 	"log/slog"
 	"sync"
 
+	domainevents "github.com/mantonx/viewra/internal/domain/events"
 	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/hls"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/logging"
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding/videoinfo"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/videoinfo"
 )
 
 // ConfigProvider provides transcoding configuration.
@@ -31,6 +32,7 @@ type Manager struct {
 	configProvider  ConfigProvider
 	fallbackManager *hls.HardwareFallbackManager
 	logStore        *logging.FFmpegLogStore
+	publisher       domainevents.Publisher // Event publisher for transcode events (optional)
 }
 
 // ManagerConfig contains all configuration needed for the session manager.
@@ -113,6 +115,12 @@ func (m *Manager) SetLogStore(store *logging.FFmpegLogStore) {
 // GetLogStore returns the FFmpeg log store (may be nil if not configured).
 func (m *Manager) GetLogStore() *logging.FFmpegLogStore {
 	return m.logStore
+}
+
+// SetPublisher sets the event publisher for transcode lifecycle events.
+// If set, the manager will publish transcode.started, transcode.completed, etc.
+func (m *Manager) SetPublisher(pub domainevents.Publisher) {
+	m.publisher = pub
 }
 
 // getEffectiveConfig returns the current configuration, using provider if available.
@@ -247,6 +255,11 @@ func (m *Manager) GetOrCreateSession(params GetOrCreateSessionParams) (*Transcod
 		}
 	}
 
+	// Set event publisher for transcode lifecycle events
+	if m.publisher != nil {
+		session.SetPublisher(m.publisher)
+	}
+
 	// Get effective config
 	effectiveConfig := m.getEffectiveConfig(context.Background())
 
@@ -287,6 +300,18 @@ func (m *Manager) GetOrCreateSession(params GetOrCreateSessionParams) (*Transcod
 
 	// Store session
 	m.sessions.Store(key, session)
+
+	// Publish transcode.started event
+	if m.publisher != nil {
+		m.publisher.Publish(domainevents.NewEvent(domainevents.EventTranscodeStarted, "session-manager").
+			WithMediaID(params.MediaID).
+			WithData("session_id", session.ID).
+			WithData("quality", params.Quality).
+			WithData("strategy", params.Strategy).
+			WithData("hw_accel", startParams.HWAccel).
+			WithData("start_position", params.StartPosition).
+			Build())
+	}
 
 	m.logger.Debug("Created new transcode session",
 		"session_id", session.ID,

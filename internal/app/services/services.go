@@ -235,6 +235,9 @@ func BuildServices(
 	// Ring buffer size of 10000 provides ~10min of event history for replay
 	eventBus := events.NewBus(10000, logger)
 
+	// Wire event bus to session manager for transcode lifecycle events
+	sessionManager.SetPublisher(eventBus)
+
 	// Initialize image downloader for remote images (TMDB, TVDB, etc.)
 	imageDownloader := infraimages.NewDownloader(infraimages.DownloaderConfig{
 		CacheDir:  cfg.Images.CacheDir,
@@ -306,6 +309,11 @@ func BuildServices(
 		}, pluginLogger)
 		if err != nil {
 			logger.Warn("Failed to create plugin manager", "error", err)
+		}
+
+		// Wire event bus to plugin manager for lifecycle events
+		if pluginManager != nil && eventBus != nil {
+			pluginManager.SetPublisher(eventBus)
 		}
 	}
 

@@ -90,6 +90,20 @@ const (
 	EventScanCompleted = domainevents.EventScanCompleted
 	EventScanFailed    = domainevents.EventScanFailed
 
+	// Playback events
+	EventPlaybackStarted  = domainevents.EventPlaybackStarted
+	EventPlaybackPaused   = domainevents.EventPlaybackPaused
+	EventPlaybackResumed  = domainevents.EventPlaybackResumed
+	EventPlaybackProgress = domainevents.EventPlaybackProgress
+	EventPlaybackStopped  = domainevents.EventPlaybackStopped
+
+	// User events
+	EventUserLogin  = domainevents.EventUserLogin
+	EventUserLogout = domainevents.EventUserLogout
+
+	// System events
+	EventSystemLowDiskSpace = domainevents.EventSystemLowDiskSpace
+
 	// Log events
 	EventLog = domainevents.EventLog
 

@@ -46,6 +46,20 @@ const (
 	EventScanCompleted EventType = "scan.completed"
 	EventScanFailed    EventType = "scan.failed"
 
+	// Playback events
+	EventPlaybackStarted  EventType = "playback.started"
+	EventPlaybackPaused   EventType = "playback.paused"
+	EventPlaybackResumed  EventType = "playback.resumed"
+	EventPlaybackProgress EventType = "playback.progress"
+	EventPlaybackStopped  EventType = "playback.stopped"
+
+	// User events
+	EventUserLogin  EventType = "user.login"
+	EventUserLogout EventType = "user.logout"
+
+	// System events
+	EventSystemLowDiskSpace EventType = "system.low_disk_space"
+
 	// Log events (from slog integration)
 	EventLog EventType = "log"
 )
@@ -120,6 +134,16 @@ func (e *Event) WithError(err error) *Event {
 // WithProgress is a convenience method for progress events.
 func (e *Event) WithProgress(current, total int64) *Event {
 	return e.WithData("current", current).WithData("total", total)
+}
+
+// WithUserID is a convenience method for user-related events.
+func (e *Event) WithUserID(userID int64) *Event {
+	return e.WithData("user_id", userID)
+}
+
+// WithUsername is a convenience method for user-related events.
+func (e *Event) WithUsername(username string) *Event {
+	return e.WithData("username", username)
 }
 
 // Build returns the event value (for chaining convenience).

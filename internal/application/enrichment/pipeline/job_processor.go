@@ -98,7 +98,7 @@ func (p *JobProcessor) Process(ctx context.Context, job *enrichment.QueueJob) {
 	// Handle skipped jobs (not an error, just nothing to do)
 	if resp.Skipped {
 		logger.Debug("job skipped", slog.String("reason", resp.SkipReason))
-		p.handleSuccess(ctx, logger, job, mediaType, resp, duration)
+		p.handleSkipped(ctx, logger, job, mediaType, resp, duration)
 		return
 	}
 
@@ -138,6 +138,48 @@ func (p *JobProcessor) handleSuccess(ctx context.Context, logger *slog.Logger, j
 	// Enqueue next stage if callback is set
 	if p.enqueueNext != nil && mediaType != "" {
 		// Get current stage position from pipeline config
+		currentPosition := 0
+		if stage, err := p.deps.PipelineRepo.GetStageByName(ctx, mediaType, job.Stage); err != nil {
+			logger.Warn("failed to get stage position, using 0",
+				slog.String("stage", job.Stage),
+				slog.Any("error", err))
+		} else if stage != nil {
+			currentPosition = stage.Position
+		}
+
+		if err := p.enqueueNext(ctx, job.MediaID, job.LibraryID, mediaType, currentPosition); err != nil {
+			logger.Error("failed to enqueue next stage", slog.Any("error", err))
+		}
+	}
+}
+
+// handleSkipped marks a job as skipped and enqueues the next stage.
+// Skipped jobs are not failures - they just had nothing to do (e.g., no NFO file found).
+func (p *JobProcessor) handleSkipped(ctx context.Context, logger *slog.Logger, job *enrichment.QueueJob, mediaType enrichment.MediaType, resp *pluginv1.EnrichResponse, duration time.Duration) {
+	logger.Debug("job skipped",
+		slog.Duration("duration", duration),
+		slog.String("reason", resp.GetSkipReason()))
+
+	// Mark job as completed (skipped jobs are considered complete)
+	if err := p.deps.QueueRepo.Complete(ctx, job.ID); err != nil {
+		logger.Error("failed to mark job complete", slog.Any("error", err))
+	}
+
+	// Update status to skipped
+	if err := p.deps.StatusRepo.MarkSkipped(ctx, mediaType, job.MediaID, job.Stage, ""); err != nil {
+		logger.Error("failed to update status", slog.Any("error", err))
+	}
+
+	// Publish skipped event with library_id for SSE filtering
+	p.deps.EventBus.Publish(events.NewEvent(events.EventEnrichmentSkipped, "worker").
+		WithMediaID(job.MediaID).
+		WithLibraryID(job.LibraryID).
+		WithStage(p.config.Stage).
+		WithData("reason", resp.GetSkipReason()).
+		Build())
+
+	// Enqueue next stage if callback is set (skipped jobs still advance the pipeline)
+	if p.enqueueNext != nil && mediaType != "" {
 		currentPosition := 0
 		if stage, err := p.deps.PipelineRepo.GetStageByName(ctx, mediaType, job.Stage); err != nil {
 			logger.Warn("failed to get stage position, using 0",

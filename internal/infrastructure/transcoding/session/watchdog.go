@@ -10,6 +10,8 @@ package session
 import (
 	"sync/atomic"
 	"time"
+
+	domainevents "github.com/mantonx/viewra/internal/domain/events"
 )
 
 // ProgressWatchdog monitors FFmpeg progress and kills stalled processes.
@@ -100,6 +102,16 @@ func (wd *ProgressWatchdog) checkProgress() {
 				wd.session.logger.Info("Killed stalled FFmpeg process",
 					"session_id", wd.session.ID,
 					"stall_duration", elapsed)
+				// Publish transcode.failed event for stalled process
+				if wd.session.publisher != nil {
+					wd.session.publisher.Publish(domainevents.NewEvent(domainevents.EventTranscodeFailed, "watchdog").
+						WithMediaID(wd.session.MediaID).
+						WithData("session_id", wd.session.ID).
+						WithData("quality", wd.session.Quality).
+						WithData("reason", "stalled").
+						WithData("stall_duration_sec", elapsed.Seconds()).
+						Build())
+				}
 			}
 		}
 

@@ -17,6 +17,7 @@ import (
 //	    Update: func(ctx context.Context) error { return repo.Update(ctx, entity) },
 //	    Create: func(ctx context.Context) error { return repo.Create(ctx, entity) },
 //	    PostSave: func(ctx context.Context) { extractImages(ctx, entity) },
+//	    EventMeta: &media.EventMetadata{Type: "movie", Title: movie.Title},
 //	}
 type UpsertCallbacks struct {
 	// GetMediaID returns the ID from the media entity (used after cache hit or DB fetch)
@@ -29,6 +30,14 @@ type UpsertCallbacks struct {
 	Create func(ctx context.Context) error
 	// PostSave performs post-save operations like image extraction and track persistence
 	PostSave func(ctx context.Context)
+	// EventMeta provides optional metadata for event publishing (media.discovered/updated)
+	EventMeta *EventMetadata
+}
+
+// EventMetadata holds media metadata for event publishing.
+type EventMetadata struct {
+	Type  string // "movie", "tv", "music"
+	Title string // Media title for event data
 }
 
 // IsConstraintError checks if an error is a UNIQUE constraint violation (SQLite or PostgreSQL).

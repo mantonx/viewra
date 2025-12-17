@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/go-plugin"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	domainevents "github.com/mantonx/viewra/internal/domain/events"
 )
 
 // PluginCategory defines the type of functionality a plugin provides.
@@ -121,6 +122,9 @@ type Manager struct {
 
 	// hostStorageServer provides KV storage for plugins.
 	hostStorageServer *HostStorageServer
+
+	// publisher publishes plugin lifecycle events (optional).
+	publisher domainevents.Publisher
 }
 
 // ManagerConfig configures the plugin manager.
@@ -191,6 +195,11 @@ func NewManager(cfg ManagerConfig, logger *slog.Logger) (*Manager, error) {
 		hostDataServer:      hostDataServer,
 		hostStorageServer:   cfg.HostStorageServer,
 	}, nil
+}
+
+// SetPublisher sets the event publisher for plugin lifecycle events.
+func (m *Manager) SetPublisher(pub domainevents.Publisher) {
+	m.publisher = pub
 }
 
 // DiscoverPlugins scans the plugin directory for plugin binaries.
@@ -386,6 +395,17 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		"categories", manifest.Categories,
 	)
 
+	// Publish plugin.loaded event
+	if m.publisher != nil {
+		m.publisher.Publish(domainevents.NewEvent(domainevents.EventPluginLoaded, "plugin-manager").
+			WithData("plugin_id", manifest.ID).
+			WithData("name", manifest.Name).
+			WithData("version", manifest.Version).
+			WithData("categories", manifest.Categories).
+			WithData("is_restart", false).
+			Build())
+	}
+
 	return instance, nil
 }
 
@@ -428,6 +448,15 @@ func (m *Manager) UnloadPlugin(ctx context.Context, pluginID string) error {
 	instance.Client.Kill()
 
 	m.logger.Info("plugin unloaded", "id", pluginID)
+
+	// Publish plugin.unloaded event
+	if m.publisher != nil {
+		m.publisher.Publish(domainevents.NewEvent(domainevents.EventPluginUnloaded, "plugin-manager").
+			WithData("plugin_id", pluginID).
+			WithData("reason", "disabled").
+			Build())
+	}
+
 	return nil
 }
 
@@ -482,6 +511,14 @@ func (m *Manager) Shutdown(ctx context.Context) {
 		}
 		p.Client.Kill()
 		cancel()
+
+		// Publish plugin.unloaded event for each plugin
+		if m.publisher != nil {
+			m.publisher.Publish(domainevents.NewEvent(domainevents.EventPluginUnloaded, "plugin-manager").
+				WithData("plugin_id", p.ID).
+				WithData("reason", "shutdown").
+				Build())
+		}
 	}
 
 	m.logger.Info("all plugins shut down")
@@ -514,10 +551,25 @@ func (m *Manager) checkPluginHealth(ctx context.Context, p *PluginInstance) {
 	checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
+	// Capture previous status for change detection
+	p.mu.RLock()
+	previousStatus := p.Health.Status
+	p.mu.RUnlock()
+
 	health, err := p.CoreClient.HealthCheck(checkCtx, &pluginv1.Empty{})
 	if err != nil {
 		p.UpdateHealth(pluginv1.HealthStatus_UNHEALTHY, err.Error())
 		m.logger.Warn("plugin health check failed", "plugin", p.ID, "error", err)
+
+		// Publish health update event (status changed to unhealthy)
+		if m.publisher != nil && previousStatus != pluginv1.HealthStatus_UNHEALTHY {
+			m.publisher.Publish(domainevents.NewEvent(domainevents.EventPluginHealthUpdate, "plugin-manager").
+				WithData("plugin_id", p.ID).
+				WithData("status", "unhealthy").
+				WithData("previous_status", previousStatus.String()).
+				WithData("message", err.Error()).
+				Build())
+		}
 
 		// Check if we should restart the plugin
 		if p.Health.Restarts < m.maxRestarts {
@@ -526,11 +578,34 @@ func (m *Manager) checkPluginHealth(ctx context.Context, p *PluginInstance) {
 		return
 	}
 
+	// Publish health update event only if status changed
+	if m.publisher != nil && health.Status != previousStatus {
+		m.publisher.Publish(domainevents.NewEvent(domainevents.EventPluginHealthUpdate, "plugin-manager").
+			WithData("plugin_id", p.ID).
+			WithData("status", health.Status.String()).
+			WithData("previous_status", previousStatus.String()).
+			WithData("message", health.Message).
+			Build())
+	}
+
 	p.UpdateHealth(health.Status, health.Message)
 }
 
 func (m *Manager) restartPlugin(ctx context.Context, p *PluginInstance) {
 	m.logger.Info("restarting plugin", "plugin", p.ID, "restarts", p.Health.Restarts)
+
+	willRestart := p.Health.Restarts < m.maxRestarts
+	restartCount := p.Health.Restarts + 1
+
+	// Publish plugin.crashed event before restart attempt
+	if m.publisher != nil {
+		m.publisher.Publish(domainevents.NewEvent(domainevents.EventPluginCrashed, "plugin-manager").
+			WithData("plugin_id", p.ID).
+			WithData("restart_count", restartCount).
+			WithData("will_restart", willRestart).
+			WithData("message", "health check failed").
+			Build())
+	}
 
 	// Kill the old process
 	p.Client.Kill()
@@ -544,10 +619,32 @@ func (m *Manager) restartPlugin(ctx context.Context, p *PluginInstance) {
 	newInstance, err := m.LoadPlugin(ctx, p.Path)
 	if err != nil {
 		m.logger.Error("failed to restart plugin", "plugin", p.ID, "error", err)
+		// Publish crash event for failed restart
+		if m.publisher != nil {
+			m.publisher.Publish(domainevents.NewEvent(domainevents.EventPluginCrashed, "plugin-manager").
+				WithData("plugin_id", p.ID).
+				WithData("restart_count", restartCount).
+				WithData("will_restart", false).
+				WithData("message", err.Error()).
+				Build())
+		}
 		return
 	}
 
-	newInstance.Health.Restarts = p.Health.Restarts + 1
+	newInstance.Health.Restarts = restartCount
+
+	// Publish plugin.loaded with is_restart=true (overrides the one from LoadPlugin)
+	if m.publisher != nil {
+		m.publisher.Publish(domainevents.NewEvent(domainevents.EventPluginLoaded, "plugin-manager").
+			WithData("plugin_id", newInstance.ID).
+			WithData("name", newInstance.Manifest.Name).
+			WithData("version", newInstance.Manifest.Version).
+			WithData("categories", newInstance.Manifest.Categories).
+			WithData("is_restart", true).
+			WithData("restart_count", restartCount).
+			Build())
+	}
+
 	m.logger.Info("plugin restarted successfully", "plugin", p.ID, "restarts", newInstance.Health.Restarts)
 }
 

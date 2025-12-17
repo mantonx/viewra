@@ -264,6 +264,7 @@ func (uc *ScanLibraryUseCase) mediaDeps() *scanmedia.Deps {
 		ProcessedShows:     &uc.processedShows,
 		Coordinator:        uc.coordinator,
 		Logger:             uc.logger,
+		Publisher:          uc.eventBus, // For media lifecycle events
 	}
 }
 
@@ -305,6 +306,7 @@ func (uc *ScanLibraryUseCase) cleanupDeps() *cleanup.Deps {
 		ImageRepo:    uc.imageRepo,
 		ImageCleanup: uc.imageCleanup,
 		Logger:       uc.logger,
+		Publisher:    uc.eventBus, // For media.removed events
 	}
 }
 
