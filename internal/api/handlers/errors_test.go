@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -167,8 +168,23 @@ func TestHandleError(t *testing.T) {
 				t.Error("Expected error response body, got empty body")
 			}
 
-			// Note: We could also parse the JSON and check the exact error field,
-			// but checking status code is the primary validation for error handling
+			// Parse the JSON response and validate APIError structure
+			var apiErr APIError
+			if err := json.Unmarshal(w.Body.Bytes(), &apiErr); err != nil {
+				t.Errorf("Failed to parse APIError response: %v", err)
+				return
+			}
+
+			// Verify APIError has required fields
+			if apiErr.Code == "" {
+				t.Error("Expected APIError.Code to be set")
+			}
+			if apiErr.Message == "" {
+				t.Error("Expected APIError.Message to be set")
+			}
+			if apiErr.Timestamp.IsZero() {
+				t.Error("Expected APIError.Timestamp to be set")
+			}
 		})
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"strings"
 	"time"
@@ -81,7 +82,7 @@ func (s *Service) List(ctx context.Context) ([]PluginSummary, error) {
 func (s *Service) Get(ctx context.Context, id string) (*PluginDetail, error) {
 	row, err := s.queries.GetPlugin(ctx, id)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrPluginNotFound{PluginID: id}
 		}
 		return nil, err
@@ -104,7 +105,7 @@ func (s *Service) GetSettings(ctx context.Context, id string) (*PluginSettings, 
 	// Verify plugin exists
 	_, err := s.queries.GetPlugin(ctx, id)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrPluginNotFound{PluginID: id}
 		}
 		return nil, err
@@ -147,7 +148,7 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, values json.Raw
 	// Verify plugin exists
 	_, err := s.queries.GetPlugin(ctx, id)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return ErrPluginNotFound{PluginID: id}
 		}
 		return err
@@ -180,7 +181,7 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, values json.Raw
 func (s *Service) Enable(ctx context.Context, id string) error {
 	row, err := s.queries.GetPlugin(ctx, id)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return ErrPluginNotFound{PluginID: id}
 		}
 		return err
@@ -210,7 +211,7 @@ func (s *Service) Enable(ctx context.Context, id string) error {
 func (s *Service) Disable(ctx context.Context, id string) error {
 	row, err := s.queries.GetPlugin(ctx, id)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return ErrPluginNotFound{PluginID: id}
 		}
 		return err
@@ -243,7 +244,7 @@ func (s *Service) Disable(ctx context.Context, id string) error {
 func (s *Service) Restart(ctx context.Context, id string) error {
 	row, err := s.queries.GetPlugin(ctx, id)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return ErrPluginNotFound{PluginID: id}
 		}
 		return err
@@ -266,7 +267,7 @@ func (s *Service) Restart(ctx context.Context, id string) error {
 func (s *Service) GetHealth(ctx context.Context, id string) (*PluginHealthDetail, error) {
 	row, err := s.queries.GetPlugin(ctx, id)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrPluginNotFound{PluginID: id}
 		}
 		return nil, err
@@ -304,7 +305,7 @@ func (s *Service) GetLogs(ctx context.Context, id string, opts LogOptions) ([]Lo
 	// Verify plugin exists
 	_, err := s.queries.GetPlugin(ctx, id)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrPluginNotFound{PluginID: id}
 		}
 		return nil, err

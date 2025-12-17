@@ -171,13 +171,14 @@ func TestStreamHandler_Stream(t *testing.T) {
 			}
 
 			if tt.expectedStatus == http.StatusNotFound {
-				var responseBody ErrorResponse
+				// APIError from handleError (domain error)
+				var responseBody APIError
 				if err := json.Unmarshal(w.Body.Bytes(), &responseBody); err != nil {
 					t.Fatalf("Failed to parse error response: %v", err)
 				}
 
-				if responseBody.Error != "Media not found" {
-					t.Errorf("Expected error 'Media not found', got '%s'", responseBody.Error)
+				if responseBody.Code != "MEDIA_NOT_FOUND" {
+					t.Errorf("Expected code 'MEDIA_NOT_FOUND', got '%s'", responseBody.Code)
 				}
 			}
 		})
@@ -256,12 +257,13 @@ func TestStreamHandler_Stream_InternalError(t *testing.T) {
 		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, w.Code)
 	}
 
-	var responseBody ErrorResponse
+	// APIError from handleError (unknown error goes to default case)
+	var responseBody APIError
 	if err := json.Unmarshal(w.Body.Bytes(), &responseBody); err != nil {
 		t.Fatalf("Failed to parse error response: %v", err)
 	}
 
-	if responseBody.Error != "Internal server error" {
-		t.Errorf("Expected error 'Internal server error', got '%s'", responseBody.Error)
+	if responseBody.Code != "INTERNAL_ERROR" {
+		t.Errorf("Expected code 'INTERNAL_ERROR', got '%s'", responseBody.Code)
 	}
 }

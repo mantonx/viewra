@@ -173,10 +173,7 @@ func TestLibraryHandler_Create(t *testing.T) {
 			mockResponse:   library.LibraryResponse{},
 			mockError:      nil,
 			expectedStatus: http.StatusBadRequest,
-			expectedBody: ErrorResponse{
-				Error:   "Invalid request body",
-				Message: "json: cannot unmarshal string into Go value of type library.CreateLibraryRequest",
-			},
+			expectedBody:   "Invalid request body", // Check message field
 		},
 		{
 			name: "use case error - duplicate path",
@@ -188,10 +185,7 @@ func TestLibraryHandler_Create(t *testing.T) {
 			mockResponse:   library.LibraryResponse{},
 			mockError:      domainLibrary.ErrDuplicatePath,
 			expectedStatus: http.StatusConflict,
-			expectedBody: ErrorResponse{
-				Error:   "Library path already exists",
-				Message: domainLibrary.ErrDuplicatePath.Error(),
-			},
+			expectedBody:   "A library with this path already exists", // APIError message
 		},
 		{
 			name: "use case error - path not found",
@@ -203,10 +197,7 @@ func TestLibraryHandler_Create(t *testing.T) {
 			mockResponse:   library.LibraryResponse{},
 			mockError:      domainLibrary.ErrPathNotFound,
 			expectedStatus: http.StatusBadRequest,
-			expectedBody: ErrorResponse{
-				Error:   "Library path does not exist or is not accessible",
-				Message: domainLibrary.ErrPathNotFound.Error(),
-			},
+			expectedBody:   "Library path does not exist or is not accessible", // APIError message
 		},
 	}
 
@@ -246,11 +237,17 @@ func TestLibraryHandler_Create(t *testing.T) {
 				}
 			}
 
-			// For error responses, check the error field
+			// For error responses, check either error field (ErrorResponse) or message field (APIError)
 			if tt.expectedStatus >= 400 {
-				expectedErr := tt.expectedBody.(ErrorResponse)
-				if responseBody["error"] != expectedErr.Error {
-					t.Errorf("Expected error '%s', got '%v'", expectedErr.Error, responseBody["error"])
+				expectedMsg := tt.expectedBody.(string)
+				// Try message field first (APIError), then error field (ErrorResponse)
+				if msg, ok := responseBody["message"].(string); ok && msg == expectedMsg {
+					// APIError format - matched
+				} else if errStr, ok := responseBody["error"].(string); ok && errStr == expectedMsg {
+					// ErrorResponse format - matched
+				} else {
+					t.Errorf("Expected error '%s', got message='%v' error='%v'",
+						expectedMsg, responseBody["message"], responseBody["error"])
 				}
 			}
 		})

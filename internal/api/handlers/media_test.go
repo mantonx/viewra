@@ -282,6 +282,7 @@ func TestMediaHandler_Get(t *testing.T) {
 			}
 
 			if tt.expectedStatus == http.StatusBadRequest {
+				// Direct ErrorResponse from handler (validation error)
 				var responseBody ErrorResponse
 				if err := json.Unmarshal(w.Body.Bytes(), &responseBody); err != nil {
 					t.Fatalf("Failed to parse error response: %v", err)
@@ -293,13 +294,14 @@ func TestMediaHandler_Get(t *testing.T) {
 			}
 
 			if tt.expectedStatus == http.StatusNotFound {
-				var responseBody ErrorResponse
+				// APIError from handleError (domain error)
+				var responseBody APIError
 				if err := json.Unmarshal(w.Body.Bytes(), &responseBody); err != nil {
 					t.Fatalf("Failed to parse error response: %v", err)
 				}
 
-				if responseBody.Error != "Media not found" {
-					t.Errorf("Expected error 'Media not found', got '%s'", responseBody.Error)
+				if responseBody.Code != "MEDIA_NOT_FOUND" {
+					t.Errorf("Expected code 'MEDIA_NOT_FOUND', got '%s'", responseBody.Code)
 				}
 			}
 		})

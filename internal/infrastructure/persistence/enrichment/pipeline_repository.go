@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 
 	"github.com/mantonx/viewra/internal/domain/enrichment"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
@@ -168,7 +169,7 @@ func (r *PipelineRepository) GetNextStage(ctx context.Context, mediaType enrichm
 		},
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil // No more stages
 		}
 		return nil, err
@@ -194,7 +195,7 @@ func (r *PipelineRepository) GetStageByName(ctx context.Context, mediaType enric
 		},
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil // Stage not found
 		}
 		return nil, err

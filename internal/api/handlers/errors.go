@@ -151,119 +151,125 @@ func getRequestID(c *gin.Context) string {
 	return ""
 }
 
-// handleError converts domain errors to appropriate HTTP responses
+// handleError converts domain errors to appropriate HTTP responses using the APIError format.
+// This function uses the standardized error mapping with APIError for consistent responses.
 func handleError(c *gin.Context, err error) {
+	requestID := getRequestID(c)
+	timestamp := time.Now()
+
+	apiErr := APIError{
+		RequestID: requestID,
+		Timestamp: timestamp,
+	}
+
+	var status int
+
 	switch {
 	// Library errors
 	case errors.Is(err, domainLibrary.ErrLibraryNotFound):
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Error:   "Library not found",
-			Message: err.Error(),
-		})
+		status = http.StatusNotFound
+		apiErr.Code = "LIBRARY_NOT_FOUND"
+		apiErr.Message = "Library not found"
 
 	case errors.Is(err, domainLibrary.ErrInvalidPath),
 		errors.Is(err, domainLibrary.ErrEmptyPath),
 		errors.Is(err, domainLibrary.ErrPathNotAbsolute),
 		errors.Is(err, domainLibrary.ErrPathTraversal):
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library path",
-			Message: err.Error(),
-		})
+		status = http.StatusBadRequest
+		apiErr.Code = "INVALID_PATH"
+		apiErr.Message = "Invalid library path"
 
 	case errors.Is(err, domainLibrary.ErrPathNotFound),
 		errors.Is(err, domainLibrary.ErrPathNotAccessible),
 		errors.Is(err, domainLibrary.ErrPathNotReadable),
 		errors.Is(err, domainLibrary.ErrPathNotDirectory):
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Library path does not exist or is not accessible",
-			Message: err.Error(),
-		})
+		status = http.StatusBadRequest
+		apiErr.Code = "PATH_NOT_ACCESSIBLE"
+		apiErr.Message = "Library path does not exist or is not accessible"
 
 	case errors.Is(err, domainLibrary.ErrDuplicatePath):
-		c.JSON(http.StatusConflict, ErrorResponse{
-			Error:   "Library path already exists",
-			Message: err.Error(),
-		})
+		status = http.StatusConflict
+		apiErr.Code = "DUPLICATE_PATH"
+		apiErr.Message = "A library with this path already exists"
 
 	case errors.Is(err, domainLibrary.ErrInvalidName),
 		errors.Is(err, domainLibrary.ErrNameTooLong):
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library name",
-			Message: err.Error(),
-		})
+		status = http.StatusBadRequest
+		apiErr.Code = "INVALID_LIBRARY_NAME"
+		apiErr.Message = "Invalid library name"
 
 	case errors.Is(err, domainLibrary.ErrInvalidType):
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library type",
-			Message: err.Error(),
-		})
+		status = http.StatusBadRequest
+		apiErr.Code = "INVALID_LIBRARY_TYPE"
+		apiErr.Message = "Invalid library type. Must be 'movies', 'tv', or 'music'"
 
 	// Media errors
 	case errors.Is(err, domainMedia.ErrMediaNotFound):
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Error:   "Media not found",
-			Message: err.Error(),
-		})
+		status = http.StatusNotFound
+		apiErr.Code = "MEDIA_NOT_FOUND"
+		apiErr.Message = "Media item not found"
 
 	case errors.Is(err, domainMedia.ErrInvalidLibraryID):
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library ID",
-			Message: err.Error(),
-		})
+		status = http.StatusBadRequest
+		apiErr.Code = "INVALID_LIBRARY_ID"
+		apiErr.Message = "Invalid library ID"
 
 	case errors.Is(err, domainMedia.ErrEmptyFilePath),
 		errors.Is(err, domainMedia.ErrAbsoluteFilePath),
 		errors.Is(err, domainMedia.ErrPathTraversal),
 		errors.Is(err, domainMedia.ErrMissingFileExtension):
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid media file path",
-			Message: err.Error(),
-		})
+		status = http.StatusBadRequest
+		apiErr.Code = "INVALID_FILE_PATH"
+		apiErr.Message = "Invalid media file path"
 
 	case errors.Is(err, domainMedia.ErrDuplicateFilePath):
-		c.JSON(http.StatusConflict, ErrorResponse{
-			Error:   "Media file already exists",
-			Message: err.Error(),
-		})
+		status = http.StatusConflict
+		apiErr.Code = "DUPLICATE_FILE_PATH"
+		apiErr.Message = "Media file already exists in library"
 
 	// Scanner errors
 	case errors.Is(err, domainScanner.ErrNotFound):
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Error:   "Scan job not found",
-			Message: err.Error(),
-		})
+		status = http.StatusNotFound
+		apiErr.Code = "SCAN_JOB_NOT_FOUND"
+		apiErr.Message = "Scan job not found"
 
 	case errors.Is(err, domainScanner.ErrAlreadyRunning):
-		c.JSON(http.StatusConflict, ErrorResponse{
-			Error:   "Scan already in progress",
-			Message: err.Error(),
-		})
+		status = http.StatusConflict
+		apiErr.Code = "SCAN_ALREADY_RUNNING"
+		apiErr.Message = "A scan is already running for this library"
 
 	case errors.Is(err, domainScanner.ErrNotRunning):
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Scan is not running",
-			Message: err.Error(),
-		})
+		status = http.StatusBadRequest
+		apiErr.Code = "SCAN_NOT_RUNNING"
+		apiErr.Message = "Scan is not running"
 
 	case errors.Is(err, domainScanner.ErrInvalidPath),
 		errors.Is(err, domainScanner.ErrPathNotExist),
 		errors.Is(err, domainScanner.ErrPathNotDirectory):
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid scan path",
-			Message: err.Error(),
-		})
+		status = http.StatusBadRequest
+		apiErr.Code = "INVALID_SCAN_PATH"
+		apiErr.Message = "Invalid scan path"
 
 	case errors.Is(err, domainScanner.ErrInvalidStatus):
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid scan status",
-			Message: err.Error(),
-		})
+		status = http.StatusBadRequest
+		apiErr.Code = "INVALID_SCAN_STATUS"
+		apiErr.Message = "Invalid scan status"
 
 	// Default to internal server error
 	default:
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "Internal server error",
-			Message: err.Error(),
-		})
+		status = http.StatusInternalServerError
+		apiErr.Code = "INTERNAL_ERROR"
+		apiErr.Message = "An internal error occurred"
+		// Log unknown errors for debugging (guard against nil request in tests)
+		if c.Request != nil {
+			slog.Error("unmapped error in handleError",
+				"error", err,
+				"request_id", requestID,
+				"path", c.Request.URL.Path,
+				"method", c.Request.Method,
+			)
+		}
 	}
+
+	c.JSON(status, apiErr)
 }

@@ -327,17 +327,30 @@ func (h *PluginHandler) GetLogs(c *gin.Context) {
 	})
 }
 
-// handlePluginError converts plugin errors to HTTP responses.
+// handlePluginError converts plugin errors to HTTP responses using APIError format.
 func handlePluginError(c *gin.Context, err error) {
+	requestID := getRequestID(c)
+	timestamp := time.Now()
+
 	var notFound plugins.ErrPluginNotFound
 	if errors.As(err, &notFound) {
-		c.JSON(http.StatusNotFound, ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusNotFound, APIError{
+			Code:      "PLUGIN_NOT_FOUND",
+			Message:   "Plugin not found: " + notFound.PluginID,
+			RequestID: requestID,
+			Timestamp: timestamp,
+		})
 		return
 	}
 
 	var builtin plugins.ErrBuiltinPlugin
 	if errors.As(err, &builtin) {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, APIError{
+			Code:      "BUILTIN_PLUGIN",
+			Message:   "Cannot modify built-in plugin: " + builtin.PluginID,
+			RequestID: requestID,
+			Timestamp: timestamp,
+		})
 		return
 	}
 

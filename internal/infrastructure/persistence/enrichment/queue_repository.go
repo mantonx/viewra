@@ -3,6 +3,7 @@ package enrichment
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -169,7 +170,7 @@ func (r *QueueRepository) GetStats(ctx context.Context, stage string) (*enrichme
 		},
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return &enrichment.QueueStats{Stage: stage}, nil
 		}
 		return nil, err
@@ -372,7 +373,7 @@ func (r *QueueRepository) GetCurrentItem(ctx context.Context, libraryID int64) (
 		},
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err
