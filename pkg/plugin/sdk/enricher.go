@@ -33,6 +33,19 @@ type EnricherPlugin interface {
 	Enrich(ctx context.Context, req *EnrichRequest) (*EnrichResponse, error)
 }
 
+// ConfigurablePlugin is an optional interface for plugins that support runtime configuration.
+// Plugins that implement this interface can expose a settings schema and accept configuration updates.
+type ConfigurablePlugin interface {
+	// GetSettingsSchema returns a JSON Schema describing the plugin's configurable settings.
+	// Return nil if the plugin has no configurable settings.
+	GetSettingsSchema() []byte
+
+	// Configure applies new settings to the plugin.
+	// The settings parameter is JSON matching the schema returned by GetSettingsSchema.
+	// Return an error message if configuration fails, empty string on success.
+	Configure(settings []byte) error
+}
+
 // EnricherCapabilities describes what an enricher provides and requires.
 type EnricherCapabilities struct {
 	MediaTypes []string // "movie", "tv", "music"
@@ -171,12 +184,24 @@ func (s *enricherGRPCServer) HealthCheck(ctx context.Context, _ *pluginv1.Empty)
 }
 
 func (s *enricherGRPCServer) GetSettingsSchema(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.SettingsSchema, error) {
-	// TODO: Support settings schema
+	// Check if the plugin implements ConfigurablePlugin
+	if configurable, ok := s.impl.(ConfigurablePlugin); ok {
+		schema := configurable.GetSettingsSchema()
+		return &pluginv1.SettingsSchema{JsonSchema: schema}, nil
+	}
+	// Plugin doesn't support configuration - return empty schema
 	return &pluginv1.SettingsSchema{}, nil
 }
 
 func (s *enricherGRPCServer) Configure(ctx context.Context, settings *pluginv1.Settings) (*pluginv1.ConfigureResponse, error) {
-	// TODO: Support configuration
+	// Check if the plugin implements ConfigurablePlugin
+	if configurable, ok := s.impl.(ConfigurablePlugin); ok {
+		if err := configurable.Configure(settings.Json); err != nil {
+			return &pluginv1.ConfigureResponse{Success: false, Error: err.Error()}, nil
+		}
+		return &pluginv1.ConfigureResponse{Success: true}, nil
+	}
+	// Plugin doesn't support configuration - succeed silently
 	return &pluginv1.ConfigureResponse{Success: true}, nil
 }
 

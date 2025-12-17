@@ -26,6 +26,17 @@ type MediaQuerier interface {
 
 	// GetExternalIDs returns all external IDs for a media item.
 	GetExternalIDs(ctx context.Context, mediaID int64) (map[string]string, error)
+
+	// GetLibrary returns library information by ID.
+	GetLibrary(ctx context.Context, id int64) (*LibraryInfo, error)
+}
+
+// LibraryInfo represents library information exposed to plugins.
+type LibraryInfo struct {
+	ID        int64
+	Name      string
+	Path      string
+	MediaType string // "movies", "tv", or "music"
 }
 
 // MediaInfo represents basic media information exposed to plugins.
@@ -125,8 +136,25 @@ func (s *HostDataServer) SearchMedia(ctx context.Context, req *pluginv1.SearchQu
 
 // GetLibrary retrieves library information.
 func (s *HostDataServer) GetLibrary(ctx context.Context, req *pluginv1.LibraryId) (*pluginv1.Library, error) {
-	// TODO: Implement when library querier is available
-	return nil, errors.New("not implemented")
+	if req.Id == 0 {
+		return nil, errors.New("id is required")
+	}
+
+	lib, err := s.querier.GetLibrary(ctx, req.Id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("library not found")
+		}
+		s.logger.Error("failed to get library", "library_id", req.Id, "error", err)
+		return nil, err
+	}
+
+	return &pluginv1.Library{
+		Id:        lib.ID,
+		Name:      lib.Name,
+		Path:      lib.Path,
+		MediaType: lib.MediaType,
+	}, nil
 }
 
 // GetFilePath returns the full file path for a media item.

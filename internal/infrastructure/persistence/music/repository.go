@@ -256,13 +256,107 @@ func (r *Repository) CountArtistsByLibrary(ctx context.Context, libraryID int64)
 	)
 }
 
-// ListArtistsByLibraryPaginated retrieves artists from music_artists table with pagination
-// NOTE: This now queries proper artist entities. The music_artists table is currently empty
-// and will be populated by the scanner when it's updated to create artist entities.
+// ListArtistsByLibraryPaginated retrieves artists from music_artists table with pagination.
+// Returns artists with album and track counts, sorted by name.
 func (r *Repository) ListArtistsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *domainCommon.PaginationParams) ([]media.MusicArtist, error) {
-	// Return empty list until scanner populates music_artists table
-	// TODO: Once scanner is updated, implement proper pagination query
-	return []media.MusicArtist{}, nil
+	if pagination == nil {
+		pagination = domainCommon.DefaultPaginationParams()
+	}
+
+	// Default to title_asc if not specified
+	sortBy := pagination.SortBy
+	if sortBy == "" {
+		sortBy = "title_asc"
+	}
+
+	if sortBy == "title_desc" {
+		return common.QueryMany(
+			r.BaseRepository, ctx,
+			func() ([]sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescRow, error) {
+				return r.Postgres().GetArtistsWithCountsByLibraryPaginatedDesc(ctx, sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescParams{
+					LibraryID: int32(libraryID),
+					Limit:     int32(pagination.Limit),
+					Offset:    int32(pagination.Offset),
+				})
+			},
+			func() ([]sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedDescRow, error) {
+				return r.SQLite().GetArtistsWithCountsByLibraryPaginatedDesc(ctx, sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedDescParams{
+					LibraryID: libraryID,
+					Limit:     int64(pagination.Limit),
+					Offset:    int64(pagination.Offset),
+				})
+			},
+			postgresArtistRowToDomain[sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescRow],
+			sqliteArtistRowToDomain[sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedDescRow],
+		)
+	}
+
+	return common.QueryMany(
+		r.BaseRepository, ctx,
+		func() ([]sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedRow, error) {
+			return r.Postgres().GetArtistsWithCountsByLibraryPaginated(ctx, sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedParams{
+				LibraryID: int32(libraryID),
+				Limit:     int32(pagination.Limit),
+				Offset:    int32(pagination.Offset),
+			})
+		},
+		func() ([]sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedRow, error) {
+			return r.SQLite().GetArtistsWithCountsByLibraryPaginated(ctx, sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedParams{
+				LibraryID: libraryID,
+				Limit:     int64(pagination.Limit),
+				Offset:    int64(pagination.Offset),
+			})
+		},
+		postgresArtistRowToDomain[sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedRow],
+		sqliteArtistRowToDomain[sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedRow],
+	)
+}
+
+// Artist row conversion types for generic QueryMany
+type postgresArtistRow interface {
+	sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedRow | sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescRow
+}
+
+type sqliteArtistRow interface {
+	sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedRow | sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedDescRow
+}
+
+func postgresArtistRowToDomain[T postgresArtistRow](row T) media.MusicArtist {
+	// Use unsafe pointer to access fields since both types have the same structure
+	type artistFields struct {
+		ID         int32
+		LibraryID  int32
+		Name       string
+		AlbumCount int64
+		TrackCount int64
+	}
+	ptr := unsafe.Pointer(&row)
+	fields := (*artistFields)(ptr)
+	return media.MusicArtist{
+		RepresentativeID: int64(fields.ID),
+		Artist:           fields.Name,
+		AlbumCount:       fields.AlbumCount,
+		TrackCount:       fields.TrackCount,
+	}
+}
+
+func sqliteArtistRowToDomain[T sqliteArtistRow](row T) media.MusicArtist {
+	// Use unsafe pointer to access fields since both types have the same structure
+	type artistFields struct {
+		ID         int64
+		LibraryID  int64
+		Name       string
+		AlbumCount int64
+		TrackCount int64
+	}
+	ptr := unsafe.Pointer(&row)
+	fields := (*artistFields)(ptr)
+	return media.MusicArtist{
+		RepresentativeID: fields.ID,
+		Artist:           fields.Name,
+		AlbumCount:       fields.AlbumCount,
+		TrackCount:       fields.TrackCount,
+	}
 }
 
 // CountAlbumsByLibrary returns the total count of unique albums in a library

@@ -312,5 +312,47 @@ func (q *DBMediaQuerier) tvShowResultsToInfo(results any, yearFilter int) []*Med
 	return infos
 }
 
+// GetLibrary returns library information by ID.
+func (q *DBMediaQuerier) GetLibrary(ctx context.Context, id int64) (*LibraryInfo, error) {
+	result, err := q.router.Route(
+		func() (any, error) {
+			return q.postgres.GetLibraryByID(ctx, int32(id))
+		},
+		func() (any, error) {
+			return q.sqlite.GetLibraryByID(ctx, id)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return q.libraryToInfo(result), nil
+}
+
+// libraryToInfo converts a SQLC Library to LibraryInfo.
+func (q *DBMediaQuerier) libraryToInfo(result any) *LibraryInfo {
+	if result == nil {
+		return nil
+	}
+
+	if q.router.IsPostgresDB() {
+		lib := result.(sqlc_postgres.Library)
+		return &LibraryInfo{
+			ID:        int64(lib.ID),
+			Name:      lib.Name,
+			Path:      lib.Path,
+			MediaType: lib.Type,
+		}
+	}
+
+	lib := result.(sqlc_sqlite.Library)
+	return &LibraryInfo{
+		ID:        lib.ID,
+		Name:      lib.Name,
+		Path:      lib.Path,
+		MediaType: lib.Type,
+	}
+}
+
 // Ensure DBMediaQuerier implements MediaQuerier
 var _ MediaQuerier = (*DBMediaQuerier)(nil)
