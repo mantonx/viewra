@@ -35,25 +35,36 @@ func (qr *QualityRecommender) RecommendQuality(caps ClientCapabilities) *Quality
 		"device", caps.DeviceType,
 	)
 
-	// Simple bandwidth + screen resolution selection
-	// HLS.js will adapt from this starting point based on real network performance
+	// Network-first selection: prioritize bandwidth over screen resolution
+	// For remux scenarios (no transcode cost), higher quality doesn't waste server resources
+	// Screen resolution is used as a secondary hint, not a hard cap
 	var profileID string
 	var reason string
 
+	// Determine effective resolution: use screen height but allow higher for desktop/TV with good network
+	effectiveHeight := screenHeight
+	if (caps.DeviceType == "desktop" || caps.DeviceType == "tv" || caps.DeviceType == "") && networkMbps >= 25 {
+		// Desktop/TV users with good network likely have high-quality displays
+		// Allow 4K even on 1440p screens - the extra resolution helps with HDR content
+		if screenHeight >= 1080 {
+			effectiveHeight = 2160
+		}
+	}
+
 	switch {
-	// 4K selection - need fast network AND 4K screen
-	case networkMbps >= 60 && screenHeight >= 2160:
+	// 4K selection - prioritize network, effective height allows desktop/TV upgrade
+	case networkMbps >= 60 && effectiveHeight >= 2160:
 		profileID = Quality4k60m
-		reason = "4K screen with excellent network"
-	case networkMbps >= 40 && screenHeight >= 2160:
+		reason = "excellent network (4K capable)"
+	case networkMbps >= 40 && effectiveHeight >= 2160:
 		profileID = Quality4k40m
-		reason = "4K screen with good network"
-	case networkMbps >= 25 && screenHeight >= 2160:
+		reason = "good network (4K capable)"
+	case networkMbps >= 25 && effectiveHeight >= 2160:
 		profileID = Quality4k25m
-		reason = "4K screen with moderate network"
-	case networkMbps >= 15 && screenHeight >= 2160:
+		reason = "moderate network (4K capable)"
+	case networkMbps >= 15 && effectiveHeight >= 2160:
 		profileID = Quality4k15m
-		reason = "4K screen with acceptable network"
+		reason = "acceptable network (4K capable)"
 
 	// 1080p selection - most common case
 	case networkMbps >= 40 && screenHeight >= 1080:

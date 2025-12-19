@@ -73,24 +73,24 @@ func TestRecommendQuality(t *testing.T) {
 			wantQuality: Quality4k15m,
 		},
 		{
-			name: "1080p screen with excellent network",
+			name: "1080p screen with excellent network (desktop gets 4K)",
 			caps: ClientCapabilities{
 				NetworkSpeedMbps: 50.0,
 				ScreenHeight:     1080,
 				ScreenWidth:      1920,
 				DeviceType:       "desktop",
 			},
-			wantQuality: Quality1080p40m,
+			wantQuality: Quality4k40m, // Desktop with good network upgrades to 4K
 		},
 		{
-			name: "1080p screen with good network",
+			name: "1080p screen with good network (desktop gets 4K)",
 			caps: ClientCapabilities{
 				NetworkSpeedMbps: 25.0,
 				ScreenHeight:     1080,
 				ScreenWidth:      1920,
 				DeviceType:       "desktop",
 			},
-			wantQuality: Quality1080p20m,
+			wantQuality: Quality4k25m, // Desktop with >=25 Mbps upgrades to 4K
 		},
 		{
 			name: "1080p screen with moderate network",
@@ -153,24 +153,24 @@ func TestRecommendQuality(t *testing.T) {
 			wantQuality: Quality360p,
 		},
 		{
-			name: "Unknown network speed defaults to 50 Mbps",
+			name: "Unknown network speed defaults to 50 Mbps (desktop gets 4K)",
 			caps: ClientCapabilities{
 				NetworkSpeedMbps: 0,
 				ScreenHeight:     1080,
 				ScreenWidth:      1920,
 				DeviceType:       "desktop",
 			},
-			wantQuality: Quality1080p40m, // 50 Mbps default with 1080p screen
+			wantQuality: Quality4k40m, // 50 Mbps default, desktop upgrades to 4K
 		},
 		{
-			name: "Negative network speed defaults to 50 Mbps",
+			name: "Negative network speed defaults to 50 Mbps (desktop gets 4K)",
 			caps: ClientCapabilities{
 				NetworkSpeedMbps: -10.0,
 				ScreenHeight:     1080,
 				ScreenWidth:      1920,
 				DeviceType:       "desktop",
 			},
-			wantQuality: Quality1080p40m,
+			wantQuality: Quality4k40m, // Desktop with >=25 Mbps upgrades to 4K
 		},
 	}
 
