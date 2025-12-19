@@ -173,6 +173,11 @@ func (m *Manager) GetOrCreateSession(params GetOrCreateSessionParams) (*Transcod
 	// Stop all sessions for OTHER media to prevent resource hogging
 	m.stopOtherMediaSessions(params.MediaID)
 
+	// Stop sessions for the SAME media but DIFFERENT qualities to prevent manifest conflicts
+	// When quality changes, the old session would still be writing to its output dir
+	// This causes HLS.js to receive conflicting playlists with mismatched media sequences
+	m.StopOtherQualitySessions(params.MediaID, params.Quality)
+
 	// Acquire per-key mutex to prevent race conditions
 	mu := m.getSessionMutex(key)
 	mu.Lock()
