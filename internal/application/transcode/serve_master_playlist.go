@@ -317,7 +317,7 @@ func (uc *ServeMasterPlaylistUseCase) buildAvailableQualities(mediaItem *media.M
 
 // buildSingleVariantPlaylist creates an HLS master playlist with only one quality variant.
 // This is the new default behavior - backend picks optimal quality, frontend plays it.
-func (uc *ServeMasterPlaylistUseCase) buildSingleVariantPlaylist(_ *media.Media, qualityID string, audioTracks []*media.AudioTrack, subtitleTracks []*media.SubtitleTrack, params buildVariantParams, _ string, preferredSubtitleLang string) string {
+func (uc *ServeMasterPlaylistUseCase) buildSingleVariantPlaylist(mediaItem *media.Media, qualityID string, audioTracks []*media.AudioTrack, subtitleTracks []*media.SubtitleTrack, params buildVariantParams, _ string, preferredSubtitleLang string) string {
 	variant, ok := profile.GetABRVariant(qualityID)
 	if !ok {
 		// Fallback to a safe default if quality ID is invalid
@@ -341,12 +341,26 @@ func (uc *ServeMasterPlaylistUseCase) buildSingleVariantPlaylist(_ *media.Media,
 	// Suppress unused variable warning - audio tracks available for future use
 	_ = audioTracks
 
+	// For remux strategies, use actual source bitrate since video is stream-copied
+	// Profile bandwidth only applies to transcode scenarios
+	bandwidth := variant.Bandwidth
+	resolution := fmt.Sprintf("%dx%d", variant.Width, variant.Height)
+	if params.strategy == strategy.RemuxHEVC || params.strategy == strategy.Remux || params.strategy == strategy.RemuxWithAudioDownmix {
+		// Use source bitrate (with 10% overhead for container/audio)
+		if mediaItem.Bitrate > 0 {
+			bandwidth = int(float64(mediaItem.Bitrate) * 1.1)
+		}
+		// Use source resolution
+		if mediaItem.Width > 0 && mediaItem.Height > 0 {
+			resolution = fmt.Sprintf("%dx%d", mediaItem.Width, mediaItem.Height)
+		}
+	}
+
 	// Build single video stream variant
 	streamInf := fmt.Sprintf(
-		"#EXT-X-STREAM-INF:BANDWIDTH=%d,RESOLUTION=%dx%d,CODECS=\"%s\",NAME=\"%s\"",
-		variant.Bandwidth,
-		variant.Width,
-		variant.Height,
+		"#EXT-X-STREAM-INF:BANDWIDTH=%d,RESOLUTION=%s,CODECS=\"%s\",NAME=\"%s\"",
+		bandwidth,
+		resolution,
 		variant.Codecs,
 		variant.ID,
 	)
