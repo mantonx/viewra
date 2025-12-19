@@ -19,6 +19,7 @@ import type {
 } from '@tanstack/react-query'
 
 import type {
+  GetApiMediaIdStreamInfoParams,
   GetApiMediaParams,
   GithubComMantonxViewraInternalApplicationMediaGetMediaResponse,
   GithubComMantonxViewraInternalApplicationMediaGetTracksResponse,
@@ -350,6 +351,7 @@ export function useGetApiMediaId<
  * Returns detailed technical information about video and audio streams for the stats panel.
 The strategy field indicates how the video will be processed (direct, remux, transcode).
 Include X-Supported-Video-Codecs header for accurate strategy detection.
+Pass quality query param to get accurate strategy for the selected quality level.
  * @summary Get detailed stream information for a media item
  */
 export type getApiMediaIdStreamInfoResponse200 = {
@@ -387,22 +389,44 @@ export type getApiMediaIdStreamInfoResponse =
   | getApiMediaIdStreamInfoResponseSuccess
   | getApiMediaIdStreamInfoResponseError
 
-export const getGetApiMediaIdStreamInfoUrl = (id: number) => {
-  return `/api/media/${id}/stream-info`
+export const getGetApiMediaIdStreamInfoUrl = (
+  id: number,
+  params?: GetApiMediaIdStreamInfoParams
+) => {
+  const normalizedParams = new URLSearchParams()
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  })
+
+  const stringifiedParams = normalizedParams.toString()
+
+  return stringifiedParams.length > 0
+    ? `/api/media/${id}/stream-info?${stringifiedParams}`
+    : `/api/media/${id}/stream-info`
 }
 
 export const getApiMediaIdStreamInfo = async (
   id: number,
+  params?: GetApiMediaIdStreamInfoParams,
   options?: RequestInit
 ): Promise<getApiMediaIdStreamInfoResponse> => {
-  return customInstance<getApiMediaIdStreamInfoResponse>(getGetApiMediaIdStreamInfoUrl(id), {
-    ...options,
-    method: 'GET',
-  })
+  return customInstance<getApiMediaIdStreamInfoResponse>(
+    getGetApiMediaIdStreamInfoUrl(id, params),
+    {
+      ...options,
+      method: 'GET',
+    }
+  )
 }
 
-export const getGetApiMediaIdStreamInfoQueryKey = (id?: number) => {
-  return [`/api/media/${id}/stream-info`] as const
+export const getGetApiMediaIdStreamInfoQueryKey = (
+  id?: number,
+  params?: GetApiMediaIdStreamInfoParams
+) => {
+  return [`/api/media/${id}/stream-info`, ...(params ? [params] : [])] as const
 }
 
 export const getGetApiMediaIdStreamInfoQueryOptions = <
@@ -410,6 +434,7 @@ export const getGetApiMediaIdStreamInfoQueryOptions = <
   TError = InternalApiHandlersErrorResponse,
 >(
   id: number,
+  params?: GetApiMediaIdStreamInfoParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdStreamInfo>>, TError, TData>
@@ -419,11 +444,11 @@ export const getGetApiMediaIdStreamInfoQueryOptions = <
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {}
 
-  const queryKey = queryOptions?.queryKey ?? getGetApiMediaIdStreamInfoQueryKey(id)
+  const queryKey = queryOptions?.queryKey ?? getGetApiMediaIdStreamInfoQueryKey(id, params)
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaIdStreamInfo>>> = ({
     signal,
-  }) => getApiMediaIdStreamInfo(id, { signal, ...requestOptions })
+  }) => getApiMediaIdStreamInfo(id, params, { signal, ...requestOptions })
 
   return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getApiMediaIdStreamInfo>>,
@@ -442,6 +467,7 @@ export function useGetApiMediaIdStreamInfo<
   TError = InternalApiHandlersErrorResponse,
 >(
   id: number,
+  params: undefined | GetApiMediaIdStreamInfoParams,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdStreamInfo>>, TError, TData>
@@ -463,6 +489,7 @@ export function useGetApiMediaIdStreamInfo<
   TError = InternalApiHandlersErrorResponse,
 >(
   id: number,
+  params?: GetApiMediaIdStreamInfoParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdStreamInfo>>, TError, TData>
@@ -484,6 +511,7 @@ export function useGetApiMediaIdStreamInfo<
   TError = InternalApiHandlersErrorResponse,
 >(
   id: number,
+  params?: GetApiMediaIdStreamInfoParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdStreamInfo>>, TError, TData>
@@ -501,6 +529,7 @@ export function useGetApiMediaIdStreamInfo<
   TError = InternalApiHandlersErrorResponse,
 >(
   id: number,
+  params?: GetApiMediaIdStreamInfoParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdStreamInfo>>, TError, TData>
@@ -509,7 +538,7 @@ export function useGetApiMediaIdStreamInfo<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetApiMediaIdStreamInfoQueryOptions(id, options)
+  const queryOptions = getGetApiMediaIdStreamInfoQueryOptions(id, params, options)
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>

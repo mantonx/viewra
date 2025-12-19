@@ -8,6 +8,7 @@
 
 export interface GithubComMantonxViewraInternalApplicationTvTVShowSummary {
   content_rating?: string
+  created_at?: string
   episode_count?: number
   genre?: string[]
   id: number

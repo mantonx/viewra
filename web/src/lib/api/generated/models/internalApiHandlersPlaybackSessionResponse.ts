@@ -6,17 +6,26 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export interface InternalApiHandlersPlaybackSessionRequest {
+export interface InternalApiHandlersPlaybackSessionResponse {
   averageQuality?: string
+  backendStartupMs?: number
   connectionType?: string
   deviceType?: string
   endTime?: number
+  firstFrameMs?: number
+  firstSegmentMs?: number
+  hwAccel?: string
   mediaId?: number
+  /** Transcode metrics (from backend, joined via session_id) */
+  qualityProfile?: string
   qualitySwitchCount?: number
+  segmentsCreated?: number
   sessionId?: string
   stallCount?: number
   startTime?: number
   startupTimeMs?: number
-  totalBufferTime?: number
-  totalPlayTime?: number
+  totalBufferTimeMs?: number
+  totalPlayTimeMs?: number
+  transcodeStatus?: string
+  transcodeStrategy?: string
 }

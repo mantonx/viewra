@@ -37,6 +37,7 @@ export const VideoPlayer = ({
   availableQualities: backendQualities = [],
   selectedQualityId = null,
   onQualityChange: onQualityChangeCallback,
+  savedPreferences = null,
 }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null)
   const videoContainerRef = useRef<HTMLDivElement>(null)
@@ -111,11 +112,14 @@ export const VideoPlayer = ({
   const effectiveInitialPosition = trackSwitchPosition ?? initialPosition
 
   // Subtitle track management
+  // Skip auto-selection when we have a saved subtitle preference to restore
+  const hasSavedSubtitlePref = savedPreferences?.selectedSubtitleTrack !== undefined
   const { availableSubtitles, currentSubtitle, setCurrentSubtitle, textStreamIndex, bitmapStreamIndex } = useSubtitles({
     subtitleTracks: subtitleTracksFromApi,
     preferredLanguage: 'eng',
     preferSDH: false,
     preferForced: true,
+    skipAutoSelect: hasSavedSubtitlePref,
   })
 
   // Initialize progress updater
@@ -280,7 +284,8 @@ export const VideoPlayer = ({
     onToggleDebug: () => setShowDebugOverlay((prev) => !prev),
   })
 
-  // Browser close progress save
+  // Browser close progress save (includes preferences)
+  // Note: -1 is used as a sentinel value for "subtitles off" to distinguish from null (don't update)
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (currentTime > 0 && videoDuration > 0) {
@@ -289,6 +294,10 @@ export const VideoPlayer = ({
           user_id: 1,
           progress_seconds: currentTime,
           duration_seconds: videoDuration,
+          selected_quality: selectedQualityId,
+          selected_audio_track: currentAudioStreamIndex > 0 ? currentAudioStreamIndex : null,
+          // Use -1 to indicate "subtitles off" (null means don't update due to COALESCE in SQL)
+          selected_subtitle_track: currentSubtitle?.id ?? -1,
         })
         const apiUrl = `${window.location.origin}/api/progress`
         navigator.sendBeacon(apiUrl, new Blob([data], { type: 'application/json' }))
@@ -297,7 +306,60 @@ export const VideoPlayer = ({
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [mediaId, currentTime, videoDuration])
+  }, [mediaId, currentTime, videoDuration, selectedQualityId, currentAudioStreamIndex, currentSubtitle])
+
+  // Apply saved audio track preference when tracks load
+  // Use a ref to ensure we only apply once per media
+  const appliedAudioPrefRef = useRef(false)
+  useEffect(() => {
+    if (appliedAudioPrefRef.current) return
+    if (!savedPreferences?.selectedAudioTrack) return
+    if (availableAudioTracks.length === 0) return
+
+    // Check if saved track exists in available tracks
+    const trackExists = availableAudioTracks.some(t => t.id === savedPreferences.selectedAudioTrack)
+    if (trackExists && savedPreferences.selectedAudioTrack !== currentAudioStreamIndex) {
+      setCurrentAudioStreamIndex(savedPreferences.selectedAudioTrack)
+    }
+    appliedAudioPrefRef.current = true
+  }, [savedPreferences, availableAudioTracks, currentAudioStreamIndex])
+
+  // Apply saved subtitle preference when subtitles load
+  const appliedSubtitlePrefRef = useRef(false)
+  useEffect(() => {
+    if (appliedSubtitlePrefRef.current) return
+    if (savedPreferences?.selectedSubtitleTrack === undefined) return
+    if (availableSubtitles.length === 0 && savedPreferences.selectedSubtitleTrack !== null) return
+
+    // -1 or null means subtitles off, otherwise find the track
+    if (savedPreferences.selectedSubtitleTrack === null || savedPreferences.selectedSubtitleTrack === -1) {
+      if (currentSubtitle !== null) {
+        setCurrentSubtitle(null)
+      }
+    } else {
+      const trackExists = availableSubtitles.some(s => s.id === savedPreferences.selectedSubtitleTrack)
+      if (trackExists && currentSubtitle?.id !== savedPreferences.selectedSubtitleTrack) {
+        setCurrentSubtitle(savedPreferences.selectedSubtitleTrack)
+      }
+    }
+    appliedSubtitlePrefRef.current = true
+  }, [savedPreferences, availableSubtitles, currentSubtitle, setCurrentSubtitle])
+
+  // Reset applied prefs refs when media changes
+  useEffect(() => {
+    appliedAudioPrefRef.current = false
+    appliedSubtitlePrefRef.current = false
+  }, [mediaId])
+
+  // Save preferences when they change (via progress updater)
+  // Use -1 to indicate "subtitles off" (null means don't update due to COALESCE in SQL)
+  useEffect(() => {
+    progressUpdater.updatePreferences({
+      selectedQuality: selectedQualityId,
+      selectedAudioTrack: currentAudioStreamIndex > 0 ? currentAudioStreamIndex : null,
+      selectedSubtitleTrack: currentSubtitle?.id ?? -1,
+    })
+  }, [selectedQualityId, currentAudioStreamIndex, currentSubtitle, progressUpdater])
 
   // Handle quality change - calls parent callback to rebuild URL and reload stream
   // Single-quality model: each quality change triggers a new FFmpeg session from current position

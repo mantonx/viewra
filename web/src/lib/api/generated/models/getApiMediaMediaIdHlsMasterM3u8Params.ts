@@ -11,4 +11,24 @@ export type GetApiMediaMediaIdHlsMasterM3u8Params = {
    * Start position in seconds for seeking
    */
   start?: number
+  /**
+   * Client screen width in pixels
+   */
+  screenWidth?: number
+  /**
+   * Client screen height in pixels
+   */
+  screenHeight?: number
+  /**
+   * Estimated bandwidth in bits per second
+   */
+  bandwidth?: number
+  /**
+   * Comma-separated list of supported codecs (h264,h265,vp9,av1)
+   */
+  codecs?: string
+  /**
+   * Override: force specific quality (e.g., 4k-25m, 1080p-10m)
+   */
+  quality?: string
 }

@@ -39,8 +39,8 @@ import { customInstance } from '../../mutator/index'
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
 
 /**
- * Serves an HLS master playlist (.m3u8) that lists all available quality levels for adaptive streaming.
-The player uses this to select and switch between quality levels based on network conditions.
+ * Serves an HLS master playlist (.m3u8) with the optimal quality based on client capabilities.
+Uses screen size, bandwidth, and codec support to recommend the best quality.
 If the video is compatible for direct play (right codec, audio, container), returns 302 redirect.
  * @summary Serve HLS master playlist
  */

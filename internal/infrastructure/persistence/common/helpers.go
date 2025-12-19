@@ -87,6 +87,24 @@ func NullInt64Ptr(value *int64) sql.NullInt64 {
 	return sql.NullInt64{Int64: *value, Valid: true}
 }
 
+// NullInt64FromIntPtr creates a sql.NullInt64 from an *int pointer.
+// Valid is true if pointer is non-nil.
+func NullInt64FromIntPtr(value *int) sql.NullInt64 {
+	if value == nil {
+		return sql.NullInt64{Valid: false}
+	}
+	return sql.NullInt64{Int64: int64(*value), Valid: true}
+}
+
+// NullInt32FromIntPtr creates a sql.NullInt32 from an *int pointer.
+// Valid is true if pointer is non-nil.
+func NullInt32FromIntPtr(value *int) sql.NullInt32 {
+	if value == nil {
+		return sql.NullInt32{Valid: false}
+	}
+	return sql.NullInt32{Int32: int32(*value), Valid: true}
+}
+
 // NullInt32Ptr creates a sql.NullInt32 from an *int64 pointer.
 // Valid is true if pointer is non-nil.
 func NullInt32Ptr(value *int64) sql.NullInt32 {
@@ -169,6 +187,26 @@ func ParseNullInt64(value sql.NullInt64) int64 {
 func ParseNullInt64Ptr(value sql.NullInt64) *int64 {
 	if value.Valid {
 		val := value.Int64
+		return &val
+	}
+	return nil
+}
+
+// ParseNullInt64ToIntPtr converts sql.NullInt64 to *int.
+// Returns nil if the value is NULL.
+func ParseNullInt64ToIntPtr(value sql.NullInt64) *int {
+	if value.Valid {
+		val := int(value.Int64)
+		return &val
+	}
+	return nil
+}
+
+// ParseNullInt32ToIntPtr converts sql.NullInt32 to *int.
+// Returns nil if the value is NULL.
+func ParseNullInt32ToIntPtr(value sql.NullInt32) *int {
+	if value.Valid {
+		val := int(value.Int32)
 		return &val
 	}
 	return nil

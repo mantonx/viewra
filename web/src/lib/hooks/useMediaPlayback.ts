@@ -19,6 +19,13 @@ export interface QualityOption {
   isOriginalQuality: boolean // True if this represents the source quality (remux or same resolution transcode)
 }
 
+/** Saved playback preferences from progress API */
+export interface SavedPreferences {
+  selectedQuality: string | null
+  selectedAudioTrack: number | null
+  selectedSubtitleTrack: number | null
+}
+
 export interface PlaybackState {
   isPlaying: boolean
   mediaId: number | null
@@ -29,6 +36,8 @@ export interface PlaybackState {
   availableQualities: QualityOption[]
   /** Currently selected quality ID */
   selectedQualityId: string | null
+  /** Saved preferences from previous playback session */
+  savedPreferences: SavedPreferences | null
 }
 
 interface UseMediaPlaybackReturn {
@@ -145,6 +154,7 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
   const [transcodeState, setTranscodeState] = useState<TranscodeState>('idle')
   const [availableQualities, setAvailableQualities] = useState<QualityOption[]>([])
   const [selectedQualityId, setSelectedQualityId] = useState<string | null>(null)
+  const [savedPreferences, setSavedPreferences] = useState<SavedPreferences | null>(null)
 
   const fallbackToDirectStream = (id: number) => {
     const directUrl = `${API_BASE_URL}/api/stream/${id}`
@@ -157,32 +167,54 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
     setMediaId(id)
     setIsPlaying(true)
     setTranscodeState('checking')
+    setSavedPreferences(null) // Reset saved preferences
 
-    // Determine resume position
+    // Determine resume position and load saved preferences
     let resumePosition = 0
+    let savedQuality: string | null = null
 
     if (urlTime !== undefined && urlTime > 0) {
       resumePosition = urlTime
     } else {
-      const progressPromise = authFetch(`/api/progress/${id}`)
+      // Fetch progress with preferences
+      const progressResult = await authFetch(`/api/progress/${id}`)
         .then(async (response) => {
           const progressData = response.ok ? await response.json() : null
-          const progressSecs = progressData ? getProgressSeconds(progressData) : 0
+          if (!progressData) return { position: 0, preferences: null }
+
+          const progressSecs = getProgressSeconds(progressData)
           const durationSecs = progressData?.duration_seconds ?? 0
           const isNearEnd = durationSecs > 0 && progressSecs >= durationSecs - 1
-          return (progressSecs > 0 && !isNearEnd) ? progressSecs : 0
+          const position = (progressSecs > 0 && !isNearEnd) ? progressSecs : 0
+
+          // Extract saved preferences
+          const preferences: SavedPreferences = {
+            selectedQuality: progressData.selected_quality ?? null,
+            selectedAudioTrack: progressData.selected_audio_track ?? null,
+            selectedSubtitleTrack: progressData.selected_subtitle_track ?? null,
+          }
+
+          return { position, preferences }
         })
         .catch((error) => {
           logger.error('Error fetching progress:', error)
-          return 0
+          return { position: 0, preferences: null }
         })
 
-      resumePosition = await progressPromise
+      resumePosition = progressResult.position
+
+      // Store and apply saved preferences
+      if (progressResult.preferences) {
+        setSavedPreferences(progressResult.preferences)
+        savedQuality = progressResult.preferences.selectedQuality
+        logger.info('[Playback] Loaded saved preferences:', progressResult.preferences)
+      }
     }
 
     setInitialPosition(resumePosition)
 
-    const manifestUrl = buildManifestUrl(id, resumePosition)
+    // Use saved quality if available, otherwise let backend pick optimal
+    const manifestUrl = buildManifestUrl(id, resumePosition, savedQuality ?? undefined)
 
     try {
       const response = await authFetch(manifestUrl, { redirect: 'manual' })
@@ -267,6 +299,7 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
     setInitialPosition(0)
     setAvailableQualities([])
     setSelectedQualityId(null)
+    setSavedPreferences(null)
   }
 
   return {
@@ -278,6 +311,7 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
       transcodeState,
       availableQualities,
       selectedQualityId,
+      savedPreferences,
     },
     playMedia,
     stopPlayback,

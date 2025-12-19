@@ -22,7 +22,7 @@ INSERT INTO watch_progress (
     created_at,
     updated_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at
+RETURNING id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at, selected_quality, selected_audio_track, selected_subtitle_track
 `
 
 type CreateWatchProgressParams struct {
@@ -58,6 +58,9 @@ func (q *Queries) CreateWatchProgress(ctx context.Context, arg CreateWatchProgre
 		&i.LastWatched,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SelectedQuality,
+		&i.SelectedAudioTrack,
+		&i.SelectedSubtitleTrack,
 	)
 	return i, err
 }
@@ -83,7 +86,7 @@ func (q *Queries) DeleteWatchProgressByMediaID(ctx context.Context, mediaID int6
 }
 
 const getBatchWatchProgressByMediaIDs = `-- name: GetBatchWatchProgressByMediaIDs :many
-SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at FROM watch_progress
+SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at, selected_quality, selected_audio_track, selected_subtitle_track FROM watch_progress
 WHERE media_id IN (/*SLICE:media_ids*/?) AND user_id = ?
 `
 
@@ -122,6 +125,9 @@ func (q *Queries) GetBatchWatchProgressByMediaIDs(ctx context.Context, arg GetBa
 			&i.LastWatched,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SelectedQuality,
+			&i.SelectedAudioTrack,
+			&i.SelectedSubtitleTrack,
 		); err != nil {
 			return nil, err
 		}
@@ -137,7 +143,7 @@ func (q *Queries) GetBatchWatchProgressByMediaIDs(ctx context.Context, arg GetBa
 }
 
 const getWatchProgressByID = `-- name: GetWatchProgressByID :one
-SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at FROM watch_progress
+SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at, selected_quality, selected_audio_track, selected_subtitle_track FROM watch_progress
 WHERE id = ?
 `
 
@@ -154,12 +160,15 @@ func (q *Queries) GetWatchProgressByID(ctx context.Context, id int64) (WatchProg
 		&i.LastWatched,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SelectedQuality,
+		&i.SelectedAudioTrack,
+		&i.SelectedSubtitleTrack,
 	)
 	return i, err
 }
 
 const getWatchProgressByMediaID = `-- name: GetWatchProgressByMediaID :one
-SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at FROM watch_progress
+SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at, selected_quality, selected_audio_track, selected_subtitle_track FROM watch_progress
 WHERE media_id = ?
 LIMIT 1
 `
@@ -177,12 +186,15 @@ func (q *Queries) GetWatchProgressByMediaID(ctx context.Context, mediaID int64) 
 		&i.LastWatched,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SelectedQuality,
+		&i.SelectedAudioTrack,
+		&i.SelectedSubtitleTrack,
 	)
 	return i, err
 }
 
 const getWatchProgressByMediaIDAndUserID = `-- name: GetWatchProgressByMediaIDAndUserID :one
-SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at FROM watch_progress
+SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at, selected_quality, selected_audio_track, selected_subtitle_track FROM watch_progress
 WHERE media_id = ? AND user_id = ?
 LIMIT 1
 `
@@ -205,12 +217,15 @@ func (q *Queries) GetWatchProgressByMediaIDAndUserID(ctx context.Context, arg Ge
 		&i.LastWatched,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SelectedQuality,
+		&i.SelectedAudioTrack,
+		&i.SelectedSubtitleTrack,
 	)
 	return i, err
 }
 
 const listInProgressByUserID = `-- name: ListInProgressByUserID :many
-SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at FROM watch_progress
+SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at, selected_quality, selected_audio_track, selected_subtitle_track FROM watch_progress
 WHERE user_id = ?
   AND watched = FALSE
   AND position > 0
@@ -243,6 +258,9 @@ func (q *Queries) ListInProgressByUserID(ctx context.Context, arg ListInProgress
 			&i.LastWatched,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SelectedQuality,
+			&i.SelectedAudioTrack,
+			&i.SelectedSubtitleTrack,
 		); err != nil {
 			return nil, err
 		}
@@ -258,7 +276,7 @@ func (q *Queries) ListInProgressByUserID(ctx context.Context, arg ListInProgress
 }
 
 const listWatchProgressByUserID = `-- name: ListWatchProgressByUserID :many
-SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at FROM watch_progress
+SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at, selected_quality, selected_audio_track, selected_subtitle_track FROM watch_progress
 WHERE user_id = ?
 ORDER BY last_watched DESC
 LIMIT ? OFFSET ?
@@ -289,6 +307,9 @@ func (q *Queries) ListWatchProgressByUserID(ctx context.Context, arg ListWatchPr
 			&i.LastWatched,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SelectedQuality,
+			&i.SelectedAudioTrack,
+			&i.SelectedSubtitleTrack,
 		); err != nil {
 			return nil, err
 		}
@@ -304,7 +325,7 @@ func (q *Queries) ListWatchProgressByUserID(ctx context.Context, arg ListWatchPr
 }
 
 const listWatchedByUserID = `-- name: ListWatchedByUserID :many
-SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at FROM watch_progress
+SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at, selected_quality, selected_audio_track, selected_subtitle_track FROM watch_progress
 WHERE user_id = ?
   AND watched = TRUE
 ORDER BY last_watched DESC
@@ -336,6 +357,9 @@ func (q *Queries) ListWatchedByUserID(ctx context.Context, arg ListWatchedByUser
 			&i.LastWatched,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SelectedQuality,
+			&i.SelectedAudioTrack,
+			&i.SelectedSubtitleTrack,
 		); err != nil {
 			return nil, err
 		}
@@ -358,7 +382,7 @@ SET position = ?,
     last_watched = ?,
     updated_at = ?
 WHERE id = ?
-RETURNING id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at
+RETURNING id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at, selected_quality, selected_audio_track, selected_subtitle_track
 `
 
 type UpdateWatchProgressParams struct {
@@ -390,6 +414,9 @@ func (q *Queries) UpdateWatchProgress(ctx context.Context, arg UpdateWatchProgre
 		&i.LastWatched,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SelectedQuality,
+		&i.SelectedAudioTrack,
+		&i.SelectedSubtitleTrack,
 	)
 	return i, err
 }
@@ -403,27 +430,36 @@ INSERT INTO watch_progress (
     watched,
     last_watched,
     created_at,
-    updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    updated_at,
+    selected_quality,
+    selected_audio_track,
+    selected_subtitle_track
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(media_id, user_id)
 DO UPDATE SET
     position = excluded.position,
     duration = excluded.duration,
     watched = excluded.watched,
     last_watched = excluded.last_watched,
-    updated_at = excluded.updated_at
-RETURNING id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at
+    updated_at = excluded.updated_at,
+    selected_quality = COALESCE(excluded.selected_quality, watch_progress.selected_quality),
+    selected_audio_track = COALESCE(excluded.selected_audio_track, watch_progress.selected_audio_track),
+    selected_subtitle_track = COALESCE(excluded.selected_subtitle_track, watch_progress.selected_subtitle_track)
+RETURNING id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at, selected_quality, selected_audio_track, selected_subtitle_track
 `
 
 type UpsertWatchProgressParams struct {
-	MediaID     int64           `json:"media_id"`
-	UserID      sql.NullInt64   `json:"user_id"`
-	Position    float64         `json:"position"`
-	Duration    sql.NullFloat64 `json:"duration"`
-	Watched     sql.NullBool    `json:"watched"`
-	LastWatched sql.NullTime    `json:"last_watched"`
-	CreatedAt   sql.NullTime    `json:"created_at"`
-	UpdatedAt   sql.NullTime    `json:"updated_at"`
+	MediaID               int64           `json:"media_id"`
+	UserID                sql.NullInt64   `json:"user_id"`
+	Position              float64         `json:"position"`
+	Duration              sql.NullFloat64 `json:"duration"`
+	Watched               sql.NullBool    `json:"watched"`
+	LastWatched           sql.NullTime    `json:"last_watched"`
+	CreatedAt             sql.NullTime    `json:"created_at"`
+	UpdatedAt             sql.NullTime    `json:"updated_at"`
+	SelectedQuality       sql.NullString  `json:"selected_quality"`
+	SelectedAudioTrack    sql.NullInt64   `json:"selected_audio_track"`
+	SelectedSubtitleTrack sql.NullInt64   `json:"selected_subtitle_track"`
 }
 
 func (q *Queries) UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) (WatchProgress, error) {
@@ -436,6 +472,9 @@ func (q *Queries) UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgre
 		arg.LastWatched,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.SelectedQuality,
+		arg.SelectedAudioTrack,
+		arg.SelectedSubtitleTrack,
 	)
 	var i WatchProgress
 	err := row.Scan(
@@ -448,6 +487,9 @@ func (q *Queries) UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgre
 		&i.LastWatched,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SelectedQuality,
+		&i.SelectedAudioTrack,
+		&i.SelectedSubtitleTrack,
 	)
 	return i, err
 }

@@ -16,6 +16,11 @@ type WatchProgress struct {
 	LastWatchedAt   time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+
+	// Playback preferences (nil means use defaults)
+	SelectedQuality       *string // Quality profile ID (e.g., "1080p-10m", "original")
+	SelectedAudioTrack    *int    // FFmpeg audio stream index
+	SelectedSubtitleTrack *int    // Subtitle track ID (-1 for off, nil for auto)
 }
 
 // IsValid validates the watch progress entity fields.

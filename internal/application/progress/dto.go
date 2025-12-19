@@ -12,6 +12,11 @@ type UpdateProgressRequest struct {
 	UserID          int64   `json:"user_id"`
 	ProgressSeconds float64 `json:"progress_seconds"`
 	DurationSeconds float64 `json:"duration_seconds"`
+
+	// Playback preferences (omitted or null means don't update)
+	SelectedQuality       *string `json:"selected_quality,omitempty"`
+	SelectedAudioTrack    *int    `json:"selected_audio_track,omitempty"`
+	SelectedSubtitleTrack *int    `json:"selected_subtitle_track,omitempty"`
 }
 
 // WatchProgressResponse represents watch progress information in API responses.
@@ -26,6 +31,12 @@ type WatchProgressResponse struct {
 	LastWatchedAt      time.Time `json:"last_watched_at"`
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
+
+	// Playback preferences (null means no saved preference / use defaults)
+	// Note: No omitempty - we need to distinguish "never set" from "explicitly null"
+	SelectedQuality       *string `json:"selected_quality"`
+	SelectedAudioTrack    *int    `json:"selected_audio_track"`
+	SelectedSubtitleTrack *int    `json:"selected_subtitle_track"`
 }
 
 // ListProgressResponse represents a list of watch progress records.
@@ -42,16 +53,19 @@ type BatchProgressResponse struct {
 // toResponse converts a domain entity to a response DTO.
 func toResponse(prog *progress.WatchProgress) *WatchProgressResponse {
 	return &WatchProgressResponse{
-		ID:                 prog.ID,
-		MediaID:            prog.MediaID,
-		UserID:             prog.UserID,
-		ProgressSeconds:    prog.ProgressSeconds,
-		DurationSeconds:    prog.DurationSeconds,
-		ProgressPercentage: prog.GetProgressPercentage(),
-		IsWatched:          prog.IsWatched,
-		LastWatchedAt:      prog.LastWatchedAt,
-		CreatedAt:          prog.CreatedAt,
-		UpdatedAt:          prog.UpdatedAt,
+		ID:                    prog.ID,
+		MediaID:               prog.MediaID,
+		UserID:                prog.UserID,
+		ProgressSeconds:       prog.ProgressSeconds,
+		DurationSeconds:       prog.DurationSeconds,
+		ProgressPercentage:    prog.GetProgressPercentage(),
+		IsWatched:             prog.IsWatched,
+		LastWatchedAt:         prog.LastWatchedAt,
+		CreatedAt:             prog.CreatedAt,
+		UpdatedAt:             prog.UpdatedAt,
+		SelectedQuality:       prog.SelectedQuality,
+		SelectedAudioTrack:    prog.SelectedAudioTrack,
+		SelectedSubtitleTrack: prog.SelectedSubtitleTrack,
 	}
 }
 

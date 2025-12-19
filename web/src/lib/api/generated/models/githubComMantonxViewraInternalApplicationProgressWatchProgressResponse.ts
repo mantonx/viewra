@@ -15,6 +15,10 @@ export interface GithubComMantonxViewraInternalApplicationProgressWatchProgressR
   media_id?: number
   progress_percentage?: number
   progress_seconds?: number
+  selected_audio_track?: number
+  /** Playback preferences (null means no saved preference) */
+  selected_quality?: string
+  selected_subtitle_track?: number
   updated_at?: string
   user_id?: number
 }

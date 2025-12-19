@@ -5,17 +5,30 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
+  DataTag,
+  DefinedInitialDataOptions,
+  DefinedUseQueryResult,
   MutationFunction,
   QueryClient,
+  QueryFunction,
+  QueryKey,
+  UndefinedInitialDataOptions,
   UseMutationOptions,
   UseMutationResult,
+  UseQueryOptions,
+  UseQueryResult,
 } from '@tanstack/react-query'
 
 import type {
+  GetApiAnalyticsSessionsParams,
+  GetApiAnalyticsSummaryParams,
   InternalApiHandlersErrorResponse,
+  InternalApiHandlersListSessionsResponse,
   InternalApiHandlersPlaybackAnalyticsRequest,
+  InternalApiHandlersPlaybackSessionResponse,
+  InternalApiHandlersPlaybackSummaryResponse,
   PostApiAnalyticsPlayback200,
 } from '.././models'
 
@@ -132,4 +145,489 @@ export const usePostApiAnalyticsPlayback = <
   const mutationOptions = getPostApiAnalyticsPlaybackMutationOptions(options)
 
   return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Lists playback sessions, optionally filtered by media ID
+ * @summary List playback sessions
+ */
+export type getApiAnalyticsSessionsResponse200 = {
+  data: InternalApiHandlersListSessionsResponse
+  status: 200
+}
+
+export type getApiAnalyticsSessionsResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type getApiAnalyticsSessionsResponseSuccess = getApiAnalyticsSessionsResponse200 & {
+  headers: Headers
+}
+export type getApiAnalyticsSessionsResponseError = getApiAnalyticsSessionsResponse400 & {
+  headers: Headers
+}
+
+export type getApiAnalyticsSessionsResponse =
+  | getApiAnalyticsSessionsResponseSuccess
+  | getApiAnalyticsSessionsResponseError
+
+export const getGetApiAnalyticsSessionsUrl = (params?: GetApiAnalyticsSessionsParams) => {
+  const normalizedParams = new URLSearchParams()
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  })
+
+  const stringifiedParams = normalizedParams.toString()
+
+  return stringifiedParams.length > 0
+    ? `/api/analytics/sessions?${stringifiedParams}`
+    : `/api/analytics/sessions`
+}
+
+export const getApiAnalyticsSessions = async (
+  params?: GetApiAnalyticsSessionsParams,
+  options?: RequestInit
+): Promise<getApiAnalyticsSessionsResponse> => {
+  return customInstance<getApiAnalyticsSessionsResponse>(getGetApiAnalyticsSessionsUrl(params), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiAnalyticsSessionsQueryKey = (params?: GetApiAnalyticsSessionsParams) => {
+  return [`/api/analytics/sessions`, ...(params ? [params] : [])] as const
+}
+
+export const getGetApiAnalyticsSessionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiAnalyticsSessions>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params?: GetApiAnalyticsSessionsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAnalyticsSessions>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiAnalyticsSessionsQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiAnalyticsSessions>>> = ({
+    signal,
+  }) => getApiAnalyticsSessions(params, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiAnalyticsSessions>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiAnalyticsSessionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiAnalyticsSessions>>
+>
+export type GetApiAnalyticsSessionsQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiAnalyticsSessions<
+  TData = Awaited<ReturnType<typeof getApiAnalyticsSessions>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: undefined | GetApiAnalyticsSessionsParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAnalyticsSessions>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAnalyticsSessions>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAnalyticsSessions>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAnalyticsSessions<
+  TData = Awaited<ReturnType<typeof getApiAnalyticsSessions>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params?: GetApiAnalyticsSessionsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAnalyticsSessions>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAnalyticsSessions>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAnalyticsSessions>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAnalyticsSessions<
+  TData = Awaited<ReturnType<typeof getApiAnalyticsSessions>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params?: GetApiAnalyticsSessionsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAnalyticsSessions>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List playback sessions
+ */
+
+export function useGetApiAnalyticsSessions<
+  TData = Awaited<ReturnType<typeof getApiAnalyticsSessions>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params?: GetApiAnalyticsSessionsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAnalyticsSessions>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiAnalyticsSessionsQueryOptions(params, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Retrieves a single playback session by its ID
+ * @summary Get playback session by ID
+ */
+export type getApiAnalyticsSessionsIdResponse200 = {
+  data: InternalApiHandlersPlaybackSessionResponse
+  status: 200
+}
+
+export type getApiAnalyticsSessionsIdResponse404 = {
+  data: InternalApiHandlersErrorResponse
+  status: 404
+}
+
+export type getApiAnalyticsSessionsIdResponseSuccess = getApiAnalyticsSessionsIdResponse200 & {
+  headers: Headers
+}
+export type getApiAnalyticsSessionsIdResponseError = getApiAnalyticsSessionsIdResponse404 & {
+  headers: Headers
+}
+
+export type getApiAnalyticsSessionsIdResponse =
+  | getApiAnalyticsSessionsIdResponseSuccess
+  | getApiAnalyticsSessionsIdResponseError
+
+export const getGetApiAnalyticsSessionsIdUrl = (id: string) => {
+  return `/api/analytics/sessions/${id}`
+}
+
+export const getApiAnalyticsSessionsId = async (
+  id: string,
+  options?: RequestInit
+): Promise<getApiAnalyticsSessionsIdResponse> => {
+  return customInstance<getApiAnalyticsSessionsIdResponse>(getGetApiAnalyticsSessionsIdUrl(id), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiAnalyticsSessionsIdQueryKey = (id?: string) => {
+  return [`/api/analytics/sessions/${id}`] as const
+}
+
+export const getGetApiAnalyticsSessionsIdQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiAnalyticsSessionsIdQueryKey(id)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>> = ({
+    signal,
+  }) => getApiAnalyticsSessionsId(id, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiAnalyticsSessionsIdQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>
+>
+export type GetApiAnalyticsSessionsIdQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiAnalyticsSessionsId<
+  TData = Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAnalyticsSessionsId<
+  TData = Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAnalyticsSessionsId<
+  TData = Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get playback session by ID
+ */
+
+export function useGetApiAnalyticsSessionsId<
+  TData = Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiAnalyticsSessionsIdQueryOptions(id, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Retrieves aggregated playback analytics, optionally filtered by media ID
+ * @summary Get playback analytics summary
+ */
+export type getApiAnalyticsSummaryResponse200 = {
+  data: InternalApiHandlersPlaybackSummaryResponse
+  status: 200
+}
+
+export type getApiAnalyticsSummaryResponseSuccess = getApiAnalyticsSummaryResponse200 & {
+  headers: Headers
+}
+export type getApiAnalyticsSummaryResponse = getApiAnalyticsSummaryResponseSuccess
+
+export const getGetApiAnalyticsSummaryUrl = (params?: GetApiAnalyticsSummaryParams) => {
+  const normalizedParams = new URLSearchParams()
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  })
+
+  const stringifiedParams = normalizedParams.toString()
+
+  return stringifiedParams.length > 0
+    ? `/api/analytics/summary?${stringifiedParams}`
+    : `/api/analytics/summary`
+}
+
+export const getApiAnalyticsSummary = async (
+  params?: GetApiAnalyticsSummaryParams,
+  options?: RequestInit
+): Promise<getApiAnalyticsSummaryResponse> => {
+  return customInstance<getApiAnalyticsSummaryResponse>(getGetApiAnalyticsSummaryUrl(params), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiAnalyticsSummaryQueryKey = (params?: GetApiAnalyticsSummaryParams) => {
+  return [`/api/analytics/summary`, ...(params ? [params] : [])] as const
+}
+
+export const getGetApiAnalyticsSummaryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiAnalyticsSummary>>,
+  TError = unknown,
+>(
+  params?: GetApiAnalyticsSummaryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAnalyticsSummary>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiAnalyticsSummaryQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiAnalyticsSummary>>> = ({ signal }) =>
+    getApiAnalyticsSummary(params, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiAnalyticsSummary>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiAnalyticsSummaryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiAnalyticsSummary>>
+>
+export type GetApiAnalyticsSummaryQueryError = unknown
+
+export function useGetApiAnalyticsSummary<
+  TData = Awaited<ReturnType<typeof getApiAnalyticsSummary>>,
+  TError = unknown,
+>(
+  params: undefined | GetApiAnalyticsSummaryParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAnalyticsSummary>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAnalyticsSummary>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAnalyticsSummary>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAnalyticsSummary<
+  TData = Awaited<ReturnType<typeof getApiAnalyticsSummary>>,
+  TError = unknown,
+>(
+  params?: GetApiAnalyticsSummaryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAnalyticsSummary>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAnalyticsSummary>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAnalyticsSummary>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAnalyticsSummary<
+  TData = Awaited<ReturnType<typeof getApiAnalyticsSummary>>,
+  TError = unknown,
+>(
+  params?: GetApiAnalyticsSummaryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAnalyticsSummary>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get playback analytics summary
+ */
+
+export function useGetApiAnalyticsSummary<
+  TData = Awaited<ReturnType<typeof getApiAnalyticsSummary>>,
+  TError = unknown,
+>(
+  params?: GetApiAnalyticsSummaryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAnalyticsSummary>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiAnalyticsSummaryQueryOptions(params, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
 }

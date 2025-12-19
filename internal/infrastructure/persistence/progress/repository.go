@@ -413,14 +413,17 @@ func (r *Repository) Upsert(ctx context.Context, prog *progress.WatchProgress) e
 
 	if r.dbType == "sqlite" {
 		result, err := r.sqliteQuerier.UpsertWatchProgress(ctx, sqlc_sqlite.UpsertWatchProgressParams{
-			MediaID:     prog.MediaID,
-			UserID:      common.NullInt64(prog.UserID),
-			Position:    prog.ProgressSeconds,
-			Duration:    common.NullFloat64(prog.DurationSeconds),
-			Watched:     common.NullBool(prog.IsWatched),
-			LastWatched: common.NullTime(prog.LastWatchedAt),
-			CreatedAt:   common.NullTime(prog.CreatedAt),
-			UpdatedAt:   common.NullTime(prog.UpdatedAt),
+			MediaID:               prog.MediaID,
+			UserID:                common.NullInt64(prog.UserID),
+			Position:              prog.ProgressSeconds,
+			Duration:              common.NullFloat64(prog.DurationSeconds),
+			Watched:               common.NullBool(prog.IsWatched),
+			LastWatched:           common.NullTime(prog.LastWatchedAt),
+			CreatedAt:             common.NullTime(prog.CreatedAt),
+			UpdatedAt:             common.NullTime(prog.UpdatedAt),
+			SelectedQuality:       common.NullStringPtr(prog.SelectedQuality),
+			SelectedAudioTrack:    common.NullInt64FromIntPtr(prog.SelectedAudioTrack),
+			SelectedSubtitleTrack: common.NullInt64FromIntPtr(prog.SelectedSubtitleTrack),
 		})
 		if err != nil {
 			return err
@@ -432,14 +435,17 @@ func (r *Repository) Upsert(ctx context.Context, prog *progress.WatchProgress) e
 
 	// PostgreSQL
 	result, err := r.postgresQuerier.UpsertWatchProgress(ctx, sqlc_postgres.UpsertWatchProgressParams{
-		MediaID:     int32(prog.MediaID),
-		UserID:      common.NullInt32FromInt64(prog.UserID),
-		Position:    prog.ProgressSeconds,
-		Duration:    common.NullFloat64(prog.DurationSeconds),
-		Watched:     common.NullBool(prog.IsWatched),
-		LastWatched: common.NullTime(prog.LastWatchedAt),
-		CreatedAt:   common.NullTime(prog.CreatedAt),
-		UpdatedAt:   common.NullTime(prog.UpdatedAt),
+		MediaID:               int32(prog.MediaID),
+		UserID:                common.NullInt32FromInt64(prog.UserID),
+		Position:              prog.ProgressSeconds,
+		Duration:              common.NullFloat64(prog.DurationSeconds),
+		Watched:               common.NullBool(prog.IsWatched),
+		LastWatched:           common.NullTime(prog.LastWatchedAt),
+		CreatedAt:             common.NullTime(prog.CreatedAt),
+		UpdatedAt:             common.NullTime(prog.UpdatedAt),
+		SelectedQuality:       common.NullStringPtr(prog.SelectedQuality),
+		SelectedAudioTrack:    common.NullInt32FromIntPtr(prog.SelectedAudioTrack),
+		SelectedSubtitleTrack: common.NullInt32FromIntPtr(prog.SelectedSubtitleTrack),
 	})
 	if err != nil {
 		return err
@@ -453,28 +459,34 @@ func (r *Repository) Upsert(ctx context.Context, prog *progress.WatchProgress) e
 
 func sqliteRowToProgress(row sqlc_sqlite.WatchProgress) *progress.WatchProgress {
 	return &progress.WatchProgress{
-		ID:              row.ID,
-		UserID:          common.ParseNullInt64(row.UserID),
-		MediaID:         row.MediaID,
-		ProgressSeconds: row.Position,
-		DurationSeconds: common.ParseNullFloat64(row.Duration),
-		IsWatched:       common.ParseNullBool(row.Watched),
-		LastWatchedAt:   common.ParseNullTime(row.LastWatched),
-		CreatedAt:       common.ParseNullTime(row.CreatedAt),
-		UpdatedAt:       common.ParseNullTime(row.UpdatedAt),
+		ID:                    row.ID,
+		UserID:                common.ParseNullInt64(row.UserID),
+		MediaID:               row.MediaID,
+		ProgressSeconds:       row.Position,
+		DurationSeconds:       common.ParseNullFloat64(row.Duration),
+		IsWatched:             common.ParseNullBool(row.Watched),
+		LastWatchedAt:         common.ParseNullTime(row.LastWatched),
+		CreatedAt:             common.ParseNullTime(row.CreatedAt),
+		UpdatedAt:             common.ParseNullTime(row.UpdatedAt),
+		SelectedQuality:       common.ParseNullStringPtr(row.SelectedQuality),
+		SelectedAudioTrack:    common.ParseNullInt64ToIntPtr(row.SelectedAudioTrack),
+		SelectedSubtitleTrack: common.ParseNullInt64ToIntPtr(row.SelectedSubtitleTrack),
 	}
 }
 
 func postgresRowToProgress(row sqlc_postgres.WatchProgress) *progress.WatchProgress {
 	return &progress.WatchProgress{
-		ID:              int64(row.ID),
-		UserID:          common.ParseNullInt32(row.UserID),
-		MediaID:         int64(row.MediaID),
-		ProgressSeconds: row.Position,
-		DurationSeconds: common.ParseNullFloat64(row.Duration),
-		IsWatched:       common.ParseNullBool(row.Watched),
-		LastWatchedAt:   common.ParseNullTime(row.LastWatched),
-		CreatedAt:       common.ParseNullTime(row.CreatedAt),
-		UpdatedAt:       common.ParseNullTime(row.UpdatedAt),
+		ID:                    int64(row.ID),
+		UserID:                common.ParseNullInt32(row.UserID),
+		MediaID:               int64(row.MediaID),
+		ProgressSeconds:       row.Position,
+		DurationSeconds:       common.ParseNullFloat64(row.Duration),
+		IsWatched:             common.ParseNullBool(row.Watched),
+		LastWatchedAt:         common.ParseNullTime(row.LastWatched),
+		CreatedAt:             common.ParseNullTime(row.CreatedAt),
+		UpdatedAt:             common.ParseNullTime(row.UpdatedAt),
+		SelectedQuality:       common.ParseNullStringPtr(row.SelectedQuality),
+		SelectedAudioTrack:    common.ParseNullInt32ToIntPtr(row.SelectedAudioTrack),
+		SelectedSubtitleTrack: common.ParseNullInt32ToIntPtr(row.SelectedSubtitleTrack),
 	}
 }

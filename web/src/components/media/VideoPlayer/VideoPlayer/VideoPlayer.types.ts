@@ -1,5 +1,5 @@
 import type { MediaMetadata } from '@/lib/types/video'
-import type { QualityOption } from '@/lib/hooks/useMediaPlayback'
+import type { QualityOption, SavedPreferences } from '@/lib/hooks/useMediaPlayback'
 
 export interface VideoPlayerProps {
   mediaId: number
@@ -15,4 +15,6 @@ export interface VideoPlayerProps {
   selectedQualityId?: string | null
   /** Callback to change quality - rebuilds URL and reloads stream from current position */
   onQualityChange?: (qualityId: string, currentPosition: number) => Promise<void>
+  /** Saved playback preferences from previous session */
+  savedPreferences?: SavedPreferences | null
 }

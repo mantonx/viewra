@@ -170,6 +170,13 @@ export const useDeleteProgress = () => {
   });
 }
 
+// Playback preferences to be saved with progress
+export interface PlaybackPreferences {
+  selectedQuality?: string | null
+  selectedAudioTrack?: number | null
+  selectedSubtitleTrack?: number | null
+}
+
 // Utility hook for continuous progress updates during playback
 export const useProgressUpdater = (
   mediaId: number,
@@ -179,6 +186,22 @@ export const useProgressUpdater = (
   const updateProgress = useUpdateProgress();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const currentTimeRef = useRef<number>(0);
+  const preferencesRef = useRef<PlaybackPreferences>({});
+
+  // Build the progress update payload including preferences
+  const buildPayload = useCallback(() => {
+    const prefs = preferencesRef.current;
+    return {
+      media_id: mediaId,
+      user_id: 1, // Default user
+      progress_seconds: currentTimeRef.current,
+      duration_seconds: durationSeconds,
+      // Only include preferences if they have values (undefined means don't update)
+      ...(prefs.selectedQuality !== undefined && { selected_quality: prefs.selectedQuality ?? undefined }),
+      ...(prefs.selectedAudioTrack !== undefined && { selected_audio_track: prefs.selectedAudioTrack ?? undefined }),
+      ...(prefs.selectedSubtitleTrack !== undefined && { selected_subtitle_track: prefs.selectedSubtitleTrack ?? undefined }),
+    };
+  }, [mediaId, durationSeconds]);
 
   // Use useCallback for stable function references
   const startTracking = useCallback((currentTimeSeconds: number) => {
@@ -192,30 +215,33 @@ export const useProgressUpdater = (
     // Set up periodic updates
     intervalRef.current = setInterval(() => {
       if (currentTimeRef.current > 0) {
-        updateProgress.mutate({
-          media_id: mediaId,
-          user_id: 1, // Default user
-          progress_seconds: currentTimeRef.current,
-          duration_seconds: durationSeconds,
-        });
+        updateProgress.mutate(buildPayload());
       }
     }, updateIntervalMs);
-  }, [mediaId, durationSeconds, updateIntervalMs, updateProgress]);
+  }, [updateIntervalMs, updateProgress, buildPayload]);
 
   const updateCurrentTime = useCallback((currentTimeSeconds: number) => {
     currentTimeRef.current = currentTimeSeconds;
   }, []);
 
+  // Update preferences (stored in ref to avoid triggering re-renders)
+  const updatePreferences = useCallback((prefs: Partial<PlaybackPreferences>) => {
+    preferencesRef.current = { ...preferencesRef.current, ...prefs };
+  }, []);
+
   const immediateUpdate = useCallback(() => {
     if (currentTimeRef.current > 0) {
-      updateProgress.mutate({
-        media_id: mediaId,
-        user_id: 1,
-        progress_seconds: currentTimeRef.current,
-        duration_seconds: durationSeconds,
-      });
+      updateProgress.mutate(buildPayload());
     }
-  }, [mediaId, durationSeconds, updateProgress]);
+  }, [updateProgress, buildPayload]);
+
+  // Immediate update with new preferences (for quality/audio/subtitle changes)
+  const immediateUpdateWithPreferences = useCallback((prefs: Partial<PlaybackPreferences>) => {
+    preferencesRef.current = { ...preferencesRef.current, ...prefs };
+    if (currentTimeRef.current > 0) {
+      updateProgress.mutate(buildPayload());
+    }
+  }, [updateProgress, buildPayload]);
 
   const stopTracking = useCallback(() => {
     if (intervalRef.current) {
@@ -225,14 +251,9 @@ export const useProgressUpdater = (
 
     // Send final update
     if (currentTimeRef.current > 0) {
-      updateProgress.mutate({
-        media_id: mediaId,
-        user_id: 1,
-        progress_seconds: currentTimeRef.current,
-        duration_seconds: durationSeconds,
-      });
+      updateProgress.mutate(buildPayload());
     }
-  }, [mediaId, durationSeconds, updateProgress]);
+  }, [updateProgress, buildPayload]);
 
   // Automatic cleanup on unmount
   useEffect(() => {
@@ -246,7 +267,9 @@ export const useProgressUpdater = (
   return {
     startTracking,
     updateCurrentTime,
+    updatePreferences,
     immediateUpdate,
+    immediateUpdateWithPreferences,
     stopTracking,
   };
 }

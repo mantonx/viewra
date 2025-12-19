@@ -9,6 +9,7 @@ import (
 
 // UpdateProgress updates or creates watch progress for a media item.
 // Automatically marks as watched if progress exceeds 90%.
+// Also updates playback preferences if provided in the request.
 func UpdateProgress(ctx context.Context, repo progress.Repository, req *UpdateProgressRequest) (*WatchProgressResponse, error) {
 	// Validate request
 	if err := validateMediaID(req.MediaID); err != nil {
@@ -27,41 +28,27 @@ func UpdateProgress(ctx context.Context, repo progress.Repository, req *UpdatePr
 		return nil, progress.ErrProgressExceedsDuration
 	}
 
-	// Try to get existing progress
-	existing, err := repo.GetByMediaIDAndUserID(ctx, req.MediaID, req.UserID)
-	if err != nil && err != progress.ErrProgressNotFound {
-		return nil, err
-	}
-
-	if existing != nil {
-		// Update existing progress
-		existing.UpdateProgress(req.ProgressSeconds)
-		existing.DurationSeconds = req.DurationSeconds
-
-		if err := repo.Update(ctx, existing); err != nil {
-			return nil, err
-		}
-
-		return toResponse(existing), nil
-	}
-
-	// Create new progress
-	newProgress := &progress.WatchProgress{
-		MediaID:         req.MediaID,
-		UserID:          req.UserID,
-		ProgressSeconds: req.ProgressSeconds,
-		DurationSeconds: req.DurationSeconds,
-		LastWatchedAt:   time.Now(),
+	// Build progress entity with preferences
+	prog := &progress.WatchProgress{
+		MediaID:               req.MediaID,
+		UserID:                req.UserID,
+		ProgressSeconds:       req.ProgressSeconds,
+		DurationSeconds:       req.DurationSeconds,
+		LastWatchedAt:         time.Now(),
+		SelectedQuality:       req.SelectedQuality,
+		SelectedAudioTrack:    req.SelectedAudioTrack,
+		SelectedSubtitleTrack: req.SelectedSubtitleTrack,
 	}
 
 	// Auto-mark as watched if threshold met
-	if newProgress.ShouldMarkWatched() {
-		newProgress.IsWatched = true
+	if prog.ShouldMarkWatched() {
+		prog.IsWatched = true
 	}
 
-	if err := repo.Create(ctx, newProgress); err != nil {
+	// Upsert handles both create and update, and preserves preferences via COALESCE
+	if err := repo.Upsert(ctx, prog); err != nil {
 		return nil, err
 	}
 
-	return toResponse(newProgress), nil
+	return toResponse(prog), nil
 }

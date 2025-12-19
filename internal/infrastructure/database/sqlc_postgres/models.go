@@ -635,13 +635,16 @@ type UserVideoPreference struct {
 }
 
 type WatchProgress struct {
-	ID          int32           `json:"id"`
-	MediaID     int32           `json:"media_id"`
-	UserID      sql.NullInt32   `json:"user_id"`
-	Position    float64         `json:"position"`
-	Duration    sql.NullFloat64 `json:"duration"`
-	Watched     sql.NullBool    `json:"watched"`
-	LastWatched sql.NullTime    `json:"last_watched"`
-	CreatedAt   sql.NullTime    `json:"created_at"`
-	UpdatedAt   sql.NullTime    `json:"updated_at"`
+	ID                    int32           `json:"id"`
+	MediaID               int32           `json:"media_id"`
+	UserID                sql.NullInt32   `json:"user_id"`
+	Position              float64         `json:"position"`
+	Duration              sql.NullFloat64 `json:"duration"`
+	Watched               sql.NullBool    `json:"watched"`
+	LastWatched           sql.NullTime    `json:"last_watched"`
+	CreatedAt             sql.NullTime    `json:"created_at"`
+	UpdatedAt             sql.NullTime    `json:"updated_at"`
+	SelectedQuality       sql.NullString  `json:"selected_quality"`
+	SelectedAudioTrack    sql.NullInt32   `json:"selected_audio_track"`
+	SelectedSubtitleTrack sql.NullInt32   `json:"selected_subtitle_track"`
 }

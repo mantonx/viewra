@@ -77,13 +77,19 @@ INSERT INTO watch_progress (
     watched,
     last_watched,
     created_at,
-    updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    updated_at,
+    selected_quality,
+    selected_audio_track,
+    selected_subtitle_track
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(media_id, user_id)
 DO UPDATE SET
     position = excluded.position,
     duration = excluded.duration,
     watched = excluded.watched,
     last_watched = excluded.last_watched,
-    updated_at = excluded.updated_at
+    updated_at = excluded.updated_at,
+    selected_quality = COALESCE(excluded.selected_quality, watch_progress.selected_quality),
+    selected_audio_track = COALESCE(excluded.selected_audio_track, watch_progress.selected_audio_track),
+    selected_subtitle_track = COALESCE(excluded.selected_subtitle_track, watch_progress.selected_subtitle_track)
 RETURNING *;

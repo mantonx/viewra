@@ -7,14 +7,19 @@
  */
 
 export interface GithubComMantonxViewraInternalApplicationTvTVEpisodeResponse {
+  /** Alternative ordering (for anime/DVD releases) */
+  absolute_number?: number
   air_date?: string
   audio_codec?: string
   bitrate?: number
   container_format?: string
+  content_rating?: string
   created_at?: string
   description?: string
   /** in seconds */
   duration?: number
+  dvd_episode?: number
+  dvd_season?: number
   episode?: number
   /** actual episode name */
   episode_title?: string
@@ -27,12 +32,20 @@ export interface GithubComMantonxViewraInternalApplicationTvTVEpisodeResponse {
   imdb_id?: string
   is_extra?: boolean
   library_id?: number
+  maturity_rating?: number
+  /** Additional metadata */
+  original_title?: string
+  rating?: number
+  rating_votes?: number
+  /** Ratings */
+  runtime_minutes?: number
   season?: number
   season_id?: number
   /** TV Episode-specific fields */
   show_title?: string
   /** filename */
   title?: string
+  tmdb_id?: number
   tvdb_id?: number
   updated_at?: string
   video_codec?: string

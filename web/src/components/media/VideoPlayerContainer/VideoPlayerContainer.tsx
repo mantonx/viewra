@@ -130,6 +130,7 @@ export const VideoPlayerContainer = ({
         availableQualities={playbackState.availableQualities}
         selectedQualityId={playbackState.selectedQualityId}
         onQualityChange={onQualityChange}
+        savedPreferences={playbackState.savedPreferences}
       />
       {overlay}
     </div>

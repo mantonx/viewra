@@ -17,6 +17,8 @@ export interface UseSubtitlesOptions {
   preferredLanguage?: string
   preferSDH?: boolean
   preferForced?: boolean
+  /** When true, skip auto-selection (caller will set subtitle via setCurrentSubtitle) */
+  skipAutoSelect?: boolean
 }
 
 export interface UseSubtitlesReturn {
@@ -49,6 +51,7 @@ export const useSubtitles = ({
   preferredLanguage = 'eng',
   preferSDH = false,
   preferForced = true,
+  skipAutoSelect = false,
 }: UseSubtitlesOptions): UseSubtitlesReturn => {
   const [currentSubtitleId, setCurrentSubtitleId] = useState<number | null>(null)
   const [hasAutoSelected, setHasAutoSelected] = useState(false)
@@ -162,6 +165,10 @@ export const useSubtitles = ({
 
   // Auto-select default subtitle when tracks become available
   useEffect(() => {
+    // Skip if caller will handle selection (e.g., restoring saved preference)
+    if (skipAutoSelect) {
+      return
+    }
     if (hasAutoSelected || availableSubtitles.length === 0 || currentSubtitleId !== null) {
       return
     }
@@ -172,7 +179,7 @@ export const useSubtitles = ({
       setCurrentSubtitleId(track.id)
     }
     setHasAutoSelected(true)
-  }, [availableSubtitles, currentSubtitleId, hasAutoSelected, findDefaultTrack])
+  }, [availableSubtitles, currentSubtitleId, hasAutoSelected, findDefaultTrack, skipAutoSelect])
 
   // Reset auto-selection state when tracks change completely (e.g., new media)
   useEffect(() => {
