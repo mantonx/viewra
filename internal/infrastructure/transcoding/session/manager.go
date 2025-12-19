@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os/exec"
 	"sync"
+	"time"
 
 	domainevents "github.com/mantonx/viewra/internal/domain/events"
 	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/hls"
@@ -435,4 +437,91 @@ func convertProbeToHLSVideoInfo(v *videoinfo.VideoInfo) *hls.VideoInfo {
 		return nil
 	}
 	return v.ToHLSVideoInfo()
+}
+
+// WarmupGPU pre-initializes GPU resources for HDR tone mapping.
+// This eliminates the 1-3 second first-run delay for Vulkan/OpenCL initialization.
+// Should be called once during server startup for NVENC/QSV with tone mapping enabled.
+// Runs asynchronously and logs the result.
+func (m *Manager) WarmupGPU() {
+	// Only warm up if we have hardware acceleration and tone mapping enabled
+	hwAccel := hls.HardwareAccel(m.hwAccel)
+	if hwAccel != hls.AccelNVENC && hwAccel != hls.AccelQSV {
+		m.logger.Debug("GPU warmup skipped - no NVENC/QSV hardware acceleration")
+		return
+	}
+
+	if m.config == nil || !m.config.ToneMappingEnabled {
+		m.logger.Debug("GPU warmup skipped - tone mapping not enabled")
+		return
+	}
+
+	backend := m.config.ToneMappingBackend
+	if backend == "" {
+		backend = "auto"
+	}
+
+	// Run warmup asynchronously to not block server startup
+	go func() {
+		start := time.Now()
+		m.logger.Info("Starting GPU warmup for HDR tone mapping",
+			"backend", backend,
+			"hw_accel", m.hwAccel)
+
+		var args []string
+		ffmpegPath := "ffmpeg"
+		if m.config.FFmpegPaths != nil && m.config.FFmpegPaths.FFmpeg != "" {
+			ffmpegPath = m.config.FFmpegPaths.FFmpeg
+		}
+
+		// Build a minimal FFmpeg command that initializes the GPU filter chain
+		// Uses lavfi color source to avoid needing an input file
+		switch backend {
+		case "vulkan":
+			// Initialize Vulkan device - this is what takes ~1.9s on first run
+			args = []string{
+				"-init_hw_device", "vulkan",
+				"-f", "lavfi", "-i", "color=black:s=64x64:d=0.1",
+				"-frames:v", "1",
+				"-f", "null", "-",
+			}
+		case "opencl", "auto":
+			// Initialize OpenCL device - this is what takes ~3s on first run
+			args = []string{
+				"-init_hw_device", "opencl",
+				"-f", "lavfi", "-i", "color=black:s=64x64:d=0.1",
+				"-frames:v", "1",
+				"-f", "null", "-",
+			}
+		default:
+			m.logger.Debug("GPU warmup skipped - backend doesn't need warmup",
+				"backend", backend)
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		cmd := exec.CommandContext(ctx, ffmpegPath, args...)
+
+		// Set library path if configured
+		if m.config.FFmpegPaths != nil && m.config.FFmpegPaths.LibPath != "" {
+			cmd.Env = append(cmd.Environ(), "LD_LIBRARY_PATH="+m.config.FFmpegPaths.LibPath)
+		}
+
+		err := cmd.Run()
+		elapsed := time.Since(start)
+
+		if err != nil {
+			m.logger.Warn("GPU warmup failed",
+				"backend", backend,
+				"error", err,
+				"elapsed_ms", elapsed.Milliseconds(),
+				"note", "First HDR transcode may have slower startup")
+		} else {
+			m.logger.Info("GPU warmup completed",
+				"backend", backend,
+				"elapsed_ms", elapsed.Milliseconds())
+		}
+	}()
 }

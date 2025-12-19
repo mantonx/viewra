@@ -1,5 +1,6 @@
 import type { AudioTrack, MediaMetadata } from '@/lib/types/video'
 import type { SubtitleTrack } from '@/lib/types/subtitles'
+import type { QualityOption } from '@/lib/hooks/useMediaPlayback'
 
 export interface VideoControlsProps {
   videoRef: React.RefObject<HTMLVideoElement | null>
@@ -10,10 +11,10 @@ export interface VideoControlsProps {
   isMuted: boolean
   isFullscreen: boolean
   isPiP: boolean
-  availableQualities: Array<{ height: number; bandwidth: number }>
-  currentQuality: number | null
-  currentBandwidth?: number | null
-  autoMode: boolean
+  /** Available quality options from backend (filtered by source resolution) */
+  availableQualities: QualityOption[]
+  /** Currently selected quality ID */
+  selectedQualityId: string | null
   availableAudioTracks: AudioTrack[]
   currentAudioTrack: number
   availableSubtitles: SubtitleTrack[]
@@ -27,8 +28,8 @@ export interface VideoControlsProps {
   onMuteToggle: () => void
   onFullscreenToggle: () => void
   onPiPToggle: () => void
-  onQualityChange: (height: number, bandwidth?: number) => void
-  onAutoToggle: () => void
+  /** Called when user selects a quality - triggers stream reload from current position */
+  onQualityChange: (qualityId: string) => void
   onAudioTrackChange: (trackId: number) => void
   onSubtitleChange: (trackId: number | null) => void
   onSpeedChange: (speed: number) => void

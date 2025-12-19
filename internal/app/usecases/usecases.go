@@ -19,6 +19,7 @@ import (
 	"github.com/mantonx/viewra/internal/application/scanjob"
 	"github.com/mantonx/viewra/internal/application/transcode"
 	"github.com/mantonx/viewra/internal/application/tv"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
 )
 
 // UseCases holds all application use cases organized by domain.
@@ -123,7 +124,7 @@ func BuildUseCases(
 		Music:     buildMusicUseCases(repos),
 		People:    buildPeopleUseCases(repos),
 		Images:    buildImageUseCases(repos, svcs, logger, cfg.Images.CacheDir),
-		Transcode: buildTranscodeUseCases(repos, svcs),
+		Transcode: buildTranscodeUseCases(repos, svcs, logger),
 		Progress:  progress.NewService(repos.Progress),
 		Analytics: analytics.NewService(repos.Analytics, logger),
 		ScanJob:   scanjob.NewService(repos.ScanJob, repos.Checkpoint, repos.ScanState, logger),
@@ -278,6 +279,7 @@ func buildImageUseCases(
 func buildTranscodeUseCases(
 	repos *repositories.Repositories,
 	svcs *services.Services,
+	logger *slog.Logger,
 ) *TranscodeUseCases {
 	if svcs.TranscodeQueue == nil {
 		return &TranscodeUseCases{}
@@ -286,7 +288,8 @@ func buildTranscodeUseCases(
 	createJob := transcode.NewCreateJobUseCase(repos.Transcode, svcs.TranscodeQueue)
 	getStatus := transcode.NewGetJobStatusUseCase(repos.Transcode)
 	serveManifest := transcode.NewServeManifestUseCase(repos.Media, svcs.SessionManager)
-	serveMasterPlaylist := transcode.NewServeMasterPlaylistUseCase(repos.Media)
+	qualityRecommender := profile.NewQualityRecommender(logger)
+	serveMasterPlaylist := transcode.NewServeMasterPlaylistUseCase(repos.Media, qualityRecommender)
 
 	return &TranscodeUseCases{
 		CreateJob:           createJob,

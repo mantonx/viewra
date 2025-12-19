@@ -188,6 +188,9 @@ func BuildServices(
 		cfg.Media.TranscodeOutputDir,
 	)
 
+	// Pre-warm GPU for HDR tone mapping (eliminates first-run delay)
+	sessionManager.WarmupGPU()
+
 	// Initialize auth services
 	passwordHasher := auth.NewPasswordHasher(nil) // Use default Argon2id params
 

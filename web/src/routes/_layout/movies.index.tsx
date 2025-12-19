@@ -108,7 +108,7 @@ const Movies = () => {
   }
 
   // Use the playback hook
-  const { playbackState, playMedia, stopPlayback } = useMediaPlayback()
+  const { playbackState, playMedia, stopPlayback, changeQuality } = useMediaPlayback()
 
   // Track movie fetched by direct URL navigation (not in infinite scroll list)
   const [directPlayMovie, setDirectPlayMovie] = useState<Movie | null>(null)
@@ -374,6 +374,7 @@ const Movies = () => {
       media={playingMovie}
       onClose={handleClosePlayer}
       onTimeUpdate={handleTimeUpdate}
+      onQualityChange={changeQuality}
     />
   )
 

@@ -300,8 +300,9 @@ func (s *TranscodeSession) WaitForManifest(timeout time.Duration) error {
 			return fmt.Errorf("ffmpeg process exited before creating manifest")
 		}
 
-		// Poll every 50ms for faster startup
-		time.Sleep(50 * time.Millisecond)
+		// Poll every 10ms for minimal startup latency
+		// This tight loop is acceptable since WaitForManifest is called once per session
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	return fmt.Errorf("timeout waiting for manifest file to be created")

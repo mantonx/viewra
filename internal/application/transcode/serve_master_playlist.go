@@ -30,6 +30,15 @@ type ServeMasterPlaylistRequest struct {
 	// User preferences for track selection
 	PreferredAudioLanguage    string // ISO 639-2 code (eng, fra, jpn, etc.)
 	PreferredSubtitleLanguage string // ISO 639-2 code or "off"
+
+	// Client capabilities for quality recommendation
+	ScreenWidth  int   // Screen width in pixels (accounting for device pixel ratio)
+	ScreenHeight int   // Screen height in pixels (accounting for device pixel ratio)
+	Bandwidth    int64 // Estimated bandwidth in bits per second
+
+	// QualityOverride allows user to manually select a specific quality
+	// If set, bypasses recommendation logic and uses this quality directly
+	QualityOverride string // e.g., "4k-25m", "1080p-10m", "720p-4m"
 }
 
 // buildVariantParams contains parameters passed to variant playlist URLs.
@@ -53,6 +62,20 @@ type ServeMasterPlaylistResponse struct {
 
 	// Reason explains why this strategy was chosen
 	Reason string
+
+	// AvailableQualities lists all quality options valid for this media (filtered by source resolution)
+	// Frontend uses this for the quality picker UI
+	AvailableQualities []QualityOption
+}
+
+// QualityOption represents a selectable quality for the frontend picker.
+type QualityOption struct {
+	ID          string `json:"id"`          // Quality ID (e.g., "1080p-10m", "4k-25m")
+	DisplayName string `json:"displayName"` // Human-readable name (e.g., "1080p (10 Mbps)")
+	Width       int    `json:"width"`
+	Height      int    `json:"height"`
+	Bandwidth   int    `json:"bandwidth"` // Video bitrate in bps
+	IsSelected  bool   `json:"isSelected"` // True if this is the currently selected quality
 }
 
 // MasterPlaylistStrategy indicates how to handle the master playlist request.
@@ -72,13 +95,15 @@ type ABRVariant = profile.ABRVariant
 
 // ServeMasterPlaylistUseCase handles generating the HLS master playlist.
 type ServeMasterPlaylistUseCase struct {
-	mediaRepo media.Repository
+	mediaRepo   media.Repository
+	recommender *profile.QualityRecommender
 }
 
 // NewServeMasterPlaylistUseCase creates a new use case.
-func NewServeMasterPlaylistUseCase(mediaRepo media.Repository) *ServeMasterPlaylistUseCase {
+func NewServeMasterPlaylistUseCase(mediaRepo media.Repository, recommender *profile.QualityRecommender) *ServeMasterPlaylistUseCase {
 	return &ServeMasterPlaylistUseCase{
-		mediaRepo: mediaRepo,
+		mediaRepo:   mediaRepo,
+		recommender: recommender,
 	}
 }
 
@@ -127,21 +152,216 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 		}, nil
 	}
 
-	// Build master playlist with strategy encoded in variant URLs
-	// This ensures HLS.js requests use the correct strategy even without codec headers
+	// Determine the quality to use
+	selectedQuality := uc.determineQuality(req, mediaItem)
+
+	// Build available qualities list (filtered by source resolution)
+	availableQualities := uc.buildAvailableQualities(mediaItem, selectedQuality)
+
+	// Build single-variant master playlist
 	variantParams := buildVariantParams{
 		startPosition:        req.StartPosition,
 		strategy:             streamStrategy,
 		supportedVideoCodecs: req.SupportedVideoCodecs,
 		audioTrackIndex:      req.AudioTrackIndex,
 	}
-	playlist := uc.buildMasterPlaylist(mediaItem, audioTracks, subtitleTracks, variantParams, req.PreferredAudioLanguage, req.PreferredSubtitleLanguage)
+	playlist := uc.buildSingleVariantPlaylist(mediaItem, selectedQuality, audioTracks, subtitleTracks, variantParams, req.PreferredAudioLanguage, req.PreferredSubtitleLanguage)
 
 	return &ServeMasterPlaylistResponse{
-		Strategy:        StrategyServePlaylist,
-		PlaylistContent: playlist,
-		Reason:          fmt.Sprintf("Master playlist generated with strategy: %s", streamStrategy),
+		Strategy:           StrategyServePlaylist,
+		PlaylistContent:    playlist,
+		Reason:             fmt.Sprintf("Single-variant playlist: %s (strategy: %s)", selectedQuality, streamStrategy),
+		AvailableQualities: availableQualities,
 	}, nil
+}
+
+// determineQuality selects the best quality based on client capabilities and source media.
+// Priority: 1) User override, 2) Recommendation based on capabilities, 3) Fallback to source-matched quality
+func (uc *ServeMasterPlaylistUseCase) determineQuality(req ServeMasterPlaylistRequest, mediaItem *media.Media) string {
+	// Priority 1: User explicitly selected a quality
+	if req.QualityOverride != "" {
+		// Validate the override exists
+		if _, ok := profile.GetABRVariant(req.QualityOverride); ok {
+			return req.QualityOverride
+		}
+		// Invalid override, fall through to recommendation
+	}
+
+	// Priority 2: Use recommender if we have client capabilities
+	if uc.recommender != nil && (req.ScreenWidth > 0 || req.ScreenHeight > 0 || req.Bandwidth > 0) {
+		caps := profile.ClientCapabilities{
+			ScreenWidth:      req.ScreenWidth,
+			ScreenHeight:     req.ScreenHeight,
+			NetworkSpeedMbps: float64(req.Bandwidth) / 1_000_000,
+		}
+
+		recommendation := uc.recommender.RecommendQuality(caps)
+		recommendedQuality := recommendation.Profile.ID
+
+		// Clamp to source resolution - don't recommend higher than source
+		recommendedQuality = uc.clampToSource(recommendedQuality, mediaItem)
+
+		return recommendedQuality
+	}
+
+	// Priority 3: Fallback - pick quality matching source resolution
+	return uc.getDefaultQualityForSource(mediaItem)
+}
+
+// clampToSource ensures the recommended quality doesn't exceed source resolution/bitrate.
+func (uc *ServeMasterPlaylistUseCase) clampToSource(qualityID string, mediaItem *media.Media) string {
+	variant, ok := profile.GetABRVariant(qualityID)
+	if !ok {
+		return qualityID
+	}
+
+	// If recommended quality is higher resolution than source, find a matching one
+	if variant.Height > mediaItem.Height {
+		return uc.getDefaultQualityForSource(mediaItem)
+	}
+
+	// If recommended bitrate is higher than source (with tolerance), reduce
+	if mediaItem.Bitrate > 0 && variant.Bandwidth > int(mediaItem.Bitrate*120/100) {
+		return uc.getDefaultQualityForSource(mediaItem)
+	}
+
+	return qualityID
+}
+
+// getDefaultQualityForSource returns the best quality that matches the source.
+func (uc *ServeMasterPlaylistUseCase) getDefaultQualityForSource(mediaItem *media.Media) string {
+	// Find variants that match source resolution
+	var bestMatch string
+	var bestBandwidth int
+
+	for _, variant := range profile.ABRLadder {
+		// Skip if higher than source
+		if variant.Height > mediaItem.Height {
+			continue
+		}
+
+		// For matching height, pick highest bandwidth that doesn't exceed source
+		if variant.Height == mediaItem.Height {
+			if mediaItem.Bitrate > 0 && variant.Bandwidth > int(mediaItem.Bitrate*120/100) {
+				continue
+			}
+			if variant.Bandwidth > bestBandwidth {
+				bestBandwidth = variant.Bandwidth
+				bestMatch = variant.ID
+			}
+		}
+	}
+
+	// If we found a match at source resolution, use it
+	if bestMatch != "" {
+		return bestMatch
+	}
+
+	// Fallback: find highest quality below source resolution
+	for i := len(profile.ABRLadder) - 1; i >= 0; i-- {
+		variant := profile.ABRLadder[i]
+		if variant.Height <= mediaItem.Height {
+			return variant.ID
+		}
+	}
+
+	// Ultimate fallback
+	return profile.Quality360p
+}
+
+// buildAvailableQualities returns all quality options valid for this media.
+// Qualities are filtered to not exceed source resolution or bitrate.
+func (uc *ServeMasterPlaylistUseCase) buildAvailableQualities(mediaItem *media.Media, selectedQuality string) []QualityOption {
+	var qualities []QualityOption
+
+	for _, variant := range profile.ABRLadder {
+		// Skip qualities higher than source resolution
+		if variant.Height > mediaItem.Height {
+			continue
+		}
+
+		// Skip qualities with bitrate significantly higher than source (with 20% tolerance)
+		if mediaItem.Bitrate > 0 && variant.Bandwidth > int(mediaItem.Bitrate*120/100) {
+			continue
+		}
+
+		qualities = append(qualities, QualityOption{
+			ID:          variant.ID,
+			DisplayName: fmt.Sprintf("%dp (%d Mbps)", variant.Height, variant.Bandwidth/1_000_000),
+			Width:       variant.Width,
+			Height:      variant.Height,
+			Bandwidth:   variant.Bandwidth,
+			IsSelected:  variant.ID == selectedQuality,
+		})
+	}
+
+	return qualities
+}
+
+// buildSingleVariantPlaylist creates an HLS master playlist with only one quality variant.
+// This is the new default behavior - backend picks optimal quality, frontend plays it.
+func (uc *ServeMasterPlaylistUseCase) buildSingleVariantPlaylist(_ *media.Media, qualityID string, audioTracks []*media.AudioTrack, subtitleTracks []*media.SubtitleTrack, params buildVariantParams, _ string, preferredSubtitleLang string) string {
+	variant, ok := profile.GetABRVariant(qualityID)
+	if !ok {
+		// Fallback to a safe default if quality ID is invalid
+		variant, _ = profile.GetABRVariant(profile.Quality720p4m)
+	}
+
+	// Build playlist header
+	playlist := "#EXTM3U\n"
+	playlist += "#EXT-X-VERSION:4\n"
+	playlist += "#EXT-X-INDEPENDENT-SEGMENTS\n\n"
+
+	// Add subtitle track renditions for text-based subtitles
+	subtitleGroupID := ""
+	textSubtitles := uc.filterTextSubtitles(subtitleTracks)
+	if len(textSubtitles) > 0 {
+		subtitleGroupID = "subs"
+		playlist += uc.buildSubtitleRenditions(textSubtitles, preferredSubtitleLang, params.startPosition)
+		playlist += "\n"
+	}
+
+	// Suppress unused variable warning - audio tracks available for future use
+	_ = audioTracks
+
+	// Build single video stream variant
+	streamInf := fmt.Sprintf(
+		"#EXT-X-STREAM-INF:BANDWIDTH=%d,RESOLUTION=%dx%d,CODECS=\"%s\",NAME=\"%s\"",
+		variant.Bandwidth,
+		variant.Width,
+		variant.Height,
+		variant.Codecs,
+		variant.ID,
+	)
+
+	// Reference subtitle group if we have text subtitles
+	if subtitleGroupID != "" {
+		streamInf += fmt.Sprintf(",SUBTITLES=\"%s\"", subtitleGroupID)
+	}
+
+	playlist += streamInf + "\n"
+
+	// Build variant URL with query parameters
+	variantURL := fmt.Sprintf("%s/playlist.m3u8", variant.ID)
+	queryParams := []string{}
+	if params.startPosition != "" {
+		queryParams = append(queryParams, "start="+params.startPosition)
+	}
+	if params.strategy != "" {
+		queryParams = append(queryParams, "strategy="+string(params.strategy))
+	}
+	if len(params.supportedVideoCodecs) > 0 {
+		queryParams = append(queryParams, "codecs="+strings.Join(params.supportedVideoCodecs, ","))
+	}
+	if params.audioTrackIndex >= 0 {
+		queryParams = append(queryParams, fmt.Sprintf("audioTrack=%d", params.audioTrackIndex))
+	}
+	if len(queryParams) > 0 {
+		variantURL += "?" + strings.Join(queryParams, "&")
+	}
+	playlist += variantURL + "\n"
+
+	return playlist
 }
 
 // buildVideoInfoFromDatabase creates a VideoInfo struct from database entities.
@@ -215,92 +435,6 @@ func buildVideoInfoFromDatabase(mediaItem *media.Media, audioTracks []*media.Aud
 	}
 
 	return info
-}
-
-// buildMasterPlaylist creates the HLS master playlist content with multi-audio and subtitle support.
-func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media, audioTracks []*media.AudioTrack, subtitleTracks []*media.SubtitleTrack, params buildVariantParams, preferredAudioLang string, preferredSubtitleLang string) string {
-	sourceHeight := mediaItem.Height
-	sourceWidth := mediaItem.Width
-	sourceBitrate := mediaItem.Bitrate
-
-	// Get ABR ladder filtered for this source
-	variants := uc.getFilteredABRLadder(sourceWidth, sourceHeight, sourceBitrate)
-
-	// Build playlist header
-	playlist := "#EXTM3U\n"
-	playlist += "#EXT-X-VERSION:4\n"
-	playlist += "#EXT-X-INDEPENDENT-SEGMENTS\n\n"
-
-	// NOTE: We intentionally do NOT add separate audio renditions (EXT-X-MEDIA:TYPE=AUDIO).
-	// The video segments already contain muxed audio with perfect A/V sync.
-	// Separate audio renditions cause sync issues because:
-	// 1. They require separate FFmpeg sessions with independent seeking
-	// 2. Audio keyframe alignment differs from video keyframe alignment
-	// 3. HLS.js ignores muxed audio when separate renditions are declared
-	//
-	// For multi-audio track selection, the frontend should request a new transcode
-	// session with the desired audio track muxed into the video segments.
-	audioGroupID := ""
-	_ = audioTracks // Available for future use (track switching via session restart)
-
-	// Add subtitle track renditions for text-based subtitles
-	// Bitmap subtitles (PGS, VobSub) are handled client-side via WebP overlay
-	subtitleGroupID := ""
-	textSubtitles := uc.filterTextSubtitles(subtitleTracks)
-	if len(textSubtitles) > 0 {
-		subtitleGroupID = "subs"
-		playlist += uc.buildSubtitleRenditions(textSubtitles, preferredSubtitleLang, params.startPosition)
-		playlist += "\n"
-	}
-
-	// Build video stream variants
-	for _, variant := range variants {
-		streamInf := fmt.Sprintf(
-			"#EXT-X-STREAM-INF:BANDWIDTH=%d,RESOLUTION=%dx%d,CODECS=\"%s\",NAME=\"%s\"",
-			variant.Bandwidth,
-			variant.Width,
-			variant.Height,
-			variant.Codecs,
-			variant.ID,
-		)
-
-		// Reference audio group if we have multiple audio tracks
-		if audioGroupID != "" {
-			streamInf += fmt.Sprintf(",AUDIO=\"%s\"", audioGroupID)
-		}
-
-		// Reference subtitle group if we have text subtitles
-		if subtitleGroupID != "" {
-			streamInf += fmt.Sprintf(",SUBTITLES=\"%s\"", subtitleGroupID)
-		}
-
-		playlist += streamInf + "\n"
-
-		// Build variant URL with query parameters including strategy, codecs, and audio track
-		// This ensures HLS.js requests use the correct strategy without needing headers
-		variantURL := fmt.Sprintf("%s/playlist.m3u8", variant.ID)
-		queryParams := []string{}
-		if params.startPosition != "" {
-			queryParams = append(queryParams, "start="+params.startPosition)
-		}
-		if params.strategy != "" {
-			queryParams = append(queryParams, "strategy="+string(params.strategy))
-		}
-		if len(params.supportedVideoCodecs) > 0 {
-			queryParams = append(queryParams, "codecs="+strings.Join(params.supportedVideoCodecs, ","))
-		}
-		// Include audio track selection for multi-audio support
-		// Only include if non-default (>= 0) since -1 means use default first track
-		if params.audioTrackIndex >= 0 {
-			queryParams = append(queryParams, fmt.Sprintf("audioTrack=%d", params.audioTrackIndex))
-		}
-		if len(queryParams) > 0 {
-			variantURL += "?" + strings.Join(queryParams, "&")
-		}
-		playlist += variantURL + "\n\n"
-	}
-
-	return playlist
 }
 
 // filterTextSubtitles returns only text-based subtitles that can be converted to WebVTT.
@@ -499,59 +633,3 @@ func getLanguageName(iso6392 string) string {
 	return "Unknown"
 }
 
-// getFilteredABRLadder returns quality variants appropriate for the source media.
-// Sources are mapped to the nearest appropriate tier based on their resolution and bitrate.
-// No "original" quality - sources fall into the appropriate tier for consistent caching.
-func (uc *ServeMasterPlaylistUseCase) getFilteredABRLadder(sourceWidth, sourceHeight int, sourceBitrate int64) []ABRVariant {
-	// Use the shared ABR ladder from profile package (single source of truth)
-	return uc.filterVariants(profile.ABRLadder, sourceWidth, sourceHeight, sourceBitrate)
-}
-
-// filterVariants returns all quality variants appropriate for the source media.
-// Includes all qualities at or below the source resolution, giving users full control
-// over quality selection while HLS.js ABR handles automatic switching.
-func (uc *ServeMasterPlaylistUseCase) filterVariants(variants []ABRVariant, sourceWidth, sourceHeight int, sourceBitrate int64) []ABRVariant {
-	var filtered []ABRVariant
-
-	for i := range variants {
-		variant := &variants[i]
-
-		// Skip qualities higher than source resolution
-		if sourceHeight > 0 && sourceWidth > 0 {
-			is4KSource := sourceWidth >= 3840
-			is4KVariant := variant.Width >= 3840
-
-			// Skip 4K variants if source is not 4K
-			if is4KVariant && !is4KSource {
-				continue
-			}
-
-			// For non-4K variants, skip if higher than source height
-			if !is4KVariant && variant.Height > sourceHeight {
-				continue
-			}
-		} else {
-			// Source resolution unknown - include up to 1080p as safe default
-			if variant.Height > 1080 {
-				continue
-			}
-		}
-
-		// Skip variants with bitrate significantly higher than source (allow 20% tolerance)
-		// Only skip if we know the source bitrate and the variant is at the same resolution
-		if sourceBitrate > 0 && variant.Height == sourceHeight {
-			if int64(variant.Bandwidth) > (sourceBitrate * 120 / 100) {
-				continue
-			}
-		}
-
-		filtered = append(filtered, *variant)
-	}
-
-	// Fallback: return at least the lowest quality if nothing matched
-	if len(filtered) == 0 && len(variants) > 0 {
-		return []ABRVariant{variants[0]}
-	}
-
-	return filtered
-}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { getProgressSeconds } from '../utils'
 import { API_BASE_URL } from '@/lib/config'
 import { logger } from '@/lib/utils/logger'
@@ -8,18 +8,34 @@ import type { GithubComMantonxViewraInternalApplicationMediaMediaResponse as Med
 
 type TranscodeState = 'idle' | 'checking' | 'ready' | 'direct'
 
+/** Quality option returned from backend, filtered by source resolution */
+export interface QualityOption {
+  id: string          // Quality ID (e.g., "1080p-10m", "4k-25m")
+  displayName: string // Human-readable name (e.g., "1080p (10 Mbps)")
+  width: number
+  height: number
+  bandwidth: number   // Video bitrate in bps
+  isSelected: boolean // True if this is the currently selected quality
+}
+
 export interface PlaybackState {
   isPlaying: boolean
   mediaId: number | null
   streamUrl: string | null
   initialPosition: number
   transcodeState: TranscodeState
+  /** Available quality options for this media (filtered by source resolution) */
+  availableQualities: QualityOption[]
+  /** Currently selected quality ID */
+  selectedQualityId: string | null
 }
 
 interface UseMediaPlaybackReturn {
   playbackState: PlaybackState
   playMedia: (mediaId: number, media: Media, urlTime?: number) => Promise<void>
   stopPlayback: () => void
+  /** Change quality - rebuilds URL with ?quality= and reloads stream from current position */
+  changeQuality: (qualityId: string, currentPosition: number) => Promise<void>
 }
 
 // Supported containers - detected from browser capabilities
@@ -38,12 +54,86 @@ logger.debug('Detected codec support (sync):', {
   av1: codecSupport.av1.supported,
 })
 
+/**
+ * Build master manifest URL with all necessary query parameters
+ */
+const buildManifestUrl = (
+  mediaId: number,
+  startPosition: number,
+  qualityOverride?: string
+): string => {
+  const params = new URLSearchParams()
+
+  if (startPosition > 0) {
+    params.set('start', String(startPosition))
+  }
+
+  // Codec support
+  params.set('codecs', getSupportedCodecsHeader(codecSupport))
+  params.set('containers', getSupportedContainersHeader())
+
+  // Client capabilities for quality recommendation
+  const screenWidth = Math.round(window.screen.width * window.devicePixelRatio)
+  const screenHeight = Math.round(window.screen.height * window.devicePixelRatio)
+  params.set('screenWidth', String(screenWidth))
+  params.set('screenHeight', String(screenHeight))
+
+  // Bandwidth estimate from Navigator Connection API
+  const connection = (navigator as { connection?: { downlink?: number } }).connection
+  if (connection?.downlink && connection.downlink > 0) {
+    const bandwidthBps = Math.round(connection.downlink * 1_000_000)
+    params.set('bandwidth', String(bandwidthBps))
+  }
+
+  // Quality override (user manually selected)
+  if (qualityOverride) {
+    params.set('quality', qualityOverride)
+  }
+
+  return `${API_BASE_URL}/api/media/${mediaId}/hls/master.m3u8?${params.toString()}`
+}
+
+/**
+ * Fetch manifest and parse available qualities from response header
+ */
+const fetchManifestWithQualities = async (
+  manifestUrl: string
+): Promise<{ qualities: QualityOption[]; selectedId: string | null } | null> => {
+  const response = await authFetch(manifestUrl, { redirect: 'manual' })
+
+  // Direct play redirect - no qualities needed
+  if (response.status === 302 || response.type === 'opaqueredirect') {
+    return null
+  }
+
+  if (response.status !== 200) {
+    return null
+  }
+
+  // Parse qualities from header
+  const qualitiesHeader = response.headers.get('X-Available-Qualities')
+  if (!qualitiesHeader) {
+    return { qualities: [], selectedId: null }
+  }
+
+  try {
+    const qualities = JSON.parse(qualitiesHeader) as QualityOption[]
+    const selected = qualities.find(q => q.isSelected)
+    return { qualities, selectedId: selected?.id ?? null }
+  } catch (e) {
+    logger.warn('Failed to parse available qualities header:', e)
+    return { qualities: [], selectedId: null }
+  }
+}
+
 export const useMediaPlayback = (): UseMediaPlaybackReturn => {
   const [isPlaying, setIsPlaying] = useState(false)
   const [mediaId, setMediaId] = useState<number | null>(null)
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
   const [initialPosition, setInitialPosition] = useState(0)
   const [transcodeState, setTranscodeState] = useState<TranscodeState>('idle')
+  const [availableQualities, setAvailableQualities] = useState<QualityOption[]>([])
+  const [selectedQualityId, setSelectedQualityId] = useState<string | null>(null)
 
   const fallbackToDirectStream = (id: number) => {
     const directUrl = `${API_BASE_URL}/api/stream/${id}`
@@ -54,25 +144,20 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
 
   const playMedia = async (id: number, _media: Media, urlTime?: number) => {
     setMediaId(id)
-    setIsPlaying(true) // Show player immediately with loading state
+    setIsPlaying(true)
     setTranscodeState('checking')
 
-    // Determine resume position: URL time takes precedence, then saved progress
-    // Fetch progress in parallel with other setup to minimize perceived latency
+    // Determine resume position
     let resumePosition = 0
 
     if (urlTime !== undefined && urlTime > 0) {
-      // URL time specified - use it directly (from bookmarked link)
       resumePosition = urlTime
     } else {
-      // Start progress fetch - we'll await it in parallel with manifest check
       const progressPromise = authFetch(`/api/progress/${id}`)
         .then(async (response) => {
           const progressData = response.ok ? await response.json() : null
           const progressSecs = progressData ? getProgressSeconds(progressData) : 0
           const durationSecs = progressData?.duration_seconds ?? 0
-
-          // Resume unless user finished watching (within 1 second of end)
           const isNearEnd = durationSecs > 0 && progressSecs >= durationSecs - 1
           return (progressSecs > 0 && !isNearEnd) ? progressSecs : 0
         })
@@ -86,26 +171,12 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
 
     setInitialPosition(resumePosition)
 
-    // Build master manifest URL with query parameters
-    // We pass codec support via URL params because custom headers may not survive
-    // CORS preflight in all browsers, especially with redirect: 'manual'
-    const params = new URLSearchParams()
-    if (resumePosition > 0) {
-      params.set('start', String(resumePosition))
-    }
-    // Use module-level codec detection (instant, no async wait)
-    params.set('codecs', getSupportedCodecsHeader(codecSupport))
-    params.set('containers', getSupportedContainersHeader())
+    const manifestUrl = buildManifestUrl(id, resumePosition)
 
-    const manifestUrl = `${API_BASE_URL}/api/media/${id}/hls/master.m3u8?${params.toString()}`
-
-    // Fetch manifest (enables direct play for H.265/VP9/AV1)
     try {
-      const response = await authFetch(manifestUrl, {
-        redirect: 'manual',
-      })
+      const response = await authFetch(manifestUrl, { redirect: 'manual' })
 
-      // Handle Direct Play (302 redirect) - compatible video, no transcoding needed
+      // Direct Play (302 redirect)
       if (response.status === 302 || response.type === 'opaqueredirect') {
         const directUrl = `${API_BASE_URL}/api/stream/${id}`
         setStreamUrl(directUrl)
@@ -113,14 +184,25 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
         return
       }
 
-      // Handle manifest ready (200 OK) - instant manifest generation
+      // Manifest ready (200 OK)
       if (response.status === 200) {
+        const qualitiesHeader = response.headers.get('X-Available-Qualities')
+        if (qualitiesHeader) {
+          try {
+            const qualities = JSON.parse(qualitiesHeader) as QualityOption[]
+            setAvailableQualities(qualities)
+            const selected = qualities.find(q => q.isSelected)
+            setSelectedQualityId(selected?.id ?? null)
+          } catch (e) {
+            logger.warn('Failed to parse available qualities header:', e)
+          }
+        }
+
         setStreamUrl(manifestUrl)
         setTranscodeState('ready')
         return
       }
 
-      // Any other status - fall back to direct stream
       logger.warn('Unexpected manifest response status:', response.status)
       fallbackToDirectStream(id)
     } catch (error) {
@@ -129,12 +211,51 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
     }
   }
 
+  /**
+   * Change quality - rebuilds URL with ?quality= override and reloads from current position.
+   * This triggers a new FFmpeg session starting from the current playback position.
+   */
+  const changeQuality = useCallback(async (qualityId: string, currentPosition: number) => {
+    if (!mediaId) {
+      logger.warn('Cannot change quality: no media playing')
+      return
+    }
+
+    logger.info('[Playback] Changing quality', { qualityId, currentPosition })
+
+    // Build new URL with quality override and current position
+    const newManifestUrl = buildManifestUrl(mediaId, currentPosition, qualityId)
+
+    try {
+      // Fetch to verify and get updated qualities
+      const result = await fetchManifestWithQualities(newManifestUrl)
+
+      if (result) {
+        // Update qualities with new selection
+        const updatedQualities = result.qualities.map(q => ({
+          ...q,
+          isSelected: q.id === qualityId,
+        }))
+        setAvailableQualities(updatedQualities)
+        setSelectedQualityId(qualityId)
+      }
+
+      // Update stream URL - this will trigger HLS.js to reload
+      setInitialPosition(currentPosition)
+      setStreamUrl(newManifestUrl)
+    } catch (error) {
+      logger.error('Error changing quality:', error)
+    }
+  }, [mediaId])
+
   const stopPlayback = () => {
     setIsPlaying(false)
     setMediaId(null)
     setStreamUrl(null)
     setTranscodeState('idle')
     setInitialPosition(0)
+    setAvailableQualities([])
+    setSelectedQualityId(null)
   }
 
   return {
@@ -144,8 +265,11 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
       streamUrl,
       initialPosition,
       transcodeState,
+      availableQualities,
+      selectedQualityId,
     },
     playMedia,
     stopPlayback,
+    changeQuality,
   }
 }

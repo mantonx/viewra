@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { formatTime } from '@/lib/utils'
 import { NerdMenu } from '../NerdMenu'
 import { QualitySelector } from '../QualitySelector'
@@ -7,48 +7,31 @@ import { SubtitleSelector } from '../SubtitleSelector'
 import { AudioSelector } from '../AudioSelector'
 import type { VideoControlsProps } from './VideoControls.types'
 
-// Format bandwidth to human readable string
-const formatBandwidth = (bps: number): string => {
-  if (bps >= 1_000_000) {
-    return `${(bps / 1_000_000).toFixed(1)} Mbps`
-  }
-  return `${(bps / 1_000).toFixed(0)} kbps`
-}
+import type { QualityOption } from '@/lib/hooks/useMediaPlayback'
 
-// Quality indicator component - shows current quality with Original badge when applicable
+// Quality indicator component - shows current quality with selected indicator
 const QualityIndicator = ({
-  currentQuality,
-  currentBandwidth,
+  selectedQuality,
   availableQualities,
 }: {
-  currentQuality: number
-  currentBandwidth: number | null
-  availableQualities: { height: number; bandwidth: number }[]
+  selectedQuality: QualityOption | null
+  availableQualities: QualityOption[]
 }) => {
-  // Find the original quality (highest resolution + highest bitrate at that resolution)
-  const originalQuality = useMemo(() => {
-    if (availableQualities.length === 0) return null
-    const maxHeight = Math.max(...availableQualities.map(q => q.height))
-    const atMaxHeight = availableQualities.filter(q => q.height === maxHeight)
-    const maxBandwidth = Math.max(...atMaxHeight.map(q => q.bandwidth))
-    return { height: maxHeight, bandwidth: maxBandwidth }
-  }, [availableQualities])
+  if (!selectedQuality) return null
 
-  const isOriginal = originalQuality &&
-    currentQuality === originalQuality.height &&
-    currentBandwidth === originalQuality.bandwidth
+  // Check if this is the highest quality (original)
+  const maxHeight = Math.max(...availableQualities.map(q => q.height), 0)
+  const isOriginal = selectedQuality.height === maxHeight
 
   return (
     <div className="text-xs text-white/50 hidden lg:flex items-center gap-1.5 ml-2">
       <span className={`w-1.5 h-1.5 rounded-full ${isOriginal ? 'bg-amber-400' : 'bg-green-400'} animate-pulse`} />
       <span>
-        {currentQuality}p
+        {selectedQuality.height}p
         {isOriginal && <span className="text-amber-400/80 ml-1">✦</span>}
-        {currentBandwidth && (
-          <span className="text-white/40 ml-1">
-            ({formatBandwidth(currentBandwidth)})
-          </span>
-        )}
+        <span className="text-white/40 ml-1">
+          ({Math.round(selectedQuality.bandwidth / 1_000_000)} Mbps)
+        </span>
       </span>
     </div>
   )
@@ -64,9 +47,7 @@ export const VideoControls = ({
   isFullscreen,
   isPiP,
   availableQualities,
-  currentQuality,
-  currentBandwidth,
-  autoMode,
+  selectedQualityId,
   availableAudioTracks,
   currentAudioTrack,
   availableSubtitles,
@@ -81,13 +62,14 @@ export const VideoControls = ({
   onFullscreenToggle,
   onPiPToggle,
   onQualityChange,
-  onAutoToggle,
   onAudioTrackChange,
   onSubtitleChange,
   onSpeedChange,
   onSkip,
   onToggleStats,
 }: VideoControlsProps) => {
+  // Find the currently selected quality option
+  const selectedQuality = availableQualities.find(q => q.id === selectedQualityId) ?? null
   const [showControls, setShowControls] = useState(true)
   const [isDragging, setIsDragging] = useState(false)
   const [hoverTime, setHoverTime] = useState<number | null>(null)
@@ -358,10 +340,9 @@ export const VideoControls = ({
             </div>
 
             {/* Current quality indicator - subtle display of what's playing */}
-            {currentQuality && currentQuality > 0 && (
+            {selectedQuality && (
               <QualityIndicator
-                currentQuality={currentQuality}
-                currentBandwidth={currentBandwidth ?? null}
+                selectedQuality={selectedQuality}
                 availableQualities={availableQualities}
               />
             )}
@@ -375,12 +356,9 @@ export const VideoControls = ({
             {/* Quality selector */}
             {availableQualities.length > 0 && (
               <QualitySelector
-                currentQuality={currentQuality}
-                currentBandwidth={currentBandwidth}
                 availableQualities={availableQualities}
-                autoMode={autoMode}
+                selectedQualityId={selectedQualityId}
                 onQualityChange={onQualityChange}
-                onAutoToggle={onAutoToggle}
               />
             )}
 

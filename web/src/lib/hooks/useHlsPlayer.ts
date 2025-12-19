@@ -1,14 +1,13 @@
 /**
  * useHlsPlayer Hook
  *
- * Manages HLS.js instance lifecycle, quality levels, audio tracks, and error handling.
+ * Manages HLS.js instance lifecycle, tracks, and error handling.
  *
- * Quality Control Model (Simplified):
- * - Backend recommendation sets `startLevel` (initial quality hint)
- * - HLS.js ABR handles automatic quality switching (currentLevel = -1)
- * - User can manually select quality (currentLevel = specific index)
- *
- * This removes the previous competing systems that caused race conditions.
+ * Single-Quality Architecture:
+ * - Backend picks optimal quality based on client capabilities (screen size, bandwidth)
+ * - Master playlist contains only ONE variant (no HLS.js ABR decision)
+ * - Quality changes trigger a full stream reload via URL rebuild
+ * - Each quality change restarts FFmpeg from current position
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
@@ -102,7 +101,7 @@ const initializeStreamOffset = (
 }
 
 /**
- * Find the best matching HLS level for a quality recommendation
+ * Find the best matching HLS level for a quality selection
  */
 const findRecommendedLevel = (
   levels: Hls['levels'],
@@ -111,7 +110,7 @@ const findRecommendedLevel = (
 ): number => {
   if (levels.length === 0) {return -1}
 
-  // Find all levels at the recommended height
+  // Find all levels at the requested height
   const levelsAtHeight = levels
     .map((level, index) => ({ level, index }))
     .filter((item) => item.level.height === height)
@@ -133,7 +132,7 @@ const findRecommendedLevel = (
     return sorted[0].index
   }
 
-  // No levels at recommended height - find closest height
+  // No levels at requested height - find closest height
   const sortedLevels = levels
     .map((level, index) => ({
       level,
@@ -175,27 +174,23 @@ export const useHlsPlayer = ({
   onFragLoadedRef.current = onFragLoaded
 
   /**
-   * Change quality level manually
-   * Setting height=0 enables auto mode (HLS.js ABR)
+   * Change quality level (legacy - not used in single-quality mode)
+   *
+   * In single-quality mode, quality changes happen at the URL level (triggering
+   * a new FFmpeg session), not at the HLS.js level. This function remains for
+   * potential future multi-variant playlist support.
    */
   const changeQuality = useCallback((height: number, bandwidth?: number): number | null => {
     const hls = hlsRef.current
     if (!hls) {return null}
 
-    if (height === 0) {
-      // Auto mode - enable HLS.js ABR
-      hls.currentLevel = -1
-      logger.info('[HLS] Enabled auto quality (ABR)')
-      return -1
-    }
-
-    // Manual mode - find and set specific level
+    // Find and set specific level
     const levelIndex = findRecommendedLevel(hls.levels, height, bandwidth)
 
     if (levelIndex !== -1) {
       hls.currentLevel = levelIndex
       const selectedLevel = hls.levels[levelIndex]
-      logger.info('[HLS] Manual quality selected', {
+      logger.info('[HLS] Level selected', {
         height: selectedLevel.height,
         bitrate: selectedLevel.bitrate,
         levelIndex,
@@ -268,22 +263,21 @@ export const useHlsPlayer = ({
       return
     }
 
-    // Get bandwidth estimate instantly from Navigator Connection API
-    // This avoids the slow speed test - HLS.js ABR will refine during playback
+    // Get bandwidth estimate from Navigator Connection API for initial buffer sizing
+    // In single-quality mode, this helps HLS.js with buffer decisions (not quality selection)
     const connection = (navigator as { connection?: { downlink?: number } }).connection
-    let abrBandwidthEstimate = 20_000_000 // Default 20 Mbps (reasonable for modern connections)
+    let bandwidthEstimate = 20_000_000 // Default 20 Mbps (reasonable for modern connections)
 
     if (connection?.downlink && connection.downlink > 0) {
       // Navigator API gives Mbps, convert to bps for HLS.js
-      // Add 20% headroom so ABR picks appropriate quality
-      abrBandwidthEstimate = connection.downlink * 1_000_000 * 1.2
-      logger.info('[HLS] Using navigator.connection for ABR estimate', {
+      bandwidthEstimate = connection.downlink * 1_000_000 * 1.2
+      logger.info('[HLS] Bandwidth estimate from navigator.connection', {
         downlinkMbps: connection.downlink,
-        abrEstimate: abrBandwidthEstimate,
+        estimate: bandwidthEstimate,
       })
     } else {
       logger.info('[HLS] Navigator connection API unavailable, using default', {
-        abrEstimate: abrBandwidthEstimate,
+        estimate: bandwidthEstimate,
       })
     }
 
@@ -303,11 +297,10 @@ export const useHlsPlayer = ({
       nudgeOffset: HLS_CONFIG.NUDGE_OFFSET,
       nudgeMaxRetry: HLS_CONFIG.NUDGE_MAX_RETRY,
       startFragPrefetch: HLS_CONFIG.START_FRAG_PREFETCH,
-      // ABR configuration:
-      // - startLevel=-1: Let ABR choose based on bandwidth estimate
-      // - abrEwmaDefaultEstimate: Our backend-recommended bandwidth
-      startLevel: -1,
-      abrEwmaDefaultEstimate: abrBandwidthEstimate,
+      // Single-quality playback: Backend picks optimal quality, we just play it
+      // startLevel=0 means play the first (and only) variant in the master playlist
+      startLevel: 0,
+      abrEwmaDefaultEstimate: bandwidthEstimate, // Helps with buffer decisions
       xhrSetup: (xhr, _url) => {
         const authHeaders = getAuthHeaders()
         if (authHeaders['Authorization']) {
@@ -317,11 +310,7 @@ export const useHlsPlayer = ({
     })
     hlsRef.current = hls
 
-    // Load source and attach to video
-    hls.loadSource(streamUrl)
-    hls.attachMedia(video)
-
-    // Handle manifest parsed - extract quality levels and apply recommendation
+    // Handle manifest parsed - extract quality levels for UI
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       const levels = hls.levels
 
@@ -350,12 +339,12 @@ export const useHlsPlayer = ({
 
         setAvailableQualities(qualities)
 
-        // Log what ABR selected based on our bandwidth estimate
-        const currentLevel = hls.currentLevel >= 0 ? hls.currentLevel : hls.startLevel
-        if (currentLevel >= 0 && levels[currentLevel]) {
-          const level = levels[currentLevel]
-          logger.info('[HLS] ABR selected initial level', {
-            levelIndex: currentLevel,
+        // Log the quality being played (single-quality mode - backend selected)
+        const initialLevel = hls.startLevel >= 0 ? hls.startLevel : hls.firstLevel
+        if (initialLevel >= 0 && levels[initialLevel]) {
+          const level = levels[initialLevel]
+          logger.info('[HLS] Playing quality', {
+            levelIndex: initialLevel,
             height: level.height,
             bitrate: level.bitrate,
           })
@@ -399,7 +388,7 @@ export const useHlsPlayer = ({
         .catch(() => { /* Autoplay blocked */ })
     })
 
-    // Track quality level changes (from HLS.js ABR or manual selection)
+    // Track quality level changes
     hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
       const level = hls.levels[data.level]
       if (level?.height) {
@@ -408,7 +397,6 @@ export const useHlsPlayer = ({
         logger.debug('[HLS] Level switched', {
           height: level.height,
           bitrate: level.bitrate,
-          isAuto: hls.currentLevel === -1,
         })
       }
     })
@@ -502,14 +490,16 @@ export const useHlsPlayer = ({
       }
     })
 
+    // Load source and attach to video
+    hls.loadSource(streamUrl)
+    hls.attachMedia(video)
+
     return () => {
-      if (hls) {
-        hls.destroy()
-        hlsRef.current = null
-      }
+      hls.destroy()
+      hlsRef.current = null
     }
   // Note: onError and onFragLoaded are stored in refs to avoid triggering re-initialization
-   
+
   }, [streamUrl, initialPosition, isHlsStream, videoRef])
 
   return {

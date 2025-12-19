@@ -70,8 +70,14 @@ type TranscodeConfig struct {
 	ToneMappingAlgorithm string
 
 	// ToneMappingBackend specifies which tone mapping backend to use
-	// Options: auto, libplacebo, opencl, vaapi, cpu
-	// auto = libplacebo if available, else OpenCL/VAAPI/CPU based on hardware
+	// Options: auto, vulkan, opencl, cuda, libplacebo, vaapi, cpu
+	// - auto: OpenCL for NVENC (3s first run, ~1s cached), native for VAAPI/QSV
+	// - vulkan: Vulkan + libplacebo (~1.9s consistent startup, best quality bt.2390)
+	// - opencl: OpenCL tone mapping (default for NVENC)
+	// - cuda: tonemap_cuda (fastest, but has Dolby Vision issues)
+	// - libplacebo: CPU-based libplacebo (high quality, slower)
+	// - vaapi: VAAPI native tone mapping (Intel/AMD)
+	// - cpu: Software fallback (zscale + tonemap)
 	// Environment variable: TONE_MAPPING_BACKEND (default: auto)
 	ToneMappingBackend string
 

@@ -52,16 +52,22 @@ func (s *TranscodeSession) buildFFmpegArgs(params StartParams) []string {
 	if hwAccel != hls.AccelNone && strategy == "transcode" {
 		builder.AddHardwareAccel(hls.GetHardwareAccelArgsWithDevice(hwAccel, params.HWDevice))
 
-		// For NVENC/QSV with HDR content, initialize OpenCL device for GPU tone mapping
-		// OpenCL is the default backend for NVENC (tonemap_cuda has issues with Dolby Vision)
+		// For NVENC/QSV with HDR content, initialize GPU device for tone mapping
+		// Backend selection: vulkan (consistent startup), opencl (default), cuda (fastest if available)
 		if (hwAccel == hls.AccelNVENC || hwAccel == hls.AccelQSV) && params.Config.ToneMappingEnabled && params.VideoInfo != nil && params.VideoInfo.IsHDR {
 			backend := params.Config.ToneMappingBackend
 			if backend == "" {
 				backend = "auto"
 			}
-			if backend == "opencl" || backend == "auto" {
+			switch backend {
+			case "vulkan":
+				// Vulkan + libplacebo: consistent ~1.9s startup, best quality bt.2390
+				builder.AddVulkanDevice().AddVulkanFilterDevice()
+			case "opencl", "auto":
+				// OpenCL: 3s first run, ~1s cached (default)
 				builder.AddOpenCLDevice().AddOpenCLFilterDevice()
 			}
+			// cuda and libplacebo (CPU) backends don't need device initialization here
 		}
 	}
 
@@ -72,16 +78,18 @@ func (s *TranscodeSession) buildFFmpegArgs(params StartParams) []string {
 	// For all remux strategies (pure remux, remux_audio, remux_hevc), we want to:
 	// 1. Skip to the nearest keyframe immediately (faster startup)
 	// 2. Align audio with video keyframes (proper A/V sync)
-	// For transcode, we want accurate seeking since we'll re-encode anyway.
 	isRemuxStrategy := strategy == "remux" || strategy == "remux_audio" || strategy == "remux_hevc"
 
-	// Add fast input options for remux to reduce startup latency.
-	// For transcode this is handled differently due to filter chain requirements.
-	if isRemuxStrategy {
-		builder.AddFastInputOptions()
-	}
+	// Add fast input options to reduce startup latency by limiting input analysis.
+	// This applies to BOTH remux and transcode strategies - saves 500ms-1s on startup.
+	// The -analyzeduration and -probesize limits are safe for transcoding since
+	// we only need enough data to detect streams, not full container analysis.
+	builder.AddFastInputOptions()
 
 	builder.AddSeekPosition(int(s.StartPosition))
+	// Use -noaccurate_seek for remux strategies only.
+	// For transcode, accurate seeking is fine since we re-encode anyway,
+	// and the fast input options already provide the main startup benefit.
 	if isRemuxStrategy {
 		builder.AddNoAccurateSeek()
 	}

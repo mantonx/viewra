@@ -10,14 +10,31 @@ import (
 //
 // Filter priority for NVENC:
 //  1. tonemap_cuda - CUDA-native, fastest (no memory transfers)
-//  2. libplacebo - High quality via Vulkan (requires GPU→CPU→GPU)
-//  3. tonemap_opencl - OpenCL fallback (requires GPU→CPU→GPU)
+//  2. vulkan - Vulkan + libplacebo (consistent ~1.9s startup, best quality)
+//  3. tonemap_opencl - OpenCL fallback (3s first run, ~1s cached)
+//  4. libplacebo - CPU path (high quality, slower)
 func (b *Builder) buildToneMappingFilter(hwAccel HardwareAccel) string {
 	if !b.needsHDRToneMapping() {
 		return ""
 	}
 
 	p := b.opts.Profile
+
+	// For NVENC with Vulkan backend, use Vulkan + libplacebo for GPU-accelerated tone mapping
+	// Benefits: consistent ~1.9s startup (vs OpenCL's 3s first / 1s cached), best quality bt.2390
+	if hwAccel == AccelNVENC && b.shouldUseVulkan() {
+		algorithm := b.getToneMappingLibPlaceboAlgorithm()
+		// NVENC with Vulkan: CUDA → CPU → Vulkan (libplacebo tonemap) → CPU → CUDA
+		// - hwdownload: transfer from CUDA to CPU
+		// - format=p010le: ensure 10-bit HDR format for tonemap input
+		// - hwupload: upload to Vulkan context (uses -filter_hw_device vk)
+		// - libplacebo: HDR→SDR tone mapping with bt.2390 algorithm
+		// - hwdownload,format=nv12: back to CPU in nv12 format
+		// - hwupload_cuda: transfer to CUDA for NVENC encoding
+		// - scale_cuda: GPU-accelerated scaling
+		return fmt.Sprintf("hwdownload,format=p010le,hwupload,libplacebo=tonemapping=%s:colorspace=bt709:color_primaries=bt709:color_trc=bt709:format=nv12,hwdownload,format=nv12,hwupload_cuda,scale_cuda=%d:%d:force_original_aspect_ratio=decrease:format=nv12",
+			algorithm, p.Width, p.Height)
+	}
 
 	// For NVENC, use OpenCL tone mapping (reliable and fast)
 	// tonemap_cuda has issues with Dolby Vision content, so we default to OpenCL
@@ -297,7 +314,32 @@ func (b *Builder) getToneMappingCudaAlgorithm() string {
 	}
 }
 
-// shouldUseLibPlacebo determines if libplacebo should be used for tone mapping.
+// shouldUseVulkan determines if Vulkan + libplacebo should be used for GPU-accelerated tone mapping.
+// Returns true if:
+//  1. Tone mapping backend is explicitly set to "vulkan"
+//  2. libplacebo filter is available in FFmpeg
+//
+// Vulkan benefits over OpenCL:
+//   - More consistent startup times (~1.9s vs OpenCL's 3s first run / 1s cached)
+//   - Better Dolby Vision handling with libplacebo
+//   - bt.2390 tone mapping algorithm (broadcast standard)
+//
+// The pipeline: CUDA decode → hwdownload → hwupload (Vulkan) → libplacebo → hwdownload → CUDA encode
+func (b *Builder) shouldUseVulkan() bool {
+	backend := b.opts.ToneMappingBackend
+	if backend == "" {
+		backend = "auto"
+	}
+
+	// Only use Vulkan if explicitly requested
+	if backend == "vulkan" {
+		return CheckFFmpegFilter("libplacebo")
+	}
+
+	return false
+}
+
+// shouldUseLibPlacebo determines if libplacebo should be used for tone mapping (CPU path).
 // Returns true if:
 //  1. Tone mapping backend is explicitly set to "libplacebo"
 //  2. libplacebo filter is available in FFmpeg

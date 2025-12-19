@@ -254,6 +254,19 @@ func (b *Builder) AddOpenCLFilterDevice() *Builder {
 	return b
 }
 
+// AddVulkanDevice initializes a Vulkan hardware device for GPU tone mapping via libplacebo.
+// Uses device 0 by default (typically the primary GPU).
+func (b *Builder) AddVulkanDevice() *Builder {
+	b.args = append(b.args, "-init_hw_device", "vulkan=vk:0")
+	return b
+}
+
+// AddVulkanFilterDevice sets the Vulkan device context for filter operations.
+func (b *Builder) AddVulkanFilterDevice() *Builder {
+	b.args = append(b.args, "-filter_hw_device", "vk")
+	return b
+}
+
 // AddFastInputOptions adds options to speed up input file analysis.
 func (b *Builder) AddFastInputOptions() *Builder {
 	b.args = append(b.args,

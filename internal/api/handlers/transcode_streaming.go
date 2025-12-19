@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -203,20 +204,23 @@ func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 	c.File(segmentPath)
 }
 
-// ServeMasterPlaylist serves an HLS master playlist with all available quality variants.
-// This enables adaptive bitrate streaming where the player can switch between quality levels.
+// ServeMasterPlaylist serves an HLS master playlist with the recommended quality variant.
+// Uses client capabilities to determine optimal quality, returning a single-variant playlist.
 //
 // @Summary Serve HLS master playlist
-// @Description Serves an HLS master playlist (.m3u8) that lists all available quality levels for adaptive streaming.
-// @Description The player uses this to select and switch between quality levels based on network conditions.
+// @Description Serves an HLS master playlist (.m3u8) with the optimal quality based on client capabilities.
+// @Description Uses screen size, bandwidth, and codec support to recommend the best quality.
 // @Description If the video is compatible for direct play (right codec, audio, container), returns 302 redirect.
 // @Tags transcode
 // @Produce application/vnd.apple.mpegurl,application/json
 // @Param media_id path int true "Media ID"
 // @Param start query number false "Start position in seconds for seeking"
-// @Header 200,302 {string} X-Supported-Video-Codecs "Client-supported video codecs (h264,h265,vp9,av1)"
-// @Header 200,302 {string} X-Supported-Containers "Client-supported containers (mp4,webm,matroska)"
-// @Success 200 {file} file "HLS master playlist with all quality variants"
+// @Param screenWidth query int false "Client screen width in pixels"
+// @Param screenHeight query int false "Client screen height in pixels"
+// @Param bandwidth query int false "Estimated bandwidth in bits per second"
+// @Param codecs query string false "Comma-separated list of supported codecs (h264,h265,vp9,av1)"
+// @Param quality query string false "Override: force specific quality (e.g., 4k-25m, 1080p-10m)"
+// @Success 200 {file} file "HLS master playlist with recommended quality"
 // @Success 302 "Redirect to direct stream (for compatible files)"
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 404 {object} handlers.ErrorResponse
@@ -249,6 +253,28 @@ func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 		}
 	}
 
+	// Parse client capabilities for quality recommendation
+	var screenWidth, screenHeight int
+	var bandwidth int64
+	if w := c.Query("screenWidth"); w != "" {
+		if parsed, err := parseInt(w); err == nil {
+			screenWidth = parsed
+		}
+	}
+	if h := c.Query("screenHeight"); h != "" {
+		if parsed, err := parseInt(h); err == nil {
+			screenHeight = parsed
+		}
+	}
+	if b := c.Query("bandwidth"); b != "" {
+		if parsed, err := parseInt(b); err == nil {
+			bandwidth = int64(parsed)
+		}
+	}
+
+	// Parse optional quality override (user manually selected a quality)
+	qualityOverride := c.Query("quality")
+
 	// Use the serve master playlist use case
 	response, err := h.serveMasterPlaylistUseCase.Execute(c.Request.Context(), transcode.ServeMasterPlaylistRequest{
 		MediaID:              mediaID,
@@ -256,6 +282,10 @@ func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 		SupportedContainers:  supportedContainers,
 		StartPosition:        c.Query("start"),
 		AudioTrackIndex:      audioTrackIndex,
+		ScreenWidth:          screenWidth,
+		ScreenHeight:         screenHeight,
+		Bandwidth:            bandwidth,
+		QualityOverride:      qualityOverride,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
@@ -272,7 +302,17 @@ func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 		// Serve the generated master playlist
 		c.Header("Content-Type", "application/vnd.apple.mpegurl")
 		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Expose-Headers", "X-Available-Qualities")
 		c.Header("Cache-Control", "no-cache")
+
+		// Include available qualities as JSON header for frontend quality picker
+		if len(response.AvailableQualities) > 0 {
+			qualitiesJSON, err := json.Marshal(response.AvailableQualities)
+			if err == nil {
+				c.Header("X-Available-Qualities", string(qualitiesJSON))
+			}
+		}
+
 		c.String(http.StatusOK, response.PlaylistContent)
 
 	default:

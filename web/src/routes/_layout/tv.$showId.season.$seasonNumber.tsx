@@ -18,7 +18,7 @@ const SeasonDetail = () => {
   const urlTimePosition = search.t
   const showIdNumber = parseInt(showId, 10)
 
-  const { playbackState, playMedia, stopPlayback } = useMediaPlayback()
+  const { playbackState, playMedia, stopPlayback, changeQuality } = useMediaPlayback()
 
   const {
     data: showData,
@@ -174,6 +174,7 @@ const SeasonDetail = () => {
       onClose={handleClosePlayer}
       onTimeUpdate={handleTimeUpdate}
       overlay={nextEpisodeButton}
+      onQualityChange={changeQuality}
     />
   )
 

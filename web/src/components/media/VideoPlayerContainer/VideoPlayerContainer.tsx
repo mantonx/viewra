@@ -22,6 +22,8 @@ interface VideoPlayerContainerProps {
   onClose: () => void
   onTimeUpdate?: (time: number) => void
   overlay?: React.ReactNode
+  /** Callback to change quality - rebuilds URL and reloads stream */
+  onQualityChange?: (qualityId: string, currentPosition: number) => Promise<void>
 }
 
 export const VideoPlayerContainer = ({
@@ -30,6 +32,7 @@ export const VideoPlayerContainer = ({
   onClose,
   onTimeUpdate,
   overlay,
+  onQualityChange,
 }: VideoPlayerContainerProps) => {
   // Fetch images for TV shows or movies
   const tvShowImages = useTVShowImages(media?.show_id || 0, {
@@ -124,6 +127,9 @@ export const VideoPlayerContainer = ({
         metadata={metadata}
         onClose={onClose}
         onTimeUpdate={onTimeUpdate}
+        availableQualities={playbackState.availableQualities}
+        selectedQualityId={playbackState.selectedQualityId}
+        onQualityChange={onQualityChange}
       />
       {overlay}
     </div>

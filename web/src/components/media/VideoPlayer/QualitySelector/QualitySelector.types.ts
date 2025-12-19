@@ -1,11 +1,10 @@
-import type { QualityOption } from '@/lib/types/video'
+import type { QualityOption } from '@/lib/hooks/useMediaPlayback'
 
 export interface QualitySelectorProps {
-  currentQuality: number | null
-  currentBandwidth?: number | null
+  /** Available quality options from backend (filtered by source resolution) */
   availableQualities: QualityOption[]
-  autoMode: boolean
-  onQualityChange: (height: number, bandwidth?: number) => void
-  onAutoToggle: () => void
-  showBitrateVariants?: boolean
+  /** Currently selected quality ID */
+  selectedQualityId: string | null
+  /** Called when user selects a quality - triggers stream reload from current position */
+  onQualityChange: (qualityId: string) => void
 }

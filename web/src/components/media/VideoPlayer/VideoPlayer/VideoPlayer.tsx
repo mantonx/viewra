@@ -3,10 +3,10 @@
  * Full-featured video player with HLS streaming, quality selection,
  * keyboard controls, and progress tracking.
  *
- * Quality Control Model (Simplified):
- * - Auto mode (default): HLS.js ABR handles quality switching
- * - Manual mode: User selects specific quality, stays locked
- * - Backend recommendation sets initial quality hint via startLevel
+ * Quality Control Model (Single-Quality):
+ * - Backend picks optimal quality based on client capabilities
+ * - User can override via quality picker (triggers stream reload)
+ * - Each quality change restarts FFmpeg from current position
  */
 
 import { Button } from '@/components/ui'
@@ -34,6 +34,9 @@ export const VideoPlayer = ({
   metadata,
   onClose,
   onTimeUpdate,
+  availableQualities: backendQualities = [],
+  selectedQualityId = null,
+  onQualityChange: onQualityChangeCallback,
 }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null)
   const videoContainerRef = useRef<HTMLDivElement>(null)
@@ -154,8 +157,8 @@ export const VideoPlayer = ({
     ? currentAudioStreamIndex
     : (availableAudioTracks[0]?.id ?? 0)
 
-  // Auto quality - manages auto/manual mode and network stats
-  const { isAutoMode, setAutoMode, recordSample, recordStall, networkStats } = useAutoQuality({
+  // Network stats for debug panel
+  const { recordSample, recordStall, networkStats } = useAutoQuality({
     enabled: isHlsStream,
     hlsInstance: hlsRef.current,
   })
@@ -279,76 +282,31 @@ export const VideoPlayer = ({
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [mediaId, currentTime, videoDuration])
 
-  // Handle auto mode toggle
-  const handleAutoToggle = useCallback(() => {
-    if (isAutoMode) {
-      // Turning off auto - user will select manually
-      setAutoMode(false)
-    } else {
-      // Turning on auto - enable HLS.js ABR
-      changeQuality(0) // 0 = auto
-      setAutoMode(true)
-    }
-  }, [isAutoMode, setAutoMode, changeQuality])
-
-  // Handle quality change with analytics
-  // For on-demand transcoding, switching to a different resolution requires reloading
-  // the entire stream because each resolution has its own FFmpeg transcode session
+  // Handle quality change - calls parent callback to rebuild URL and reload stream
+  // Single-quality model: each quality change triggers a new FFmpeg session from current position
   const handleQualityChange = useCallback(
-    (height: number, bandwidth?: number) => {
+    (qualityId: string) => {
       const video = videoRef.current
-      const previousQuality = currentQuality ? `${currentQuality}p` : null
+      if (!video || !onQualityChangeCallback) return
 
-      if (height === 0) {
-        // Auto mode - let HLS.js handle it
-        // Note: Auto mode may cause position jumps if sessions started at different times
-        changeQuality(0)
-        setAutoMode(true)
-        recordQualitySwitch(
-          previousQuality,
-          'auto',
-          'user_manual',
-          video?.currentTime || 0,
-          null,
-          null
-        )
-      } else {
-        // Check if resolution is changing - requires stream reload for on-demand transcoding
-        const resolutionChanging = currentQuality !== null && currentQuality !== height
+      // Calculate the actual media time (accounting for stream offset in progressive transcoding)
+      const currentPosition = video.currentTime + (streamOffsetRef.current || 0)
 
-        if (resolutionChanging && video) {
-          // Capture current playback position before quality switch
-          const actualTime = video.currentTime + (streamOffsetRef.current || 0)
+      // Record quality switch for analytics
+      const previousQuality = selectedQualityId
+      recordQualitySwitch(
+        previousQuality,
+        qualityId,
+        'user_manual',
+        currentPosition,
+        null,
+        null
+      )
 
-          // Update URL with new start position - this triggers HLS player to reload
-          // The new quality session will start transcoding from the current position
-          setTrackSwitchPosition(actualTime)
-
-          // Force HLS to pick the right level after reload by setting it
-          // (will be applied after MANIFEST_PARSED event in useHlsPlayer)
-          setTimeout(() => {
-            changeQuality(height, bandwidth)
-            setAutoMode(false)
-          }, 100)
-        } else {
-          // Same resolution, different bitrate - HLS.js level switch works fine
-          const levelIndex = changeQuality(height, bandwidth)
-          if (levelIndex !== null) {
-            setAutoMode(false)
-          }
-        }
-
-        recordQualitySwitch(
-          previousQuality,
-          `${height}p`,
-          'user_manual',
-          video?.currentTime || 0,
-          null,
-          null
-        )
-      }
+      // Call parent callback to rebuild URL with ?quality= and reload
+      onQualityChangeCallback(qualityId, currentPosition)
     },
-    [changeQuality, currentQuality, recordQualitySwitch, setAutoMode, streamOffsetRef]
+    [onQualityChangeCallback, selectedQualityId, recordQualitySwitch, streamOffsetRef]
   )
 
   // Handle audio track change
@@ -472,10 +430,8 @@ export const VideoPlayer = ({
           isMuted={isMuted}
           isFullscreen={isFullscreen}
           isPiP={isPiP}
-          availableQualities={availableQualities}
-          currentQuality={currentQuality}
-          currentBandwidth={currentBandwidth}
-          autoMode={isAutoMode}
+          availableQualities={backendQualities}
+          selectedQualityId={selectedQualityId}
           availableAudioTracks={availableAudioTracks}
           currentAudioTrack={currentAudioTrack}
           availableSubtitles={availableSubtitles}
@@ -490,7 +446,6 @@ export const VideoPlayer = ({
           onFullscreenToggle={handleFullscreenToggle}
           onPiPToggle={handlePiPToggle}
           onQualityChange={handleQualityChange}
-          onAutoToggle={handleAutoToggle}
           onAudioTrackChange={handleAudioTrackChange}
           onSubtitleChange={handleSubtitleChange}
           onSpeedChange={handleSpeedChange}
