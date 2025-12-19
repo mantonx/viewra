@@ -35,66 +35,60 @@ func (qr *QualityRecommender) RecommendQuality(caps ClientCapabilities) *Quality
 		"device", caps.DeviceType,
 	)
 
-	// Network-first selection: prioritize bandwidth over screen resolution
-	// For remux scenarios (no transcode cost), higher quality doesn't waste server resources
-	// Screen resolution is used as a secondary hint, not a hard cap
+	// Select highest quality profile that the network can support
+	// Desktop/TV devices with good network get 4K regardless of screen resolution
+	// (remux scenarios have no transcode cost, higher quality benefits HDR content)
 	var profileID string
 	var reason string
 
-	// Determine effective resolution: use screen height but allow higher for desktop/TV with good network
-	effectiveHeight := screenHeight
-	if (caps.DeviceType == "desktop" || caps.DeviceType == "tv" || caps.DeviceType == "") && networkMbps >= 25 {
-		// Desktop/TV users with good network likely have high-quality displays
-		// Allow 4K even on 1440p screens - the extra resolution helps with HDR content
-		if screenHeight >= 1080 {
-			effectiveHeight = 2160
-		}
-	}
+	// Desktop/TV with >=15 Mbps and >=1080p screen can handle 4K
+	canUpgradeTo4K := (caps.DeviceType == "desktop" || caps.DeviceType == "tv" || caps.DeviceType == "") &&
+		networkMbps >= 15 && screenHeight >= 1080
 
 	switch {
-	// 4K selection - prioritize network, effective height allows desktop/TV upgrade
-	case networkMbps >= 60 && effectiveHeight >= 2160:
+	// 4K selection - highest quality the network can handle
+	case networkMbps >= 60 && (screenHeight >= 2160 || canUpgradeTo4K):
 		profileID = Quality4k60m
-		reason = "excellent network (4K capable)"
-	case networkMbps >= 40 && effectiveHeight >= 2160:
+		reason = "excellent network (4K max quality)"
+	case networkMbps >= 40 && (screenHeight >= 2160 || canUpgradeTo4K):
 		profileID = Quality4k40m
-		reason = "good network (4K capable)"
-	case networkMbps >= 25 && effectiveHeight >= 2160:
+		reason = "good network (4K high quality)"
+	case networkMbps >= 25 && (screenHeight >= 2160 || canUpgradeTo4K):
 		profileID = Quality4k25m
-		reason = "moderate network (4K capable)"
-	case networkMbps >= 15 && effectiveHeight >= 2160:
+		reason = "moderate network (4K)"
+	case networkMbps >= 15 && (screenHeight >= 2160 || canUpgradeTo4K):
 		profileID = Quality4k15m
-		reason = "acceptable network (4K capable)"
+		reason = "acceptable network (4K)"
 
-	// 1080p selection - most common case
+	// 1080p selection
 	case networkMbps >= 40 && screenHeight >= 1080:
 		profileID = Quality1080p40m
-		reason = "1080p screen with excellent network"
+		reason = "excellent network (1080p max)"
 	case networkMbps >= 20 && screenHeight >= 1080:
 		profileID = Quality1080p20m
-		reason = "1080p screen with good network"
+		reason = "good network (1080p)"
 	case networkMbps >= 10 && screenHeight >= 1080:
 		profileID = Quality1080p10m
-		reason = "1080p screen with moderate network"
+		reason = "moderate network (1080p)"
 	case networkMbps >= 4 && screenHeight >= 1080:
 		profileID = Quality1080p4m
-		reason = "1080p screen with limited network"
+		reason = "limited network (1080p)"
 
 	// 720p selection
 	case networkMbps >= 4 && screenHeight >= 720:
 		profileID = Quality720p4m
-		reason = "720p screen with moderate network"
+		reason = "moderate network (720p)"
 	case networkMbps >= 2 && screenHeight >= 720:
 		profileID = Quality720p2m
-		reason = "720p screen with limited network"
+		reason = "limited network (720p)"
 
 	// SD fallbacks
 	case networkMbps >= 1:
 		profileID = Quality480p
-		reason = "SD fallback for poor network"
+		reason = "poor network (480p)"
 	default:
 		profileID = Quality360p
-		reason = "lowest quality for very poor connection"
+		reason = "very poor network (360p)"
 	}
 
 	// Apply metered connection penalty - drop down one tier

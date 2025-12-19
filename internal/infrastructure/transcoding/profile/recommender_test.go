@@ -73,24 +73,24 @@ func TestRecommendQuality(t *testing.T) {
 			wantQuality: Quality4k15m,
 		},
 		{
-			name: "1080p screen with excellent network (desktop gets 4K)",
+			name: "1080p screen with excellent network (desktop gets 4K-60m)",
+			caps: ClientCapabilities{
+				NetworkSpeedMbps: 60.0,
+				ScreenHeight:     1080,
+				ScreenWidth:      1920,
+				DeviceType:       "desktop",
+			},
+			wantQuality: Quality4k60m, // Desktop with >=60 Mbps gets highest 4K
+		},
+		{
+			name: "1080p screen with good network (desktop gets 4K-40m)",
 			caps: ClientCapabilities{
 				NetworkSpeedMbps: 50.0,
 				ScreenHeight:     1080,
 				ScreenWidth:      1920,
 				DeviceType:       "desktop",
 			},
-			wantQuality: Quality4k40m, // Desktop with good network upgrades to 4K
-		},
-		{
-			name: "1080p screen with good network (desktop gets 4K)",
-			caps: ClientCapabilities{
-				NetworkSpeedMbps: 25.0,
-				ScreenHeight:     1080,
-				ScreenWidth:      1920,
-				DeviceType:       "desktop",
-			},
-			wantQuality: Quality4k25m, // Desktop with >=25 Mbps upgrades to 4K
+			wantQuality: Quality4k40m, // Desktop with >=40 Mbps gets 4K-40m
 		},
 		{
 			name: "1080p screen with moderate network",
@@ -153,24 +153,24 @@ func TestRecommendQuality(t *testing.T) {
 			wantQuality: Quality360p,
 		},
 		{
-			name: "Unknown network speed defaults to 50 Mbps (desktop gets 4K)",
+			name: "Unknown network speed defaults to 50 Mbps (desktop gets 4K-40m)",
 			caps: ClientCapabilities{
 				NetworkSpeedMbps: 0,
 				ScreenHeight:     1080,
 				ScreenWidth:      1920,
 				DeviceType:       "desktop",
 			},
-			wantQuality: Quality4k40m, // 50 Mbps default, desktop upgrades to 4K
+			wantQuality: Quality4k40m, // 50 Mbps default, desktop gets 4K-40m
 		},
 		{
-			name: "Negative network speed defaults to 50 Mbps (desktop gets 4K)",
+			name: "Negative network speed defaults to 50 Mbps (desktop gets 4K-40m)",
 			caps: ClientCapabilities{
 				NetworkSpeedMbps: -10.0,
 				ScreenHeight:     1080,
 				ScreenWidth:      1920,
 				DeviceType:       "desktop",
 			},
-			wantQuality: Quality4k40m, // Desktop with >=25 Mbps upgrades to 4K
+			wantQuality: Quality4k40m, // 50 Mbps default, desktop gets 4K-40m
 		},
 	}
 
