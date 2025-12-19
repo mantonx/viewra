@@ -32,16 +32,20 @@ export {
   detectHardwareAcceleration,
   detectMaxDecodingProfile,
   probeAllCodecSupport,
+  detectHDRCapability,
+  detectHDRDisplaySync,
+  setHDROverride,
 } from './MediaCapabilityDetector'
 
 // Shared utilities
-export { getConnectionType, isMeteredConnection, getSupportedCodecsHeader } from './utils'
+export { getConnectionType, isMeteredConnection, getSupportedCodecsHeader, getHDRCapabilityHeader } from './utils'
 
 // Types
 export type {
   ClientCapabilities,
   CodecCapability,
   CodecSupport,
+  HDRCapability,
   NetworkMeasurement,
   ConnectionInfo,
   BatteryInfo,

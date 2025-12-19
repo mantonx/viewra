@@ -174,7 +174,7 @@ func (uc *StreamInfoUseCase) Execute(ctx context.Context, mediaID int64) (*Strea
 }
 
 // ExecuteWithCapabilities retrieves stream information including strategy based on client capabilities
-func (uc *StreamInfoUseCase) ExecuteWithCapabilities(ctx context.Context, mediaID int64, supportedVideoCodecs []string) (*StreamInfoResponse, error) {
+func (uc *StreamInfoUseCase) ExecuteWithCapabilities(ctx context.Context, mediaID int64, supportedVideoCodecs []string, supportsHDRDisplay bool) (*StreamInfoResponse, error) {
 	// Get media record
 	m, err := uc.mediaRepo.GetByID(ctx, mediaID)
 	if err != nil {
@@ -240,9 +240,10 @@ func (uc *StreamInfoUseCase) ExecuteWithCapabilities(ctx context.Context, mediaI
 
 	// Determine streaming strategy with client capabilities
 	var clientCaps *strategy.ClientCapabilities
-	if len(supportedVideoCodecs) > 0 {
+	if len(supportedVideoCodecs) > 0 || supportsHDRDisplay {
 		clientCaps = &strategy.ClientCapabilities{
 			SupportedVideoCodecs: supportedVideoCodecs,
+			SupportsHDRDisplay:   supportsHDRDisplay,
 		}
 	}
 	streamStrategy, reason := strategy.DetermineStrategyWithCapabilities(videoInfo, clientCaps)

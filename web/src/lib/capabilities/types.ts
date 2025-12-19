@@ -96,3 +96,22 @@ export interface PerformanceInfo {
 }
 
 export type DeviceType = 'mobile' | 'tablet' | 'desktop' | 'tv' | 'unknown'
+
+// HDR display capability detection
+export interface HDRCapability {
+  // Display supports HDR (high dynamic range)
+  displaySupportsHDR: boolean
+  // Specific HDR formats supported
+  supportsHDR10: boolean
+  supportsHLG: boolean
+  supportsDolbyVision: boolean
+  // Color gamut support
+  colorGamut: 'srgb' | 'p3' | 'rec2020'
+  // Can decode HDR video (browser + hardware)
+  canDecodeHDR: boolean
+  // Can decode specific HDR transfer functions
+  canDecodePQ: boolean  // HDR10, Dolby Vision
+  canDecodeHLG: boolean // HLG
+  // Overall: display + decode capability = can play HDR natively
+  canPlayHDRNatively: boolean
+}

@@ -1,4 +1,4 @@
-import type { CodecCapability, CodecSupport } from './types'
+import type { CodecCapability, CodecSupport, HDRCapability } from './types'
 
 // Codec variants to probe - multiple profiles per codec for broad compatibility
 const CODEC_VARIANTS = {
@@ -394,4 +394,200 @@ export const detectMaxDecodingProfile = async (): Promise<string> => {
   }
 
   return maxProfile
+}
+
+// HDR codec strings for testing decode capability
+const HDR_CODEC_VARIANTS = {
+  // HEVC HDR10 (PQ transfer function, BT.2020 color primaries)
+  hevcHDR10: 'video/mp4; codecs="hvc1.2.4.L153.B0"',
+  // HEVC HLG
+  hevcHLG: 'video/mp4; codecs="hvc1.2.4.L153.B0"',
+  // VP9 Profile 2 (10-bit HDR)
+  vp9HDR: 'video/webm; codecs="vp09.02.10.10.01.09.16.09.01"',
+  // AV1 HDR10
+  av1HDR: 'video/mp4; codecs="av01.0.13M.10.0.110.09.16.09.0"',
+} as const
+
+// Check for 10-bit color depth via WebGL (works on Linux where CSS media queries fail)
+const detect10BitColorDepth = (): boolean => {
+  try {
+    const canvas = document.createElement('canvas')
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl')
+    if (!gl) {
+      return false
+    }
+
+    // Check if we can create a 10-bit framebuffer
+    // This indicates the GPU/driver supports higher bit depth
+    const ext = gl.getExtension('EXT_color_buffer_float')
+    if (ext) {
+      return true
+    }
+
+    // Alternative: check for half-float texture support (common on HDR-capable GPUs)
+    const halfFloatExt = gl.getExtension('OES_texture_half_float')
+    if (halfFloatExt) {
+      return true
+    }
+
+    return false
+  } catch {
+    return false
+  }
+}
+
+// Check localStorage for user HDR override (for Linux users with HDR displays)
+const getHDROverride = (): boolean | null => {
+  try {
+    const override = localStorage.getItem('viewra_hdr_display_override')
+    if (override === 'true') {
+      return true
+    }
+    if (override === 'false') {
+      return false
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+// Detect display HDR capability using multiple methods
+// Priority: 1) User override, 2) CSS media query, 3) Wide gamut + 10-bit as fallback
+const detectDisplayHDR = (): { supportsHDR: boolean; colorGamut: 'srgb' | 'p3' | 'rec2020'; detectionMethod: string } => {
+  // Check user override first (for Linux users who know their display supports HDR)
+  const override = getHDROverride()
+  if (override !== null) {
+    return {
+      supportsHDR: override,
+      colorGamut: override ? 'rec2020' : 'srgb',
+      detectionMethod: 'user_override',
+    }
+  }
+
+  // Primary: CSS media query (works on Windows/macOS with HDR enabled)
+  const cssSupportsHDR = typeof matchMedia !== 'undefined' && matchMedia('(dynamic-range: high)').matches
+
+  // Check color gamut support (progressively wider gamuts)
+  let colorGamut: 'srgb' | 'p3' | 'rec2020' = 'srgb'
+  if (typeof matchMedia !== 'undefined') {
+    if (matchMedia('(color-gamut: rec2020)').matches) {
+      colorGamut = 'rec2020'
+    } else if (matchMedia('(color-gamut: p3)').matches) {
+      colorGamut = 'p3'
+    }
+  }
+
+  if (cssSupportsHDR) {
+    return { supportsHDR: true, colorGamut, detectionMethod: 'css_media_query' }
+  }
+
+  // Fallback for Linux: Wide color gamut + 10-bit color depth suggests HDR capability
+  // This is a heuristic - user can override via localStorage if wrong
+  const has10Bit = detect10BitColorDepth()
+  const hasWideGamut = colorGamut === 'rec2020' || colorGamut === 'p3'
+
+  if (has10Bit && hasWideGamut) {
+    return { supportsHDR: true, colorGamut, detectionMethod: 'webgl_10bit_wide_gamut' }
+  }
+
+  return { supportsHDR: false, colorGamut, detectionMethod: 'none' }
+}
+
+// Test if browser can decode HDR video with specific transfer function
+const testHDRDecodeCapability = async (
+  transferFunction: 'pq' | 'hlg',
+  colorGamut: 'rec2020'
+): Promise<boolean> => {
+  if (!('mediaCapabilities' in navigator)) {
+    return false
+  }
+
+  // Test with HEVC HDR (most common HDR format)
+  const codec = transferFunction === 'pq' ? HDR_CODEC_VARIANTS.hevcHDR10 : HDR_CODEC_VARIANTS.hevcHLG
+
+  try {
+    const result = await navigator.mediaCapabilities.decodingInfo({
+      type: 'media-source',
+      video: {
+        contentType: codec,
+        width: 3840,
+        height: 2160,
+        bitrate: 40_000_000,
+        framerate: 24,
+        transferFunction,
+        colorGamut,
+      },
+    })
+    return result.supported
+  } catch {
+    // Some browsers don't support transferFunction/colorGamut params yet
+    return false
+  }
+}
+
+// Synchronous HDR display detection (instant, for initial checks)
+// Returns detection method for debugging (css_media_query, webgl_10bit_wide_gamut, user_override, none)
+export const detectHDRDisplaySync = (): Pick<HDRCapability, 'displaySupportsHDR' | 'colorGamut'> & { detectionMethod: string } => {
+  const { supportsHDR, colorGamut, detectionMethod } = detectDisplayHDR()
+  return {
+    displaySupportsHDR: supportsHDR,
+    colorGamut,
+    detectionMethod,
+  }
+}
+
+// Set HDR display override (for Linux users with HDR displays where detection fails)
+// Call from browser console: setHDROverride(true) to enable, setHDROverride(false) to disable, setHDROverride(null) to clear
+// Returns a message indicating the result
+export const setHDROverride = (enabled: boolean | null): string => {
+  try {
+    if (enabled === null) {
+      localStorage.removeItem('viewra_hdr_display_override')
+      return '[HDR] Override cleared. Refresh page to use auto-detection.'
+    } else {
+      localStorage.setItem('viewra_hdr_display_override', String(enabled))
+      return `[HDR] Override set to ${enabled}. Refresh page to apply.`
+    }
+  } catch (e) {
+    console.error('[HDR] Failed to set override:', e)
+    return '[HDR] Failed to set override. Check console for details.'
+  }
+}
+
+// Expose setHDROverride globally for console access
+if (typeof window !== 'undefined') {
+  (window as Window & { setHDROverride?: typeof setHDROverride }).setHDROverride = setHDROverride
+}
+
+// Full async HDR capability detection
+export const detectHDRCapability = async (): Promise<HDRCapability> => {
+  const { supportsHDR: displaySupportsHDR, colorGamut } = detectDisplayHDR()
+
+  // Test decode capabilities for different HDR formats
+  const [canDecodePQ, canDecodeHLG] = await Promise.all([
+    testHDRDecodeCapability('pq', 'rec2020'),
+    testHDRDecodeCapability('hlg', 'rec2020'),
+  ])
+
+  const canDecodeHDR = canDecodePQ || canDecodeHLG
+
+  // Dolby Vision support is harder to detect - assume supported if PQ works
+  // and we have a wide color gamut display
+  const supportsDolbyVision = canDecodePQ && colorGamut === 'rec2020'
+
+  // Can play HDR natively only if BOTH display and decode support exist
+  const canPlayHDRNatively = displaySupportsHDR && canDecodeHDR
+
+  return {
+    displaySupportsHDR,
+    supportsHDR10: canDecodePQ && displaySupportsHDR,
+    supportsHLG: canDecodeHLG && displaySupportsHDR,
+    supportsDolbyVision: supportsDolbyVision && displaySupportsHDR,
+    colorGamut,
+    canDecodeHDR,
+    canDecodePQ,
+    canDecodeHLG,
+    canPlayHDRNatively,
+  }
 }

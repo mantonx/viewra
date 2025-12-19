@@ -4,7 +4,7 @@
  */
 
 import type { ExtendedNavigator } from './browser-types'
-import type { CodecSupport } from './types'
+import type { CodecSupport, HDRCapability } from './types'
 
 // Re-export detectDeviceType from DeviceDetector for convenience
 export { detectDeviceType } from './DeviceDetector'
@@ -54,4 +54,15 @@ export const getSupportedCodecsHeader = (codecSupport: CodecSupport | null): str
     supported.push('av1')
   }
   return supported.join(',')
+}
+
+/**
+ * Converts HDRCapability to a header value for API requests.
+ * Returns 'true' if client can play HDR natively (display + decode support).
+ */
+export const getHDRCapabilityHeader = (hdrCapability: HDRCapability | null): string => {
+  if (!hdrCapability) {
+    return 'false'
+  }
+  return hdrCapability.canPlayHDRNatively ? 'true' : 'false'
 }

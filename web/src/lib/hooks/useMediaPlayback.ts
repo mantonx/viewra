@@ -3,7 +3,7 @@ import { getProgressSeconds } from '../utils'
 import { API_BASE_URL } from '@/lib/config'
 import { logger } from '@/lib/utils/logger'
 import { authFetch } from '@/lib/utils/authFetch'
-import { detectCodecSupportSync, getSupportedCodecsHeader } from '@/lib/capabilities'
+import { detectCodecSupportSync, getSupportedCodecsHeader, detectHDRDisplaySync } from '@/lib/capabilities'
 import type { GithubComMantonxViewraInternalApplicationMediaMediaResponse as Media } from '@/lib/api/generated/models'
 
 type TranscodeState = 'idle' | 'checking' | 'ready' | 'direct'
@@ -54,6 +54,11 @@ logger.debug('Detected codec support (sync):', {
   av1: codecSupport.av1.supported,
 })
 
+// Detect HDR display capability (instant, synchronous)
+// Checks CSS media queries for dynamic-range and color-gamut
+const hdrDisplay = detectHDRDisplaySync()
+logger.info('Detected HDR display capability:', hdrDisplay)
+
 /**
  * Build master manifest URL with all necessary query parameters
  */
@@ -90,7 +95,14 @@ const buildManifestUrl = (
     params.set('quality', qualityOverride)
   }
 
-  return `${API_BASE_URL}/api/media/${mediaId}/hls/master.m3u8?${params.toString()}`
+  // HDR display capability - if true, backend can skip tone mapping for HDR content
+  if (hdrDisplay.displaySupportsHDR) {
+    params.set('hdrDisplay', 'true')
+  }
+
+  const url = `${API_BASE_URL}/api/media/${mediaId}/hls/master.m3u8?${params.toString()}`
+  logger.info('[Playback] Built manifest URL:', { url, hdrDisplay: hdrDisplay.displaySupportsHDR })
+  return url
 }
 
 /**

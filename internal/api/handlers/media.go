@@ -133,10 +133,11 @@ func (h *MediaHandler) GetStreamInfo(c *gin.Context) {
 
 	// Parse client codec capabilities from headers (same format as transcode endpoints)
 	supportedVideoCodecs := parseCommaSeparatedHeader(c.GetHeader("X-Supported-Video-Codecs"))
+	supportsHDRDisplay := c.GetHeader("X-HDR-Display") == "true"
 
 	var resp *media.StreamInfoResponse
-	if len(supportedVideoCodecs) > 0 {
-		resp, err = h.streamInfo.ExecuteWithCapabilities(c.Request.Context(), id, supportedVideoCodecs)
+	if len(supportedVideoCodecs) > 0 || supportsHDRDisplay {
+		resp, err = h.streamInfo.ExecuteWithCapabilities(c.Request.Context(), id, supportedVideoCodecs, supportsHDRDisplay)
 	} else {
 		resp, err = h.streamInfo.Execute(c.Request.Context(), id)
 	}

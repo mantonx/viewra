@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type Hls from 'hls.js'
 import { useGetApiMediaIdStreamInfo } from '@/lib/api/generated/media/media'
-import { detectCodecSupport, getSupportedCodecsHeader } from '@/lib/capabilities'
+import { detectCodecSupport, getSupportedCodecsHeader, detectHDRDisplaySync } from '@/lib/capabilities'
 import type { CodecSupport } from '@/lib/capabilities'
 import type { NetworkStats } from '@/lib/network/NetworkMonitor'
 import type {
@@ -62,6 +62,9 @@ export const useStreamStats = (options: UseStreamStatsOptions): UseStreamStatsRe
   const [codecSupport, setCodecSupport] = useState<CodecSupport | null>(null)
   const playbackStartTime = useRef<number>(Date.now())
 
+  // Detect HDR display capability once (stable reference)
+  const hdrDisplay = useRef(detectHDRDisplaySync())
+
   // Detect codec support on mount
   useEffect(() => {
     detectCodecSupport().then(setCodecSupport).catch(() => {
@@ -83,6 +86,7 @@ export const useStreamStats = (options: UseStreamStatsOptions): UseStreamStatsRe
     request: {
       headers: {
         'X-Supported-Video-Codecs': getSupportedCodecsHeader(codecSupport),
+        'X-HDR-Display': hdrDisplay.current.displaySupportsHDR ? 'true' : 'false',
       },
     },
   })
