@@ -50,6 +50,7 @@ func (r *Repository) UpsertSession(ctx context.Context, session *analytics.Playb
 			AverageQuality:     common.NullString(session.AverageQuality),
 			DeviceType:         common.NullString(session.DeviceType),
 			ConnectionType:     common.NullString(session.ConnectionType),
+			StartupTimeMs:      common.NullInt64Ptr(session.StartupTimeMs),
 		})
 		return err
 	}
@@ -67,6 +68,7 @@ func (r *Repository) UpsertSession(ctx context.Context, session *analytics.Playb
 		AverageQuality:     common.NullString(session.AverageQuality),
 		DeviceType:         common.NullString(session.DeviceType),
 		ConnectionType:     common.NullString(session.ConnectionType),
+		StartupTimeMs:      common.NullInt32Ptr(session.StartupTimeMs),
 	})
 	return err
 }
@@ -122,4 +124,190 @@ func (r *Repository) CreateEvents(ctx context.Context, events []analytics.Qualit
 		}
 	}
 	return nil
+}
+
+// GetSessionByID retrieves a playback session by its ID.
+func (r *Repository) GetSessionByID(ctx context.Context, sessionID string) (*analytics.PlaybackSession, error) {
+	if r.dbType == "sqlite" {
+		row, err := r.sqliteQuerier.GetPlaybackSessionByID(ctx, sessionID)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return nil, nil
+			}
+			return nil, err
+		}
+		return &analytics.PlaybackSession{
+			SessionID:          row.SessionID,
+			MediaID:            row.MediaID,
+			StartTime:          row.StartTime,
+			EndTime:            common.ParseNullInt64Ptr(row.EndTime),
+			TotalPlayTimeMs:    common.ParseNullInt64(row.TotalPlayTimeMs),
+			TotalBufferTimeMs:  common.ParseNullInt64(row.TotalBufferTimeMs),
+			StallCount:         int(common.ParseNullInt64(row.StallCount)),
+			QualitySwitchCount: int(common.ParseNullInt64(row.QualitySwitchCount)),
+			AverageQuality:     common.ParseNullString(row.AverageQuality),
+			DeviceType:         common.ParseNullString(row.DeviceType),
+			ConnectionType:     common.ParseNullString(row.ConnectionType),
+			StartupTimeMs:      common.ParseNullInt64Ptr(row.StartupTimeMs),
+		}, nil
+	}
+
+	// PostgreSQL
+	row, err := r.postgresQuerier.GetPlaybackSessionByID(ctx, sessionID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &analytics.PlaybackSession{
+		SessionID:          row.SessionID,
+		MediaID:            int64(row.MediaID),
+		StartTime:          row.StartTime,
+		EndTime:            common.ParseNullInt64Ptr(row.EndTime),
+		TotalPlayTimeMs:    common.ParseNullInt32(row.TotalPlayTimeMs),
+		TotalBufferTimeMs:  common.ParseNullInt32(row.TotalBufferTimeMs),
+		StallCount:         int(common.ParseNullInt32(row.StallCount)),
+		QualitySwitchCount: int(common.ParseNullInt32(row.QualitySwitchCount)),
+		AverageQuality:     common.ParseNullString(row.AverageQuality),
+		DeviceType:         common.ParseNullString(row.DeviceType),
+		ConnectionType:     common.ParseNullString(row.ConnectionType),
+		StartupTimeMs:      common.ParseNullInt32Ptr(row.StartupTimeMs),
+	}, nil
+}
+
+// ListSessionsByMediaID retrieves playback sessions for a specific media item.
+func (r *Repository) ListSessionsByMediaID(ctx context.Context, mediaID int64, limit, offset int) ([]analytics.PlaybackSession, error) {
+	if r.dbType == "sqlite" {
+		rows, err := r.sqliteQuerier.ListPlaybackSessionsByMediaID(ctx, sqlc_sqlite.ListPlaybackSessionsByMediaIDParams{
+			MediaID: mediaID,
+			Limit:   int64(limit),
+			Offset:  int64(offset),
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		sessions := make([]analytics.PlaybackSession, len(rows))
+		for i, row := range rows {
+			sessions[i] = analytics.PlaybackSession{
+				SessionID:          row.SessionID,
+				MediaID:            row.MediaID,
+				StartTime:          row.StartTime,
+				EndTime:            common.ParseNullInt64Ptr(row.EndTime),
+				TotalPlayTimeMs:    common.ParseNullInt64(row.TotalPlayTimeMs),
+				TotalBufferTimeMs:  common.ParseNullInt64(row.TotalBufferTimeMs),
+				StallCount:         int(common.ParseNullInt64(row.StallCount)),
+				QualitySwitchCount: int(common.ParseNullInt64(row.QualitySwitchCount)),
+				AverageQuality:     common.ParseNullString(row.AverageQuality),
+				DeviceType:         common.ParseNullString(row.DeviceType),
+				ConnectionType:     common.ParseNullString(row.ConnectionType),
+				StartupTimeMs:      common.ParseNullInt64Ptr(row.StartupTimeMs),
+			}
+		}
+		return sessions, nil
+	}
+
+	// PostgreSQL
+	rows, err := r.postgresQuerier.ListPlaybackSessionsByMediaID(ctx, sqlc_postgres.ListPlaybackSessionsByMediaIDParams{
+		MediaID: int32(mediaID),
+		Limit:   int32(limit),
+		Offset:  int32(offset),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	sessions := make([]analytics.PlaybackSession, len(rows))
+	for i, row := range rows {
+		sessions[i] = analytics.PlaybackSession{
+			SessionID:          row.SessionID,
+			MediaID:            int64(row.MediaID),
+			StartTime:          row.StartTime,
+			EndTime:            common.ParseNullInt64Ptr(row.EndTime),
+			TotalPlayTimeMs:    common.ParseNullInt32(row.TotalPlayTimeMs),
+			TotalBufferTimeMs:  common.ParseNullInt32(row.TotalBufferTimeMs),
+			StallCount:         int(common.ParseNullInt32(row.StallCount)),
+			QualitySwitchCount: int(common.ParseNullInt32(row.QualitySwitchCount)),
+			AverageQuality:     common.ParseNullString(row.AverageQuality),
+			DeviceType:         common.ParseNullString(row.DeviceType),
+			ConnectionType:     common.ParseNullString(row.ConnectionType),
+			StartupTimeMs:      common.ParseNullInt32Ptr(row.StartupTimeMs),
+		}
+	}
+	return sessions, nil
+}
+
+// GetSummaryByMediaID retrieves aggregated analytics for a specific media item.
+func (r *Repository) GetSummaryByMediaID(ctx context.Context, mediaID int64) (*analytics.PlaybackSummary, error) {
+	if r.dbType == "sqlite" {
+		row, err := r.sqliteQuerier.GetPlaybackSummaryByMediaID(ctx, mediaID)
+		if err != nil {
+			return nil, err
+		}
+		return &analytics.PlaybackSummary{
+			TotalSessions:       row.TotalSessions,
+			AvgPlayTimeMs:       common.Float64FromInterface(row.AvgPlayTimeMs),
+			AvgBufferTimeMs:     common.Float64FromInterface(row.AvgBufferTimeMs),
+			TotalStalls:         common.Int64FromInterface(row.TotalStalls),
+			AvgStallsPerSession: common.Float64FromInterface(row.AvgStallsPerSession),
+			AvgStartupTimeMs:    common.Float64FromInterface(row.AvgStartupTimeMs),
+			MinStartupTimeMs:    common.Int64PtrFromInterface(row.MinStartupTimeMs),
+			MaxStartupTimeMs:    common.Int64PtrFromInterface(row.MaxStartupTimeMs),
+		}, nil
+	}
+
+	// PostgreSQL
+	row, err := r.postgresQuerier.GetPlaybackSummaryByMediaID(ctx, int32(mediaID))
+	if err != nil {
+		return nil, err
+	}
+	return &analytics.PlaybackSummary{
+		TotalSessions:       row.TotalSessions,
+		AvgPlayTimeMs:       common.Float64FromInterface(row.AvgPlayTimeMs),
+		AvgBufferTimeMs:     common.Float64FromInterface(row.AvgBufferTimeMs),
+		TotalStalls:         common.Int64FromInterface(row.TotalStalls),
+		AvgStallsPerSession: common.Float64FromInterface(row.AvgStallsPerSession),
+		AvgStartupTimeMs:    common.Float64FromInterface(row.AvgStartupTimeMs),
+		MinStartupTimeMs:    common.Int64PtrFromInterface(row.MinStartupTimeMs),
+		MaxStartupTimeMs:    common.Int64PtrFromInterface(row.MaxStartupTimeMs),
+	}, nil
+}
+
+// GetOverallSummary retrieves aggregated analytics across all media.
+func (r *Repository) GetOverallSummary(ctx context.Context) (*analytics.PlaybackSummary, error) {
+	if r.dbType == "sqlite" {
+		row, err := r.sqliteQuerier.GetOverallPlaybackSummary(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return &analytics.PlaybackSummary{
+			TotalSessions:       row.TotalSessions,
+			UniqueMedia:         row.UniqueMedia,
+			AvgPlayTimeMs:       common.Float64FromInterface(row.AvgPlayTimeMs),
+			AvgBufferTimeMs:     common.Float64FromInterface(row.AvgBufferTimeMs),
+			TotalStalls:         common.Int64FromInterface(row.TotalStalls),
+			AvgStallsPerSession: common.Float64FromInterface(row.AvgStallsPerSession),
+			AvgStartupTimeMs:    common.Float64FromInterface(row.AvgStartupTimeMs),
+			MinStartupTimeMs:    common.Int64PtrFromInterface(row.MinStartupTimeMs),
+			MaxStartupTimeMs:    common.Int64PtrFromInterface(row.MaxStartupTimeMs),
+		}, nil
+	}
+
+	// PostgreSQL
+	row, err := r.postgresQuerier.GetOverallPlaybackSummary(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &analytics.PlaybackSummary{
+		TotalSessions:       row.TotalSessions,
+		UniqueMedia:         row.UniqueMedia,
+		AvgPlayTimeMs:       common.Float64FromInterface(row.AvgPlayTimeMs),
+		AvgBufferTimeMs:     common.Float64FromInterface(row.AvgBufferTimeMs),
+		TotalStalls:         common.Int64FromInterface(row.TotalStalls),
+		AvgStallsPerSession: common.Float64FromInterface(row.AvgStallsPerSession),
+		AvgStartupTimeMs:    common.Float64FromInterface(row.AvgStartupTimeMs),
+		MinStartupTimeMs:    common.Int64PtrFromInterface(row.MinStartupTimeMs),
+		MaxStartupTimeMs:    common.Int64PtrFromInterface(row.MaxStartupTimeMs),
+	}, nil
 }

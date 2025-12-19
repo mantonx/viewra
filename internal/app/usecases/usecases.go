@@ -18,6 +18,7 @@ import (
 	"github.com/mantonx/viewra/internal/application/progress"
 	"github.com/mantonx/viewra/internal/application/scanjob"
 	"github.com/mantonx/viewra/internal/application/transcode"
+	transcodeanalytics "github.com/mantonx/viewra/internal/application/transcode_analytics"
 	"github.com/mantonx/viewra/internal/application/tv"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
 )
@@ -33,9 +34,10 @@ type UseCases struct {
 	People    *PeopleUseCases
 	Images    *ImageUseCases
 	Transcode *TranscodeUseCases
-	Progress  *progress.Service
-	Analytics *analytics.Service
-	ScanJob   *scanjob.Service
+	Progress           *progress.Service
+	Analytics          *analytics.Service
+	ScanJob            *scanjob.Service
+	TranscodeAnalytics *transcodeanalytics.Service
 }
 
 // LibraryUseCases holds library-related use cases
@@ -125,9 +127,10 @@ func BuildUseCases(
 		People:    buildPeopleUseCases(repos),
 		Images:    buildImageUseCases(repos, svcs, logger, cfg.Images.CacheDir),
 		Transcode: buildTranscodeUseCases(repos, svcs, logger),
-		Progress:  progress.NewService(repos.Progress),
-		Analytics: analytics.NewService(repos.Analytics, logger),
-		ScanJob:   scanjob.NewService(repos.ScanJob, repos.Checkpoint, repos.ScanState, logger),
+		Progress:           progress.NewService(repos.Progress),
+		Analytics:          analytics.NewService(repos.Analytics, logger),
+		ScanJob:            scanjob.NewService(repos.ScanJob, repos.Checkpoint, repos.ScanState, logger),
+		TranscodeAnalytics: transcodeanalytics.NewService(repos.TranscodeAnalytics, svcs.EventBus, logger),
 	}
 }
 

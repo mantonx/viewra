@@ -3,6 +3,7 @@ package media
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/mantonx/viewra/internal/domain/common"
 )
@@ -174,6 +175,9 @@ type TVShow struct {
 	// Ratings
 	Rating      float32 // Average rating (0.0 - 10.0)
 	RatingVotes int     // Number of votes
+
+	// Timestamps
+	CreatedAt time.Time
 }
 
 // TVShowWithCounts represents a TV show with aggregated season and episode counts

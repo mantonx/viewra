@@ -15,6 +15,7 @@ type PlaybackSession struct {
 	AverageQuality     string
 	DeviceType         string
 	ConnectionType     string
+	StartupTimeMs      *int64
 }
 
 // QualitySwitchEvent represents a quality switch event
@@ -33,8 +34,25 @@ type QualitySwitchEvent struct {
 	Timestamp        int64
 }
 
+// PlaybackSummary contains aggregated analytics for playback sessions
+type PlaybackSummary struct {
+	TotalSessions       int64   `json:"totalSessions"`
+	UniqueMedia         int64   `json:"uniqueMedia,omitempty"`
+	AvgPlayTimeMs       float64 `json:"avgPlayTimeMs"`
+	AvgBufferTimeMs     float64 `json:"avgBufferTimeMs"`
+	TotalStalls         int64   `json:"totalStalls"`
+	AvgStallsPerSession float64 `json:"avgStallsPerSession"`
+	AvgStartupTimeMs    float64 `json:"avgStartupTimeMs"`
+	MinStartupTimeMs    *int64  `json:"minStartupTimeMs,omitempty"`
+	MaxStartupTimeMs    *int64  `json:"maxStartupTimeMs,omitempty"`
+}
+
 // Repository defines the interface for analytics persistence
 type Repository interface {
 	UpsertSession(ctx context.Context, session *PlaybackSession) error
 	CreateEvents(ctx context.Context, events []QualitySwitchEvent) error
+	GetSessionByID(ctx context.Context, sessionID string) (*PlaybackSession, error)
+	ListSessionsByMediaID(ctx context.Context, mediaID int64, limit, offset int) ([]PlaybackSession, error)
+	GetSummaryByMediaID(ctx context.Context, mediaID int64) (*PlaybackSummary, error)
+	GetOverallSummary(ctx context.Context) (*PlaybackSummary, error)
 }

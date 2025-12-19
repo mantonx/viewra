@@ -19,6 +19,7 @@ type Querier interface {
 	ClearStudiosForEntity(ctx context.Context, arg ClearStudiosForEntityParams) error
 	CompleteEnrichmentJob(ctx context.Context, id int32) error
 	CompleteScanJob(ctx context.Context, arg CompleteScanJobParams) error
+	CompleteTranscodeAnalytics(ctx context.Context, arg CompleteTranscodeAnalyticsParams) error
 	// ============================================================================
 	// Pagination Support Queries
 	// ============================================================================
@@ -42,6 +43,7 @@ type Querier interface {
 	CountMusicTracksByLibrary(ctx context.Context, libraryID int32) (int64, error)
 	// Count images for entities that no longer exist (for reporting before cleanup).
 	CountOrphanedEntityImages(ctx context.Context) (int64, error)
+	CountPlaybackSessionsByMediaID(ctx context.Context, mediaID int32) (int64, error)
 	CountPluginAPIKeys(ctx context.Context, pluginID string) (int64, error)
 	CountPluginUserMetadata(ctx context.Context, arg CountPluginUserMetadataParams) (int64, error)
 	CountScanJobsByLibrary(ctx context.Context, libraryID int32) (int64, error)
@@ -88,6 +90,7 @@ type Querier interface {
 	// TV Shows
 	// ============================================================================
 	CreateTVShow(ctx context.Context, arg CreateTVShowParams) (TvShow, error)
+	CreateTranscodeAnalytics(ctx context.Context, arg CreateTranscodeAnalyticsParams) error
 	CreateTranscodeJob(ctx context.Context, arg CreateTranscodeJobParams) (TranscodeJob, error)
 	// User queries for PostgreSQL
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
@@ -165,6 +168,7 @@ type Querier interface {
 	EnqueueEnrichmentJob(ctx context.Context, arg EnqueueEnrichmentJobParams) (EnrichmentQueue, error)
 	ExistsAnyUser(ctx context.Context) (bool, error)
 	FailEnrichmentJob(ctx context.Context, arg FailEnrichmentJobParams) error
+	FailTranscodeAnalytics(ctx context.Context, arg FailTranscodeAnalyticsParams) error
 	FindAlbumByTitle(ctx context.Context, arg FindAlbumByTitleParams) (MusicAlbum, error)
 	FindArtistByName(ctx context.Context, arg FindArtistByNameParams) (MusicArtist, error)
 	GetAlbumByID(ctx context.Context, id int32) (MusicAlbum, error)
@@ -184,6 +188,8 @@ type Querier interface {
 	GetAudioTracksByMediaID(ctx context.Context, mediaID int32) ([]MediaAudioTrack, error)
 	GetBatchWatchProgressByMediaIDs(ctx context.Context, arg GetBatchWatchProgressByMediaIDsParams) ([]WatchProgress, error)
 	GetCastForEntity(ctx context.Context, arg GetCastForEntityParams) ([]GetCastForEntityRow, error)
+	GetCorrelatedAnalytics(ctx context.Context, arg GetCorrelatedAnalyticsParams) ([]GetCorrelatedAnalyticsRow, error)
+	GetCorrelatedAnalyticsAll(ctx context.Context, arg GetCorrelatedAnalyticsAllParams) ([]GetCorrelatedAnalyticsAllRow, error)
 	GetCreatorsForEntity(ctx context.Context, arg GetCreatorsForEntityParams) ([]GetCreatorsForEntityRow, error)
 	GetCreditsForEntity(ctx context.Context, arg GetCreditsForEntityParams) ([]GetCreditsForEntityRow, error)
 	GetCreditsForEntityByType(ctx context.Context, arg GetCreditsForEntityByTypeParams) ([]GetCreditsForEntityByTypeRow, error)
@@ -245,6 +251,8 @@ type Querier interface {
 	// This happens when the server crashes between marking a stage complete and enqueuing the next.
 	// Returns the media items that need their next stage enqueued.
 	GetOrphanedPipelineStates(ctx context.Context) ([]GetOrphanedPipelineStatesRow, error)
+	GetOverallPlaybackSummary(ctx context.Context) (GetOverallPlaybackSummaryRow, error)
+	GetOverallTranscodeSummary(ctx context.Context) (GetOverallTranscodeSummaryRow, error)
 	GetPendingScanCheckpoints(ctx context.Context, arg GetPendingScanCheckpointsParams) ([]ScanCheckpoint, error)
 	// Looks up a person by external ID (e.g., TMDb person ID)
 	GetPersonByExternalID(ctx context.Context, arg GetPersonByExternalIDParams) (int32, error)
@@ -258,6 +266,7 @@ type Querier interface {
 	GetPipelineStageByName(ctx context.Context, arg GetPipelineStageByNameParams) (EnrichmentPipeline, error)
 	GetPipelineStageByPlugin(ctx context.Context, arg GetPipelineStageByPluginParams) (EnrichmentPipeline, error)
 	GetPlaybackSessionByID(ctx context.Context, sessionID string) (PlaybackSession, error)
+	GetPlaybackSummaryByMediaID(ctx context.Context, mediaID int32) (GetPlaybackSummaryByMediaIDRow, error)
 	GetPlugin(ctx context.Context, id string) (Plugin, error)
 	GetPluginAPIKey(ctx context.Context, id string) (PluginApiKey, error)
 	GetPluginAPIKeyByHash(ctx context.Context, keyHash string) (PluginApiKey, error)
@@ -305,8 +314,10 @@ type Querier interface {
 	GetTVShowsWithCountsByLibraryPaginated(ctx context.Context, arg GetTVShowsWithCountsByLibraryPaginatedParams) ([]GetTVShowsWithCountsByLibraryPaginatedRow, error)
 	GetTVShowsWithCountsByLibraryPaginatedDesc(ctx context.Context, arg GetTVShowsWithCountsByLibraryPaginatedDescParams) ([]GetTVShowsWithCountsByLibraryPaginatedDescRow, error)
 	GetTotalTranscodeSize(ctx context.Context) (interface{}, error)
+	GetTranscodeAnalyticsBySessionID(ctx context.Context, sessionID string) (TranscodeAnalytic, error)
 	GetTranscodeJobByID(ctx context.Context, id int32) (TranscodeJob, error)
 	GetTranscodeJobByMediaIDAndQuality(ctx context.Context, arg GetTranscodeJobByMediaIDAndQualityParams) (TranscodeJob, error)
+	GetTranscodeSummaryByMediaID(ctx context.Context, mediaID int32) (GetTranscodeSummaryByMediaIDRow, error)
 	GetUserByID(ctx context.Context, id int32) (User, error)
 	GetUserByPublicID(ctx context.Context, publicID string) (User, error)
 	GetUserByUsername(ctx context.Context, lower string) (User, error)
@@ -380,6 +391,7 @@ type Querier interface {
 	ListTVShowsByLibrary(ctx context.Context, libraryID int32) ([]TvShow, error)
 	ListTVShowsByLibraryPaginated(ctx context.Context, arg ListTVShowsByLibraryPaginatedParams) ([]TvShow, error)
 	ListTVShowsByLibraryPaginatedDesc(ctx context.Context, arg ListTVShowsByLibraryPaginatedDescParams) ([]TvShow, error)
+	ListTranscodeAnalyticsByMediaID(ctx context.Context, arg ListTranscodeAnalyticsByMediaIDParams) ([]TranscodeAnalytic, error)
 	ListTranscodeJobsByLRU(ctx context.Context, limit int32) ([]TranscodeJob, error)
 	ListTranscodeJobsByMediaID(ctx context.Context, mediaID int32) ([]TranscodeJob, error)
 	ListTranscodeJobsByStatus(ctx context.Context, status string) ([]TranscodeJob, error)
@@ -446,9 +458,13 @@ type Querier interface {
 	UpdateTVEpisode(ctx context.Context, arg UpdateTVEpisodeParams) error
 	UpdateTVSeason(ctx context.Context, arg UpdateTVSeasonParams) error
 	UpdateTVShow(ctx context.Context, arg UpdateTVShowParams) error
+	UpdateTranscodeFirstFrame(ctx context.Context, arg UpdateTranscodeFirstFrameParams) error
+	UpdateTranscodeFirstSegment(ctx context.Context, arg UpdateTranscodeFirstSegmentParams) error
 	UpdateTranscodeJob(ctx context.Context, arg UpdateTranscodeJobParams) error
 	UpdateTranscodeJobAccess(ctx context.Context, arg UpdateTranscodeJobAccessParams) error
 	UpdateTranscodeJobAccessByMediaAndQuality(ctx context.Context, arg UpdateTranscodeJobAccessByMediaAndQualityParams) error
+	UpdateTranscodeManifestReady(ctx context.Context, arg UpdateTranscodeManifestReadyParams) error
+	UpdateTranscodeSegmentCount(ctx context.Context, arg UpdateTranscodeSegmentCountParams) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	UpdateWatchProgress(ctx context.Context, arg UpdateWatchProgressParams) (WatchProgress, error)

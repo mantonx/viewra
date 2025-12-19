@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sort"
+	"strings"
 
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
@@ -97,10 +99,93 @@ func (q *DBMediaQuerier) SearchMedia(ctx context.Context, title string, year int
 	case "tv", "tv_show":
 		return q.searchTVShows(ctx, pattern, year, limit)
 	default:
-		// Search across all types - just do movies for now
-		// TODO: Combine movie + TV results
-		return q.searchMovies(ctx, pattern, year, limit)
+		// Search across all types and merge results
+		return q.searchAll(ctx, title, pattern, year, limit)
 	}
+}
+
+// searchAll searches both movies and TV shows, merging and ranking results.
+func (q *DBMediaQuerier) searchAll(ctx context.Context, title, pattern string, year int, limit int) ([]*MediaInfo, error) {
+	// Search both types concurrently
+	movieResults, movieErr := q.searchMovies(ctx, pattern, year, limit)
+	tvResults, tvErr := q.searchTVShows(ctx, pattern, year, limit)
+
+	// Combine results (prefer partial results over total failure)
+	var combined []*MediaInfo
+	if movieErr == nil {
+		combined = append(combined, movieResults...)
+	}
+	if tvErr == nil {
+		combined = append(combined, tvResults...)
+	}
+
+	// If both failed, return the first error
+	if movieErr != nil && tvErr != nil {
+		return nil, movieErr
+	}
+
+	// Rank by title match quality
+	rankByTitleMatch(combined, title)
+
+	// Apply limit
+	if len(combined) > limit {
+		combined = combined[:limit]
+	}
+
+	return combined, nil
+}
+
+// rankByTitleMatch sorts results by how well they match the search title.
+// Exact matches come first, then prefix matches, then contains matches.
+func rankByTitleMatch(results []*MediaInfo, searchTitle string) {
+	searchLower := strings.ToLower(searchTitle)
+
+	sort.SliceStable(results, func(i, j int) bool {
+		titleI := strings.ToLower(results[i].Title)
+		titleJ := strings.ToLower(results[j].Title)
+
+		scoreI := titleMatchScore(titleI, searchLower)
+		scoreJ := titleMatchScore(titleJ, searchLower)
+
+		return scoreI > scoreJ
+	})
+}
+
+// titleMatchScore returns a score for how well a title matches the search.
+// Higher scores indicate better matches.
+func titleMatchScore(title, search string) int {
+	// Exact match (highest priority)
+	if title == search {
+		return 100
+	}
+
+	// Exact match ignoring "the" prefix
+	titleNoThe := strings.TrimPrefix(title, "the ")
+	searchNoThe := strings.TrimPrefix(search, "the ")
+	if titleNoThe == searchNoThe {
+		return 95
+	}
+
+	// Starts with search term
+	if strings.HasPrefix(title, search) {
+		return 80
+	}
+	if strings.HasPrefix(titleNoThe, searchNoThe) {
+		return 75
+	}
+
+	// Contains as whole word
+	if strings.Contains(" "+title+" ", " "+search+" ") {
+		return 60
+	}
+
+	// Contains anywhere
+	if strings.Contains(title, search) {
+		return 40
+	}
+
+	// Default (matched via SQL LIKE but no special ranking)
+	return 10
 }
 
 // searchMovies searches for movies by title pattern across all libraries.

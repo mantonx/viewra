@@ -10,6 +10,19 @@ import (
 	"database/sql"
 )
 
+const countPlaybackSessionsByMediaID = `-- name: CountPlaybackSessionsByMediaID :one
+SELECT COUNT(*) as count
+FROM playback_sessions
+WHERE media_id = $1
+`
+
+func (q *Queries) CountPlaybackSessionsByMediaID(ctx context.Context, mediaID int32) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countPlaybackSessionsByMediaID, mediaID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createQualitySwitchEvent = `-- name: CreateQualitySwitchEvent :one
 INSERT INTO quality_switch_events (
     session_id,
@@ -98,8 +111,51 @@ func (q *Queries) DeleteOldQualitySwitchEvents(ctx context.Context, timestamp in
 	return err
 }
 
+const getOverallPlaybackSummary = `-- name: GetOverallPlaybackSummary :one
+SELECT
+    COUNT(*) as total_sessions,
+    COUNT(DISTINCT media_id) as unique_media,
+    COALESCE(AVG(total_play_time_ms), 0) as avg_play_time_ms,
+    COALESCE(AVG(total_buffer_time_ms), 0) as avg_buffer_time_ms,
+    COALESCE(SUM(stall_count), 0) as total_stalls,
+    COALESCE(AVG(stall_count), 0) as avg_stalls_per_session,
+    COALESCE(AVG(startup_time_ms), 0) as avg_startup_time_ms,
+    MIN(startup_time_ms) as min_startup_time_ms,
+    MAX(startup_time_ms) as max_startup_time_ms
+FROM playback_sessions
+`
+
+type GetOverallPlaybackSummaryRow struct {
+	TotalSessions       int64       `json:"total_sessions"`
+	UniqueMedia         int64       `json:"unique_media"`
+	AvgPlayTimeMs       interface{} `json:"avg_play_time_ms"`
+	AvgBufferTimeMs     interface{} `json:"avg_buffer_time_ms"`
+	TotalStalls         interface{} `json:"total_stalls"`
+	AvgStallsPerSession interface{} `json:"avg_stalls_per_session"`
+	AvgStartupTimeMs    interface{} `json:"avg_startup_time_ms"`
+	MinStartupTimeMs    interface{} `json:"min_startup_time_ms"`
+	MaxStartupTimeMs    interface{} `json:"max_startup_time_ms"`
+}
+
+func (q *Queries) GetOverallPlaybackSummary(ctx context.Context) (GetOverallPlaybackSummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, getOverallPlaybackSummary)
+	var i GetOverallPlaybackSummaryRow
+	err := row.Scan(
+		&i.TotalSessions,
+		&i.UniqueMedia,
+		&i.AvgPlayTimeMs,
+		&i.AvgBufferTimeMs,
+		&i.TotalStalls,
+		&i.AvgStallsPerSession,
+		&i.AvgStartupTimeMs,
+		&i.MinStartupTimeMs,
+		&i.MaxStartupTimeMs,
+	)
+	return i, err
+}
+
 const getPlaybackSessionByID = `-- name: GetPlaybackSessionByID :one
-SELECT id, session_id, media_id, start_time, end_time, total_play_time_ms, total_buffer_time_ms, stall_count, quality_switch_count, average_quality, device_type, connection_type, created_at FROM playback_sessions
+SELECT id, session_id, media_id, start_time, end_time, total_play_time_ms, total_buffer_time_ms, stall_count, quality_switch_count, average_quality, device_type, connection_type, created_at, startup_time_ms FROM playback_sessions
 WHERE session_id = $1
 `
 
@@ -120,6 +176,48 @@ func (q *Queries) GetPlaybackSessionByID(ctx context.Context, sessionID string) 
 		&i.DeviceType,
 		&i.ConnectionType,
 		&i.CreatedAt,
+		&i.StartupTimeMs,
+	)
+	return i, err
+}
+
+const getPlaybackSummaryByMediaID = `-- name: GetPlaybackSummaryByMediaID :one
+SELECT
+    COUNT(*) as total_sessions,
+    COALESCE(AVG(total_play_time_ms), 0) as avg_play_time_ms,
+    COALESCE(AVG(total_buffer_time_ms), 0) as avg_buffer_time_ms,
+    COALESCE(SUM(stall_count), 0) as total_stalls,
+    COALESCE(AVG(stall_count), 0) as avg_stalls_per_session,
+    COALESCE(AVG(startup_time_ms), 0) as avg_startup_time_ms,
+    MIN(startup_time_ms) as min_startup_time_ms,
+    MAX(startup_time_ms) as max_startup_time_ms
+FROM playback_sessions
+WHERE media_id = $1
+`
+
+type GetPlaybackSummaryByMediaIDRow struct {
+	TotalSessions       int64       `json:"total_sessions"`
+	AvgPlayTimeMs       interface{} `json:"avg_play_time_ms"`
+	AvgBufferTimeMs     interface{} `json:"avg_buffer_time_ms"`
+	TotalStalls         interface{} `json:"total_stalls"`
+	AvgStallsPerSession interface{} `json:"avg_stalls_per_session"`
+	AvgStartupTimeMs    interface{} `json:"avg_startup_time_ms"`
+	MinStartupTimeMs    interface{} `json:"min_startup_time_ms"`
+	MaxStartupTimeMs    interface{} `json:"max_startup_time_ms"`
+}
+
+func (q *Queries) GetPlaybackSummaryByMediaID(ctx context.Context, mediaID int32) (GetPlaybackSummaryByMediaIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getPlaybackSummaryByMediaID, mediaID)
+	var i GetPlaybackSummaryByMediaIDRow
+	err := row.Scan(
+		&i.TotalSessions,
+		&i.AvgPlayTimeMs,
+		&i.AvgBufferTimeMs,
+		&i.TotalStalls,
+		&i.AvgStallsPerSession,
+		&i.AvgStartupTimeMs,
+		&i.MinStartupTimeMs,
+		&i.MaxStartupTimeMs,
 	)
 	return i, err
 }
@@ -147,7 +245,7 @@ func (q *Queries) GetQualitySwitchStats(ctx context.Context, mediaID int32) (Get
 }
 
 const listPlaybackSessionsByMediaID = `-- name: ListPlaybackSessionsByMediaID :many
-SELECT id, session_id, media_id, start_time, end_time, total_play_time_ms, total_buffer_time_ms, stall_count, quality_switch_count, average_quality, device_type, connection_type, created_at FROM playback_sessions
+SELECT id, session_id, media_id, start_time, end_time, total_play_time_ms, total_buffer_time_ms, stall_count, quality_switch_count, average_quality, device_type, connection_type, created_at, startup_time_ms FROM playback_sessions
 WHERE media_id = $1
 ORDER BY start_time DESC
 LIMIT $2 OFFSET $3
@@ -182,6 +280,7 @@ func (q *Queries) ListPlaybackSessionsByMediaID(ctx context.Context, arg ListPla
 			&i.DeviceType,
 			&i.ConnectionType,
 			&i.CreatedAt,
+			&i.StartupTimeMs,
 		); err != nil {
 			return nil, err
 		}
@@ -252,8 +351,9 @@ INSERT INTO playback_sessions (
     quality_switch_count,
     average_quality,
     device_type,
-    connection_type
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    connection_type,
+    startup_time_ms
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 ON CONFLICT(session_id)
 DO UPDATE SET
     end_time = COALESCE(EXCLUDED.end_time, playback_sessions.end_time),
@@ -261,8 +361,9 @@ DO UPDATE SET
     total_buffer_time_ms = EXCLUDED.total_buffer_time_ms,
     stall_count = EXCLUDED.stall_count,
     quality_switch_count = EXCLUDED.quality_switch_count,
-    average_quality = COALESCE(EXCLUDED.average_quality, playback_sessions.average_quality)
-RETURNING id, session_id, media_id, start_time, end_time, total_play_time_ms, total_buffer_time_ms, stall_count, quality_switch_count, average_quality, device_type, connection_type, created_at
+    average_quality = COALESCE(EXCLUDED.average_quality, playback_sessions.average_quality),
+    startup_time_ms = COALESCE(EXCLUDED.startup_time_ms, playback_sessions.startup_time_ms)
+RETURNING id, session_id, media_id, start_time, end_time, total_play_time_ms, total_buffer_time_ms, stall_count, quality_switch_count, average_quality, device_type, connection_type, created_at, startup_time_ms
 `
 
 type UpsertPlaybackSessionParams struct {
@@ -277,6 +378,7 @@ type UpsertPlaybackSessionParams struct {
 	AverageQuality     sql.NullString `json:"average_quality"`
 	DeviceType         sql.NullString `json:"device_type"`
 	ConnectionType     sql.NullString `json:"connection_type"`
+	StartupTimeMs      sql.NullInt32  `json:"startup_time_ms"`
 }
 
 func (q *Queries) UpsertPlaybackSession(ctx context.Context, arg UpsertPlaybackSessionParams) (PlaybackSession, error) {
@@ -292,6 +394,7 @@ func (q *Queries) UpsertPlaybackSession(ctx context.Context, arg UpsertPlaybackS
 		arg.AverageQuality,
 		arg.DeviceType,
 		arg.ConnectionType,
+		arg.StartupTimeMs,
 	)
 	var i PlaybackSession
 	err := row.Scan(
@@ -308,6 +411,7 @@ func (q *Queries) UpsertPlaybackSession(ctx context.Context, arg UpsertPlaybackS
 		&i.DeviceType,
 		&i.ConnectionType,
 		&i.CreatedAt,
+		&i.StartupTimeMs,
 	)
 	return i, err
 }

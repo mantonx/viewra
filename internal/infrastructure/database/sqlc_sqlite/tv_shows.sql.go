@@ -892,6 +892,7 @@ SELECT
     s.content_rating,
     s.imdb_id,
     s.tmdb_id,
+    s.created_at,
     COUNT(DISTINCT e.season_number) as season_count,
     COUNT(*) as episode_count
 FROM tv_shows s
@@ -899,7 +900,7 @@ LEFT JOIN tv_episodes e ON s.id = e.show_id
 LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = ?
   AND (med.is_extra = 0 OR med.is_extra IS NULL)
-GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(s.sort_title, s.title) COLLATE NOCASE ASC
 LIMIT ? OFFSET ?
 `
@@ -920,6 +921,7 @@ type GetTVShowsWithCountsByLibraryPaginatedRow struct {
 	ContentRating sql.NullString `json:"content_rating"`
 	ImdbID        sql.NullString `json:"imdb_id"`
 	TmdbID        sql.NullInt64  `json:"tmdb_id"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
 	SeasonCount   int64          `json:"season_count"`
 	EpisodeCount  int64          `json:"episode_count"`
 }
@@ -943,6 +945,7 @@ func (q *Queries) GetTVShowsWithCountsByLibraryPaginated(ctx context.Context, ar
 			&i.ContentRating,
 			&i.ImdbID,
 			&i.TmdbID,
+			&i.CreatedAt,
 			&i.SeasonCount,
 			&i.EpisodeCount,
 		); err != nil {
@@ -970,6 +973,7 @@ SELECT
     s.content_rating,
     s.imdb_id,
     s.tmdb_id,
+    s.created_at,
     COUNT(DISTINCT e.season_number) as season_count,
     COUNT(*) as episode_count
 FROM tv_shows s
@@ -977,7 +981,7 @@ LEFT JOIN tv_episodes e ON s.id = e.show_id
 LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = ?
   AND (med.is_extra = 0 OR med.is_extra IS NULL)
-GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(s.sort_title, s.title) COLLATE NOCASE DESC
 LIMIT ? OFFSET ?
 `
@@ -998,6 +1002,7 @@ type GetTVShowsWithCountsByLibraryPaginatedDescRow struct {
 	ContentRating sql.NullString `json:"content_rating"`
 	ImdbID        sql.NullString `json:"imdb_id"`
 	TmdbID        sql.NullInt64  `json:"tmdb_id"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
 	SeasonCount   int64          `json:"season_count"`
 	EpisodeCount  int64          `json:"episode_count"`
 }
@@ -1021,6 +1026,7 @@ func (q *Queries) GetTVShowsWithCountsByLibraryPaginatedDesc(ctx context.Context
 			&i.ContentRating,
 			&i.ImdbID,
 			&i.TmdbID,
+			&i.CreatedAt,
 			&i.SeasonCount,
 			&i.EpisodeCount,
 		); err != nil {
@@ -2279,6 +2285,7 @@ SELECT
     s.content_rating,
     s.imdb_id,
     s.tmdb_id,
+    s.created_at,
     COUNT(DISTINCT e.season_number) as season_count,
     COUNT(*) as episode_count
 FROM tv_shows s
@@ -2287,7 +2294,7 @@ LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = ?
   AND (s.title LIKE ? OR s.original_title LIKE ?)
   AND (med.is_extra = 0 OR med.is_extra IS NULL)
-GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(s.sort_title, s.title) COLLATE NOCASE ASC
 LIMIT ? OFFSET ?
 `
@@ -2310,6 +2317,7 @@ type SearchTVShowsWithCountsByTitlePaginatedRow struct {
 	ContentRating sql.NullString `json:"content_rating"`
 	ImdbID        sql.NullString `json:"imdb_id"`
 	TmdbID        sql.NullInt64  `json:"tmdb_id"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
 	SeasonCount   int64          `json:"season_count"`
 	EpisodeCount  int64          `json:"episode_count"`
 }
@@ -2339,6 +2347,7 @@ func (q *Queries) SearchTVShowsWithCountsByTitlePaginated(ctx context.Context, a
 			&i.ContentRating,
 			&i.ImdbID,
 			&i.TmdbID,
+			&i.CreatedAt,
 			&i.SeasonCount,
 			&i.EpisodeCount,
 		); err != nil {

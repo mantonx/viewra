@@ -3,6 +3,7 @@ package transcode
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/mantonx/viewra/internal/domain/media"
@@ -39,6 +40,10 @@ type ServeMasterPlaylistRequest struct {
 	// QualityOverride allows user to manually select a specific quality
 	// If set, bypasses recommendation logic and uses this quality directly
 	QualityOverride string // e.g., "4k-25m", "1080p-10m", "720p-4m"
+
+	// ClientSupportsHDR indicates the client has an HDR-capable display
+	// If true and client supports HEVC, HDR content can be remuxed without tone mapping
+	ClientSupportsHDR bool
 }
 
 // buildVariantParams contains parameters passed to variant playlist URLs.
@@ -134,14 +139,26 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 
 	// Determine streaming strategy based on client capabilities
 	var clientCaps *strategy.ClientCapabilities
-	if len(req.SupportedVideoCodecs) > 0 || len(req.SupportedContainers) > 0 {
+	if len(req.SupportedVideoCodecs) > 0 || len(req.SupportedContainers) > 0 || req.ClientSupportsHDR {
 		clientCaps = &strategy.ClientCapabilities{
 			SupportedVideoCodecs: req.SupportedVideoCodecs,
 			SupportedContainers:  req.SupportedContainers,
+			SupportsHDRDisplay:   req.ClientSupportsHDR,
 		}
 	}
 
 	streamStrategy, reason := strategy.DetermineStrategyWithCapabilities(videoInfo, clientCaps)
+
+	// Debug logging for strategy decision
+	slog.Info("strategy decision",
+		"mediaID", req.MediaID,
+		"codec", videoInfo.Codec,
+		"isHDR", videoInfo.IsHDR,
+		"clientSupportsHDR", req.ClientSupportsHDR,
+		"supportedCodecs", req.SupportedVideoCodecs,
+		"strategy", streamStrategy,
+		"reason", reason,
+	)
 
 	// DirectPlay is allowed - subtitles are handled client-side via overlay
 	if streamStrategy == strategy.DirectPlay {

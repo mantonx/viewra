@@ -60,6 +60,8 @@ export const VideoPlayer = ({
   // Key that changes on large seeks to force subtitle components to remount
   // This ensures subtitles re-initialize with the correct streamOffsetRef value
   const [subtitleSeekKey, setSubtitleSeekKey] = useState(0)
+  // Backend session ID for analytics correlation (from X-Session-ID header)
+  const [backendSessionId, setBackendSessionId] = useState<string | null>(null)
 
   // Fetch tracks (audio and subtitle) from API
   const { data: tracksData } = useGetApiMediaIdTracks(mediaId)
@@ -136,6 +138,7 @@ export const VideoPlayer = ({
     isHlsStream,
     onError: setError,
     onFragLoaded: (bytes, durationMs) => recordSample(bytes, durationMs),
+    onSessionIdReceived: setBackendSessionId,
   })
 
   // Convert API audio tracks to the format expected by VideoControls
@@ -178,10 +181,20 @@ export const VideoPlayer = ({
   // Playback analytics
   const {
     startSession,
+    updateSessionId,
     endSession,
     recordQualitySwitch,
     recordStall: recordAnalyticsStall,
+    recordPlayTime,
+    recordStartupTime,
   } = usePlaybackAnalytics({ enabled: true })
+
+  // Update analytics session ID when backend session ID arrives
+  useEffect(() => {
+    if (backendSessionId) {
+      updateSessionId(backendSessionId)
+    }
+  }, [backendSessionId, updateSessionId])
 
   // Video controls hook
   const {
@@ -223,6 +236,7 @@ export const VideoPlayer = ({
     isPlaying,
     streamOffsetRef,
     isSeekingRef,
+    backendSessionId,
     onPlay: () => setIsPlaying(true),
     onPause: () => setIsPlaying(false),
     onTimeUpdate: (time) => {
@@ -252,6 +266,8 @@ export const VideoPlayer = ({
     onDurationChange: setVideoDuration,
     startAnalyticsSession: startSession,
     recordStall,
+    recordPlayTime,
+    recordStartupTime,
     progressUpdater,
   })
 

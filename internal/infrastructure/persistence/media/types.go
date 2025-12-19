@@ -6,6 +6,7 @@ import (
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/metadata/quality"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/adapters"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
@@ -19,6 +20,18 @@ type Repository struct {
 	postgres *sqlc_postgres.Queries
 	adapter  *adapters.TypeAdapter
 	router   *common.QueryRouter
+}
+
+// calculateQualityScore computes a quality score for a media entity using technical characteristics.
+func calculateQualityScore(m *media.Media) int {
+	return quality.Calculate(quality.MediaParams{
+		Width:      m.Width,
+		Height:     m.Height,
+		VideoCodec: m.VideoCodec,
+		AudioCodec: m.AudioCodec,
+		Bitrate:    m.Bitrate,
+		HDRFormat:  m.HDRFormat,
+	})
 }
 
 // pgMediumToDomain converts a PostgreSQL Medium model to a domain Media entity.
@@ -103,10 +116,10 @@ func buildPostgresCreateParams(m *media.Media) sqlc_postgres.CreateMediaParams {
 		HdrFormat:         common.NullString(m.HDRFormat),
 		ColorSpace:        common.NullString(m.ColorSpace),
 		ColorPrimaries:    common.NullString(m.ColorPrimaries),
-		ThumbnailPath:     sql.NullString{},   // TODO: Generate during scan
+		ThumbnailPath:     sql.NullString{},   // Set separately via UpdateThumbnailPath
 		SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
 		ResolutionLabel:   common.NullString(media.CalculateResolutionLabelFromDimensions(m.Width, m.Height)),
-		QualityScore:      sql.NullInt32{},    // TODO: Calculate heuristic
+		QualityScore:      common.NullInt32(int32(calculateQualityScore(m))),
 		Is3d:              common.NullBool(func() bool { is3d, _ := media.Detect3D(m.FilePath); return is3d }()),
 		StereoMode:        common.NullString(func() string { _, stereoMode := media.Detect3D(m.FilePath); return stereoMode }()),
 		HasDash:           common.NullBool(false),
@@ -142,7 +155,7 @@ func buildSQLiteCreateParams(m *media.Media) sqlc_sqlite.CreateMediaParams {
 		ThumbnailPath:     sql.NullString{},   // TODO: Generate during scan
 		SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
 		ResolutionLabel:   common.NullString(media.CalculateResolutionLabelFromDimensions(m.Width, m.Height)),
-		QualityScore:      sql.NullInt64{},    // TODO: Calculate heuristic
+		QualityScore:      common.NullInt64(int64(calculateQualityScore(m))),
 		Is3d:              common.NullBool(func() bool { is3d, _ := media.Detect3D(m.FilePath); return is3d }()),
 		StereoMode:        common.NullString(func() string { _, stereoMode := media.Detect3D(m.FilePath); return stereoMode }()),
 		HasDash:           common.NullBool(false),

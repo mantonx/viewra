@@ -55,6 +55,7 @@ func (uc *ListTVShowsUseCase) Execute(ctx context.Context, libraryID int64) (Lis
 			ContentRating: show.ContentRating,
 			SeasonCount:   int(show.SeasonCount),
 			EpisodeCount:  int(show.EpisodeCount),
+			CreatedAt:     show.CreatedAt,
 		}
 	}
 
@@ -97,6 +98,7 @@ func (uc *ListTVShowsUseCase) ExecuteWithPagination(ctx context.Context, library
 			ContentRating: show.ContentRating,
 			SeasonCount:   int(show.SeasonCount),
 			EpisodeCount:  int(show.EpisodeCount),
+			CreatedAt:     show.CreatedAt,
 		}
 	}
 
@@ -140,6 +142,7 @@ func (uc *ListTVShowsUseCase) ExecuteWithSearch(ctx context.Context, libraryID i
 			ContentRating: show.ContentRating,
 			SeasonCount:   int(show.SeasonCount),
 			EpisodeCount:  int(show.EpisodeCount),
+			CreatedAt:     show.CreatedAt,
 		}
 	}
 

@@ -10,17 +10,18 @@ import (
 
 // TVShowSummary represents a TV show with aggregated metadata (for list view)
 type TVShowSummary struct {
-	ID           int64    `json:"id" binding:"required"`
-	LibraryID    int64    `json:"library_id" binding:"required"`
-	Title        string   `json:"title" binding:"required"`
-	Year         int      `json:"year,omitempty"`
-	Genre        []string `json:"genre,omitempty"`
-	Plot         string   `json:"plot,omitempty"`
-	IMDbID       string   `json:"imdb_id,omitempty"`
-	TMDbID       int      `json:"tmdb_id,omitempty"`
-	ContentRating string  `json:"content_rating,omitempty"`
-	SeasonCount  int      `json:"season_count"`
-	EpisodeCount int      `json:"episode_count"`
+	ID            int64     `json:"id" binding:"required"`
+	LibraryID     int64     `json:"library_id" binding:"required"`
+	Title         string    `json:"title" binding:"required"`
+	Year          int       `json:"year,omitempty"`
+	Genre         []string  `json:"genre,omitempty"`
+	Plot          string    `json:"plot,omitempty"`
+	IMDbID        string    `json:"imdb_id,omitempty"`
+	TMDbID        int       `json:"tmdb_id,omitempty"`
+	ContentRating string    `json:"content_rating,omitempty"`
+	SeasonCount   int       `json:"season_count"`
+	EpisodeCount  int       `json:"episode_count"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 // TVShowDetailResponse represents detailed information about a single TV show

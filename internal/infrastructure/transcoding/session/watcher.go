@@ -13,7 +13,8 @@ import (
 // Segment filename constants
 const (
 	// SegmentDuration is the duration of each HLS segment in seconds.
-	SegmentDuration = 2
+	// Reduced from 2s to 1s for faster startup (FFmpeg only needs to encode 1s before playback starts).
+	SegmentDuration = 1
 
 	// SegmentFilenameFormat is the format string for segment filenames
 	SegmentFilenameFormat = "seg_%06d.ts"

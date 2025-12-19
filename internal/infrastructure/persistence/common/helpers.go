@@ -274,6 +274,15 @@ func NullStringPtr(value *string) sql.NullString {
 	return sql.NullString{String: *value, Valid: true}
 }
 
+// ParseNullStringPtr converts sql.NullString to *string.
+// Returns nil if the value is NULL.
+func ParseNullStringPtr(s sql.NullString) *string {
+	if s.Valid {
+		return &s.String
+	}
+	return nil
+}
+
 // NullFloat64Ptr creates a sql.NullFloat64 from a *float64 pointer.
 // Valid is true if pointer is non-nil.
 func NullFloat64Ptr(value *float64) sql.NullFloat64 {
@@ -290,4 +299,170 @@ func NullFloat32Ptr(value *float64) sql.NullFloat64 {
 		return sql.NullFloat64{Valid: false}
 	}
 	return sql.NullFloat64{Float64: *value, Valid: true}
+}
+
+// --- Interface Converters (for aggregate query results) ---
+
+// Float64FromInterface extracts a float64 from an interface{}.
+// Handles various numeric types that databases return for AVG/SUM.
+func Float64FromInterface(v interface{}) float64 {
+	if v == nil {
+		return 0
+	}
+	switch val := v.(type) {
+	case float64:
+		return val
+	case float32:
+		return float64(val)
+	case int64:
+		return float64(val)
+	case int32:
+		return float64(val)
+	case int:
+		return float64(val)
+	case []byte:
+		// SQLite may return numeric strings as []byte
+		var f float64
+		if _, err := parseNumber(string(val), &f); err == nil {
+			return f
+		}
+	case string:
+		var f float64
+		if _, err := parseNumber(val, &f); err == nil {
+			return f
+		}
+	}
+	return 0
+}
+
+// Int64FromInterface extracts an int64 from an interface{}.
+// Handles various numeric types that databases return for COUNT/SUM.
+func Int64FromInterface(v interface{}) int64 {
+	if v == nil {
+		return 0
+	}
+	switch val := v.(type) {
+	case int64:
+		return val
+	case int32:
+		return int64(val)
+	case int:
+		return int64(val)
+	case float64:
+		return int64(val)
+	case float32:
+		return int64(val)
+	case []byte:
+		var i int64
+		if _, err := parseNumber(string(val), &i); err == nil {
+			return i
+		}
+	case string:
+		var i int64
+		if _, err := parseNumber(val, &i); err == nil {
+			return i
+		}
+	}
+	return 0
+}
+
+// Int64PtrFromInterface extracts an *int64 from an interface{}.
+// Returns nil if the value is nil or cannot be converted.
+func Int64PtrFromInterface(v interface{}) *int64 {
+	if v == nil {
+		return nil
+	}
+	val := Int64FromInterface(v)
+	return &val
+}
+
+// parseNumber is a helper that parses a string to a numeric type.
+func parseNumber[T Numeric](s string, target *T) (T, error) {
+	var result T
+	switch any(target).(type) {
+	case *float64:
+		var f float64
+		parseFloat(s, &f)
+		*target = T(f)
+		return *target, nil
+	case *int64:
+		var i int64
+		parseInt(s, &i)
+		*target = T(i)
+		return *target, nil
+	case *int32:
+		var i int64
+		parseInt(s, &i)
+		*target = T(int32(i))
+		return *target, nil
+	}
+	return result, nil
+}
+
+func parseFloat(s string, f *float64) {
+	// Strip non-numeric characters except . and -
+	clean := make([]byte, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '.' || c == '-' || (c >= '0' && c <= '9') {
+			clean = append(clean, c)
+		} else if len(clean) > 0 {
+			break
+		}
+	}
+	s = string(clean)
+	if len(s) == 0 {
+		*f = 0
+		return
+	}
+
+	neg := s[0] == '-'
+	if neg {
+		s = s[1:]
+	}
+
+	var val float64
+	decimalPos := -1
+	for i := 0; i < len(s); i++ {
+		if s[i] == '.' {
+			decimalPos = i
+			continue
+		}
+		if s[i] < '0' || s[i] > '9' {
+			break
+		}
+		val = val*10 + float64(s[i]-'0')
+	}
+
+	if decimalPos >= 0 {
+		divisor := 1.0
+		for i := 0; i < len(s)-decimalPos-1; i++ {
+			divisor *= 10
+		}
+		val /= divisor
+	}
+
+	if neg {
+		val = -val
+	}
+	*f = val
+}
+
+func parseInt(s string, i *int64) {
+	var val int64
+	neg := false
+	for idx := 0; idx < len(s); idx++ {
+		if s[idx] == '-' && idx == 0 {
+			neg = true
+			continue
+		}
+		if s[idx] < '0' || s[idx] > '9' {
+			break
+		}
+		val = val*10 + int64(s[idx]-'0')
+	}
+	if neg {
+		val = -val
+	}
+	*i = val
 }

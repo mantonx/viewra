@@ -65,6 +65,7 @@ export interface UseHlsPlayerOptions {
   isHlsStream: boolean
   onError: (error: string | null) => void
   onFragLoaded?: (bytes: number, durationMs: number) => void
+  onSessionIdReceived?: (sessionId: string) => void
 }
 
 export interface UseHlsPlayerReturn {
@@ -155,6 +156,7 @@ export const useHlsPlayer = ({
   isHlsStream,
   onError,
   onFragLoaded,
+  onSessionIdReceived,
 }: UseHlsPlayerOptions): UseHlsPlayerReturn => {
   const hlsRef = useRef<Hls | null>(null)
   const streamOffsetRef = useRef<number>(0)
@@ -172,6 +174,10 @@ export const useHlsPlayer = ({
   onErrorRef.current = onError
   const onFragLoadedRef = useRef(onFragLoaded)
   onFragLoadedRef.current = onFragLoaded
+  const onSessionIdReceivedRef = useRef(onSessionIdReceived)
+  onSessionIdReceivedRef.current = onSessionIdReceived
+  // Track whether we've already received a session ID for this stream
+  const sessionIdReceivedRef = useRef(false)
 
   /**
    * Change quality level (legacy - not used in single-quality mode)
@@ -231,6 +237,9 @@ export const useHlsPlayer = ({
   useEffect(() => {
     const video = videoRef.current
     if (!video || !streamUrl) {return}
+
+    // Reset session ID tracking for new stream
+    sessionIdReceivedRef.current = false
 
     // For direct streams, use native HTML5 video
     if (!isHlsStream) {
@@ -301,10 +310,29 @@ export const useHlsPlayer = ({
       // startLevel=0 means play the first (and only) variant in the master playlist
       startLevel: 0,
       abrEwmaDefaultEstimate: bandwidthEstimate, // Helps with buffer decisions
-      xhrSetup: (xhr, _url) => {
+      xhrSetup: (xhr, url) => {
         const authHeaders = getAuthHeaders()
         if (authHeaders['Authorization']) {
           xhr.setRequestHeader('Authorization', authHeaders['Authorization'])
+        }
+
+        // Capture X-Session-ID header from variant playlist response
+        // This correlates frontend analytics with backend transcode sessions
+        if (url.includes('playlist.m3u8') && !sessionIdReceivedRef.current) {
+          const originalOnLoad = xhr.onload
+          xhr.onload = function(e) {
+            const sessionId = xhr.getResponseHeader('X-Session-ID')
+            if (sessionId && !sessionIdReceivedRef.current) {
+              sessionIdReceivedRef.current = true
+              logger.info('[HLS] Received session ID from backend', { sessionId })
+              if (onSessionIdReceivedRef.current) {
+                onSessionIdReceivedRef.current(sessionId)
+              }
+            }
+            if (originalOnLoad) {
+              originalOnLoad.call(this, e)
+            }
+          }
         }
       },
     })

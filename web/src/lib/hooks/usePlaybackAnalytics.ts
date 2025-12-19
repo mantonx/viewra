@@ -3,9 +3,11 @@ import {
   createAnalyticsState,
   startSession,
   endSession,
+  updateSessionId,
   recordQualitySwitch,
   recordStallEvent,
   recordPlayTime,
+  recordStartupTime,
   shouldFlush,
   getEventsToFlush,
   requeueEvents,
@@ -25,7 +27,10 @@ export interface UsePlaybackAnalyticsOptions {
 }
 
 export interface UsePlaybackAnalyticsReturn {
-  startSession: (mediaId: number) => string
+  /** Start a new playback session. Pass externalSessionId for backend correlation. */
+  startSession: (mediaId: number, externalSessionId?: string) => string
+  /** Update session ID when backend ID arrives after session start */
+  updateSessionId: (newSessionId: string) => void
   endSession: () => void
   recordQualitySwitch: (
     fromQuality: string | null,
@@ -38,6 +43,7 @@ export interface UsePlaybackAnalyticsReturn {
   ) => void
   recordStall: (durationMs: number) => void
   recordPlayTime: (durationMs: number) => void
+  recordStartupTime: (startupTimeMs: number) => void
 }
 
 /**
@@ -79,14 +85,23 @@ export const usePlaybackAnalytics = (
     const currentConfig = configRef.current
 
     const flush = async () => {
-      if (stateRef.current.eventQueue.length === 0) {
+      // Flush if we have events OR an active session (session data is valuable even without events)
+      if (stateRef.current.eventQueue.length === 0 && !stateRef.current.currentSession) {
+        console.log('[Analytics] Skipping flush - no events and no session')
         return
       }
+
+      console.log('[Analytics] Flushing', {
+        eventCount: stateRef.current.eventQueue.length,
+        hasSession: !!stateRef.current.currentSession,
+        sessionId: stateRef.current.currentSession?.sessionId,
+      })
 
       const { state, events, session } = getEventsToFlush(stateRef.current)
       stateRef.current = state
 
       const success = await flushEvents(events, session, currentConfig)
+      console.log('[Analytics] Flush result:', success)
       if (!success) {
         stateRef.current = requeueEvents(stateRef.current, events)
       }
@@ -98,18 +113,25 @@ export const usePlaybackAnalytics = (
       if (flushIntervalRef.current) {
         clearInterval(flushIntervalRef.current)
       }
-      // Final flush on unmount using sendBeacon
-      if (stateRef.current.eventQueue.length > 0) {
+      // Final flush on unmount using sendBeacon (send if events OR active session)
+      if (stateRef.current.eventQueue.length > 0 || stateRef.current.currentSession) {
         const { events, session } = getEventsToFlush(stateRef.current)
         flushEventsBeacon(events, session, currentConfig)
       }
     }
   }, [enabled])
 
-  const handleStartSession = useCallback((mediaId: number): string => {
-    const result = startSession(stateRef.current, mediaId)
+  const handleStartSession = useCallback((mediaId: number, externalSessionId?: string): string => {
+    console.log('[Analytics] Starting session', { mediaId, externalSessionId })
+    const result = startSession(stateRef.current, mediaId, externalSessionId)
     stateRef.current = result.state
+    console.log('[Analytics] Session started', { sessionId: result.sessionId })
     return result.sessionId
+  }, [])
+
+  const handleUpdateSessionId = useCallback((newSessionId: string) => {
+    console.log('[Analytics] Updating session ID', { newSessionId })
+    stateRef.current = updateSessionId(stateRef.current, newSessionId)
   }, [])
 
   const handleEndSession = useCallback(() => {
@@ -160,12 +182,18 @@ export const usePlaybackAnalytics = (
     stateRef.current = recordPlayTime(stateRef.current, durationMs)
   }, [])
 
+  const handleRecordStartupTime = useCallback((startupTimeMs: number) => {
+    stateRef.current = recordStartupTime(stateRef.current, startupTimeMs)
+  }, [])
+
   return {
     startSession: handleStartSession,
+    updateSessionId: handleUpdateSessionId,
     endSession: handleEndSession,
     recordQualitySwitch: handleRecordQualitySwitch,
     recordStall: handleRecordStall,
     recordPlayTime: handleRecordPlayTime,
+    recordStartupTime: handleRecordStartupTime,
   }
 }
 

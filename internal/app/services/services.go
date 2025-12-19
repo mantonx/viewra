@@ -176,6 +176,19 @@ func BuildServices(
 		}
 	}
 
+	// Clean up orphaned output directories from previous server runs.
+	// This handles the case where FFmpeg processes (spawned via systemd-run)
+	// continue running after a server restart, leaving stale output directories
+	// that would conflict with new sessions for the same media/quality.
+	if cleanedCount, freedBytes, err := sessionManager.CleanupOrphanedOutputDirs(cfg.Media.TranscodeOutputDir); err != nil {
+		logger.Warn("Failed to clean orphaned transcode directories",
+			"error", err)
+	} else if cleanedCount > 0 {
+		logger.Info("Cleaned orphaned transcode directories on startup",
+			"directories_cleaned", cleanedCount,
+			"bytes_freed", freedBytes)
+	}
+
 	// Start comprehensive background cleanup:
 	// 1. Idle sessions: Check every 15s, clean sessions idle >30s
 	// 2. Old transcode caches: Check every 5min, remove caches >1 hour old

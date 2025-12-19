@@ -90,6 +90,12 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 		// Manifest generated - serve it with audio track parameter injected into segment URLs
 		c.Header("Content-Type", "application/vnd.apple.mpegurl")
 		c.Header("Access-Control-Allow-Origin", "*") // CORS for HLS
+		c.Header("Access-Control-Expose-Headers", "X-Session-ID")
+
+		// Include transcode session ID for frontend analytics correlation
+		if response.SessionID != "" {
+			c.Header("X-Session-ID", response.SessionID)
+		}
 
 		// If audio track is specified, we need to rewrite segment URLs to include the parameter
 		// This ensures HLS.js requests segments with the correct audio track
@@ -275,6 +281,10 @@ func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 	// Parse optional quality override (user manually selected a quality)
 	qualityOverride := c.Query("quality")
 
+	// Parse HDR display capability from client
+	// If true, client has an HDR-capable display and can play HDR content natively
+	clientSupportsHDR := c.Query("hdrDisplay") == "true"
+
 	// Use the serve master playlist use case
 	response, err := h.serveMasterPlaylistUseCase.Execute(c.Request.Context(), transcode.ServeMasterPlaylistRequest{
 		MediaID:              mediaID,
@@ -286,6 +296,7 @@ func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 		ScreenHeight:         screenHeight,
 		Bandwidth:            bandwidth,
 		QualityOverride:      qualityOverride,
+		ClientSupportsHDR:    clientSupportsHDR,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})

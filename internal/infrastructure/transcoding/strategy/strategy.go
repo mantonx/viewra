@@ -39,6 +39,9 @@ type ClientCapabilities struct {
 	SupportedVideoCodecs []string
 	// SupportedContainers lists container formats the client can play (e.g., "mp4", "webm", "matroska")
 	SupportedContainers []string
+	// SupportsHDRDisplay indicates the client has an HDR-capable display that can show HDR content
+	// If true and video codec is supported, HDR content can be remuxed without tone mapping
+	SupportsHDRDisplay bool
 }
 
 // DetermineStrategy analyzes video metadata and determines the optimal streaming strategy.
@@ -102,12 +105,20 @@ func DetermineStrategyWithCapabilities(videoInfo *VideoInfo, clientCaps *ClientC
 	// This is much faster than full transcode (~50x realtime vs ~1x realtime)
 	// Audio still needs transcoding (AC3/DTS → AAC) for browser compatibility
 	//
-	// IMPORTANT: HDR content should NOT be remuxed - browsers may support HEVC decoding but
-	// NOT HDR tone mapping. HDR content goes to Tier 5 (full transcode with tone mapping).
+	// HDR handling:
+	// - If client has HDR display (SupportsHDRDisplay=true), HDR content can be remuxed directly
+	// - If client does NOT have HDR display, HDR content must be transcoded with tone mapping
 	//
 	// NOTE: HEVC remux now uses -noaccurate_seek which seeks to the nearest keyframe,
 	// avoiding the previous "green blocky video" corruption issue from seeking between keyframes.
-	if isHEVC && isVideoCodecSupported && !videoInfo.IsHDR {
+	clientHasHDRDisplay := clientCaps != nil && clientCaps.SupportsHDRDisplay
+	canRemuxHDR := !videoInfo.IsHDR || clientHasHDRDisplay
+
+	if isHEVC && isVideoCodecSupported && canRemuxHDR {
+		if videoInfo.IsHDR && clientHasHDRDisplay {
+			return RemuxHEVC, fmt.Sprintf("HEVC HDR video remuxing to HLS (client has HDR display) with %s audio transcode to AAC",
+				videoInfo.AudioCodec)
+		}
 		return RemuxHEVC, fmt.Sprintf("HEVC video supported by client, remuxing to HLS with %s audio transcode to AAC",
 			videoInfo.AudioCodec)
 	}

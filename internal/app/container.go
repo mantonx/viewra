@@ -102,6 +102,12 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 		}
 	}
 
+	// Start transcode analytics service (event bus subscription)
+	if cases.TranscodeAnalytics != nil {
+		cases.TranscodeAnalytics.Start()
+		logger.Info("Transcode analytics service started")
+	}
+
 	return &Container{
 		Server:         server,
 		Scheduler:      taskScheduler,
@@ -118,6 +124,11 @@ func (c *Container) Shutdown(ctx context.Context) error {
 	// Stop transcode queue first
 	if c.TranscodeQueue != nil {
 		c.TranscodeQueue.Stop()
+	}
+
+	// Stop transcode analytics service
+	if c.UseCases != nil && c.UseCases.TranscodeAnalytics != nil {
+		c.UseCases.TranscodeAnalytics.Stop()
 	}
 
 	// Stop enrichment pipeline manager

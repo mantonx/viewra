@@ -7,6 +7,9 @@
 import { useEffect, useRef } from 'react'
 import { ensureVideoUnmuted } from '@/lib/utils/videoUtils'
 
+// Play time recording interval (10 seconds)
+const PLAY_TIME_RECORD_INTERVAL_MS = 10_000
+
 export interface UseVideoEventsOptions {
   videoRef: React.RefObject<HTMLVideoElement | null>
   mediaId: number
@@ -15,6 +18,8 @@ export interface UseVideoEventsOptions {
   isPlaying: boolean
   streamOffsetRef: React.RefObject<number>
   isSeekingRef: React.RefObject<boolean>
+  /** Backend session ID for analytics correlation (from X-Session-ID header) */
+  backendSessionId?: string | null
   onPlay: () => void
   onPause: () => void
   onTimeUpdate: (time: number) => void
@@ -26,8 +31,10 @@ export interface UseVideoEventsOptions {
   onPiPEnter: () => void
   onPiPExit: () => void
   onDurationChange: (duration: number) => void
-  startAnalyticsSession: (mediaId: number) => void
+  startAnalyticsSession: (mediaId: number, externalSessionId?: string) => void
   recordStall: () => void
+  recordPlayTime: (durationMs: number) => void
+  recordStartupTime: (startupTimeMs: number) => void
   progressUpdater: {
     startTracking: (time: number) => void
     stopTracking: () => void
@@ -43,6 +50,7 @@ export const useVideoEvents = ({
   isPlaying,
   streamOffsetRef,
   isSeekingRef,
+  backendSessionId,
   onPlay,
   onPause,
   onTimeUpdate,
@@ -56,10 +64,17 @@ export const useVideoEvents = ({
   onDurationChange,
   startAnalyticsSession,
   recordStall,
+  recordPlayTime,
+  recordStartupTime,
   progressUpdater,
 }: UseVideoEventsOptions) => {
   const lastTimeUpdateRef = useRef<number>(0)
   const stallStartRef = useRef<number>(0)
+  const playTimeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const lastPlayTimeRecordRef = useRef<number>(0)
+  // Startup time tracking: record when play is requested, measure until first 'playing' event
+  const playRequestTimeRef = useRef<number>(0)
+  const hasRecordedStartupRef = useRef<boolean>(false)
 
   // Store all callbacks and changing values in refs to avoid effect re-runs
   const progressUpdaterRef = useRef(progressUpdater)
@@ -98,6 +113,12 @@ export const useVideoEvents = ({
   startAnalyticsSessionRef.current = startAnalyticsSession
   const recordStallRef = useRef(recordStall)
   recordStallRef.current = recordStall
+  const recordPlayTimeRef = useRef(recordPlayTime)
+  recordPlayTimeRef.current = recordPlayTime
+  const recordStartupTimeRef = useRef(recordStartupTime)
+  recordStartupTimeRef.current = recordStartupTime
+  const backendSessionIdRef = useRef(backendSessionId)
+  backendSessionIdRef.current = backendSessionId
 
   useEffect(() => {
     const video = videoRef.current
@@ -116,10 +137,48 @@ export const useVideoEvents = ({
       ensureVideoUnmuted(video)
     }
 
+    // Start play time recording interval
+    const startPlayTimeTracking = () => {
+      if (playTimeIntervalRef.current) {
+        clearInterval(playTimeIntervalRef.current)
+      }
+      lastPlayTimeRecordRef.current = Date.now()
+      playTimeIntervalRef.current = setInterval(() => {
+        const now = Date.now()
+        const elapsed = now - lastPlayTimeRecordRef.current
+        lastPlayTimeRecordRef.current = now
+        recordPlayTimeRef.current(elapsed)
+      }, PLAY_TIME_RECORD_INTERVAL_MS)
+    }
+
+    // Stop play time recording and record remaining time
+    const stopPlayTimeTracking = () => {
+      if (playTimeIntervalRef.current) {
+        clearInterval(playTimeIntervalRef.current)
+        playTimeIntervalRef.current = null
+      }
+      // Record any remaining play time since last interval
+      if (lastPlayTimeRecordRef.current > 0) {
+        const elapsed = Date.now() - lastPlayTimeRecordRef.current
+        if (elapsed > 0) {
+          recordPlayTimeRef.current(elapsed)
+        }
+        lastPlayTimeRecordRef.current = 0
+      }
+    }
+
     const handlePlay = () => {
       onPlayRef.current()
       ensureVideoUnmuted(video)
-      startAnalyticsSessionRef.current(mediaId)
+      // Pass backend session ID for correlation with transcode sessions
+      startAnalyticsSessionRef.current(mediaId, backendSessionIdRef.current || undefined)
+      startPlayTimeTracking()
+
+      // Record play request time for startup measurement
+      // Only record if we haven't already (handles pause/resume without re-measuring)
+      if (!hasRecordedStartupRef.current && playRequestTimeRef.current === 0) {
+        playRequestTimeRef.current = Date.now()
+      }
 
       if (progressUpdaterRef.current && videoDurationRef.current > 0) {
         progressUpdaterRef.current.startTracking(video.currentTime)
@@ -128,6 +187,7 @@ export const useVideoEvents = ({
 
     const handlePause = () => {
       onPauseRef.current()
+      stopPlayTimeTracking()
       if (progressUpdaterRef.current) {
         progressUpdaterRef.current.stopTracking()
       }
@@ -151,6 +211,7 @@ export const useVideoEvents = ({
     }
 
     const handleEnded = () => {
+      stopPlayTimeTracking()
       onEndedRef.current()
       if (progressUpdaterRef.current && videoDurationRef.current > 0) {
         progressUpdaterRef.current.stopTracking()
@@ -181,6 +242,14 @@ export const useVideoEvents = ({
     // 'playing' event is the most reliable indicator that playback has resumed
     // This catches cases where 'canplay' fires but buffering indicator stays stuck
     const handlePlaying = () => {
+      // Record startup time on first 'playing' event
+      if (!hasRecordedStartupRef.current && playRequestTimeRef.current > 0) {
+        const startupTime = Date.now() - playRequestTimeRef.current
+        recordStartupTimeRef.current(startupTime)
+        hasRecordedStartupRef.current = true
+        playRequestTimeRef.current = 0
+      }
+
       if (stallStartRef.current > 0) {
         const stallDuration = Date.now() - stallStartRef.current
         onBufferingEndRef.current(stallDuration)
@@ -233,6 +302,9 @@ export const useVideoEvents = ({
       video.removeEventListener('enterpictureinpicture', handlePiPEnter)
       video.removeEventListener('leavepictureinpicture', handlePiPExit)
       document.removeEventListener('fullscreenchange', handleFullscreenChange)
+
+      // Clean up play time tracking
+      stopPlayTimeTracking()
 
       if (progressUpdaterRef.current) {
         progressUpdaterRef.current.stopTracking()

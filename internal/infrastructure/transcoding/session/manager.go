@@ -179,6 +179,12 @@ func (m *Manager) GetOrCreateSession(params GetOrCreateSessionParams) (*Transcod
 	defer mu.Unlock()
 
 	// Check for existing session
+	m.logger.Debug("Checking for existing session",
+		"key", key,
+		"media_id", params.MediaID,
+		"quality", params.Quality,
+		"start_position", params.StartPosition)
+
 	if existing, ok := m.sessions.Load(key); ok {
 		session := existing.(*TranscodeSession)
 
@@ -234,7 +240,13 @@ func (m *Manager) GetOrCreateSession(params GetOrCreateSessionParams) (*Transcod
 		m.cleanupOutputDir(session.OutputDir, session.ID)
 	}
 
-	// Create new session
+	// No existing session found - create new one
+	m.logger.Info("Creating new transcode session (no existing session for key)",
+		"key", key,
+		"media_id", params.MediaID,
+		"quality", params.Quality,
+		"start_position", params.StartPosition)
+
 	session := NewTranscodeSession(
 		params.MediaID,
 		params.Quality,

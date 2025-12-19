@@ -44,6 +44,10 @@ type ServeManifestResponse struct {
 
 	// Reason explains why this strategy was chosen
 	Reason string
+
+	// SessionID is the transcode session identifier (for analytics correlation)
+	// Format: "{mediaID}_{quality}_{unix_timestamp}"
+	SessionID string
 }
 
 // ManifestStrategy indicates how to handle the manifest request.
@@ -171,10 +175,11 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 		return nil, fmt.Errorf("manifest file not created: %w", err)
 	}
 
-	// Return manifest path
+	// Return manifest path with session ID for analytics correlation
 	return &ServeManifestResponse{
 		Strategy:     StrategyServe,
 		ManifestPath: transcodeSession.ManifestPath,
 		Reason:       fmt.Sprintf("Progressive transcoding session started from position %.0fs", transcodeSession.StartPosition),
+		SessionID:    transcodeSession.ID,
 	}, nil
 }

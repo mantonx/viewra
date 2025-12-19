@@ -10,5 +10,8 @@ func RegisterAnalyticsRoutes(router *gin.RouterGroup, handler *handlers.Analytic
 	analytics := router.Group("/analytics")
 	{
 		analytics.POST("/playback", handler.RecordPlaybackAnalytics)
+		analytics.GET("/sessions", handler.ListSessions)
+		analytics.GET("/sessions/:id", handler.GetSession)
+		analytics.GET("/summary", handler.GetMediaSummary)
 	}
 }

@@ -173,6 +173,138 @@ func (m *Manager) StartIdleCleanup(interval time.Duration, idleTimeout time.Dura
 	}
 }
 
+// CleanupOrphanedOutputDirs removes transcode output directories that don't have
+// an associated session. This should be called on startup to clean up after crashes
+// or restarts that left stale data.
+func (m *Manager) CleanupOrphanedOutputDirs(outputDir string) (int, int64, error) {
+	if outputDir == "" {
+		return 0, 0, nil
+	}
+
+	// Get all tracked media IDs from active sessions
+	activeMediaIDs := make(map[int64]map[string]bool) // mediaID -> set of quality dirs
+	m.sessions.Range(func(key, value interface{}) bool {
+		session := value.(*TranscodeSession)
+		if activeMediaIDs[session.MediaID] == nil {
+			activeMediaIDs[session.MediaID] = make(map[string]bool)
+		}
+		// Extract quality from output dir (e.g., ".../366808/4k-40m" -> "4k-40m")
+		activeMediaIDs[session.MediaID][filepath.Base(session.OutputDir)] = true
+		return true
+	})
+
+	var cleanedCount int
+	var freedBytes int64
+
+	// Scan output directory for media directories
+	mediaDirs, err := os.ReadDir(outputDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, 0, nil // No output dir yet, nothing to clean
+		}
+		return 0, 0, fmt.Errorf("failed to read output directory: %w", err)
+	}
+
+	for _, mediaDir := range mediaDirs {
+		if !mediaDir.IsDir() {
+			continue
+		}
+
+		// Skip non-numeric directories (not media ID directories) and logs directory
+		if mediaDir.Name() == "logs" {
+			continue
+		}
+		var mediaID int64
+		if _, err := fmt.Sscanf(mediaDir.Name(), "%d", &mediaID); err != nil {
+			continue
+		}
+
+		mediaPath := filepath.Join(outputDir, mediaDir.Name())
+
+		// If this media has no active sessions, clean up the entire directory
+		if _, hasActiveSessions := activeMediaIDs[mediaID]; !hasActiveSessions {
+			size, err := getDirSize(mediaPath)
+			if err == nil {
+				freedBytes += size
+			}
+
+			if err := os.RemoveAll(mediaPath); err != nil {
+				m.logger.Warn("Failed to clean orphaned media directory",
+					"path", mediaPath,
+					"error", err)
+			} else {
+				cleanedCount++
+				m.logger.Info("Cleaned orphaned media directory",
+					"path", mediaPath,
+					"freed_bytes", size)
+			}
+			continue
+		}
+
+		// Media has some active sessions - check individual quality directories
+		qualityDirs, err := os.ReadDir(mediaPath)
+		if err != nil {
+			continue
+		}
+
+		for _, qualityDir := range qualityDirs {
+			if !qualityDir.IsDir() {
+				continue
+			}
+
+			qualityPath := filepath.Join(mediaPath, qualityDir.Name())
+
+			// If this quality dir is not in active sessions, clean it up
+			if !activeMediaIDs[mediaID][qualityDir.Name()] {
+				size, err := getDirSize(qualityPath)
+				if err == nil {
+					freedBytes += size
+				}
+
+				if err := os.RemoveAll(qualityPath); err != nil {
+					m.logger.Warn("Failed to clean orphaned quality directory",
+						"path", qualityPath,
+						"error", err)
+				} else {
+					cleanedCount++
+					m.logger.Info("Cleaned orphaned quality directory",
+						"path", qualityPath,
+						"freed_bytes", size)
+				}
+			}
+		}
+
+		// Try to remove parent if now empty
+		m.tryRemoveEmptyDir(mediaPath)
+	}
+
+	if cleanedCount > 0 {
+		m.logger.Info("Startup cleanup complete",
+			"directories_cleaned", cleanedCount,
+			"bytes_freed", freedBytes)
+	}
+
+	return cleanedCount, freedBytes, nil
+}
+
+// getDirSize calculates the total size of a directory.
+func getDirSize(path string) (int64, error) {
+	var size int64
+	err := filepath.WalkDir(path, func(_ string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			info, err := d.Info()
+			if err == nil {
+				size += info.Size()
+			}
+		}
+		return nil
+	})
+	return size, err
+}
+
 // CleanupSessionOutput removes the output directory for a session.
 // If the parent media directory becomes empty after cleanup, it is also removed.
 func (m *Manager) CleanupSessionOutput(mediaID int64, quality string, outputDir string) error {

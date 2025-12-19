@@ -20,6 +20,15 @@ Key decisions:
 - [014: Scanner Resilience](decisions/014-library-scanner-resilience-improvements.md)
 - [021: Progressive HLS](decisions/021-progressive-hls-transcoding.md)
 
+## Guides
+
+| Guide | Description |
+|-------|-------------|
+| [Plugin Development](guides/PLUGIN_DEVELOPMENT.md) | Building enrichment plugins |
+| [Enrichment Pipeline](guides/ENRICHMENT_PIPELINE.md) | How metadata enrichment works |
+| [Real-Time Updates](guides/REAL_TIME_UPDATES.md) | SSE streaming and Event Bus |
+| [HLS Transcoding](guides/HLS_TRANSCODING.md) | Video transcoding and streaming |
+
 ## Other Docs
 
 | Category | Files |

@@ -40,7 +40,7 @@ func BuildHandlers(
 	healthHandler := handlers.NewHealthHandler(infra.DB, infra.Scheduler, svcs.TranscodeQueue)
 	browserHandler := handlers.NewBrowserHandler(svcs.PathBrowser)
 	schedulerHandler := handlers.NewSchedulerHandler(infra.Scheduler)
-	analyticsHandler := handlers.NewAnalyticsHandler(cases.Analytics)
+	analyticsHandler := handlers.NewAnalyticsHandler(cases.Analytics, cases.TranscodeAnalytics)
 
 	// Library handlers
 	libraryHandler := handlers.NewLibraryHandler(cases.Library.Service, cases.Library.Scan)

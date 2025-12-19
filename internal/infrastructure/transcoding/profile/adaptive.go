@@ -72,8 +72,8 @@ func newProfile(id, displayName string, width, height, videoBitrate int) *profil
 			VideoBufSize:    videoBitrate * 2,                 // 2x target
 			EnableHWAccel:   true,
 			EnableFastStart: true,
-			SegmentDuration: 2,
-			GOPSize:         48,     // 2 seconds at 24fps (default)
+			SegmentDuration: 1,      // 1 second segments for faster startup
+			GOPSize:         24,     // 1 second at 24fps (matches segment duration)
 			FrameRate:       24.0,   // Default frame rate
 			AspectRatio:     "16:9", // Default aspect ratio
 		},

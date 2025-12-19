@@ -34,6 +34,7 @@ export interface PlaybackSession {
   averageQuality: string
   deviceType: string
   connectionType: string
+  startupTimeMs: number | null
 }
 
 export interface PlaybackAnalyticsConfig {
@@ -65,12 +66,17 @@ export const createAnalyticsState = (): PlaybackAnalyticsState => ({
 
 /**
  * Start a new playback session
+ * @param state Current analytics state
+ * @param mediaId Media ID being played
+ * @param externalSessionId Optional session ID from backend (for correlation with transcode sessions)
  */
 export const startSession = (
   state: PlaybackAnalyticsState,
-  mediaId: number
+  mediaId: number,
+  externalSessionId?: string
 ): { state: PlaybackAnalyticsState; sessionId: string } => {
-  const sessionId = `${mediaId}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+  // Use backend-provided session ID for transcode correlation, or generate a local one
+  const sessionId = externalSessionId || `${mediaId}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 
   const session: PlaybackSession = {
     sessionId,
@@ -84,11 +90,32 @@ export const startSession = (
     averageQuality: '',
     deviceType: detectDeviceType(),
     connectionType: getConnectionType(),
+    startupTimeMs: null,
   }
 
   return {
     state: { ...state, currentSession: session },
     sessionId,
+  }
+}
+
+/**
+ * Update the session ID (used when backend session ID arrives after session start)
+ */
+export const updateSessionId = (
+  state: PlaybackAnalyticsState,
+  newSessionId: string
+): PlaybackAnalyticsState => {
+  if (!state.currentSession) {
+    return state
+  }
+
+  return {
+    ...state,
+    currentSession: {
+      ...state.currentSession,
+      sessionId: newSessionId,
+    },
   }
 }
 
@@ -193,6 +220,26 @@ export const recordPlayTime = (
 }
 
 /**
+ * Record startup time (time from play request to first frame)
+ */
+export const recordStartupTime = (
+  state: PlaybackAnalyticsState,
+  startupTimeMs: number
+): PlaybackAnalyticsState => {
+  if (!state.currentSession) {
+    return state
+  }
+
+  return {
+    ...state,
+    currentSession: {
+      ...state.currentSession,
+      startupTimeMs,
+    },
+  }
+}
+
+/**
  * Check if events should be flushed based on batch size
  */
 export const shouldFlush = (
@@ -244,7 +291,8 @@ export const flushEvents = async (
   session: PlaybackSession | null,
   config: PlaybackAnalyticsConfig = DEFAULT_ANALYTICS_CONFIG
 ): Promise<boolean> => {
-  if (events.length === 0 || !config.enabled) {
+  // Send if we have events OR if we have a session (session data is valuable even without events)
+  if ((events.length === 0 && !session) || !config.enabled) {
     return true
   }
 
@@ -268,7 +316,8 @@ export const flushEventsBeacon = (
   session: PlaybackSession | null,
   config: PlaybackAnalyticsConfig = DEFAULT_ANALYTICS_CONFIG
 ): boolean => {
-  if (events.length === 0 || !config.enabled) {
+  // Send if we have events OR if we have a session (session data is valuable even without events)
+  if ((events.length === 0 && !session) || !config.enabled) {
     return true
   }
 

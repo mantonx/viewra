@@ -499,6 +499,7 @@ SELECT
     s.content_rating,
     s.imdb_id,
     s.tmdb_id,
+    s.created_at,
     COUNT(DISTINCT e.season_number) as season_count,
     COUNT(*) as episode_count
 FROM tv_shows s
@@ -506,7 +507,7 @@ LEFT JOIN tv_episodes e ON s.id = e.show_id
 LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = ?
   AND (med.is_extra = 0 OR med.is_extra IS NULL)
-GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(s.sort_title, s.title) COLLATE NOCASE ASC
 LIMIT ? OFFSET ?;
 
@@ -521,6 +522,7 @@ SELECT
     s.content_rating,
     s.imdb_id,
     s.tmdb_id,
+    s.created_at,
     COUNT(DISTINCT e.season_number) as season_count,
     COUNT(*) as episode_count
 FROM tv_shows s
@@ -528,7 +530,7 @@ LEFT JOIN tv_episodes e ON s.id = e.show_id
 LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = ?
   AND (med.is_extra = 0 OR med.is_extra IS NULL)
-GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(s.sort_title, s.title) COLLATE NOCASE DESC
 LIMIT ? OFFSET ?;
 
@@ -556,6 +558,7 @@ SELECT
     s.content_rating,
     s.imdb_id,
     s.tmdb_id,
+    s.created_at,
     COUNT(DISTINCT e.season_number) as season_count,
     COUNT(*) as episode_count
 FROM tv_shows s
@@ -564,7 +567,7 @@ LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = ?
   AND (s.title LIKE ? OR s.original_title LIKE ?)
   AND (med.is_extra = 0 OR med.is_extra IS NULL)
-GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(s.sort_title, s.title) COLLATE NOCASE ASC
 LIMIT ? OFFSET ?;
 

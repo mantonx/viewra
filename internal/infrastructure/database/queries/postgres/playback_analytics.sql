@@ -10,8 +10,9 @@ INSERT INTO playback_sessions (
     quality_switch_count,
     average_quality,
     device_type,
-    connection_type
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    connection_type,
+    startup_time_ms
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 ON CONFLICT(session_id)
 DO UPDATE SET
     end_time = COALESCE(EXCLUDED.end_time, playback_sessions.end_time),
@@ -19,7 +20,8 @@ DO UPDATE SET
     total_buffer_time_ms = EXCLUDED.total_buffer_time_ms,
     stall_count = EXCLUDED.stall_count,
     quality_switch_count = EXCLUDED.quality_switch_count,
-    average_quality = COALESCE(EXCLUDED.average_quality, playback_sessions.average_quality)
+    average_quality = COALESCE(EXCLUDED.average_quality, playback_sessions.average_quality),
+    startup_time_ms = COALESCE(EXCLUDED.startup_time_ms, playback_sessions.startup_time_ms)
 RETURNING *;
 
 -- name: CreateQualitySwitchEvent :one
@@ -69,3 +71,34 @@ WHERE start_time < $1;
 -- name: DeleteOldQualitySwitchEvents :exec
 DELETE FROM quality_switch_events
 WHERE timestamp < $1;
+
+-- name: GetPlaybackSummaryByMediaID :one
+SELECT
+    COUNT(*) as total_sessions,
+    COALESCE(AVG(total_play_time_ms), 0) as avg_play_time_ms,
+    COALESCE(AVG(total_buffer_time_ms), 0) as avg_buffer_time_ms,
+    COALESCE(SUM(stall_count), 0) as total_stalls,
+    COALESCE(AVG(stall_count), 0) as avg_stalls_per_session,
+    COALESCE(AVG(startup_time_ms), 0) as avg_startup_time_ms,
+    MIN(startup_time_ms) as min_startup_time_ms,
+    MAX(startup_time_ms) as max_startup_time_ms
+FROM playback_sessions
+WHERE media_id = $1;
+
+-- name: GetOverallPlaybackSummary :one
+SELECT
+    COUNT(*) as total_sessions,
+    COUNT(DISTINCT media_id) as unique_media,
+    COALESCE(AVG(total_play_time_ms), 0) as avg_play_time_ms,
+    COALESCE(AVG(total_buffer_time_ms), 0) as avg_buffer_time_ms,
+    COALESCE(SUM(stall_count), 0) as total_stalls,
+    COALESCE(AVG(stall_count), 0) as avg_stalls_per_session,
+    COALESCE(AVG(startup_time_ms), 0) as avg_startup_time_ms,
+    MIN(startup_time_ms) as min_startup_time_ms,
+    MAX(startup_time_ms) as max_startup_time_ms
+FROM playback_sessions;
+
+-- name: CountPlaybackSessionsByMediaID :one
+SELECT COUNT(*) as count
+FROM playback_sessions
+WHERE media_id = $1;

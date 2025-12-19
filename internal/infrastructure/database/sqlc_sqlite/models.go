@@ -330,6 +330,7 @@ type PlaybackSession struct {
 	DeviceType         sql.NullString `json:"device_type"`
 	ConnectionType     sql.NullString `json:"connection_type"`
 	CreatedAt          sql.NullTime   `json:"created_at"`
+	StartupTimeMs      sql.NullInt64  `json:"startup_time_ms"`
 }
 
 type Plugin struct {
@@ -494,6 +495,24 @@ type TaskExecution struct {
 	Success    bool           `json:"success"`
 	Error      sql.NullString `json:"error"`
 	CreatedAt  time.Time      `json:"created_at"`
+}
+
+type TranscodeAnalytic struct {
+	SessionID       string         `json:"session_id"`
+	MediaID         int64          `json:"media_id"`
+	QualityProfile  string         `json:"quality_profile"`
+	Strategy        string         `json:"strategy"`
+	HwAccel         sql.NullString `json:"hw_accel"`
+	FfmpegStartMs   sql.NullInt64  `json:"ffmpeg_start_ms"`
+	FirstFrameMs    sql.NullInt64  `json:"first_frame_ms"`
+	FirstSegmentMs  sql.NullInt64  `json:"first_segment_ms"`
+	ManifestReadyMs sql.NullInt64  `json:"manifest_ready_ms"`
+	Status          string         `json:"status"`
+	ErrorReason     sql.NullString `json:"error_reason"`
+	TotalDurationMs sql.NullInt64  `json:"total_duration_ms"`
+	SegmentsCreated sql.NullInt64  `json:"segments_created"`
+	CreatedAt       int64          `json:"created_at"`
+	CompletedAt     sql.NullInt64  `json:"completed_at"`
 }
 
 type TranscodeJob struct {
