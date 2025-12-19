@@ -47,12 +47,18 @@ func (qr *QualityRecommender) RecommendQuality(caps ClientCapabilities) *Quality
 
 	switch {
 	// 4K selection - highest quality the network can handle
+	case networkMbps >= 200 && (screenHeight >= 2160 || canUpgradeTo4K):
+		profileID = Quality4k200m
+		reason = "excellent network (4K reference quality)"
+	case networkMbps >= 100 && (screenHeight >= 2160 || canUpgradeTo4K):
+		profileID = Quality4k100m
+		reason = "excellent network (4K ultra quality)"
 	case networkMbps >= 60 && (screenHeight >= 2160 || canUpgradeTo4K):
 		profileID = Quality4k60m
-		reason = "excellent network (4K max quality)"
+		reason = "excellent network (4K high quality)"
 	case networkMbps >= 40 && (screenHeight >= 2160 || canUpgradeTo4K):
 		profileID = Quality4k40m
-		reason = "good network (4K high quality)"
+		reason = "good network (4K quality)"
 	case networkMbps >= 25 && (screenHeight >= 2160 || canUpgradeTo4K):
 		profileID = Quality4k25m
 		reason = "moderate network (4K)"
@@ -145,7 +151,7 @@ func (qr *QualityRecommender) RecommendMultipleQualities(caps ClientCapabilities
 	return []*QualityRecommendation{recommendation}
 }
 
-// GetAdaptiveLadder returns a set of quality profiles for adaptive streaming (ABR ladder).
+// GetAdaptiveLadder returns a set of quality profiles for adaptive streaming (quality ladder).
 // Returns a simplified ladder - HLS.js will select from available variants in the master playlist.
 func (qr *QualityRecommender) GetAdaptiveLadder(caps ClientCapabilities) []*AdaptiveProfile {
 	networkMbps := caps.NetworkSpeedMbps

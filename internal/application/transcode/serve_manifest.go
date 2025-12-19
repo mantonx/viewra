@@ -120,24 +120,47 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 
 	// Step 4b: Override to transcode if quality differs from source resolution
 	// Remux strategies copy video as-is, so selecting a different resolution requires transcoding
-	adaptiveProfile, err := profile.GetAdaptiveProfileForQuality(req.Quality)
-	if err != nil {
-		return nil, fmt.Errorf("invalid quality: %w", err)
-	}
-
 	isRemuxStrategy := streamStrategy == streamstrategy.Remux ||
 		streamStrategy == streamstrategy.RemuxWithAudioDownmix ||
 		streamStrategy == streamstrategy.RemuxHEVC
 
-	// Check if requested quality differs significantly from source
-	// Allow some tolerance (e.g., 1080p source can remux to 1080p-10m, 1080p-20m, etc.)
-	qualityDiffersFromSource := adaptiveProfile.Height < mediaEntity.Height
+	// Handle quality selection
+	var adaptiveProfile *profile.AdaptiveProfile
+	isOriginalQuality := req.Quality == "original"
 
-	if isRemuxStrategy && qualityDiffersFromSource {
-		streamStrategy = streamstrategy.Transcode
-		reason = fmt.Sprintf("transcoding required: requested %dp but source is %dp",
-			adaptiveProfile.Height, mediaEntity.Height)
+	if isOriginalQuality && isRemuxStrategy {
+		// "original" + remux = stream copy at source quality
+		// Create a minimal profile - encoding params aren't used for remux
+		adaptiveProfile = &profile.AdaptiveProfile{
+			ID:              "original",
+			DisplayName:     fmt.Sprintf("%dp (Original)", mediaEntity.Height),
+			Width:           mediaEntity.Width,
+			Height:          mediaEntity.Height,
+			VideoBitrate:    int(mediaEntity.Bitrate),
+			SegmentDuration: 1, // Required for segment muxer math
+		}
+	} else if isOriginalQuality && !isRemuxStrategy {
+		// "original" + transcode = use highest profile at source resolution
+		// This happens when client doesn't support source codec
+		adaptiveProfile = profile.GetBestProfileForResolution(mediaEntity.Width, mediaEntity.Height, int(mediaEntity.Bitrate))
+		if adaptiveProfile == nil {
+			return nil, fmt.Errorf("no suitable profile for resolution %dx%d", mediaEntity.Width, mediaEntity.Height)
+		}
+	} else {
+		var err error
+		adaptiveProfile, err = profile.GetAdaptiveProfileForQuality(req.Quality)
+		if err != nil {
+			return nil, fmt.Errorf("invalid quality: %w", err)
+		}
+
+		// Remux can only stream-copy at source quality - any other profile requires transcoding
+		if isRemuxStrategy {
+			streamStrategy = streamstrategy.Transcode
+			reason = fmt.Sprintf("transcoding required: user selected %s (remux only supports original)", req.Quality)
+		}
 	}
+	// For "original" quality with remux strategy, keep the remux strategy as-is
+	// The video will be stream-copied at source resolution
 
 	// Step 4: Handle DirectPlay (no transcoding needed)
 	if streamStrategy == streamstrategy.DirectPlay {

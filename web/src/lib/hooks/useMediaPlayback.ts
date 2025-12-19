@@ -10,12 +10,13 @@ type TranscodeState = 'idle' | 'checking' | 'ready' | 'direct'
 
 /** Quality option returned from backend, filtered by source resolution */
 export interface QualityOption {
-  id: string          // Quality ID (e.g., "1080p-10m", "4k-25m")
-  displayName: string // Human-readable name (e.g., "1080p (10 Mbps)")
+  id: string              // Quality ID (e.g., "1080p-10m", "4k-25m", "original")
+  displayName: string     // Human-readable name (e.g., "1080p (10 Mbps)")
   width: number
   height: number
-  bandwidth: number   // Video bitrate in bps
-  isSelected: boolean // True if this is the currently selected quality
+  bandwidth: number       // Video bitrate in bps
+  isSelected: boolean     // True if this is the currently selected quality
+  isOriginalQuality: boolean // True if this represents the source quality (remux or same resolution transcode)
 }
 
 export interface PlaybackState {

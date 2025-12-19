@@ -58,10 +58,10 @@ type AdaptiveProfile struct {
 	QualityTier        string // "low", "medium", "high", "ultra"
 }
 
-// ABRVariant represents a single quality variant in the ABR ladder.
+// QualityVariant represents a single quality variant in the quality ladder.
 // This is the SINGLE SOURCE OF TRUTH for all quality levels.
 // Both master playlist generation and transcoding profiles use this.
-type ABRVariant struct {
+type QualityVariant struct {
 	// ID is the unique identifier used in URLs and profile lookups (e.g., "4k-20m")
 	ID string
 
@@ -75,6 +75,10 @@ type ABRVariant struct {
 	// HLS codec string for EXT-X-STREAM-INF
 	Codecs string
 }
+
+// ABRVariant is an alias for QualityVariant for backwards compatibility.
+// Deprecated: Use QualityVariant instead.
+type ABRVariant = QualityVariant
 
 // ClientCapabilities represents the detected capabilities of a client device.
 type ClientCapabilities struct {
@@ -109,7 +113,7 @@ type QualityRecommendation struct {
 	Reason  string
 }
 
-// Quality profile IDs - these match the ABRLadder IDs exactly
+// Quality profile IDs - these match the QualityLadder IDs exactly
 const (
 	// Quality360p - Low quality fallback
 	Quality360p = "360p"

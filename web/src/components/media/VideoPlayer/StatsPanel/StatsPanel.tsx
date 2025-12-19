@@ -189,6 +189,7 @@ export const StatsPanel = memo(({
   isVisible,
   onClose,
   isLoading = false,
+  selectedQuality,
 }: StatsPanelProps) => {
   const overlayRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -384,6 +385,13 @@ export const StatsPanel = memo(({
                 <StatRow
                   label="Output Bitrate"
                   value={formatBitrate(stats.output.stream.bitrate)}
+                />
+              )}
+              {selectedQuality && (
+                <StatRow
+                  label="Quality"
+                  value={`${selectedQuality.displayName}${selectedQuality.isOriginalQuality ? ' · Original' : ''}`}
+                  valueColor={selectedQuality.isOriginalQuality ? 'text-amber-400' : 'text-white/90'}
                 />
               )}
             </Section>

@@ -112,9 +112,11 @@ func (h *MediaHandler) Get(c *gin.Context) {
 // @Description Returns detailed technical information about video and audio streams for the stats panel.
 // @Description The strategy field indicates how the video will be processed (direct, remux, transcode).
 // @Description Include X-Supported-Video-Codecs header for accurate strategy detection.
+// @Description Pass quality query param to get accurate strategy for the selected quality level.
 // @Tags media
 // @Produce json
 // @Param id path int true "Media ID"
+// @Param quality query string false "Selected quality level (e.g., 'original', '1080p-10m', '480p')"
 // @Header 200 {string} X-Supported-Video-Codecs "Client-supported video codecs (h264,h265,vp9,av1)"
 // @Success 200 {object} media.StreamInfoResponse
 // @Failure 400 {object} ErrorResponse
@@ -135,12 +137,11 @@ func (h *MediaHandler) GetStreamInfo(c *gin.Context) {
 	supportedVideoCodecs := parseCommaSeparatedHeader(c.GetHeader("X-Supported-Video-Codecs"))
 	supportsHDRDisplay := c.GetHeader("X-HDR-Display") == "true"
 
+	// Parse optional quality parameter for accurate strategy detection
+	quality := c.Query("quality")
+
 	var resp *media.StreamInfoResponse
-	if len(supportedVideoCodecs) > 0 || supportsHDRDisplay {
-		resp, err = h.streamInfo.ExecuteWithCapabilities(c.Request.Context(), id, supportedVideoCodecs, supportsHDRDisplay)
-	} else {
-		resp, err = h.streamInfo.Execute(c.Request.Context(), id)
-	}
+	resp, err = h.streamInfo.ExecuteWithCapabilities(c.Request.Context(), id, supportedVideoCodecs, supportsHDRDisplay, quality)
 	if err != nil {
 		handleError(c, err)
 		return

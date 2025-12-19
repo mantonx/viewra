@@ -75,12 +75,13 @@ type ServeMasterPlaylistResponse struct {
 
 // QualityOption represents a selectable quality for the frontend picker.
 type QualityOption struct {
-	ID          string `json:"id"`          // Quality ID (e.g., "1080p-10m", "4k-25m")
-	DisplayName string `json:"displayName"` // Human-readable name (e.g., "1080p (10 Mbps)")
-	Width       int    `json:"width"`
-	Height      int    `json:"height"`
-	Bandwidth   int    `json:"bandwidth"` // Video bitrate in bps
-	IsSelected  bool   `json:"isSelected"` // True if this is the currently selected quality
+	ID                string `json:"id"`                // Quality ID (e.g., "1080p-10m", "4k-25m")
+	DisplayName       string `json:"displayName"`       // Human-readable name (e.g., "1080p (10 Mbps)")
+	Width             int    `json:"width"`
+	Height            int    `json:"height"`
+	Bandwidth         int    `json:"bandwidth"`         // Video bitrate in bps
+	IsSelected        bool   `json:"isSelected"`        // True if this is the currently selected quality
+	IsOriginalQuality bool   `json:"isOriginalQuality"` // True if this represents the source quality (remux or same resolution transcode)
 }
 
 // MasterPlaylistStrategy indicates how to handle the master playlist request.
@@ -94,9 +95,9 @@ const (
 	StrategyMasterDirectPlay
 )
 
-// ABRVariant is imported from profile package - single source of truth
+// QualityVariant is imported from profile package - single source of truth
 // Re-export for use in this package
-type ABRVariant = profile.ABRVariant
+type QualityVariant = profile.QualityVariant
 
 // ServeMasterPlaylistUseCase handles generating the HLS master playlist.
 type ServeMasterPlaylistUseCase struct {
@@ -170,10 +171,10 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 	}
 
 	// Determine the quality to use
-	selectedQuality := uc.determineQuality(req, mediaItem)
+	selectedQuality := uc.determineQuality(req, mediaItem, streamStrategy)
 
 	// Build available qualities list (filtered by source resolution)
-	availableQualities := uc.buildAvailableQualities(mediaItem, selectedQuality)
+	availableQualities := uc.buildAvailableQualities(mediaItem, selectedQuality, streamStrategy)
 
 	// Build single-variant master playlist
 	variantParams := buildVariantParams{
@@ -194,17 +195,36 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 
 // determineQuality selects the best quality based on client capabilities and source media.
 // Priority: 1) User override, 2) Recommendation based on capabilities, 3) Fallback to source-matched quality
-func (uc *ServeMasterPlaylistUseCase) determineQuality(req ServeMasterPlaylistRequest, mediaItem *media.Media) string {
+// For remux strategies, prefers "original" when network can support the source bitrate.
+func (uc *ServeMasterPlaylistUseCase) determineQuality(req ServeMasterPlaylistRequest, mediaItem *media.Media, streamStrategy strategy.StreamStrategy) string {
+	isRemux := streamStrategy == strategy.RemuxHEVC || streamStrategy == strategy.Remux || streamStrategy == strategy.RemuxWithAudioDownmix
+
 	// Priority 1: User explicitly selected a quality
 	if req.QualityOverride != "" {
-		// Validate the override exists
-		if _, ok := profile.GetABRVariant(req.QualityOverride); ok {
+		// "original" is valid for remux scenarios
+		if req.QualityOverride == "original" {
+			return req.QualityOverride
+		}
+		// Validate the override exists in quality ladder
+		if _, ok := profile.GetQualityVariant(req.QualityOverride); ok {
 			return req.QualityOverride
 		}
 		// Invalid override, fall through to recommendation
 	}
 
-	// Priority 2: Use recommender if we have client capabilities
+	// Priority 2: For remux, prefer "original" if network can handle source bitrate
+	if isRemux && mediaItem.Bitrate > 0 {
+		networkMbps := float64(req.Bandwidth) / 1_000_000
+		sourceMbps := float64(mediaItem.Bitrate) / 1_000_000
+
+		// If network is unknown or can handle source bitrate (with 20% headroom), use original
+		if networkMbps <= 0 || networkMbps >= sourceMbps*1.2 {
+			return "original"
+		}
+		// Network can't handle original, fall through to find a lower bitrate profile
+	}
+
+	// Priority 3: Use recommender if we have client capabilities
 	if uc.recommender != nil && (req.ScreenWidth > 0 || req.ScreenHeight > 0 || req.Bandwidth > 0) {
 		caps := profile.ClientCapabilities{
 			ScreenWidth:      req.ScreenWidth,
@@ -221,13 +241,17 @@ func (uc *ServeMasterPlaylistUseCase) determineQuality(req ServeMasterPlaylistRe
 		return recommendedQuality
 	}
 
-	// Priority 3: Fallback - pick quality matching source resolution
+	// Priority 4: Fallback - pick quality matching source resolution
+	// For remux without network info, default to original
+	if isRemux {
+		return "original"
+	}
 	return uc.getDefaultQualityForSource(mediaItem)
 }
 
 // clampToSource ensures the recommended quality doesn't exceed source resolution/bitrate.
 func (uc *ServeMasterPlaylistUseCase) clampToSource(qualityID string, mediaItem *media.Media) string {
-	variant, ok := profile.GetABRVariant(qualityID)
+	variant, ok := profile.GetQualityVariant(qualityID)
 	if !ok {
 		return qualityID
 	}
@@ -251,7 +275,7 @@ func (uc *ServeMasterPlaylistUseCase) getDefaultQualityForSource(mediaItem *medi
 	var bestMatch string
 	var bestBandwidth int
 
-	for _, variant := range profile.ABRLadder {
+	for _, variant := range profile.QualityLadder {
 		// Skip if higher than source
 		if variant.Height > mediaItem.Height {
 			continue
@@ -275,8 +299,8 @@ func (uc *ServeMasterPlaylistUseCase) getDefaultQualityForSource(mediaItem *medi
 	}
 
 	// Fallback: find highest quality below source resolution
-	for i := len(profile.ABRLadder) - 1; i >= 0; i-- {
-		variant := profile.ABRLadder[i]
+	for i := len(profile.QualityLadder) - 1; i >= 0; i-- {
+		variant := profile.QualityLadder[i]
 		if variant.Height <= mediaItem.Height {
 			return variant.ID
 		}
@@ -287,28 +311,78 @@ func (uc *ServeMasterPlaylistUseCase) getDefaultQualityForSource(mediaItem *medi
 }
 
 // buildAvailableQualities returns all quality options valid for this media.
-// Qualities are filtered to not exceed source resolution or bitrate.
-func (uc *ServeMasterPlaylistUseCase) buildAvailableQualities(mediaItem *media.Media, selectedQuality string) []QualityOption {
+// Qualities are filtered to not exceed source resolution.
+// For remux strategies, includes "Original" quality since video is stream-copied at full quality.
+// IsOriginalQuality is set to true ONLY for the highest bitrate option at source resolution.
+func (uc *ServeMasterPlaylistUseCase) buildAvailableQualities(mediaItem *media.Media, selectedQuality string, streamStrategy strategy.StreamStrategy) []QualityOption {
 	var qualities []QualityOption
+	isRemux := streamStrategy == strategy.RemuxHEVC || streamStrategy == strategy.Remux || streamStrategy == strategy.RemuxWithAudioDownmix
 
-	for _, variant := range profile.ABRLadder {
+	// For remux, add "Original" quality option at the top
+	// This represents the source quality since video is stream-copied
+	// DisplayName uses resolution format to match other options; "Original" badge shown via IsOriginalQuality flag
+	if isRemux && mediaItem.Bitrate > 0 {
+		originalID := "original"
+		qualities = append(qualities, QualityOption{
+			ID:                originalID,
+			DisplayName:       fmt.Sprintf("%dp (%d Mbps)", mediaItem.Height, mediaItem.Bitrate/1_000_000),
+			Width:             mediaItem.Width,
+			Height:            mediaItem.Height,
+			Bandwidth:         int(mediaItem.Bitrate),
+			IsSelected:        selectedQuality == originalID,
+			IsOriginalQuality: true, // Remux "original" is always source quality
+		})
+	}
+
+	// First pass: find the highest bitrate profile at source height
+	// This will be the one marked as "Original" for transcode scenarios
+	var highestBitrateAtSourceHeight int
+	for _, variant := range profile.QualityLadder {
+		if variant.Height == mediaItem.Height {
+			// For transcode, check bitrate limit
+			if !isRemux && mediaItem.Bitrate > 0 && variant.Bandwidth > int(mediaItem.Bitrate*120/100) {
+				continue
+			}
+			// For remux, skip profiles at/above source bitrate
+			if isRemux && mediaItem.Bitrate > 0 && variant.Bandwidth >= int(mediaItem.Bitrate) {
+				continue
+			}
+			if variant.Bandwidth > highestBitrateAtSourceHeight {
+				highestBitrateAtSourceHeight = variant.Bandwidth
+			}
+		}
+	}
+
+	for _, variant := range profile.QualityLadder {
 		// Skip qualities higher than source resolution
 		if variant.Height > mediaItem.Height {
 			continue
 		}
 
-		// Skip qualities with bitrate significantly higher than source (with 20% tolerance)
-		if mediaItem.Bitrate > 0 && variant.Bandwidth > int(mediaItem.Bitrate*120/100) {
+		// For transcode: skip qualities with bitrate higher than source (can't upscale quality)
+		// For remux: skip this filter since "Original" option covers the source quality
+		if !isRemux && mediaItem.Bitrate > 0 && variant.Bandwidth > int(mediaItem.Bitrate*120/100) {
 			continue
 		}
 
+		// For remux: skip profiles that exceed source bitrate (they'd just be the same as original)
+		if isRemux && mediaItem.Bitrate > 0 && variant.Bandwidth >= int(mediaItem.Bitrate) {
+			continue
+		}
+
+		// Mark as original quality ONLY if:
+		// - For remux: we already added "original" above, so never mark profiles as original
+		// - For transcode: mark the highest bitrate at source height as original
+		isOriginal := !isRemux && variant.Height == mediaItem.Height && variant.Bandwidth == highestBitrateAtSourceHeight
+
 		qualities = append(qualities, QualityOption{
-			ID:          variant.ID,
-			DisplayName: fmt.Sprintf("%dp (%d Mbps)", variant.Height, variant.Bandwidth/1_000_000),
-			Width:       variant.Width,
-			Height:      variant.Height,
-			Bandwidth:   variant.Bandwidth,
-			IsSelected:  variant.ID == selectedQuality,
+			ID:                variant.ID,
+			DisplayName:       fmt.Sprintf("%dp (%d Mbps)", variant.Height, variant.Bandwidth/1_000_000),
+			Width:             variant.Width,
+			Height:            variant.Height,
+			Bandwidth:         variant.Bandwidth,
+			IsSelected:        variant.ID == selectedQuality,
+			IsOriginalQuality: isOriginal,
 		})
 	}
 
@@ -318,10 +392,33 @@ func (uc *ServeMasterPlaylistUseCase) buildAvailableQualities(mediaItem *media.M
 // buildSingleVariantPlaylist creates an HLS master playlist with only one quality variant.
 // This is the new default behavior - backend picks optimal quality, frontend plays it.
 func (uc *ServeMasterPlaylistUseCase) buildSingleVariantPlaylist(mediaItem *media.Media, qualityID string, audioTracks []*media.AudioTrack, subtitleTracks []*media.SubtitleTrack, params buildVariantParams, _ string, preferredSubtitleLang string) string {
-	variant, ok := profile.GetABRVariant(qualityID)
-	if !ok {
-		// Fallback to a safe default if quality ID is invalid
-		variant, _ = profile.GetABRVariant(profile.Quality720p4m)
+	isRemux := params.strategy == strategy.RemuxHEVC || params.strategy == strategy.Remux || params.strategy == strategy.RemuxWithAudioDownmix
+
+	// Handle "original" quality ID - use source properties directly
+	var bandwidth int
+	var resolution string
+	var codecs string
+	var variantName string
+
+	if qualityID == "original" && isRemux {
+		// "Original" quality uses source bitrate and resolution directly
+		bandwidth = int(float64(mediaItem.Bitrate) * 1.1) // +10% overhead
+		resolution = fmt.Sprintf("%dx%d", mediaItem.Width, mediaItem.Height)
+		codecs = "avc1.640033,mp4a.40.2" // Assume high profile H.264 for now
+		variantName = "original"
+	} else {
+		variant, ok := profile.GetQualityVariant(qualityID)
+		if !ok {
+			// Fallback to a safe default if quality ID is invalid
+			variant, _ = profile.GetQualityVariant(profile.Quality720p4m)
+		}
+
+		bandwidth = variant.Bandwidth
+		resolution = fmt.Sprintf("%dx%d", variant.Width, variant.Height)
+		codecs = variant.Codecs
+		variantName = variant.ID
+		// Note: If remux was selected but quality != "original", serve_manifest.go
+		// will switch to transcode. The profile bandwidth/resolution is correct here.
 	}
 
 	// Build playlist header
@@ -341,28 +438,13 @@ func (uc *ServeMasterPlaylistUseCase) buildSingleVariantPlaylist(mediaItem *medi
 	// Suppress unused variable warning - audio tracks available for future use
 	_ = audioTracks
 
-	// For remux strategies, use actual source bitrate since video is stream-copied
-	// Profile bandwidth only applies to transcode scenarios
-	bandwidth := variant.Bandwidth
-	resolution := fmt.Sprintf("%dx%d", variant.Width, variant.Height)
-	if params.strategy == strategy.RemuxHEVC || params.strategy == strategy.Remux || params.strategy == strategy.RemuxWithAudioDownmix {
-		// Use source bitrate (with 10% overhead for container/audio)
-		if mediaItem.Bitrate > 0 {
-			bandwidth = int(float64(mediaItem.Bitrate) * 1.1)
-		}
-		// Use source resolution
-		if mediaItem.Width > 0 && mediaItem.Height > 0 {
-			resolution = fmt.Sprintf("%dx%d", mediaItem.Width, mediaItem.Height)
-		}
-	}
-
 	// Build single video stream variant
 	streamInf := fmt.Sprintf(
 		"#EXT-X-STREAM-INF:BANDWIDTH=%d,RESOLUTION=%s,CODECS=\"%s\",NAME=\"%s\"",
 		bandwidth,
 		resolution,
-		variant.Codecs,
-		variant.ID,
+		codecs,
+		variantName,
 	)
 
 	// Reference subtitle group if we have text subtitles
@@ -373,7 +455,7 @@ func (uc *ServeMasterPlaylistUseCase) buildSingleVariantPlaylist(mediaItem *medi
 	playlist += streamInf + "\n"
 
 	// Build variant URL with query parameters
-	variantURL := fmt.Sprintf("%s/playlist.m3u8", variant.ID)
+	variantURL := fmt.Sprintf("%s/playlist.m3u8", variantName)
 	queryParams := []string{}
 	if params.startPosition != "" {
 		queryParams = append(queryParams, "start="+params.startPosition)

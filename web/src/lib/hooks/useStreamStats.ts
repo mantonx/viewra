@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type Hls from 'hls.js'
-import { useGetApiMediaIdStreamInfo } from '@/lib/api/generated/media/media'
+import { useQuery } from '@tanstack/react-query'
 import { detectCodecSupport, getSupportedCodecsHeader, detectHDRDisplaySync } from '@/lib/capabilities'
 import type { CodecSupport } from '@/lib/capabilities'
 import type { NetworkStats } from '@/lib/network/NetworkMonitor'
@@ -17,6 +17,7 @@ import type {
   PlaybackMode,
   ToneMappingInfo,
 } from '@/lib/types/streamStats'
+import type { GithubComMantonxViewraInternalApplicationMediaStreamInfoResponse } from '@/lib/api/generated/media/media.schemas'
 
 export interface UseStreamStatsOptions {
   mediaId: number | null
@@ -26,6 +27,7 @@ export interface UseStreamStatsOptions {
   isPlaying: boolean
   playbackMode: PlaybackMode
   selectedAudioIndex?: number
+  selectedQualityId?: string | null  // Selected quality for accurate strategy detection
   streamOffset?: number
   enabled?: boolean
 }
@@ -53,6 +55,7 @@ export const useStreamStats = (options: UseStreamStatsOptions): UseStreamStatsRe
     isPlaying,
     playbackMode,
     selectedAudioIndex: _selectedAudioIndex = 0,
+    selectedQualityId = null,
     streamOffset = 0,
     enabled = true,
   } = options
@@ -72,23 +75,53 @@ export const useStreamStats = (options: UseStreamStatsOptions): UseStreamStatsRe
     })
   }, [])
 
-  // Fetch source stream info from API with codec support headers
+  // Fetch source stream info from API with codec support headers and quality param
+  // Using custom useQuery instead of generated hook to support quality query param
   const {
     data: apiResponse,
     isLoading,
     refetch,
-  } = useGetApiMediaIdStreamInfo(mediaId ?? 0, {
-    query: {
-      enabled: enabled && mediaId !== null && mediaId > 0,
-      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-      refetchOnWindowFocus: false,
-    },
-    request: {
-      headers: {
+  } = useQuery({
+    queryKey: ['stream-info', mediaId, selectedQualityId],
+    queryFn: async (): Promise<{ status: 200; data: GithubComMantonxViewraInternalApplicationMediaStreamInfoResponse } | { status: number; data: unknown }> => {
+      const url = new URL(`/api/media/${mediaId}/stream-info`, window.location.origin)
+      if (selectedQualityId) {
+        url.searchParams.set('quality', selectedQualityId)
+      }
+
+      // Get auth token from localStorage (same pattern as api/mutator/index.ts)
+      const getStoredAccessToken = (): string | null => {
+        try {
+          const tokensStr = localStorage.getItem('viewra_auth_tokens')
+          if (!tokensStr) return null
+          const tokens = JSON.parse(tokensStr)
+          return tokens.accessToken || null
+        } catch {
+          return null
+        }
+      }
+
+      const headers: Record<string, string> = {
         'X-Supported-Video-Codecs': getSupportedCodecsHeader(codecSupport),
         'X-HDR-Display': hdrDisplay.current.displaySupportsHDR ? 'true' : 'false',
-      },
+      }
+
+      const accessToken = getStoredAccessToken()
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`
+      }
+
+      const response = await fetch(url.toString(), {
+        headers,
+        credentials: 'include',
+      })
+
+      const data = await response.json()
+      return { status: response.status as 200, data }
     },
+    enabled: enabled && mediaId !== null && mediaId > 0,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    refetchOnWindowFocus: false,
   })
 
   // Extract data from API response

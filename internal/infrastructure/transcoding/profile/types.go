@@ -15,8 +15,12 @@ import (
 // AdaptiveProfile defines granular bitrate-based quality profiles for adaptive streaming.
 type AdaptiveProfile = streaming.AdaptiveProfile
 
-// ABRVariant represents a single quality variant in the ABR ladder.
-type ABRVariant = streaming.ABRVariant
+// QualityVariant represents a single quality variant in the quality ladder.
+type QualityVariant = streaming.QualityVariant
+
+// ABRVariant is an alias for QualityVariant for backwards compatibility.
+// Deprecated: Use QualityVariant instead.
+type ABRVariant = streaming.QualityVariant
 
 // ClientCapabilities represents the detected capabilities of a client device.
 type ClientCapabilities = streaming.ClientCapabilities

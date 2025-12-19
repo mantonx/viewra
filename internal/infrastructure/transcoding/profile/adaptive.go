@@ -7,9 +7,9 @@ import (
 	"github.com/mantonx/viewra/internal/domain/transcode"
 )
 
-// ABRLadder is the complete ABR ladder - single source of truth for all quality levels.
+// QualityLadder is the complete quality ladder - single source of truth for all quality levels.
 // This defines every quality variant available in the system.
-var ABRLadder = []streaming.ABRVariant{
+var QualityLadder = []streaming.QualityVariant{
 	// Low quality - emergency fallback / very poor connections
 	{ID: Quality360p, Bandwidth: 800_000, Width: 640, Height: 360, Codecs: "avc1.4d401e,mp4a.40.2"},
 
@@ -37,22 +37,30 @@ var ABRLadder = []streaming.ABRVariant{
 	{ID: Quality4k200m, Bandwidth: 200_000_000, Width: 3840, Height: 2160, Codecs: "avc1.640033,mp4a.40.2"},
 }
 
-// abrLadderMap provides O(1) lookup by quality ID
-var abrLadderMap = buildABRLadderMap()
+// qualityLadderMap provides O(1) lookup by quality ID
+var qualityLadderMap = buildQualityLadderMap()
 
-func buildABRLadderMap() map[string]streaming.ABRVariant {
-	m := make(map[string]streaming.ABRVariant, len(ABRLadder))
-	for _, v := range ABRLadder {
+func buildQualityLadderMap() map[string]streaming.QualityVariant {
+	m := make(map[string]streaming.QualityVariant, len(QualityLadder))
+	for _, v := range QualityLadder {
 		m[v.ID] = v
 	}
 	return m
 }
 
-// GetABRVariant returns the ABR variant for a given quality ID.
-func GetABRVariant(qualityID string) (streaming.ABRVariant, bool) {
-	v, ok := abrLadderMap[qualityID]
+// GetQualityVariant returns the quality variant for a given quality ID.
+func GetQualityVariant(qualityID string) (streaming.QualityVariant, bool) {
+	v, ok := qualityLadderMap[qualityID]
 	return v, ok
 }
+
+// GetABRVariant is an alias for GetQualityVariant for backwards compatibility.
+// Deprecated: Use GetQualityVariant instead.
+var GetABRVariant = GetQualityVariant
+
+// ABRLadder is an alias for QualityLadder for backwards compatibility.
+// Deprecated: Use QualityLadder instead.
+var ABRLadder = QualityLadder
 
 // profileBuilder helps construct AdaptiveProfile instances with calculated defaults
 type profileBuilder struct {
@@ -156,12 +164,12 @@ func (pb *profileBuilder) build() *AdaptiveProfile {
 	return pb.profile
 }
 
-// buildProfiles constructs all adaptive profiles from the ABR ladder (single source of truth)
+// buildProfiles constructs all adaptive profiles from the quality ladder (single source of truth)
 func buildProfiles() map[string]*AdaptiveProfile {
 	profiles := make(map[string]*AdaptiveProfile)
 
-	// Build profiles from the ABR ladder
-	for _, variant := range ABRLadder {
+	// Build profiles from the quality ladder
+	for _, variant := range QualityLadder {
 		profile := buildProfileFromVariant(variant)
 		profiles[variant.ID] = profile
 	}
@@ -335,6 +343,43 @@ func FilterProfilesByNetworkSpeed(profiles []*AdaptiveProfile, speedMbps float64
 		}
 	}
 	return filtered
+}
+
+// GetBestProfileForResolution returns the highest bitrate profile that matches
+// the given resolution without exceeding the source bitrate.
+// Used when "original" quality is requested but transcoding is required.
+func GetBestProfileForResolution(width, height, sourceBitrate int) *AdaptiveProfile {
+	var best *AdaptiveProfile
+
+	for _, p := range adaptiveProfiles {
+		// Must not exceed source height
+		if p.Height > height {
+			continue
+		}
+
+		// Don't exceed source bitrate (with 20% tolerance)
+		if sourceBitrate > 0 {
+			maxBitrate := int(float64(sourceBitrate) * 1.2)
+			if p.VideoBitrate > maxBitrate {
+				continue
+			}
+		}
+
+		// Pick best: prefer higher resolution, then higher bitrate
+		if best == nil {
+			best = p
+			continue
+		}
+
+		// Prefer exact height match over lower
+		if p.Height > best.Height {
+			best = p
+		} else if p.Height == best.Height && p.VideoBitrate > best.VideoBitrate {
+			best = p
+		}
+	}
+
+	return best
 }
 
 // GetAdaptiveProfileForQuality maps quality strings to AdaptiveProfile instances.

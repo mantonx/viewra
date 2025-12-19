@@ -2,7 +2,8 @@
  * QualitySelector Component
  *
  * Dropdown for selecting video quality in single-quality mode.
- * No ABR - each quality change triggers stream reload from current position.
+ * Each quality change triggers stream reload from current position.
+ * Uses isOriginalQuality flag from backend to identify source quality options.
  */
 
 import { useMemo } from 'react'
@@ -23,15 +24,8 @@ export const QualitySelector = ({
     [availableQualities, selectedQualityId]
   )
 
-  // Find the original quality (highest resolution)
-  const originalQuality = useMemo(() => {
-    if (availableQualities.length === 0) return null
-    return availableQualities.reduce((best, q) =>
-      q.height > best.height ? q : (q.height === best.height && q.bandwidth > best.bandwidth ? q : best)
-    )
-  }, [availableQualities])
-
-  const isSelectedOriginal = selectedQuality && originalQuality && selectedQuality.id === originalQuality.id
+  // Check if selected quality is original (uses isOriginalQuality flag from backend)
+  const isSelectedOriginal = selectedQuality?.isOriginalQuality ?? false
 
   // Get display text for the button
   const getQualityDisplayText = () => {
@@ -73,7 +67,6 @@ export const QualitySelector = ({
           <div className="max-h-80 overflow-y-auto">
             {sortedQualities.map((quality) => {
               const isSelected = quality.id === selectedQualityId
-              const isOriginal = quality.id === originalQuality?.id
 
               return (
                 <button
@@ -96,7 +89,7 @@ export const QualitySelector = ({
                     <span className={cn('text-sm font-medium', videoOverlay.text.primary)}>
                       {quality.displayName}
                     </span>
-                    {isOriginal && (
+                    {quality.isOriginalQuality && (
                       <span className="text-amber-400 text-xs font-medium px-1.5 py-0.5 bg-amber-400/20 rounded">
                         Original
                       </span>

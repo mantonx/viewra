@@ -173,8 +173,9 @@ func (uc *StreamInfoUseCase) Execute(ctx context.Context, mediaID int64) (*Strea
 	return response, nil
 }
 
-// ExecuteWithCapabilities retrieves stream information including strategy based on client capabilities
-func (uc *StreamInfoUseCase) ExecuteWithCapabilities(ctx context.Context, mediaID int64, supportedVideoCodecs []string, supportsHDRDisplay bool) (*StreamInfoResponse, error) {
+// ExecuteWithCapabilities retrieves stream information including strategy based on client capabilities and selected quality.
+// The quality parameter allows accurate strategy detection - selecting a non-original quality on a remux source requires transcoding.
+func (uc *StreamInfoUseCase) ExecuteWithCapabilities(ctx context.Context, mediaID int64, supportedVideoCodecs []string, supportsHDRDisplay bool, quality string) (*StreamInfoResponse, error) {
 	// Get media record
 	m, err := uc.mediaRepo.GetByID(ctx, mediaID)
 	if err != nil {
@@ -247,6 +248,21 @@ func (uc *StreamInfoUseCase) ExecuteWithCapabilities(ctx context.Context, mediaI
 		}
 	}
 	streamStrategy, reason := strategy.DetermineStrategyWithCapabilities(videoInfo, clientCaps)
+
+	// Check if non-original quality on remux source requires transcoding
+	// Remux strategies copy video as-is, so selecting a different resolution requires transcoding
+	isRemuxStrategy := streamStrategy == strategy.Remux ||
+		streamStrategy == strategy.RemuxWithAudioDownmix ||
+		streamStrategy == strategy.RemuxHEVC
+
+	isOriginalQuality := quality == "" || quality == "original"
+
+	if isRemuxStrategy && !isOriginalQuality {
+		// User selected a specific quality profile on a remux source - must transcode
+		streamStrategy = strategy.Transcode
+		reason = fmt.Sprintf("transcoding required: user selected %s (remux only supports original)", quality)
+	}
+
 	response.Strategy = StreamingStrategy{
 		Mode:   strategyToMode(streamStrategy),
 		Reason: reason,

@@ -167,13 +167,14 @@ export const VideoPlayer = ({
   })
 
   // Stream stats for debug panel
-  const { stats: streamStats, isLoading: streamStatsLoading } = useStreamStats({
+  const { stats: streamStats, isLoading: streamStatsLoading, refresh: refreshStreamStats } = useStreamStats({
     mediaId,
     videoRef,
     hlsRef,
     networkStats,
     isPlaying,
     playbackMode: isHlsStream ? 'transcode' : 'direct',
+    selectedQualityId,  // Pass selected quality for accurate strategy detection
     streamOffset: streamOffsetRef.current || 0,
     enabled: showDebugOverlay,
   })
@@ -321,8 +322,11 @@ export const VideoPlayer = ({
 
       // Call parent callback to rebuild URL with ?quality= and reload
       onQualityChangeCallback(qualityId, currentPosition)
+
+      // Refresh stream stats after a short delay to get updated strategy info
+      setTimeout(() => refreshStreamStats(), 1000)
     },
-    [onQualityChangeCallback, selectedQualityId, recordQualitySwitch, streamOffsetRef]
+    [onQualityChangeCallback, selectedQualityId, recordQualitySwitch, streamOffsetRef, refreshStreamStats]
   )
 
   // Handle audio track change
@@ -434,6 +438,7 @@ export const VideoPlayer = ({
           isVisible={showDebugOverlay}
           onClose={() => setShowDebugOverlay(false)}
           isLoading={streamStatsLoading}
+          selectedQuality={backendQualities.find(q => q.id === selectedQualityId) ?? null}
         />
 
         {/* Video controls */}
