@@ -54,10 +54,7 @@ logger.debug('Detected codec support (sync):', {
   av1: codecSupport.av1.supported,
 })
 
-// Detect HDR display capability (instant, synchronous)
-// Checks CSS media queries for dynamic-range and color-gamut
-const hdrDisplay = detectHDRDisplaySync()
-logger.info('Detected HDR display capability:', hdrDisplay)
+// Note: HDR detection is called inside buildManifestUrl() to pick up localStorage overrides
 
 /**
  * Build master manifest URL with all necessary query parameters
@@ -95,7 +92,8 @@ const buildManifestUrl = (
     params.set('quality', qualityOverride)
   }
 
-  // HDR display capability - if true, backend can skip tone mapping for HDR content
+  // HDR display capability - called here (not at module load) to pick up localStorage overrides
+  const hdrDisplay = detectHDRDisplaySync()
   if (hdrDisplay.displaySupportsHDR) {
     params.set('hdrDisplay', 'true')
   }
