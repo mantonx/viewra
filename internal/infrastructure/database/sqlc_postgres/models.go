@@ -510,6 +510,8 @@ type TranscodeAnalytic struct {
 	SegmentsCreated sql.NullInt32  `json:"segments_created"`
 	CreatedAt       int64          `json:"created_at"`
 	CompletedAt     sql.NullInt64  `json:"completed_at"`
+	StrategyReason  sql.NullString `json:"strategy_reason"`
+	StrategyDisplay sql.NullString `json:"strategy_display"`
 }
 
 type TranscodeJob struct {

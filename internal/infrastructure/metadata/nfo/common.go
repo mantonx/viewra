@@ -4,10 +4,29 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// episodePatternRegex matches TV episode patterns like S05E13, s05e13, S5E13, etc.
+// Captures season and episode numbers for normalization.
+var episodePatternRegex = regexp.MustCompile(`(?i)S(\d+)E(\d+)`)
+
+// extractEpisodePattern extracts and normalizes the episode pattern from a filename.
+// Returns a normalized pattern like "S05E13" or empty string if no pattern found.
+// This allows matching "Star Trek Voyager - S05E13" with "Star Trek - Voyager (1995) - S05E13 - Gravity".
+func extractEpisodePattern(filename string) string {
+	match := episodePatternRegex.FindStringSubmatch(filename)
+	if match == nil {
+		return ""
+	}
+	// Normalize to uppercase with zero-padded numbers (e.g., "S05E13")
+	season, _ := strconv.Atoi(match[1])
+	episode, _ := strconv.Atoi(match[2])
+	return fmt.Sprintf("S%02dE%02d", season, episode)
+}
 
 // Common helper functions shared across all NFO parsers
 
@@ -172,16 +191,36 @@ func FindNFOFile(mediaPath string, specificNames ...string) (string, error) {
 		}
 	}
 
+	// Extract episode pattern from media filename (e.g., "S05E13", "s05e13")
+	// This prevents matching S05E01's NFO to S05E13's media file
+	episodePattern := extractEpisodePattern(base)
+
 	// Look for any .nfo file in the same directory as last resort
+	// If the media file has an episode pattern, only match NFOs with the same pattern
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return "", fmt.Errorf("failed to read directory: %w", err)
 	}
 
 	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(strings.ToLower(entry.Name()), ".nfo") {
-			return filepath.Join(dir, entry.Name()), nil
+		if entry.IsDir() {
+			continue
 		}
+		name := entry.Name()
+		if !strings.HasSuffix(strings.ToLower(name), ".nfo") {
+			continue
+		}
+
+		// If media file has an episode pattern, NFO must have the same pattern
+		if episodePattern != "" {
+			nfoBase := strings.TrimSuffix(name, filepath.Ext(name))
+			nfoPattern := extractEpisodePattern(nfoBase)
+			if nfoPattern != episodePattern {
+				continue // Skip NFOs with different episode numbers
+			}
+		}
+
+		return filepath.Join(dir, name), nil
 	}
 
 	return "", fmt.Errorf("no NFO file found for: %s", mediaPath)

@@ -182,6 +182,8 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 		InputPath:             mediaEntity.FilePath,
 		Profile:               adaptiveProfile,
 		Strategy:              string(streamStrategy),
+		StrategyDisplay:       streamStrategy.DisplayName(),
+		StrategyReason:        reason,
 		OutputDir:             req.OutputDir,
 		VideoInfo:             videoInfo,
 		ClientSupportedCodecs: req.SupportedVideoCodecs,

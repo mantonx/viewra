@@ -270,9 +270,15 @@ func buildProfileFromVariant(v ABRVariant) *AdaptiveProfile {
 	}
 
 	// Create display name from ID
-	displayName := fmt.Sprintf("%dp (%d Mbps)", v.Height, v.Bandwidth/1_000_000)
+	// Use float for sub-1 Mbps bitrates to avoid "0 Mbps" display
+	mbps := float64(v.Bandwidth) / 1_000_000
+	var displayName string
 	if v.Height >= 2160 {
-		displayName = fmt.Sprintf("4K (%d Mbps)", v.Bandwidth/1_000_000)
+		displayName = fmt.Sprintf("4K (%.0f Mbps)", mbps)
+	} else if mbps < 1 {
+		displayName = fmt.Sprintf("%dp (%.1f Mbps)", v.Height, mbps)
+	} else {
+		displayName = fmt.Sprintf("%dp (%.0f Mbps)", v.Height, mbps)
 	}
 
 	return newProfile(v.ID, displayName, v.Width, v.Height, v.Bandwidth).

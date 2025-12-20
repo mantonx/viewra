@@ -28,6 +28,24 @@ const (
 	Transcode StreamStrategy = "transcode"
 )
 
+// DisplayName returns a human-readable name for the strategy.
+func (s StreamStrategy) DisplayName() string {
+	switch s {
+	case DirectPlay:
+		return "Direct Play"
+	case Remux:
+		return "Remux"
+	case RemuxWithAudioDownmix:
+		return "Remux + Audio Transcode"
+	case RemuxHEVC:
+		return "HEVC Remux"
+	case Transcode:
+		return "Transcode"
+	default:
+		return string(s)
+	}
+}
+
 // VideoInfo is an alias for videoinfo.VideoInfo for strategy determination.
 // This allows consumers to use strategy.VideoInfo interchangeably with videoinfo.VideoInfo.
 type VideoInfo = videoinfo.VideoInfo

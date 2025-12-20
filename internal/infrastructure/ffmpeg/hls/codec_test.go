@@ -164,3 +164,60 @@ func TestGetBestCodecForHardware(t *testing.T) {
 		})
 	}
 }
+
+func TestIsNVDECSupported(t *testing.T) {
+	tests := []struct {
+		codec string
+		want  bool
+	}{
+		// Supported codecs
+		{"h264", true},
+		{"avc", true},
+		{"avc1", true},
+		{"hevc", true},
+		{"h265", true},
+		{"hev1", true},
+		{"vp8", true},
+		{"vp9", true},
+		{"mpeg1video", true},
+		{"mpeg2video", true},
+		{"mpegvideo", true},
+		{"vc1", true},
+		{"av1", true},
+		{"av01", true},
+		{"mjpeg", true},
+		// CUVID decoder names
+		{"h264_cuvid", true},
+		{"hevc_cuvid", true},
+		{"vp9_cuvid", true},
+		{"av1_cuvid", true},
+
+		// NOT supported codecs
+		{"mpeg4", false},     // MPEG-4 Part 2 (DivX, Xvid)
+		{"msmpeg4", false},   // Microsoft MPEG-4 v1
+		{"msmpeg4v2", false}, // Microsoft MPEG-4 v2
+		{"msmpeg4v3", false}, // Microsoft MPEG-4 v3
+		{"wmv1", false},      // Windows Media Video 7
+		{"wmv2", false},      // Windows Media Video 8
+		{"wmv3", false},      // Windows Media Video 9
+		{"theora", false},    // Theora
+		{"vp6", false},       // VP6
+		{"vp6f", false},      // VP6 Flash
+		{"flv1", false},      // FLV1 / Sorenson Spark
+		{"svq1", false},      // Sorenson Video 1
+		{"svq3", false},      // Sorenson Video 3
+		{"rv10", false},      // RealVideo 1.0
+		{"rv20", false},      // RealVideo 2.0
+		{"", false},          // Empty string
+		{"unknown", false},   // Unknown codec
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.codec, func(t *testing.T) {
+			got := IsNVDECSupported(tt.codec)
+			if got != tt.want {
+				t.Errorf("IsNVDECSupported(%q) = %v, want %v", tt.codec, got, tt.want)
+			}
+		})
+	}
+}

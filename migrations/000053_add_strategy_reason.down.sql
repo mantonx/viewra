@@ -1,0 +1,3 @@
+-- SQLite doesn't support DROP COLUMN, so we need to recreate the table
+-- For simplicity, these columns are optional so we can leave them in place
+-- If you need to fully revert, the table would need to be recreated

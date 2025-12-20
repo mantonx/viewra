@@ -35,19 +35,23 @@ INSERT INTO transcode_analytics (
     media_id,
     quality_profile,
     strategy,
+    strategy_display,
+    strategy_reason,
     hw_accel,
     status,
     created_at
-) VALUES ($1, $2, $3, $4, $5, 'started', $6)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, 'started', $8)
 `
 
 type CreateTranscodeAnalyticsParams struct {
-	SessionID      string         `json:"session_id"`
-	MediaID        int32          `json:"media_id"`
-	QualityProfile string         `json:"quality_profile"`
-	Strategy       string         `json:"strategy"`
-	HwAccel        sql.NullString `json:"hw_accel"`
-	CreatedAt      int64          `json:"created_at"`
+	SessionID       string         `json:"session_id"`
+	MediaID         int32          `json:"media_id"`
+	QualityProfile  string         `json:"quality_profile"`
+	Strategy        string         `json:"strategy"`
+	StrategyDisplay sql.NullString `json:"strategy_display"`
+	StrategyReason  sql.NullString `json:"strategy_reason"`
+	HwAccel         sql.NullString `json:"hw_accel"`
+	CreatedAt       int64          `json:"created_at"`
 }
 
 func (q *Queries) CreateTranscodeAnalytics(ctx context.Context, arg CreateTranscodeAnalyticsParams) error {
@@ -56,6 +60,8 @@ func (q *Queries) CreateTranscodeAnalytics(ctx context.Context, arg CreateTransc
 		arg.MediaID,
 		arg.QualityProfile,
 		arg.Strategy,
+		arg.StrategyDisplay,
+		arg.StrategyReason,
 		arg.HwAccel,
 		arg.CreatedAt,
 	)
@@ -91,6 +97,8 @@ SELECT
     p.stall_count,
     t.quality_profile,
     t.strategy,
+    t.strategy_display,
+    t.strategy_reason,
     t.hw_accel,
     t.manifest_ready_ms as backend_startup_ms,
     t.first_frame_ms,
@@ -119,6 +127,8 @@ type GetCorrelatedAnalyticsRow struct {
 	StallCount        sql.NullInt32  `json:"stall_count"`
 	QualityProfile    sql.NullString `json:"quality_profile"`
 	Strategy          sql.NullString `json:"strategy"`
+	StrategyDisplay   sql.NullString `json:"strategy_display"`
+	StrategyReason    sql.NullString `json:"strategy_reason"`
 	HwAccel           sql.NullString `json:"hw_accel"`
 	BackendStartupMs  sql.NullInt32  `json:"backend_startup_ms"`
 	FirstFrameMs      sql.NullInt32  `json:"first_frame_ms"`
@@ -145,6 +155,8 @@ func (q *Queries) GetCorrelatedAnalytics(ctx context.Context, arg GetCorrelatedA
 			&i.StallCount,
 			&i.QualityProfile,
 			&i.Strategy,
+			&i.StrategyDisplay,
+			&i.StrategyReason,
 			&i.HwAccel,
 			&i.BackendStartupMs,
 			&i.FirstFrameMs,
@@ -175,6 +187,8 @@ SELECT
     p.stall_count,
     t.quality_profile,
     t.strategy,
+    t.strategy_display,
+    t.strategy_reason,
     t.hw_accel,
     t.manifest_ready_ms as backend_startup_ms,
     t.first_frame_ms,
@@ -201,6 +215,8 @@ type GetCorrelatedAnalyticsAllRow struct {
 	StallCount        sql.NullInt32  `json:"stall_count"`
 	QualityProfile    sql.NullString `json:"quality_profile"`
 	Strategy          sql.NullString `json:"strategy"`
+	StrategyDisplay   sql.NullString `json:"strategy_display"`
+	StrategyReason    sql.NullString `json:"strategy_reason"`
 	HwAccel           sql.NullString `json:"hw_accel"`
 	BackendStartupMs  sql.NullInt32  `json:"backend_startup_ms"`
 	FirstFrameMs      sql.NullInt32  `json:"first_frame_ms"`
@@ -227,6 +243,8 @@ func (q *Queries) GetCorrelatedAnalyticsAll(ctx context.Context, arg GetCorrelat
 			&i.StallCount,
 			&i.QualityProfile,
 			&i.Strategy,
+			&i.StrategyDisplay,
+			&i.StrategyReason,
 			&i.HwAccel,
 			&i.BackendStartupMs,
 			&i.FirstFrameMs,
@@ -291,7 +309,7 @@ func (q *Queries) GetOverallTranscodeSummary(ctx context.Context) (GetOverallTra
 }
 
 const getTranscodeAnalyticsBySessionID = `-- name: GetTranscodeAnalyticsBySessionID :one
-SELECT session_id, media_id, quality_profile, strategy, hw_accel, ffmpeg_start_ms, first_frame_ms, first_segment_ms, manifest_ready_ms, status, error_reason, total_duration_ms, segments_created, created_at, completed_at FROM transcode_analytics
+SELECT session_id, media_id, quality_profile, strategy, hw_accel, ffmpeg_start_ms, first_frame_ms, first_segment_ms, manifest_ready_ms, status, error_reason, total_duration_ms, segments_created, created_at, completed_at, strategy_reason, strategy_display FROM transcode_analytics
 WHERE session_id = $1
 `
 
@@ -314,6 +332,8 @@ func (q *Queries) GetTranscodeAnalyticsBySessionID(ctx context.Context, sessionI
 		&i.SegmentsCreated,
 		&i.CreatedAt,
 		&i.CompletedAt,
+		&i.StrategyReason,
+		&i.StrategyDisplay,
 	)
 	return i, err
 }
@@ -357,7 +377,7 @@ func (q *Queries) GetTranscodeSummaryByMediaID(ctx context.Context, mediaID int3
 }
 
 const listTranscodeAnalyticsByMediaID = `-- name: ListTranscodeAnalyticsByMediaID :many
-SELECT session_id, media_id, quality_profile, strategy, hw_accel, ffmpeg_start_ms, first_frame_ms, first_segment_ms, manifest_ready_ms, status, error_reason, total_duration_ms, segments_created, created_at, completed_at FROM transcode_analytics
+SELECT session_id, media_id, quality_profile, strategy, hw_accel, ffmpeg_start_ms, first_frame_ms, first_segment_ms, manifest_ready_ms, status, error_reason, total_duration_ms, segments_created, created_at, completed_at, strategy_reason, strategy_display FROM transcode_analytics
 WHERE media_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -394,6 +414,8 @@ func (q *Queries) ListTranscodeAnalyticsByMediaID(ctx context.Context, arg ListT
 			&i.SegmentsCreated,
 			&i.CreatedAt,
 			&i.CompletedAt,
+			&i.StrategyReason,
+			&i.StrategyDisplay,
 		); err != nil {
 			return nil, err
 		}

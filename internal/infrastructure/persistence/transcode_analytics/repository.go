@@ -15,6 +15,8 @@ type TranscodeAnalytics struct {
 	MediaID         int64
 	QualityProfile  string
 	Strategy        string
+	StrategyDisplay string // Human-readable strategy name (e.g., "HEVC Remux")
+	StrategyReason  string // Detailed reason for the strategy decision
 	HWAccel         string
 	FFmpegStartMs   *int64
 	FirstFrameMs    *int64
@@ -51,6 +53,8 @@ type CorrelatedAnalytics struct {
 	StallCount         *int64
 	QualityProfile     *string
 	Strategy           *string
+	StrategyDisplay    *string
+	StrategyReason     *string
 	HWAccel            *string
 	BackendStartupMs   *int64
 	FirstFrameMs       *int64
@@ -84,25 +88,29 @@ func NewRepository(db *sql.DB, dbType string) *Repository {
 }
 
 // Create creates a new transcode analytics record when a session starts.
-func (r *Repository) Create(ctx context.Context, sessionID string, mediaID int64, quality, strategy, hwAccel string, createdAt int64) error {
+func (r *Repository) Create(ctx context.Context, sessionID string, mediaID int64, quality, strategy, strategyDisplay, strategyReason, hwAccel string, createdAt int64) error {
 	if r.dbType == "sqlite" {
 		return r.sqliteQuerier.CreateTranscodeAnalytics(ctx, sqlc_sqlite.CreateTranscodeAnalyticsParams{
-			SessionID:      sessionID,
-			MediaID:        mediaID,
-			QualityProfile: quality,
-			Strategy:       strategy,
-			HwAccel:        common.NullString(hwAccel),
-			CreatedAt:      createdAt,
+			SessionID:       sessionID,
+			MediaID:         mediaID,
+			QualityProfile:  quality,
+			Strategy:        strategy,
+			StrategyDisplay: common.NullString(strategyDisplay),
+			StrategyReason:  common.NullString(strategyReason),
+			HwAccel:         common.NullString(hwAccel),
+			CreatedAt:       createdAt,
 		})
 	}
 
 	return r.postgresQuerier.CreateTranscodeAnalytics(ctx, sqlc_postgres.CreateTranscodeAnalyticsParams{
-		SessionID:      sessionID,
-		MediaID:        int32(mediaID),
-		QualityProfile: quality,
-		Strategy:       strategy,
-		HwAccel:        common.NullString(hwAccel),
-		CreatedAt:      createdAt,
+		SessionID:       sessionID,
+		MediaID:         int32(mediaID),
+		QualityProfile:  quality,
+		Strategy:        strategy,
+		StrategyDisplay: common.NullString(strategyDisplay),
+		StrategyReason:  common.NullString(strategyReason),
+		HwAccel:         common.NullString(hwAccel),
+		CreatedAt:       createdAt,
 	})
 }
 
@@ -270,6 +278,8 @@ func (r *Repository) GetCorrelatedByMediaID(ctx context.Context, mediaID int64, 
 				StallCount:         common.ParseNullInt64Ptr(row.StallCount),
 				QualityProfile:     common.ParseNullStringPtr(row.QualityProfile),
 				Strategy:           common.ParseNullStringPtr(row.Strategy),
+				StrategyDisplay:    common.ParseNullStringPtr(row.StrategyDisplay),
+				StrategyReason:     common.ParseNullStringPtr(row.StrategyReason),
 				HWAccel:            common.ParseNullStringPtr(row.HwAccel),
 				BackendStartupMs:   common.ParseNullInt64Ptr(row.BackendStartupMs),
 				FirstFrameMs:       common.ParseNullInt64Ptr(row.FirstFrameMs),
@@ -301,6 +311,8 @@ func (r *Repository) GetCorrelatedByMediaID(ctx context.Context, mediaID int64, 
 			StallCount:         common.ParseNullInt32Ptr(row.StallCount),
 			QualityProfile:     common.ParseNullStringPtr(row.QualityProfile),
 			Strategy:           common.ParseNullStringPtr(row.Strategy),
+			StrategyDisplay:    common.ParseNullStringPtr(row.StrategyDisplay),
+			StrategyReason:     common.ParseNullStringPtr(row.StrategyReason),
 			HWAccel:            common.ParseNullStringPtr(row.HwAccel),
 			BackendStartupMs:   common.ParseNullInt32Ptr(row.BackendStartupMs),
 			FirstFrameMs:       common.ParseNullInt32Ptr(row.FirstFrameMs),
@@ -334,6 +346,8 @@ func (r *Repository) GetCorrelatedAll(ctx context.Context, limit, offset int) ([
 				StallCount:         common.ParseNullInt64Ptr(row.StallCount),
 				QualityProfile:     common.ParseNullStringPtr(row.QualityProfile),
 				Strategy:           common.ParseNullStringPtr(row.Strategy),
+				StrategyDisplay:    common.ParseNullStringPtr(row.StrategyDisplay),
+				StrategyReason:     common.ParseNullStringPtr(row.StrategyReason),
 				HWAccel:            common.ParseNullStringPtr(row.HwAccel),
 				BackendStartupMs:   common.ParseNullInt64Ptr(row.BackendStartupMs),
 				FirstFrameMs:       common.ParseNullInt64Ptr(row.FirstFrameMs),
@@ -364,6 +378,8 @@ func (r *Repository) GetCorrelatedAll(ctx context.Context, limit, offset int) ([
 			StallCount:         common.ParseNullInt32Ptr(row.StallCount),
 			QualityProfile:     common.ParseNullStringPtr(row.QualityProfile),
 			Strategy:           common.ParseNullStringPtr(row.Strategy),
+			StrategyDisplay:    common.ParseNullStringPtr(row.StrategyDisplay),
+			StrategyReason:     common.ParseNullStringPtr(row.StrategyReason),
 			HWAccel:            common.ParseNullStringPtr(row.HwAccel),
 			BackendStartupMs:   common.ParseNullInt32Ptr(row.BackendStartupMs),
 			FirstFrameMs:       common.ParseNullInt32Ptr(row.FirstFrameMs),

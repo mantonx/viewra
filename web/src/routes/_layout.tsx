@@ -192,7 +192,7 @@ const Layout = () => {
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-auto">
           <Outlet />
         </main>
 

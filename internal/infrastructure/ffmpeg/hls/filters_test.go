@@ -507,3 +507,110 @@ func TestShouldUseOpenCL_ExplicitNonOpenCL(t *testing.T) {
 		})
 	}
 }
+
+func TestNeedsHwUploadCuda(t *testing.T) {
+	tests := []struct {
+		name      string
+		videoInfo *VideoInfo
+		want      bool
+	}{
+		{
+			name:      "no video info - assume NVDEC supported",
+			videoInfo: nil,
+			want:      false,
+		},
+		{
+			name:      "H.264 - NVDEC supported",
+			videoInfo: &VideoInfo{Codec: "h264"},
+			want:      false,
+		},
+		{
+			name:      "HEVC - NVDEC supported",
+			videoInfo: &VideoInfo{Codec: "hevc"},
+			want:      false,
+		},
+		{
+			name:      "MPEG4 - NVDEC NOT supported",
+			videoInfo: &VideoInfo{Codec: "mpeg4"},
+			want:      true,
+		},
+		{
+			name:      "WMV3 - NVDEC NOT supported",
+			videoInfo: &VideoInfo{Codec: "wmv3"},
+			want:      true,
+		},
+		{
+			name:      "Theora - NVDEC NOT supported",
+			videoInfo: &VideoInfo{Codec: "theora"},
+			want:      true,
+		},
+		{
+			name:      "VP9 - NVDEC supported",
+			videoInfo: &VideoInfo{Codec: "vp9"},
+			want:      false,
+		},
+		{
+			name:      "AV1 - NVDEC supported",
+			videoInfo: &VideoInfo{Codec: "av1"},
+			want:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := Options{
+				VideoInfo: tt.videoInfo,
+			}
+			builder := NewBuilder(opts)
+			got := builder.needsHwUploadCuda()
+			if got != tt.want {
+				t.Errorf("needsHwUploadCuda() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBuildScalingFilterWithMPEG4(t *testing.T) {
+	// When source is MPEG4 (not NVDEC supported), filter should include hwupload_cuda prefix
+	opts := Options{
+		Profile: &Profile{Width: 1920, Height: 1080},
+		VideoInfo: &VideoInfo{
+			Width:  512,
+			Height: 384,
+			Codec:  "mpeg4",
+		},
+	}
+
+	builder := NewBuilder(opts)
+	got := builder.buildScalingFilter(AccelNVENC, false)
+
+	// Should have format=nv12,hwupload_cuda before scale_cuda
+	if !strings.Contains(got, "format=nv12,hwupload_cuda,scale_cuda") {
+		t.Errorf("buildScalingFilter() for MPEG4 should include hwupload_cuda before scale_cuda, got: %s", got)
+	}
+}
+
+func TestBuildScalingFilterWithH264(t *testing.T) {
+	// When source is H.264 (NVDEC supported), filter should NOT have hwupload_cuda prefix
+	opts := Options{
+		Profile: &Profile{Width: 1920, Height: 1080},
+		VideoInfo: &VideoInfo{
+			Width:  3840,
+			Height: 2160,
+			Codec:  "h264",
+		},
+	}
+
+	builder := NewBuilder(opts)
+	got := builder.buildScalingFilter(AccelNVENC, false)
+
+	// Should NOT start with format=nv12,hwupload_cuda (the prefix for unsupported codecs)
+	if strings.HasPrefix(got, "format=nv12,hwupload_cuda,") {
+		t.Errorf("buildScalingFilter() for H.264 should NOT include hwupload_cuda prefix, got: %s", got)
+	}
+
+	// Should still have scale_cuda
+	if !strings.Contains(got, "scale_cuda") {
+		t.Errorf("buildScalingFilter() should still include scale_cuda, got: %s", got)
+	}
+}

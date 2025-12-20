@@ -90,9 +90,11 @@ func (s *Service) handleStarted(ctx context.Context, event domainevents.Event, s
 	mediaID, _ := event.Data["media_id"].(int64)
 	quality, _ := event.Data["quality"].(string)
 	strategy, _ := event.Data["strategy"].(string)
+	strategyDisplay, _ := event.Data["strategy_display"].(string)
+	strategyReason, _ := event.Data["strategy_reason"].(string)
 	hwAccel, _ := event.Data["hw_accel"].(string)
 
-	err := s.repo.Create(ctx, sessionID, mediaID, quality, strategy, hwAccel, event.Timestamp.UnixMilli())
+	err := s.repo.Create(ctx, sessionID, mediaID, quality, strategy, strategyDisplay, strategyReason, hwAccel, event.Timestamp.UnixMilli())
 	if err != nil {
 		s.logger.Error("failed to create transcode analytics", "sessionId", sessionID, "error", err)
 	}

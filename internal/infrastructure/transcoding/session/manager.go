@@ -149,6 +149,8 @@ type GetOrCreateSessionParams struct {
 	InputPath             string
 	Profile               *profile.AdaptiveProfile
 	Strategy              string
+	StrategyDisplay       string // Human-readable strategy name
+	StrategyReason        string // Detailed reason for the strategy decision
 	OutputDir             string
 	VideoInfo             *videoinfo.VideoInfo
 	ClientSupportedCodecs []string
@@ -327,6 +329,8 @@ func (m *Manager) GetOrCreateSession(params GetOrCreateSessionParams) (*Transcod
 			WithData("session_id", session.ID).
 			WithData("quality", params.Quality).
 			WithData("strategy", params.Strategy).
+			WithData("strategy_display", params.StrategyDisplay).
+			WithData("strategy_reason", params.StrategyReason).
 			WithData("hw_accel", startParams.HWAccel).
 			WithData("start_position", params.StartPosition).
 			Build())

@@ -135,8 +135,16 @@ func (b *Builder) buildScalingFilter(hwAccel HardwareAccel, skipIfLibPlacebo boo
 		// NVENC: GPU-accelerated scaling (non-HDR path)
 		// Add format=nv12 to scale_cuda to convert 10-bit (yuv420p10le) to 8-bit (nv12)
 		// No pad_cuda available in standard FFmpeg - download, pad on CPU, re-upload
-		return fmt.Sprintf("scale_cuda=%d:%d:format=nv12:force_original_aspect_ratio=decrease,hwdownload,format=nv12,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,hwupload_cuda",
-			p.Width, p.Height, p.Width, p.Height)
+		//
+		// IMPORTANT: If the source codec doesn't support NVDEC hardware decode (e.g., MPEG-4),
+		// FFmpeg falls back to CPU decoding, and frames are in CPU memory, not CUDA memory.
+		// We need to add hwupload_cuda before scale_cuda to transfer frames to GPU first.
+		prefix := ""
+		if b.needsHwUploadCuda() {
+			prefix = "format=nv12,hwupload_cuda,"
+		}
+		return fmt.Sprintf("%sscale_cuda=%d:%d:format=nv12:force_original_aspect_ratio=decrease,hwdownload,format=nv12,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,hwupload_cuda",
+			prefix, p.Width, p.Height, p.Width, p.Height)
 	case AccelQSV:
 		// QSV: GPU scaling (no pad_qsv available, encoder handles padding)
 		return fmt.Sprintf("scale_qsv=w=%d:h=%d:format=nv12", p.Width, p.Height)
@@ -382,4 +390,26 @@ func (b *Builder) shouldUseLibPlacebo(hwAccel HardwareAccel) bool {
 		// VAAPI/QSV: use native tone mapping for fully GPU-based processing
 		return false
 	}
+}
+
+// needsHwUploadCuda determines if hwupload_cuda is needed before CUDA filters.
+// This is required when the source codec doesn't support NVDEC hardware decoding,
+// causing FFmpeg to fall back to CPU decoding. In this case, frames are in CPU memory
+// and must be uploaded to CUDA memory before using GPU filters like scale_cuda.
+//
+// Examples of codecs NOT supported by NVDEC:
+//   - MPEG-4 Part 2 (mpeg4) - common in older DVD rips, DivX, Xvid
+//   - WMV7/8 (wmv1, wmv2)
+//   - Theora
+//
+// When this returns true, the filter chain should prepend "format=nv12,hwupload_cuda,"
+// to ensure frames are in CUDA memory before scale_cuda processes them.
+func (b *Builder) needsHwUploadCuda() bool {
+	// If no video info, assume NVDEC is supported (most modern content is H.264/HEVC)
+	if b.opts.VideoInfo == nil {
+		return false
+	}
+
+	// Check if the source codec supports NVDEC hardware decode
+	return !IsNVDECSupported(b.opts.VideoInfo.Codec)
 }

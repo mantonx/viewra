@@ -4,10 +4,12 @@ INSERT INTO transcode_analytics (
     media_id,
     quality_profile,
     strategy,
+    strategy_display,
+    strategy_reason,
     hw_accel,
     status,
     created_at
-) VALUES (?, ?, ?, ?, ?, 'started', ?);
+) VALUES (?, ?, ?, ?, ?, ?, ?, 'started', ?);
 
 -- name: UpdateTranscodeFirstFrame :exec
 UPDATE transcode_analytics
@@ -88,6 +90,8 @@ SELECT
     p.stall_count,
     t.quality_profile,
     t.strategy,
+    t.strategy_display,
+    t.strategy_reason,
     t.hw_accel,
     t.manifest_ready_ms as backend_startup_ms,
     t.first_frame_ms,
@@ -110,6 +114,8 @@ SELECT
     p.stall_count,
     t.quality_profile,
     t.strategy,
+    t.strategy_display,
+    t.strategy_reason,
     t.hw_accel,
     t.manifest_ready_ms as backend_startup_ms,
     t.first_frame_ms,

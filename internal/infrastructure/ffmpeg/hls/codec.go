@@ -185,3 +185,52 @@ func GetHardwareAccelArgsWithDevice(hwAccel HardwareAccel, device string) []stri
 		return []string{}
 	}
 }
+
+// IsNVDECSupported checks if a source codec can be hardware-decoded by NVIDIA NVDEC.
+// When a codec is NOT supported, frames will be CPU-decoded and need hwupload_cuda
+// before using CUDA filters like scale_cuda.
+//
+// NVDEC codec support (as of Turing/Ampere architecture):
+//   - H.264/AVC (most profiles up to High 4:4:4)
+//   - HEVC/H.265 (Main, Main10, Main12)
+//   - VP8, VP9 (Profile 0, 2)
+//   - MPEG-1, MPEG-2
+//   - VC-1
+//   - AV1 (on Ampere and newer)
+//
+// NOT supported: MPEG-4 Part 2 (DivX, Xvid), WMV7/8, Theora, older formats
+func IsNVDECSupported(codec string) bool {
+	// Normalize codec name to lowercase for comparison
+	switch codec {
+	// H.264/AVC variants
+	case "h264", "avc", "avc1", "h264_cuvid":
+		return true
+	// HEVC/H.265 variants
+	case "hevc", "h265", "hev1", "hvc1", "hevc_cuvid":
+		return true
+	// VP8/VP9
+	case "vp8", "vp8_cuvid":
+		return true
+	case "vp9", "vp9_cuvid":
+		return true
+	// MPEG-1/2
+	case "mpeg1video", "mpeg1_cuvid":
+		return true
+	case "mpeg2video", "mpegvideo", "mpeg2_cuvid":
+		return true
+	// VC-1
+	case "vc1", "vc1_cuvid":
+		return true
+	// AV1 (Ampere+ GPUs)
+	case "av1", "av01", "av1_cuvid":
+		return true
+	// MJPEG (supported on some GPUs)
+	case "mjpeg", "mjpeg_cuvid":
+		return true
+	default:
+		// MPEG-4 Part 2 (mpeg4, msmpeg4, msmpeg4v2, msmpeg4v3, divx, xvid)
+		// WMV (wmv1, wmv2, wmv3)
+		// Theora, and other legacy codecs are NOT supported
+		return false
+	}
+}

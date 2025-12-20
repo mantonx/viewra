@@ -325,7 +325,7 @@ func (uc *ServeMasterPlaylistUseCase) buildAvailableQualities(mediaItem *media.M
 		originalID := "original"
 		qualities = append(qualities, QualityOption{
 			ID:                originalID,
-			DisplayName:       fmt.Sprintf("%dp (%d Mbps)", mediaItem.Height, mediaItem.Bitrate/1_000_000),
+			DisplayName:       formatQualityDisplayName(mediaItem.Height, int(mediaItem.Bitrate)),
 			Width:             mediaItem.Width,
 			Height:            mediaItem.Height,
 			Bandwidth:         int(mediaItem.Bitrate),
@@ -377,7 +377,7 @@ func (uc *ServeMasterPlaylistUseCase) buildAvailableQualities(mediaItem *media.M
 
 		qualities = append(qualities, QualityOption{
 			ID:                variant.ID,
-			DisplayName:       fmt.Sprintf("%dp (%d Mbps)", variant.Height, variant.Bandwidth/1_000_000),
+			DisplayName:       formatQualityDisplayName(variant.Height, variant.Bandwidth),
 			Width:             variant.Width,
 			Height:            variant.Height,
 			Bandwidth:         variant.Bandwidth,
@@ -387,6 +387,16 @@ func (uc *ServeMasterPlaylistUseCase) buildAvailableQualities(mediaItem *media.M
 	}
 
 	return qualities
+}
+
+// formatQualityDisplayName returns a human-readable quality label like "1080p (10 Mbps)" or "360p (0.8 Mbps)".
+// Uses one decimal place for bitrates under 1 Mbps to avoid showing "0 Mbps".
+func formatQualityDisplayName(height, bandwidthBps int) string {
+	mbps := float64(bandwidthBps) / 1_000_000
+	if mbps < 1 {
+		return fmt.Sprintf("%dp (%.1f Mbps)", height, mbps)
+	}
+	return fmt.Sprintf("%dp (%.0f Mbps)", height, mbps)
 }
 
 // buildSingleVariantPlaylist creates an HLS master playlist with only one quality variant.
