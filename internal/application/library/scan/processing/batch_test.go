@@ -252,8 +252,8 @@ func TestUpdateProgressIfDue(t *testing.T) {
 				<-ticker.C
 			}
 
-			// Call the function
-			updateProgressIfDue(context.Background(), deps, 100, ticker)
+			// Call the function (jobID=100, libraryID=1)
+			updateProgressIfDue(context.Background(), deps, 100, 1, ticker)
 
 			// Function should complete without panic
 			// Progress update is fire-and-forget, so we just verify no panic

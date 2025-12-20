@@ -31,81 +31,93 @@ const Movies = () => {
   const { libraryId } = useLibraryFilter('movies')
 
   // URL state handlers
-  const handleSearchChange = (q: string) => {
-    navigate({
-      to: '/movies',
-      search: {
-        id: undefined,
-        t: undefined,
-        q: q || undefined,
-        sort: search.sort || undefined,
-        genres: search.genres,
-        yearMin: search.yearMin,
-        yearMax: search.yearMax,
-        qualities: search.qualities,
-        watched: search.watched,
-        view: search.view,
-      },
-      replace: true,
-    })
-  }
+  const handleSearchChange = useCallback(
+    (q: string) => {
+      navigate({
+        to: '/movies',
+        search: {
+          id: undefined,
+          t: undefined,
+          q: q || undefined,
+          sort: search.sort || undefined,
+          genres: search.genres,
+          yearMin: search.yearMin,
+          yearMax: search.yearMax,
+          qualities: search.qualities,
+          watched: search.watched,
+          view: search.view,
+        },
+        replace: true,
+      })
+    },
+    [navigate, search.sort, search.genres, search.yearMin, search.yearMax, search.qualities, search.watched, search.view]
+  )
 
-  const handleSortChange = (sort: string) => {
-    navigate({
-      to: '/movies',
-      search: {
-        id: undefined,
-        t: undefined,
-        q: search.q || undefined,
-        sort: sort === 'title-asc' ? undefined : sort,
-        genres: search.genres,
-        yearMin: search.yearMin,
-        yearMax: search.yearMax,
-        qualities: search.qualities,
-        watched: search.watched,
-        view: search.view,
-      },
-      replace: true,
-    })
-  }
+  const handleSortChange = useCallback(
+    (sort: string) => {
+      navigate({
+        to: '/movies',
+        search: {
+          id: undefined,
+          t: undefined,
+          q: search.q || undefined,
+          sort: sort === 'title-asc' ? undefined : sort,
+          genres: search.genres,
+          yearMin: search.yearMin,
+          yearMax: search.yearMax,
+          qualities: search.qualities,
+          watched: search.watched,
+          view: search.view,
+        },
+        replace: true,
+      })
+    },
+    [navigate, search.q, search.genres, search.yearMin, search.yearMax, search.qualities, search.watched, search.view]
+  )
 
-  const handleFiltersChange = (filters: FilterState) => {
-    navigate({
-      to: '/movies',
-      search: {
-        id: undefined,
-        t: undefined,
-        q: search.q || undefined,
-        sort: search.sort || undefined,
-        genres: filters.genres && filters.genres.length > 0 ? filters.genres.join(',') : undefined,
-        yearMin: filters.yearMin,
-        yearMax: filters.yearMax,
-        qualities: filters.qualities && filters.qualities.length > 0 ? filters.qualities.join(',') : undefined,
-        watched: filters.watchedFilter !== 'all' ? filters.watchedFilter : undefined,
-        view: search.view,
-      },
-      replace: true,
-    })
-  }
+  const handleFiltersChange = useCallback(
+    (filters: FilterState) => {
+      navigate({
+        to: '/movies',
+        search: {
+          id: undefined,
+          t: undefined,
+          q: search.q || undefined,
+          sort: search.sort || undefined,
+          genres: filters.genres && filters.genres.length > 0 ? filters.genres.join(',') : undefined,
+          yearMin: filters.yearMin,
+          yearMax: filters.yearMax,
+          qualities: filters.qualities && filters.qualities.length > 0 ? filters.qualities.join(',') : undefined,
+          watched: filters.watchedFilter !== 'all' ? filters.watchedFilter : undefined,
+          view: search.view,
+        },
+        replace: true,
+      })
+    },
+    [navigate, search.q, search.sort, search.view]
+  )
 
-  const handleViewModeChange = (viewMode: ViewMode) => {
-    navigate({
-      to: '/movies',
-      search: {
-        id: undefined,
-        t: undefined,
-        q: search.q || undefined,
-        sort: search.sort || undefined,
-        genres: search.genres,
-        yearMin: search.yearMin,
-        yearMax: search.yearMax,
-        qualities: search.qualities,
-        watched: search.watched,
-        view: viewMode === 'grid' ? undefined : viewMode,
-      },
-      replace: true,
-    })
-  }
+  const handleViewModeChange = useCallback(
+    (viewMode: ViewMode) => {
+      navigate({
+        to: '/movies',
+        search: {
+          id: undefined,
+          t: undefined,
+          q: search.q || undefined,
+          sort: search.sort || undefined,
+          genres: search.genres,
+          yearMin: search.yearMin,
+          yearMax: search.yearMax,
+          qualities: search.qualities,
+          watched: search.watched,
+          view: viewMode === 'grid' ? undefined : viewMode,
+        },
+        replace: true,
+      })
+    },
+    [navigate, search.q, search.sort, search.genres, search.yearMin, search.yearMax, search.qualities, search.watched]
+  )
 
   // Use the playback hook
   const { playbackState, playMedia, stopPlayback, changeQuality } = useMediaPlayback()

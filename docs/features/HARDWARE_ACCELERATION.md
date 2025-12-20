@@ -65,6 +65,60 @@ hwaccel := detectHardwareAccel()
 4. **VideoToolbox**: Platform-specific macOS detection
 5. **Software**: Default fallback
 
+### NVDEC Codec Support
+
+Not all video codecs can be hardware-decoded by NVDEC. ViewRA checks codec compatibility before attempting hardware decode:
+
+**NVDEC-Supported Codecs:**
+
+| Codec | Supported | Notes |
+|-------|-----------|-------|
+| H.264 (AVC) | ✅ Yes | Universal support |
+| HEVC (H.265) | ✅ Yes | 10-bit HDR supported |
+| VP8 | ✅ Yes | WebM legacy |
+| VP9 | ✅ Yes | WebM/YouTube |
+| AV1 | ✅ Yes | RTX 30+ series |
+| MPEG-1 | ✅ Yes | Legacy DVD |
+| MPEG-2 | ✅ Yes | DVD/broadcast |
+| VC-1 | ✅ Yes | WMV/Blu-ray |
+| MJPEG | ✅ Yes | Motion JPEG |
+
+**Codecs Requiring Software Decode + GPU Upload:**
+
+| Codec | Reason | Solution |
+|-------|--------|----------|
+| MPEG-4 Part 2 (DivX, XviD) | Not in NVDEC | `hwupload_cuda` after CPU decode |
+| WMV7/WMV8 | Legacy, not supported | `hwupload_cuda` after CPU decode |
+| Theora | Not in NVDEC | `hwupload_cuda` after CPU decode |
+
+**Implementation:**
+
+```go
+// IsNVDECSupported checks if codec can be hardware-decoded
+func IsNVDECSupported(codec string) bool {
+    switch strings.ToLower(codec) {
+    case "h264", "avc", "avc1",
+         "hevc", "h265", "hev1",
+         "vp8", "vp9",
+         "av1", "av01",
+         "mpeg1video", "mpeg2video",
+         "vc1", "wmv3",
+         "mjpeg":
+        return true
+    default:
+        return false // MPEG-4 Part 2, WMV7/8, Theora, etc.
+    }
+}
+```
+
+When a codec isn't NVDEC-supported, ViewRA uses:
+
+```text
+Input → CPU decode → hwupload_cuda → scale_cuda → pad_cuda → NVENC → Output
+```
+
+This maintains GPU encoding benefits while handling legacy codecs.
+
 ### GPU Pipeline Optimization
 
 **Summary of Pipeline Optimizations:**

@@ -82,9 +82,11 @@ SELECT
     COUNT(*) as total_count
 FROM enrichment_status es
 WHERE (
-    (es.media_type IN ('movie', 'tv') AND EXISTS (SELECT 1 FROM media m WHERE m.id = es.media_id AND m.library_id = ?))
+    (es.media_type IN ('movie', 'tv', 'music') AND EXISTS (SELECT 1 FROM media m WHERE m.id = es.media_id AND m.library_id = ?))
     OR (es.media_type = 'tv_show' AND EXISTS (SELECT 1 FROM tv_shows ts WHERE ts.id = es.media_id AND ts.library_id = ?))
     OR (es.media_type = 'tv_season' AND EXISTS (SELECT 1 FROM tv_seasons tsn JOIN tv_shows ts ON ts.id = tsn.show_id WHERE tsn.id = es.media_id AND ts.library_id = ?))
+    OR (es.media_type = 'music_album' AND EXISTS (SELECT 1 FROM music_albums ma WHERE ma.id = es.media_id AND ma.library_id = ?))
+    OR (es.media_type = 'music_artist' AND EXISTS (SELECT 1 FROM music_artists mart WHERE mart.id = es.media_id AND mart.library_id = ?))
 )
 GROUP BY es.stage;
 

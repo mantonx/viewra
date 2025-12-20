@@ -10,6 +10,7 @@ import (
 
 	"github.com/mantonx/viewra/internal/app/config"
 	"github.com/mantonx/viewra/internal/app/repositories"
+	"github.com/mantonx/viewra/internal/application/enrichment"
 	"github.com/mantonx/viewra/internal/application/enrichment/builtin"
 	"github.com/mantonx/viewra/internal/application/enrichment/pipeline"
 	"github.com/mantonx/viewra/internal/application/settings"
@@ -65,6 +66,9 @@ type Services struct {
 
 	// Enrichment pipeline manager
 	PipelineManager *pipeline.Manager
+
+	// Enricher registry for tracking all enrichers
+	EnricherRegistry *enrichment.Registry
 
 	// Plugin manager for external plugins
 	PluginManager *plugins.Manager
@@ -293,10 +297,22 @@ func BuildServices(
 			Music: repos.Music,
 		},
 	)
-	// Register built-in enrichers
-	pipelineManager.RegisterEnricher(builtin.NewNFOEnricher())
+
+	// Create enricher registry and register built-in enrichers
+	enricherRegistry := enrichment.NewRegistry()
 	imageExtractor := infraimages.NewExtractor()
-	pipelineManager.RegisterEnricher(builtin.NewLocalImagesEnricher(imageExtractor, logger))
+
+	builtinEnrichers := []enrichment.Enricher{
+		builtin.NewNFOEnricher(),
+		builtin.NewLocalImagesEnricher(imageExtractor, logger),
+	}
+
+	for _, e := range builtinEnrichers {
+		if err := enricherRegistry.RegisterBuiltin(e); err != nil {
+			logger.Warn("Failed to register builtin enricher", "stage", e.Stage(), "error", err)
+		}
+		pipelineManager.RegisterEnricher(e)
+	}
 
 	// Initialize plugin manager for external plugins
 	var pluginManager *plugins.Manager
@@ -348,6 +364,7 @@ func BuildServices(
 		Settings:          settingsService,
 		EventBus:          eventBus,
 		PipelineManager:   pipelineManager,
+		EnricherRegistry:  enricherRegistry,
 		PluginManager:     pluginManager,
 	}, nil
 }

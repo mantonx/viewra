@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useBatchProgress } from '@/lib/hooks'
 import { useBadgePreferences } from '@/lib/hooks/useBadgePreferences'
 import { formatResolutionLabel } from '@/lib/utils/quality'
@@ -7,7 +8,7 @@ import { MediaMetadata } from '@/components/media/MediaMetadata'
 import { ProgressBar } from '@/components/media/ProgressBar'
 import type { MovieCardProps } from './MovieCard.types'
 
-const MovieCard = ({ movie, onClick }: MovieCardProps) => {
+const MovieCard = memo(({ movie, onClick }: MovieCardProps) => {
   const { progress } = useBatchProgress(movie.id)
   const { preferences } = useBadgePreferences()
 
@@ -56,7 +57,9 @@ const MovieCard = ({ movie, onClick }: MovieCardProps) => {
       }
     />
   )
-}
+})
+
+MovieCard.displayName = 'MovieCard'
 
 export type { MovieCardProps } from './MovieCard.types'
 export { MovieCard }

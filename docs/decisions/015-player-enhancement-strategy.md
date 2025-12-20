@@ -56,7 +56,7 @@ We will implement a **three-tier enhancement strategy** for both players:
 **Video Player** (42 hours):
 - Custom control bar with auto-hide
 - Timeline with seek preview
-- Quality selector in controls (move from header)
+- Quality selector in controls (shows available qualities with "Original" badge) ✅
 - Volume persistence
 - Next episode auto-play
 - Timeline thumbnails (backend + frontend)
@@ -211,7 +211,7 @@ AudioPlayer/
 
 ### Functional Testing
 - Playback scenarios (play, pause, seek, skip)
-- Quality switching (video)
+- Quality switching (video) - triggers FFmpeg restart at current position ✅
 - Queue management (audio)
 - Keyboard shortcuts
 - Mobile gestures
@@ -344,4 +344,33 @@ AudioPlayer/
 - Subtitles: VTT/SRT parsing and storage
 
 ## Revision History
+
 - 2025-01-20: Initial version documenting player enhancement strategy
+- 2025-12-19: Updated to reflect single-quality playback model implementation
+
+## Addendum: Single-Quality Playback Model (Implemented)
+
+The video player now uses a **single-quality playback model** instead of traditional ABR:
+
+### Key Changes from Original Plan
+
+1. **Quality Selection**: Backend picks optimal quality based on client capabilities (screen, bandwidth, device type). Master playlist returns a **single variant**, not all variants.
+
+2. **Quality Picker**: Shows all available qualities filtered by source resolution. User can override at any time, which triggers FFmpeg restart at current position.
+
+3. **"Original" Badge**: Quality options that match source quality show an "Original" badge via `isOriginalQuality` flag.
+
+4. **Preference Persistence**: Quality, audio track, and subtitle preferences are saved per-video in `watch_progress` table and restored on resume.
+
+5. **No ABR**: Removed HLS.js ABR complexity since only one FFmpeg process runs at a time. `startLevel: 0` is set since only one variant exists.
+
+### Removed Components
+
+- `useAutoQuality.ts` - Auto mode toggle (not needed)
+- `useNetworkMonitor.ts` - Continuous network monitoring (not needed)
+- `NetworkMonitor.ts` - Bandwidth sampling (not needed)
+
+### See Also
+
+- [Single-Quality Playback Refactor](../guides/single-quality-playback-refactor.md)
+- [Quality Selection Plan](../planning/quality-selection-plan.md)

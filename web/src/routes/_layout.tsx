@@ -2,6 +2,7 @@ import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from '@tan
 import { useEffect } from 'react'
 import { AudioPlayerProvider, useAudioPlayer } from '@/lib/contexts/AudioPlayerContext'
 import { AudioPlayer } from '@/components/music'
+import { ErrorBoundary } from '@/components/common'
 import { useAuth } from '@/contexts'
 import { Home, Library, Film, Tv, Music, Clock, Eye, LogOut, User, Users, KeyRound, Settings2, SlidersHorizontal } from 'lucide-react'
 
@@ -193,7 +194,9 @@ const Layout = () => {
 
         {/* Main content */}
         <main className="flex-1 overflow-auto">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
 
         {/* Route change listener for audio player visibility */}

@@ -8,6 +8,7 @@ import (
 	"github.com/mantonx/viewra/internal/application/library/scan"
 	"github.com/mantonx/viewra/internal/domain/library"
 	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/infrastructure/events"
 	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
 	"github.com/mantonx/viewra/internal/infrastructure/system"
 )
@@ -40,6 +41,9 @@ type Deps struct {
 	// Configuration
 	Config        *scan.Config
 	SystemProfile *system.Profile
+
+	// Event publishing (optional - for SSE progress updates)
+	EventBus *events.Bus
 
 	// Logging
 	Logger *slog.Logger

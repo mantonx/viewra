@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/user"
@@ -11,11 +12,11 @@ import (
 
 // Service handles authentication operations.
 type Service struct {
-	userRepo      user.UserRepository
-	sessionRepo   user.SessionRepository
-	passwordHash  *auth.PasswordHasher
-	tokenService  *auth.TokenService
-	maxSessions   int
+	userRepo     user.UserRepository
+	sessionRepo  user.SessionRepository
+	passwordHash *auth.PasswordHasher
+	tokenService *auth.TokenService
+	maxSessions  int
 }
 
 // NewService creates a new auth service.
@@ -90,8 +91,12 @@ func (s *Service) Login(ctx context.Context, req *LoginRequest) (*LoginResponse,
 	}
 
 	// Create session
+	sessionID, err := generateID("sess")
+	if err != nil {
+		return nil, err
+	}
 	session := user.NewSession(
-		generateID("sess"),
+		sessionID,
 		u.ID, // Internal ID for FK
 		s.tokenService.HashRefreshToken(refreshToken),
 		req.UserAgent,
@@ -143,8 +148,12 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*UserResp
 	}
 
 	// Create user
+	userID, err := generateID("usr")
+	if err != nil {
+		return nil, err
+	}
 	u := user.NewUser(
-		generateID("usr"),
+		userID,
 		req.Username,
 		req.DisplayName,
 		hash,
@@ -339,13 +348,12 @@ func (s *Service) ValidateAccessToken(token string) (*auth.AccessClaims, error) 
 
 // Helper functions
 
-func generateID(prefix string) string {
+func generateID(prefix string) (string, error) {
 	tid, err := typeid.WithPrefix(prefix)
 	if err != nil {
-		// Fallback should never happen with valid prefix
-		panic("invalid typeid prefix: " + prefix)
+		return "", fmt.Errorf("invalid typeid prefix %q: %w", prefix, err)
 	}
-	return tid.String()
+	return tid.String(), nil
 }
 
 func toUserResponse(u *user.User) *UserResponse {

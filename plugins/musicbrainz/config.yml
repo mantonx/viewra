@@ -1,0 +1,23 @@
+# MusicBrainz Plugin Configuration
+# Copy this file and customize for your installation
+
+# User agent string (REQUIRED by MusicBrainz API policy)
+# Format: ApplicationName/Version (contact-email)
+# See: https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting
+user_agent: "ViewRA/1.0.0 (https://github.com/mantonx/viewra)"
+
+# Contact email (shown in User-Agent header for abuse complaints)
+contact_email: ""
+
+# Cache TTL in hours (default: 168 = 1 week, MusicBrainz data changes infrequently)
+cache_ttl_hours: 168
+
+# Minimum confidence score to accept a match (0.0 - 1.0)
+# Lower values are more permissive but may cause incorrect matches
+min_confidence: 0.7
+
+# Whether to fetch cover art from Cover Art Archive
+fetch_cover_art: true
+
+# Preferred cover art size: "small" (250px), "large" (500px), or "original"
+cover_art_size: "large"

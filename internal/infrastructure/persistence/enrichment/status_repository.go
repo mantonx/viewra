@@ -187,6 +187,8 @@ func (r *StatusRepository) GetLibraryProgress(ctx context.Context, libraryID int
 				LibraryID:   libraryID,
 				LibraryID_2: libraryID,
 				LibraryID_3: libraryID,
+				LibraryID_4: libraryID,
+				LibraryID_5: libraryID,
 			})
 		},
 	)

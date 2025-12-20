@@ -224,9 +224,11 @@ SELECT
     COUNT(*) as total_count
 FROM enrichment_status es
 WHERE (
-    (es.media_type IN ('movie', 'tv') AND EXISTS (SELECT 1 FROM media m WHERE m.id = es.media_id AND m.library_id = ?))
+    (es.media_type IN ('movie', 'tv', 'music') AND EXISTS (SELECT 1 FROM media m WHERE m.id = es.media_id AND m.library_id = ?))
     OR (es.media_type = 'tv_show' AND EXISTS (SELECT 1 FROM tv_shows ts WHERE ts.id = es.media_id AND ts.library_id = ?))
     OR (es.media_type = 'tv_season' AND EXISTS (SELECT 1 FROM tv_seasons tsn JOIN tv_shows ts ON ts.id = tsn.show_id WHERE tsn.id = es.media_id AND ts.library_id = ?))
+    OR (es.media_type = 'music_album' AND EXISTS (SELECT 1 FROM music_albums ma WHERE ma.id = es.media_id AND ma.library_id = ?))
+    OR (es.media_type = 'music_artist' AND EXISTS (SELECT 1 FROM music_artists mart WHERE mart.id = es.media_id AND mart.library_id = ?))
 )
 GROUP BY es.stage
 `
@@ -235,6 +237,8 @@ type GetLibraryEnrichmentProgressParams struct {
 	LibraryID   int64 `json:"library_id"`
 	LibraryID_2 int64 `json:"library_id_2"`
 	LibraryID_3 int64 `json:"library_id_3"`
+	LibraryID_4 int64 `json:"library_id_4"`
+	LibraryID_5 int64 `json:"library_id_5"`
 }
 
 type GetLibraryEnrichmentProgressRow struct {
@@ -248,7 +252,13 @@ type GetLibraryEnrichmentProgressRow struct {
 }
 
 func (q *Queries) GetLibraryEnrichmentProgress(ctx context.Context, arg GetLibraryEnrichmentProgressParams) ([]GetLibraryEnrichmentProgressRow, error) {
-	rows, err := q.db.QueryContext(ctx, getLibraryEnrichmentProgress, arg.LibraryID, arg.LibraryID_2, arg.LibraryID_3)
+	rows, err := q.db.QueryContext(ctx, getLibraryEnrichmentProgress,
+		arg.LibraryID,
+		arg.LibraryID_2,
+		arg.LibraryID_3,
+		arg.LibraryID_4,
+		arg.LibraryID_5,
+	)
 	if err != nil {
 		return nil, err
 	}

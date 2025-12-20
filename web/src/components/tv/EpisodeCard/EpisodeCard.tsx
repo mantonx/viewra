@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { MediaPoster } from '@/components/media/MediaPoster'
 import { MediaBadges } from '@/components/media/MediaBadges'
 import { ProgressBar } from '@/components/media/ProgressBar'
@@ -10,7 +10,7 @@ import { formatResolutionLabel } from '@/lib/utils/quality'
 import { bg, text, shadow } from '@/styles/semantic'
 import type { EpisodeCardProps } from './EpisodeCard.types'
 
-const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
+const EpisodeCard = memo(({ episode, onClick }: EpisodeCardProps) => {
   const [isHovered, setIsHovered] = useState(false)
   const { progress } = useBatchProgress(episode.id ?? 0)
   const { preferences } = useBadgePreferences()
@@ -154,7 +154,9 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
       </div>
     </div>
   )
-}
+})
+
+EpisodeCard.displayName = 'EpisodeCard'
 
 export type { EpisodeCardProps } from './EpisodeCard.types'
 export { EpisodeCard }

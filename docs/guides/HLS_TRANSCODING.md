@@ -64,6 +64,36 @@ ViewRA intelligently selects the best streaming strategy based on source video a
 strategy, reason := DetermineStrategyWithCapabilities(videoInfo, clientCaps)
 ```
 
+### Human-Readable Strategy Names
+
+Each strategy has a `DisplayName()` method for UI display:
+
+| Strategy Constant | Display Name | Typical Time |
+|-------------------|--------------|--------------|
+| `DirectPlay` | "Direct Play" | Instant |
+| `Remux` | "Remux" | 2-5 min |
+| `RemuxWithAudioDownmix` | "Remux + Audio Transcode" | 5-10 min |
+| `RemuxHEVC` | "HEVC Remux" | ~50x realtime |
+| `Transcode` | "Transcode" | 20-60 min |
+
+### Strategy Analytics
+
+Strategy decisions are persisted in the `transcode_analytics` table for debugging and performance analysis:
+
+| Column | Description | Example |
+|--------|-------------|---------|
+| `strategy` | Machine-readable enum | `remux_hevc` |
+| `strategy_display` | Human-readable name | `HEVC Remux` |
+| `strategy_reason` | Detailed decision explanation | `HEVC video supported by client, remuxing to HLS with ac3 audio transcode to AAC` |
+
+Debug logging shows strategy decisions:
+
+```text
+INFO strategy decision mediaID=376910 codec=hevc isHDR=false
+     clientSupportsHDR=true supportedCodecs="[h264 h265 vp9 av1]"
+     strategy=remux_hevc reason="HEVC video supported by client..."
+```
+
 ## Progressive Transcoding
 
 ### Why Progressive?
@@ -197,23 +227,89 @@ ViewRA supports adaptive bitrate streaming with predefined quality profiles:
 | `720p-5m` | 1280×720 | 5 Mbps | 128 kbps |
 | `480p-2m` | 854×480 | 2 Mbps | 128 kbps |
 
-### Master Playlist
+### Single-Quality Master Playlist
 
-The master playlist advertises all available qualities:
+ViewRA uses a **single-quality playback model** where the backend selects the optimal quality based on client capabilities. The master playlist contains only one variant:
 
 ```m3u8
 #EXTM3U
 #EXT-X-VERSION:3
 
-#EXT-X-STREAM-INF:BANDWIDTH=20000000,RESOLUTION=1920x1080
-1080p-20m/playlist.m3u8
-
-#EXT-X-STREAM-INF:BANDWIDTH=10000000,RESOLUTION=1920x1080
+#EXT-X-STREAM-INF:BANDWIDTH=10000000,RESOLUTION=1920x1080,CODECS="avc1.640028,mp4a.40.2"
 1080p-10m/playlist.m3u8
-
-#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1280x720
-720p-5m/playlist.m3u8
 ```
+
+This approach:
+
+- Starts only ONE FFmpeg process (vs. 3+ with multi-variant)
+- Reduces startup time by 6+ seconds
+- Prevents bandwidth probe thrashing
+
+### Quality Recommendation
+
+The backend recommends quality based on client capabilities sent as query parameters:
+
+```text
+GET /api/media/{mediaId}/hls/master.m3u8
+    ?screenWidth=1920
+    &screenHeight=1080
+    &bandwidth=15000000
+    &codecs=h264,h265
+```
+
+**Recommendation Priority:**
+
+1. **User override**: `?quality=1080p-10m` forces specific quality
+2. **Remux preference**: For remux strategies, prefer "original" if network supports source bitrate
+3. **Network-first**: Primary factor is available bandwidth
+4. **Device type**: Desktop/TV devices can upgrade to 4K at 15+ Mbps
+5. **Screen resolution**: Secondary factor, never exceeds screen height
+
+### Available Qualities Response
+
+The master playlist response includes an `AvailableQualities` list for the frontend quality picker:
+
+```json
+{
+  "strategy": "serve_playlist",
+  "playlistContent": "#EXTM3U...",
+  "availableQualities": [
+    {
+      "id": "original",
+      "displayName": "1080p (25 Mbps)",
+      "width": 1920,
+      "height": 1080,
+      "bandwidth": 25000000,
+      "isSelected": false,
+      "isOriginalQuality": true
+    },
+    {
+      "id": "1080p-10m",
+      "displayName": "1080p (10 Mbps)",
+      "width": 1920,
+      "height": 1080,
+      "bandwidth": 10000000,
+      "isSelected": true,
+      "isOriginalQuality": false
+    }
+  ]
+}
+```
+
+**Display Name Formatting:**
+
+- Standard: `{height}p ({mbps} Mbps)` - e.g., "1080p (10 Mbps)"
+- Sub-1 Mbps: Shows decimal - e.g., "360p (0.8 Mbps)"
+- 4K: Uses "4K" prefix - e.g., "4K (25 Mbps)"
+
+### Quality Change Flow
+
+When the user selects a different quality:
+
+1. Frontend captures current playback position
+2. Adds `?quality=<selected>&start=<position>` to master playlist URL
+3. Reloads HLS.js with new URL
+4. Backend kills old FFmpeg session, starts new one from position
 
 ## HDR and Tone Mapping
 

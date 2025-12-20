@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
+	"os"
 
 	"github.com/mantonx/viewra/internal/api"
 	appconfig "github.com/mantonx/viewra/internal/app/config"
@@ -411,6 +412,7 @@ func seedDevUser(
 func loadExternalPlugins(ctx context.Context, svcs *services.Services, repos *repositories.Repositories, logger *slog.Logger) {
 	pm := svcs.PluginManager
 	pipeline := svcs.PipelineManager
+	registry := svcs.EnricherRegistry
 
 	// Discover and load all plugins
 	if err := pm.LoadAllPlugins(ctx); err != nil {
@@ -472,9 +474,17 @@ func loadExternalPlugins(ctx context.Context, svcs *services.Services, repos *re
 			continue
 		}
 
-		logger.Info("Registered external enricher plugin",
-			"plugin_id", instance.ID,
-			"plugin_name", instance.Manifest.Name,
-			"version", instance.Manifest.Version)
+		// Register with the unified registry
+		if err := registry.RegisterExternal(enricher, instance.Manifest.Name, instance.Manifest.Version); err != nil {
+			logger.Warn("Failed to register plugin in registry",
+				"plugin", instance.ID,
+				"error", err)
+		}
+	}
+
+	// Print enricher summary table
+	if registry.Count() > 0 {
+		logger.Info("Enrichers loaded", "count", registry.Count())
+		registry.PrintTable(os.Stderr)
 	}
 }

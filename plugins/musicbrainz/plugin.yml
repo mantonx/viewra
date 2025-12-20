@@ -1,0 +1,38 @@
+# MusicBrainz Plugin Manifest
+# This file describes the plugin - it ships with the plugin binary
+
+id: musicbrainz
+name: MusicBrainz Enricher
+version: 1.0.0
+description: Fetches music metadata from MusicBrainz and cover art from Cover Art Archive
+
+author: ViewRA Team
+license: MIT
+homepage: https://github.com/mantonx/viewra
+
+# Minimum ViewRA version required
+min_host_version: "0.1.0"
+
+# Plugin capabilities
+categories:
+  - enricher
+
+# What this enricher provides
+capabilities:
+  media_types:
+    - music
+    - music_album
+    - music_artist
+  provides:
+    - metadata
+    - artwork
+    - external_ids
+  is_local: false
+  rate_limit: 60  # MusicBrainz allows ~1 request/second
+
+# Permissions required
+permissions:
+  - network
+  - storage:database
+  - data:media:read
+  - data:metadata:write

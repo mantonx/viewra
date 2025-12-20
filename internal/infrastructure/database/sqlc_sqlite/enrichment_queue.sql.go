@@ -211,12 +211,16 @@ SELECT
         m.title,
         ts.title,
         tsn.name,
+        ma.title,
+        mart.name,
         ''
     ) as title
 FROM enrichment_queue eq
-LEFT JOIN media m ON eq.media_type IN ('movie', 'tv') AND eq.media_id = m.id
+LEFT JOIN media m ON eq.media_type IN ('movie', 'tv', 'music') AND eq.media_id = m.id
 LEFT JOIN tv_shows ts ON eq.media_type = 'tv_show' AND eq.media_id = ts.id
 LEFT JOIN tv_seasons tsn ON eq.media_type = 'tv_season' AND eq.media_id = tsn.id
+LEFT JOIN music_albums ma ON eq.media_type = 'music_album' AND eq.media_id = ma.id
+LEFT JOIN music_artists mart ON eq.media_type = 'music_artist' AND eq.media_id = mart.id
 WHERE eq.library_id = ?
   AND eq.status = 'processing'
 ORDER BY eq.locked_at ASC
@@ -233,7 +237,7 @@ type GetCurrentEnrichmentItemRow struct {
 }
 
 // Get the currently processing enrichment item with its title for a library.
-// Joins with media/tv_shows/tv_seasons tables to get the title.
+// Joins with media/tv_shows/tv_seasons/music tables to get the title.
 // Returns the first processing item (by locked_at) for the library.
 func (q *Queries) GetCurrentEnrichmentItem(ctx context.Context, libraryID sql.NullInt64) (GetCurrentEnrichmentItemRow, error) {
 	row := q.db.QueryRowContext(ctx, getCurrentEnrichmentItem, libraryID)

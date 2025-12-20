@@ -29,6 +29,11 @@ func (e *NFOEnricher) Stage() string {
 	return "nfo"
 }
 
+// Metadata returns display information about this enricher.
+func (e *NFOEnricher) Metadata() (name, version string) {
+	return "NFO Parser", "1.0.0"
+}
+
 // Capabilities returns what this enricher provides.
 func (e *NFOEnricher) Capabilities() appenrich.EnricherCapabilities {
 	return appenrich.NewCapabilitiesBuilder().

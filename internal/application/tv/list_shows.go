@@ -5,16 +5,16 @@ import (
 	"fmt"
 
 	"github.com/mantonx/viewra/internal/domain/common"
-	"github.com/mantonx/viewra/internal/infrastructure/persistence/tvshow"
+	"github.com/mantonx/viewra/internal/domain/media"
 )
 
 // ListTVShowsUseCase handles the business logic for listing TV shows with aggregated data
 type ListTVShowsUseCase struct {
-	repo *tvshow.Repository
+	repo media.TVRepository
 }
 
 // NewListTVShowsUseCase creates a new instance of ListTVShowsUseCase
-func NewListTVShowsUseCase(repo *tvshow.Repository) *ListTVShowsUseCase {
+func NewListTVShowsUseCase(repo media.TVRepository) *ListTVShowsUseCase {
 	return &ListTVShowsUseCase{
 		repo: repo,
 	}

@@ -179,33 +179,27 @@ func (b *RequestBuilder) buildMusicAlbumRequest(ctx context.Context, job *enrich
 		return nil, "", fmt.Errorf("Music repository not configured")
 	}
 
-	// For music albums, we need to get album info from a track in the album
-	// MediaID here refers to the album entity - for now use media table
-	media, err := b.deps.MediaRepo.GetByID(ctx, job.MediaID)
+	// For music_album jobs, MediaID is the album ID (from music_albums table)
+	album, err := b.typedRepos.Music.GetAlbumByID(ctx, job.MediaID)
 	if err != nil {
-		return nil, "", fmt.Errorf("media ID %d not found for album: %w", job.MediaID, err)
+		return nil, "", fmt.Errorf("album ID %d not found: %w", job.MediaID, err)
 	}
 
-	track, err := b.typedRepos.Music.GetMusicTrackByID(ctx, job.MediaID)
-	if err != nil {
-		// Fall back to just using file path directory
-		return &pluginv1.EnrichRequest{
-			MediaId:     job.MediaID,
-			MediaType:   string(enrichment.MediaTypeMusicAlbum),
-			FilePath:    media.FilePath, // Track file - enricher uses directory
-			ExistingIds: existingIDs,
-		}, enrichment.MediaTypeMusicAlbum, nil
+	// Use the album's directory for enrichment (where cover art is stored)
+	filePath := album.Directory
+	if filePath == "" {
+		return nil, "", fmt.Errorf("album ID %d has no directory path", job.MediaID)
 	}
 
 	return &pluginv1.EnrichRequest{
 		MediaId:     job.MediaID,
 		MediaType:   string(enrichment.MediaTypeMusicAlbum),
-		FilePath:    media.FilePath,
-		Title:       track.Album,
+		FilePath:    filePath,
+		Title:       album.Title,
 		ExistingIds: existingIDs,
 		Music: &pluginv1.MusicMetadata{
-			Artist: track.Artist,
-			Album:  track.Album,
+			Artist: album.AlbumArtist,
+			Album:  album.Title,
 		},
 	}, enrichment.MediaTypeMusicAlbum, nil
 }
@@ -216,30 +210,26 @@ func (b *RequestBuilder) buildMusicArtistRequest(ctx context.Context, job *enric
 		return nil, "", fmt.Errorf("Music repository not configured")
 	}
 
-	// For music artists, we need to get artist info from a track
-	media, err := b.deps.MediaRepo.GetByID(ctx, job.MediaID)
+	// For music_artist jobs, MediaID is the artist ID (from music_artists table)
+	artist, err := b.typedRepos.Music.GetArtistByID(ctx, job.MediaID)
 	if err != nil {
-		return nil, "", fmt.Errorf("media ID %d not found for artist: %w", job.MediaID, err)
+		return nil, "", fmt.Errorf("artist ID %d not found: %w", job.MediaID, err)
 	}
 
-	track, err := b.typedRepos.Music.GetMusicTrackByID(ctx, job.MediaID)
-	if err != nil {
-		return &pluginv1.EnrichRequest{
-			MediaId:     job.MediaID,
-			MediaType:   string(enrichment.MediaTypeMusicArtist),
-			FilePath:    media.FilePath,
-			ExistingIds: existingIDs,
-		}, enrichment.MediaTypeMusicArtist, nil
+	// Use the artist's directory for enrichment (where artist images are stored)
+	filePath := artist.Directory
+	if filePath == "" {
+		return nil, "", fmt.Errorf("artist ID %d has no directory path", job.MediaID)
 	}
 
 	return &pluginv1.EnrichRequest{
 		MediaId:     job.MediaID,
 		MediaType:   string(enrichment.MediaTypeMusicArtist),
-		FilePath:    media.FilePath,
-		Title:       track.Artist,
+		FilePath:    filePath,
+		Title:       artist.Name,
 		ExistingIds: existingIDs,
 		Music: &pluginv1.MusicMetadata{
-			Artist: track.Artist,
+			Artist: artist.Name,
 		},
 	}, enrichment.MediaTypeMusicArtist, nil
 }

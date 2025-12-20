@@ -145,8 +145,14 @@ type TVRepository interface {
 	// SearchTVShowsByTitlePaginated searches for TV shows by title with pagination
 	SearchTVShowsByTitlePaginated(ctx context.Context, libraryID int64, query string, pagination *common.PaginationParams) ([]TVShow, error)
 
+	// SearchTVShowsWithCountsByTitlePaginated searches for TV shows by title with pagination and includes counts
+	SearchTVShowsWithCountsByTitlePaginated(ctx context.Context, libraryID int64, query string, pagination *common.PaginationParams) ([]TVShowWithCounts, error)
+
 	// ListTVShowIDsByLibraryPaginated retrieves only TV show IDs in a library with pagination (for prefetching)
 	ListTVShowIDsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *common.PaginationParams) ([]int64, error)
+
+	// ListTVSeasonsByShow retrieves all seasons for a specific show
+	ListTVSeasonsByShow(ctx context.Context, showID int64) ([]TVSeason, error)
 }
 
 // TVShow represents a TV show for use in repository operations

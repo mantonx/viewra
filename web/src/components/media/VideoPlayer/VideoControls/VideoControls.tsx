@@ -149,6 +149,45 @@ export const VideoControls = ({
     setHoverTime(Math.max(0, Math.min(duration, time)))
   }
 
+  // Handle keyboard navigation on timeline
+  const handleTimelineKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (duration === 0) {
+      return
+    }
+
+    const SMALL_SKIP = 5 // seconds
+    const LARGE_SKIP = 10 // seconds
+
+    switch (e.key) {
+      case 'ArrowLeft':
+        e.preventDefault()
+        onSeek(Math.max(0, currentTime - SMALL_SKIP))
+        break
+      case 'ArrowRight':
+        e.preventDefault()
+        onSeek(Math.min(duration, currentTime + SMALL_SKIP))
+        break
+      case 'ArrowUp':
+      case 'PageUp':
+        e.preventDefault()
+        onSeek(Math.min(duration, currentTime + LARGE_SKIP))
+        break
+      case 'ArrowDown':
+      case 'PageDown':
+        e.preventDefault()
+        onSeek(Math.max(0, currentTime - LARGE_SKIP))
+        break
+      case 'Home':
+        e.preventDefault()
+        onSeek(0)
+        break
+      case 'End':
+        e.preventDefault()
+        onSeek(duration)
+        break
+    }
+  }
+
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0
 
   // Calculate end time
@@ -211,7 +250,14 @@ export const VideoControls = ({
         <div className="mb-3">
           <div
             ref={timelineRef}
-            className="relative h-1.5 bg-white/20 rounded-full cursor-pointer group hover:h-2 transition-all touch-none backdrop-blur-sm"
+            className="relative h-1.5 bg-white/20 rounded-full cursor-pointer group hover:h-2 transition-all touch-none backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-black/50"
+            tabIndex={0}
+            role="slider"
+            aria-label="Video progress"
+            aria-valuemin={0}
+            aria-valuemax={duration}
+            aria-valuenow={currentTime}
+            aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
             onMouseMove={handleTimelineMouseMove}
             onMouseLeave={() => setHoverTime(null)}
             onMouseDown={(e) => {
@@ -219,6 +265,7 @@ export const VideoControls = ({
               handleTimelineInteraction(e)
             }}
             onMouseUp={() => setIsDragging(false)}
+            onKeyDown={handleTimelineKeyDown}
           >
             {/* Buffered indicator (subtle) */}
             <div className="absolute h-full bg-white/10 rounded-full pointer-events-none" style={{ width: '100%' }} />

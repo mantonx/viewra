@@ -82,10 +82,49 @@ This ADR documents the **current implementation state**, **identifies critical i
 │  ├─ position REAL (float, seconds)                          │
 │  ├─ duration REAL (float, seconds)                          │
 │  ├─ watched BOOLEAN                                          │
+│  ├─ selected_quality TEXT (nullable)     ← NEW              │
+│  ├─ selected_audio_track INTEGER (nullable)  ← NEW          │
+│  ├─ selected_subtitle_track INTEGER (nullable)  ← NEW       │
 │  ├─ UNIQUE(media_id, user_id)                               │
 │  └─ Indexes on: media_id, user_id, watched, last_watched    │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+### Playback Preferences Persistence (Implemented)
+
+As of migration `000052_add_playback_preferences`, the `watch_progress` table stores user playback preferences per video:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `selected_quality` | TEXT | Quality ID (e.g., "1080p-10m", "original") |
+| `selected_audio_track` | INTEGER | FFmpeg stream index of audio track |
+| `selected_subtitle_track` | INTEGER | Subtitle track ID (-1 for off) |
+
+**How It Works:**
+
+1. **Saving**: Frontend includes preferences in progress update requests
+2. **Restoring**: On playback start, saved preferences are applied automatically
+3. **Fallback**: If saved quality/track no longer exists, uses defaults
+
+**API Request Example:**
+
+```json
+{
+  "media_id": 123,
+  "user_id": 1,
+  "progress_seconds": 45.3,
+  "duration_seconds": 125.7,
+  "selected_quality": "1080p-10m",
+  "selected_audio_track": 1,
+  "selected_subtitle_track": 2
+}
+```
+
+**Benefits:**
+
+- Users resume with their preferred quality (not auto-recommended)
+- Audio language preference persists (e.g., Japanese audio for anime)
+- Subtitle preference persists (e.g., English subs on foreign films)
 
 ### What Works Well ✅
 

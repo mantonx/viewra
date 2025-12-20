@@ -194,7 +194,7 @@ type Querier interface {
 	GetCreditsForEntityByType(ctx context.Context, arg GetCreditsForEntityByTypeParams) ([]GetCreditsForEntityByTypeRow, error)
 	GetCreditsForPerson(ctx context.Context, personID int64) ([]GetCreditsForPersonRow, error)
 	// Get the currently processing enrichment item with its title for a library.
-	// Joins with media/tv_shows/tv_seasons tables to get the title.
+	// Joins with media/tv_shows/tv_seasons/music tables to get the title.
 	// Returns the first processing item (by locked_at) for the library.
 	GetCurrentEnrichmentItem(ctx context.Context, libraryID sql.NullInt64) (GetCurrentEnrichmentItemRow, error)
 	GetDirectorsForEntity(ctx context.Context, arg GetDirectorsForEntityParams) ([]GetDirectorsForEntityRow, error)

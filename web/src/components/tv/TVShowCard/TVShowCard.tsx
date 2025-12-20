@@ -1,10 +1,11 @@
+import { memo } from 'react'
 import { useBadgePreferences } from '@/lib/hooks/useBadgePreferences'
 import { MediaCard } from '@/components/media/MediaCard'
 import { MediaBadges } from '@/components/media/MediaBadges'
 import { MediaMetadata } from '@/components/media/MediaMetadata'
 import type { TVShowCardProps } from './TVShowCard.types'
 
-const TVShowCard = ({ show, onClick, onPlay }: TVShowCardProps) => {
+const TVShowCard = memo(({ show, onClick, onPlay }: TVShowCardProps) => {
   const { preferences } = useBadgePreferences()
 
   // TODO: Enable isNew when backend adds created_at field
@@ -46,7 +47,9 @@ const TVShowCard = ({ show, onClick, onPlay }: TVShowCardProps) => {
       }
     />
   )
-}
+})
+
+TVShowCard.displayName = 'TVShowCard'
 
 export type { TVShowCardProps } from './TVShowCard.types'
 export { TVShowCard }

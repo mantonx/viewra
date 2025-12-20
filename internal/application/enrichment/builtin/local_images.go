@@ -34,6 +34,11 @@ func (e *LocalImagesEnricher) Stage() string {
 	return "local-images"
 }
 
+// Metadata returns display information about this enricher.
+func (e *LocalImagesEnricher) Metadata() (name, version string) {
+	return "Local Images", "1.0.0"
+}
+
 // Capabilities returns what this enricher provides.
 func (e *LocalImagesEnricher) Capabilities() appenrich.EnricherCapabilities {
 	return appenrich.NewCapabilitiesBuilder().

@@ -1,206 +1,151 @@
 # Quality Selection Simplification Plan
 
+## Status: IMPLEMENTED
+
+This plan was implemented in the `refactor/single-quality-playback` branch and merged to main. See [single-quality-playback-refactor.md](../guides/single-quality-playback-refactor.md) for the full implementation guide.
+
 ## Overview
 
-Remove ABR (Adaptive Bitrate) complexity since we're doing **progressive transcoding** with only 1 video + 1 audio FFmpeg process at a time. Replace with a simpler "recommended quality" system where:
+Removed ABR (Adaptive Bitrate) complexity since we're doing **progressive transcoding** with only 1 video + 1 audio FFmpeg process at a time. Replaced with a simpler "single-quality" system where:
 
-1. Backend recommends optimal quality based on client capabilities (once at playback start)
-2. User can manually override to any available quality
-3. Quality changes restart the video FFmpeg process (audio continues)
+1. Backend picks optimal quality based on client capabilities (once at playback start)
+2. Master playlist returns a **single variant** (not all variants)
+3. User can manually override quality via picker (triggers FFmpeg restart)
+4. Quality preference is persisted per-video in `watch_progress` table
 
-## Current State Analysis
+## What Was Removed
 
-### What Exists (and is complex)
+### Deleted Files
+- `web/src/lib/hooks/useAutoQuality.ts` - Auto mode not needed with single-quality model
+- `web/src/lib/hooks/useNetworkMonitor.ts` - Continuous monitoring not needed
+- `web/src/lib/network/NetworkMonitor.ts` - No longer needed
+- Complex scoring algorithms in recommender
 
-**Frontend:**
-- `useAutoQuality.ts` - Manages "auto mode" toggle, defers to HLS.js ABR
-- `useNetworkMonitor.ts` - Collects network samples every 2 seconds
-- `NetworkMonitor.ts` - Calculates throughput stats, recommends quality
-- `useQualityRecommendation.ts` - Calls backend for initial recommendation
-- `CapabilityDetector.ts` + 6 other files - Full client capability detection
-- `QualitySelector.tsx` - Has Auto toggle, bitrate variants, complex grouping
+### Simplified Components
+- **QualitySelector**: Removed "Auto" toggle, shows simple list with "Original" badge
+- **useHlsPlayer**: Set `startLevel: 0` since only one variant exists
+- **Capability detection**: Simplified to essentials (screen, bandwidth, device type)
 
-**Backend:**
-- `quality_recommender.go` - Scores profiles based on capabilities
-- `adaptive_profiles.go` - ABRLadder with 14 quality variants
-- `serve_master_playlist.go` - Currently filters to single "best" variant
-- `session_manager.go` - Has `stopOtherQualitySessions()` but doesn't use it
+## Actual Implementation
 
-### The Problem
+### Single-Quality Model
 
-ABR requires multiple FFmpeg processes transcoding simultaneously at different qualities. We explicitly don't want that (limits to 1 video + 1 audio). So:
-- The "Auto" toggle is misleading - HLS.js ABR can't work if only 1 quality variant exists
-- Network monitoring is overkill for pick-once quality selection
-- Capability detection is useful but the scoring algorithm is complex
-
-## Simplified Design
-
-### New Mental Model
+Instead of returning all variants and letting HLS.js pick, the backend:
+1. Receives client capabilities via query params
+2. Runs quality recommendation algorithm
+3. Returns **single-variant master playlist**
+4. One FFmpeg process starts
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  Playback Start                                               │
-│                                                               │
-│  1. Frontend detects: screen size, device type, connection   │
-│  2. Backend picks "recommended" quality (simple rules)       │
-│  3. Master playlist includes ALL valid qualities             │
-│  4. Player starts at recommended quality                     │
-│  5. User can switch anytime → restarts video FFmpeg          │
-└──────────────────────────────────────────────────────────────┘
+GET /api/media/{id}/hls/master.m3u8?screenWidth=3840&screenHeight=2160&bandwidth=30000000
+                                                                         ↓
+                                         Backend recommends "4k-25m" based on capabilities
+                                                                         ↓
+                              #EXTM3U
+                              #EXT-X-STREAM-INF:BANDWIDTH=25000000,RESOLUTION=3840x2160
+                              4k-25m/playlist.m3u8
 ```
 
-### Quality Selection Rules (Simplified)
+### Quality Recommendation Logic
 
-**Key principle**: Recommend the BEST quality the user's network can handle, regardless of screen size. Users may be casting to a TV, planning to watch later on a better display, or simply want maximum quality.
+Implemented in `internal/infrastructure/transcoding/profile/recommender.go`:
 
 ```go
-func RecommendQuality(networkMbps float64, connectionType string, sourceHeight int) string {
-    // For high-speed connections (ethernet or 100+ Mbps), use best quality up to source
-    isFastConnection := connectionType == "ethernet" || networkMbps >= 100
-
-    if isFastConnection {
-        // Return best quality that doesn't exceed source resolution
-        if sourceHeight >= 2160 {
-            return "4k-60m"
-        }
-        if sourceHeight >= 1080 {
-            return "1080p-20m"
-        }
-        if sourceHeight >= 720 {
-            return "720p-4m"
-        }
-        return "480p"
+func (r *QualityRecommender) RecommendQuality(params RecommendParams) QualityRecommendation {
+    // 1. If user specified quality override, use it
+    if params.QualityOverride != "" {
+        return findQuality(params.QualityOverride)
     }
 
-    // For slower connections, pick highest quality with 70% headroom
-    safeNetworkMbps := networkMbps * 0.7
-
-    // Match to ABR ladder (highest to lowest)
-    qualities := []struct{ height int; mbps float64; id string }{
-        {2160, 60, "4k-60m"},
-        {2160, 40, "4k-40m"},
-        {2160, 20, "4k-20m"},
-        {1080, 20, "1080p-20m"},
-        {1080, 10, "1080p-10m"},
-        {1080, 4, "1080p-4m"},
-        {720, 4, "720p-4m"},
-        {720, 2, "720p-2m"},
-        {480, 1, "480p"},
-        {360, 0.8, "360p"},
+    // 2. For remux strategies, prefer "original" if network supports it
+    if params.IsRemux && params.NetworkBandwidth >= params.SourceBitrate {
+        return "original"
     }
 
-    for _, q := range qualities {
-        if q.height <= sourceHeight && q.mbps <= safeNetworkMbps {
-            return q.id
-        }
-    }
-    return "360p" // fallback
+    // 3. Network-first: find highest quality that fits within bandwidth
+    // 4. Desktop/TV devices can get 4K at 15+ Mbps (upgrade from 1080p)
+    // 5. Never exceed source resolution
 }
 ```
 
-**Example scenarios:**
+**Key decisions:**
+- Network bandwidth is the primary factor
+- Desktop/TV devices can upgrade to 4K at 15+ Mbps even with 1080p screens
+- Metered connections reduce quality by one tier
+- Source resolution is a ceiling, not a target
 
-- 1000 Mbps ethernet + 4K source → recommend 4K-60m (ethernet = max quality)
-- 1000 Mbps ethernet + 1080p source → recommend 1080p-20m (can't upscale past source)
-- 100 Mbps wifi + 4K source → recommend 4K-60m (fast enough for max)
-- 25 Mbps connection + 4K source → recommend 1080p-10m (safe = 17.5 Mbps)
-- 5 Mbps connection + 4K source → recommend 720p-2m (safe = 3.5 Mbps)
+### Available Qualities Response
 
-## Implementation Plan
+The master playlist handler also returns an `AvailableQualities` array (via custom header or JSON response) for the quality picker:
 
-### Phase 1: Backend Changes
-
-#### 1.1 Simplify `quality_recommender.go`
-- Replace `scoreProfile()` with simple rule-based selection
-- Keep `ClientCapabilities` struct but only use: `ScreenHeight`, `NetworkSpeedMbps`, `DeviceType`
-- Remove: `scorePower()`, `scoreCodec()`, `scoreDeviceType()` complexity
-
-#### 1.2 Update `serve_master_playlist.go`
-- Change `filterVariants()` to return ALL variants <= source resolution
-- Add `recommendedQuality` field to response for frontend hint
-
-#### 1.3 Update `session_manager.go`
-- Call `stopOtherQualitySessions()` when creating a new video session
-- This ensures only 1 video FFmpeg per media
-
-### Phase 2: Frontend Changes
-
-#### 2.1 Simplify `useQualityRecommendation.ts`
-- Keep capability detection but simplify what we send
-- Only need: `screenHeight`, `networkSpeedMbps`, `deviceType`
-- Remove bandwidth/codec scoring - backend handles it
-
-#### 2.2 Remove ABR-related code
-
-**Delete entirely:**
-- `web/src/lib/hooks/useAutoQuality.ts` - Auto mode not needed
-- `web/src/lib/hooks/useNetworkMonitor.ts` - Continuous monitoring not needed
-- `web/src/lib/network/NetworkMonitor.ts` - No longer needed
-
-**Simplify:**
-- `web/src/lib/capabilities/` - Keep but remove network speed test complexity
-  - Device detection: keep
-  - Screen info: keep
-  - Network speed: use `navigator.connection.downlink` only (no active probing)
-
-#### 2.3 Simplify `QualitySelector.tsx`
-- Remove "Auto" toggle
-- Show simple quality list: "4K", "1080p", "720p", "480p", "360p"
-- Mark recommended quality with badge
-- Store user preference in localStorage for next session
-
-#### 2.4 Update `useHlsPlayer.ts`
-- Remove `qualityRecommendation` prop complexity
-- Set `startLevel` directly based on recommended quality
-- Remove ABR-related HLS.js config
-
-#### 2.5 Update `VideoPlayer.tsx`
-- Remove `useAutoQuality` hook usage
-- Remove `isAutoMode` state
-- Remove `handleAutoToggle`
-- Simplify quality change handler
-
-### Phase 3: API Changes
-
-#### 3.1 Simplify `/api/adaptive/recommend` endpoint
-- Accept: `{ screenHeight, networkMbps, deviceType }`
-- Return: `{ recommendedQuality: "1080p-10m", reason: "..." }`
-
-#### 3.2 Update master playlist response
-- Include recommended quality hint in master playlist or as header
-
-## Files to Delete
-
-```
-web/src/lib/hooks/useAutoQuality.ts
-web/src/lib/hooks/useNetworkMonitor.ts
-web/src/lib/network/NetworkMonitor.ts
-web/src/lib/network/  (entire directory if only NetworkMonitor.ts)
+```typescript
+interface QualityOption {
+  id: string;              // e.g., "1080p-10m", "original"
+  displayName: string;     // e.g., "1080p (10 Mbps)"
+  width: number;
+  height: number;
+  bandwidth: number;
+  isSelected: boolean;
+  isOriginalQuality: boolean;  // Shows "Original" badge
+}
 ```
 
-## Files to Significantly Simplify
+### Quality Change Flow
 
+When user selects a different quality:
+1. Frontend captures current playback position
+2. Adds `?quality=<selected>` to master playlist URL
+3. Reloads HLS.js with new URL
+4. Backend starts new FFmpeg session from current position
+5. Old FFmpeg session is terminated
+
+### Playback Preferences Persistence
+
+Quality (and audio/subtitle track) preferences are saved per-video in `watch_progress`:
+
+```sql
+-- Migration 000052
+ALTER TABLE watch_progress ADD COLUMN selected_quality TEXT;
+ALTER TABLE watch_progress ADD COLUMN selected_audio_track INTEGER;
+ALTER TABLE watch_progress ADD COLUMN selected_subtitle_track INTEGER;
 ```
-web/src/lib/capabilities/NetworkDetector.ts  - Remove active speed test
-web/src/lib/capabilities/CapabilityDetector.ts - Remove speed test call
-web/src/lib/hooks/useQualityRecommendation.ts - Simpler request/response
-web/src/components/media/VideoPlayer/QualitySelector/ - Remove Auto toggle
-internal/infrastructure/transcoding/quality_recommender.go - Simple rules
-internal/application/transcode/serve_master_playlist.go - Return all qualities
-```
 
-## Migration Notes
+On resume, preferences are restored automatically.
 
-1. **User preferences**: Store last-selected quality in localStorage per device
-2. **Network fallback**: If `navigator.connection` unavailable, assume 50Mbps
-3. **Screen detection**: Use `window.screen.height * devicePixelRatio` for effective resolution
+## Files Modified (Implementation)
 
-## Testing Checklist
+| File | Change |
+|------|--------|
+| `web/src/lib/hooks/useMediaPlayback.ts` | Send capabilities, handle quality selection |
+| `web/src/lib/hooks/useHlsPlayer.ts` | Set `startLevel: 0`, handle quality changes |
+| `web/src/lib/hooks/useProgress.ts` | Persist/restore playback preferences |
+| `web/src/components/media/VideoPlayer/QualitySelector/` | Use `AvailableQualities`, show Original badge |
+| `internal/api/handlers/transcode_streaming.go` | Parse capability query params |
+| `internal/application/transcode/serve_master_playlist.go` | Single-variant playlist, available qualities |
+| `internal/infrastructure/transcoding/profile/recommender.go` | Network-first quality recommendation |
 
-- [ ] Playback starts at recommended quality
-- [ ] Quality selector shows all available qualities
-- [ ] Switching quality stops old FFmpeg, starts new one
-- [ ] Only 2 FFmpeg processes max (1 video + 1 audio)
-- [ ] Quality preference persists across sessions
-- [ ] Works on mobile (touch, smaller screen)
-- [ ] Works when `navigator.connection` unavailable
+## Testing Results
+
+- [x] Playback starts at recommended quality
+- [x] Only 1 FFmpeg process starts on playback (not 3+)
+- [x] Quality selector shows all available qualities
+- [x] Switching quality restarts FFmpeg at current position
+- [x] Quality preference persists per-video
+- [x] "Original" badge appears on source quality option
+- [x] Works when `navigator.connection` unavailable (uses fallback)
+
+## Original Plan vs Reality
+
+| Aspect | Original Plan | Actual Implementation |
+|--------|---------------|----------------------|
+| Master playlist | Return ALL variants with recommended hint | Return SINGLE variant |
+| Quality selection | Client-side HLS.js picks | Backend picks, client overrides |
+| Preference storage | localStorage | `watch_progress` table (per-video per-user) |
+| Network detection | `navigator.connection.downlink` only | Query params from frontend (more reliable) |
+| Recommendation logic | Simple if/else | Network-first with device-type upgrades |
+
+## Related Documentation
+
+- [Single-Quality Playback Refactor](../guides/single-quality-playback-refactor.md) - Full implementation guide
+- [HLS Transcoding](../guides/HLS_TRANSCODING.md) - Master playlist format, quality recommendation
+- [Watch Progress Tracking](../decisions/019-watch-progress-tracking-reliability.md) - Playback preferences persistence

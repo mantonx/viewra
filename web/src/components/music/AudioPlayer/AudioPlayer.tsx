@@ -7,6 +7,8 @@ import type { AudioPlayerProps } from './AudioPlayer.types'
 import { MediaPoster } from '@/components/media/MediaPoster'
 import { QueuePanel } from './QueuePanel'
 import { KeyboardShortcuts } from './KeyboardShortcuts'
+import { AudioPlayerMinimized } from './AudioPlayerMinimized'
+import { AlbumArtModal } from './AlbumArtModal'
 import {
   Play,
   Pause,
@@ -21,7 +23,6 @@ import {
   Loader2,
   ListMusic,
   ChevronDown,
-  ChevronUp,
 } from 'lucide-react'
 
 const formatTime = (seconds: number): string => {
@@ -92,15 +93,6 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
         return
       }
 
-      // Handle Escape key for modals
-      if (e.key === 'Escape') {
-        if (showAlbumArt) {
-          e.preventDefault()
-          setShowAlbumArt(false)
-          return
-        }
-      }
-
       switch (e.key) {
         case ' ':
           e.preventDefault()
@@ -136,7 +128,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
 
     document.addEventListener('keydown', handleKeyPress)
     return () => document.removeEventListener('keydown', handleKeyPress)
-  }, [currentTime, duration, volume, showAlbumArt, togglePlayPause, toggleMute, seek, setVolume])
+  }, [currentTime, duration, volume, togglePlayPause, toggleMute, seek, setVolume])
 
   // Don't render if no track or visibility is hidden
   if (!currentTrack || visibility === 'hidden') {
@@ -196,138 +188,25 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
     return <Volume2 size={18} />
   }
 
-  // Minimized player view - full width translucent bar
+  // Minimized player view
   if (isMinimized) {
     return (
-      <div
-        className={cn(
-          'fixed bottom-0 left-0 right-0 z-50 border-t shadow-lg',
-          bg.elevated,
-          'border-neutral-200 dark:border-neutral-800',
-          animation.classes.slideUpMedium,
-          className
-        )}
-        style={{
-          ...glassStyles.medium(theme === 'dark'),
-          ...animationStyles.slideUp(animation.duration.moderate),
+      <AudioPlayerMinimized
+        currentTrack={currentTrack}
+        isPlaying={isPlaying}
+        isLoading={isLoading}
+        currentTime={currentTime}
+        duration={duration}
+        progress={progress}
+        className={className}
+        onPlayPause={togglePlayPause}
+        onPrevious={playPrevious}
+        onNext={playNext}
+        onExpand={() => {
+          setMinimized(false)
+          setVisibility('expanded')
         }}
-      >
-        {/* Progress bar at top */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-neutral-200 dark:bg-neutral-700">
-          <div
-            className="h-full bg-primary-500 transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-
-        <div className="max-w-screen-2xl mx-auto px-4 py-2">
-          <div className="flex items-center gap-3">
-            {/* Album art */}
-            <div
-              className={cn(
-                'w-10 h-10 rounded overflow-hidden shrink-0',
-                bg.tertiary
-              )}
-            >
-              <MediaPoster
-                mediaId={currentTrack.id}
-                mediaType="media"
-                alt={currentTrack.album || currentTrack.title}
-                className="w-full h-full object-cover"
-                preset="thumb"
-                aspectRatio="square"
-                fallbackIcon="🎵"
-              />
-            </div>
-
-            {/* Track info */}
-            <div className="flex-1 min-w-0">
-              <p className={cn('text-sm font-medium truncate', text.primary)}>
-                {currentTrack.title}
-              </p>
-              <p className={cn('text-xs truncate', text.tertiary)}>
-                {currentTrack.artist || 'Unknown Artist'}
-              </p>
-            </div>
-
-            {/* Playback controls */}
-            <div className="flex items-center gap-1">
-              {/* Previous */}
-              <button
-                onClick={playPrevious}
-                className={cn(
-                  'p-2 rounded cursor-pointer',
-                  animation.button.pronounced,
-                  bg.hover.default,
-                  text.tertiary
-                )}
-                title="Previous"
-                aria-label="Previous track"
-              >
-                <SkipBack size={18} />
-              </button>
-
-              {/* Play/Pause */}
-              <button
-                onClick={togglePlayPause}
-                className={cn(
-                  'p-2 min-h-10 min-w-10 flex items-center justify-center bg-primary-600 rounded-full',
-                  'hover:bg-primary-700 text-white cursor-pointer',
-                  animation.button.subtle
-                )}
-                title={isLoading ? 'Loading...' : isPlaying ? 'Pause' : 'Play'}
-                aria-label={isLoading ? 'Loading' : isPlaying ? 'Pause' : 'Play'}
-              >
-                {isLoading ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : isPlaying ? (
-                  <Pause size={18} />
-                ) : (
-                  <Play size={18} className="ml-0.5" />
-                )}
-              </button>
-
-              {/* Next */}
-              <button
-                onClick={playNext}
-                className={cn(
-                  'p-2 rounded cursor-pointer',
-                  animation.button.pronounced,
-                  bg.hover.default,
-                  text.tertiary
-                )}
-                title="Next"
-                aria-label="Next track"
-              >
-                <SkipForward size={18} />
-              </button>
-            </div>
-
-            {/* Time display */}
-            <div className={cn('text-xs tabular-nums hidden sm:block', text.tertiary)}>
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </div>
-
-            {/* Expand button */}
-            <button
-              onClick={() => {
-                setMinimized(false)
-                setVisibility('expanded')
-              }}
-              className={cn(
-                'p-2 rounded cursor-pointer',
-                animation.button.pronounced,
-                bg.hover.default,
-                text.tertiary
-              )}
-              title="Expand player"
-              aria-label="Expand player"
-            >
-              <ChevronUp size={18} className="transition-transform hover:-translate-y-0.5" />
-            </button>
-          </div>
-        </div>
-      </div>
+      />
     )
   }
 
@@ -646,55 +525,12 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
       <KeyboardShortcuts isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
 
       {/* Album Art Modal */}
-      {showAlbumArt && currentTrack && (
-        <div
-          className="fixed inset-0 z-100 flex items-center justify-center bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
-          onClick={() => setShowAlbumArt(false)}
-        >
-          <div className="relative w-[85vw] h-[85vh] max-w-5xl p-8 animate-in zoom-in-95 duration-300">
-            <button
-              onClick={() => setShowAlbumArt(false)}
-              className="absolute -top-2 -right-2 p-3 bg-black/60 rounded-full hover:bg-black/80 hover:scale-110 transition-all duration-200 z-10 shadow-xl cursor-pointer"
-              title="Close (Esc)"
-              aria-label="Close album art view"
-            >
-              <svg
-                className="w-6 h-6 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-            <div
-              className="w-full h-full rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10 animate-in slide-in-from-bottom-4 duration-300"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MediaPoster
-                mediaId={currentTrack.id}
-                mediaType="media"
-                alt={currentTrack.album || currentTrack.title}
-                className="w-full h-full object-contain"
-                preset="xlarge"
-                aspectRatio="square"
-                fallbackIcon="🎵"
-              />
-            </div>
-            <div className="mt-6 text-center animate-in fade-in slide-in-from-bottom-2 duration-500 delay-100">
-              <h3 className="text-2xl font-bold text-white drop-shadow-lg">{currentTrack.title}</h3>
-              <p className="text-base text-neutral-200 mt-2 drop-shadow-md">
-                {currentTrack.artist || 'Unknown Artist'}
-                {currentTrack.album && ` • ${currentTrack.album}`}
-              </p>
-            </div>
-          </div>
-        </div>
+      {currentTrack && (
+        <AlbumArtModal
+          track={currentTrack}
+          isOpen={showAlbumArt}
+          onClose={() => setShowAlbumArt(false)}
+        />
       )}
     </>
   )

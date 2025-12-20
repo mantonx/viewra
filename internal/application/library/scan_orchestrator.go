@@ -276,6 +276,7 @@ func (uc *ScanLibraryUseCase) processingDeps() *processing.Deps {
 		Coordinator:    uc.coordinator,
 		Config:         &uc.config,
 		SystemProfile:  uc.systemProfile,
+		EventBus:       uc.eventBus,
 		Logger:         uc.logger,
 	}
 }

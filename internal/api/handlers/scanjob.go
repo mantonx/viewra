@@ -303,10 +303,18 @@ func (h *ScanJobHandler) StreamProgress(c *gin.Context) {
 				continue
 			}
 
-			// Send the event
-			jsonData, err := json.Marshal(event.Data)
+			// Check if client disconnected before fetching data
+			if c.Request.Context().Err() != nil {
+				return
+			}
+
+			// Fetch fresh status from DB to avoid stale event data race
+			currentStatus, err := h.statusProvider.GetScanStatus(c.Request.Context(), libraryID)
 			if err != nil {
-				h.logger.Error("Failed to marshal scan event", "error", err)
+				if c.Request.Context().Err() != nil {
+					return
+				}
+				h.logger.Error("Failed to get scan status for SSE update", "library_id", libraryID, "error", err)
 				continue
 			}
 
@@ -314,6 +322,13 @@ func (h *ScanJobHandler) StreamProgress(c *gin.Context) {
 			eventName := "update"
 			if event.Type == events.EventScanCompleted || event.Type == events.EventScanFailed {
 				eventName = "complete"
+			}
+
+			updateData := h.buildScanProgressData(currentStatus)
+			jsonData, err := json.Marshal(updateData)
+			if err != nil {
+				h.logger.Error("Failed to marshal scan progress", "error", err)
+				continue
 			}
 
 			fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", eventName, jsonData)

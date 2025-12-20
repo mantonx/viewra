@@ -8,6 +8,7 @@ import (
 	"github.com/mantonx/viewra/internal/application/library/scan"
 	"github.com/mantonx/viewra/internal/domain/library"
 	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/infrastructure/events"
 	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
 )
 
@@ -152,12 +153,12 @@ func RunCheckpointProcessingLoop(ctx context.Context, deps *Deps, pctx *Checkpoi
 		}
 
 		// Periodic progress update
-		updateProgressIfDue(ctx, deps, pctx.JobID, updateTicker)
+		updateProgressIfDue(ctx, deps, pctx.JobID, pctx.Lib.ID, updateTicker)
 	}
 }
 
 // updateProgressIfDue updates scan progress if the ticker has fired.
-func updateProgressIfDue(ctx context.Context, deps *Deps, jobID int64, ticker *time.Ticker) {
+func updateProgressIfDue(ctx context.Context, deps *Deps, jobID int64, libraryID int64, ticker *time.Ticker) {
 	select {
 	case <-ticker.C:
 		stats, _ := deps.ScanRepos.Checkpoint.GetStats(ctx, jobID)
@@ -173,9 +174,38 @@ func updateProgressIfDue(ctx context.Context, deps *Deps, jobID int64, ticker *t
 				DiscoveryDone:  currentJob.DiscoveryDone,
 			}
 			_ = deps.ScanRepos.ScanJob.UpdateProgress(ctx, jobID, progress)
+
+			// Publish SSE event for real-time UI updates
+			publishProgressEvent(deps, jobID, libraryID, currentJob, stats)
 		}
 	default:
 	}
+}
+
+// publishProgressEvent publishes a scan.progress event for SSE clients.
+func publishProgressEvent(deps *Deps, jobID int64, libraryID int64, job *scanner.ScanJob, stats *scanner.CheckpointStats) {
+	if deps.EventBus == nil {
+		return
+	}
+
+	var progressPercent float64
+	if job.FilesFound > 0 {
+		progressPercent = float64(stats.ProcessedFiles) / float64(job.FilesFound) * 100
+	}
+
+	deps.EventBus.Publish(events.NewEvent(events.EventScanProgress, "scanner").
+		WithLibraryID(libraryID).
+		WithData("job_id", jobID).
+		WithData("status", "running").
+		WithData("phase", string(scanner.ScanPhaseProcessing)).
+		WithData("progress", progressPercent).
+		WithData("files_found", job.FilesFound).
+		WithData("files_processed", stats.ProcessedFiles).
+		WithData("error_count", stats.FailedFiles).
+		WithData("warning_count", stats.WarningFiles).
+		WithData("estimated_total", job.EstimatedTotal).
+		WithData("discovery_done", job.DiscoveryDone).
+		Build())
 }
 
 // BuildCompletedJob creates the completed job record with all stats.

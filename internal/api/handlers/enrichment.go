@@ -259,9 +259,18 @@ func (h *EnrichmentHandler) StreamLibraryProgress(c *gin.Context) {
 				continue
 			}
 
+			// Check if client disconnected before fetching data
+			if c.Request.Context().Err() != nil {
+				return
+			}
+
 			// Fetch fresh progress data and send it (frontend expects full progress response)
 			progress, err := h.statusRepo.GetLibraryProgress(c.Request.Context(), libraryID)
 			if err != nil {
+				// Don't log context canceled - it's normal when client disconnects
+				if c.Request.Context().Err() != nil {
+					return
+				}
 				h.logger.Error("Failed to get library progress for SSE update", "library_id", libraryID, "error", err)
 				continue
 			}

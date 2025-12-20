@@ -92,8 +92,12 @@ func (s *AdminService) CreateUser(ctx context.Context, req *CreateUserRequest) (
 	}
 
 	// Create user
+	userID, err := generateID("usr")
+	if err != nil {
+		return nil, err
+	}
 	u := user.NewUser(
-		generateID("usr"),
+		userID,
 		req.Username,
 		req.DisplayName,
 		hash,

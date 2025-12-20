@@ -28,3 +28,9 @@ make sqlc-gen                          # Generate DB code after SQL changes
 - **NEVER** run `make dev` or restart the server - user manages it
 - **NO** stub code, TODOs, example files, or extra documentation
 - Use `~/go/bin/air` for auto-reload instead of manual rebuilds
+
+## MCP Tools
+- Use `context7` to search documentation for Go, React, TypeScript, FFmpeg, HLS, etc.
+- Use `gh_grep` to search GitHub for real-world code examples when unsure about implementation patterns
+- Use `playwright` for browser automation and E2E testing
+- Use `filesystem` for enhanced file operations (search, read, write across the project)

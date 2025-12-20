@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mantonx/viewra/internal/infrastructure/persistence/tvshow"
+	"github.com/mantonx/viewra/internal/domain/media"
 )
 
 // GetTVShowUseCase handles the business logic for getting a single TV show
 type GetTVShowUseCase struct {
-	repo *tvshow.Repository
+	repo media.TVRepository
 }
 
 // NewGetTVShowUseCase creates a new instance of GetTVShowUseCase
-func NewGetTVShowUseCase(repo *tvshow.Repository) *GetTVShowUseCase {
+func NewGetTVShowUseCase(repo media.TVRepository) *GetTVShowUseCase {
 	return &GetTVShowUseCase{
 		repo: repo,
 	}
