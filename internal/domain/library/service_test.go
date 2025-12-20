@@ -38,7 +38,9 @@ func (m *MockRepository) Create(ctx context.Context, lib *Library) error {
 	}
 	lib.ID = m.nextID
 	m.nextID++
-	m.libraries[lib.ID] = lib
+	// Store a copy to avoid modifications affecting stored data
+	libCopy := *lib
+	m.libraries[lib.ID] = &libCopy
 	m.pathIndex[lib.Path] = lib.ID
 	return nil
 }
@@ -51,7 +53,9 @@ func (m *MockRepository) GetByID(ctx context.Context, id int64) (*Library, error
 	if !exists {
 		return nil, ErrLibraryNotFound
 	}
-	return lib, nil
+	// Return a copy to avoid modifications affecting stored data
+	libCopy := *lib
+	return &libCopy, nil
 }
 
 func (m *MockRepository) GetByPath(ctx context.Context, path string) (*Library, error) {
@@ -91,7 +95,9 @@ func (m *MockRepository) Update(ctx context.Context, lib *Library) error {
 		m.pathIndex[lib.Path] = lib.ID
 	}
 
-	m.libraries[lib.ID] = lib
+	// Store a copy to avoid modifications affecting stored data
+	libCopy := *lib
+	m.libraries[lib.ID] = &libCopy
 	return nil
 }
 
@@ -155,8 +161,8 @@ func TestServiceCreate(t *testing.T) {
 
 	t.Run("successful creation", func(t *testing.T) {
 		lib := &Library{
-			Name:      "Test Library",
-			Path:      tmpDir,
+			Name: "Test Library",
+			Path: tmpDir,
 			Type: LibraryTypeMovies,
 		}
 
@@ -172,8 +178,8 @@ func TestServiceCreate(t *testing.T) {
 
 	t.Run("validation error - empty name", func(t *testing.T) {
 		lib := &Library{
-			Name:      "",
-			Path:      tmpDir,
+			Name: "",
+			Path: tmpDir,
 			Type: LibraryTypeMovies,
 		}
 
@@ -188,8 +194,8 @@ func TestServiceCreate(t *testing.T) {
 
 	t.Run("path not found", func(t *testing.T) {
 		lib := &Library{
-			Name:      "Test Library",
-			Path:      "/nonexistent/path",
+			Name: "Test Library",
+			Path: "/nonexistent/path",
 			Type: LibraryTypeMovies,
 		}
 
@@ -204,8 +210,8 @@ func TestServiceCreate(t *testing.T) {
 
 	t.Run("duplicate path", func(t *testing.T) {
 		lib1 := &Library{
-			Name:      "Library 1",
-			Path:      tmpDir,
+			Name: "Library 1",
+			Path: tmpDir,
 			Type: LibraryTypeMovies,
 		}
 
@@ -225,8 +231,8 @@ func TestServiceCreate(t *testing.T) {
 
 		tmpDir2 := t.TempDir()
 		lib := &Library{
-			Name:      "Test Library",
-			Path:      tmpDir2,
+			Name: "Test Library",
+			Path: tmpDir2,
 			Type: LibraryTypeMovies,
 		}
 
@@ -242,8 +248,8 @@ func TestServiceCreate(t *testing.T) {
 
 		tmpDir2 := t.TempDir()
 		lib := &Library{
-			Name:      "Test Library",
-			Path:      tmpDir2,
+			Name: "Test Library",
+			Path: tmpDir2,
 			Type: LibraryTypeMovies,
 		}
 
@@ -262,8 +268,8 @@ func TestServiceGetByID(t *testing.T) {
 
 	// Create a library first
 	lib := &Library{
-		Name:      "Test Library",
-		Path:      tmpDir,
+		Name: "Test Library",
+		Path: tmpDir,
 		Type: LibraryTypeMovies,
 	}
 	_ = service.Create(ctx, lib)
@@ -303,8 +309,8 @@ func TestServiceGetByPath(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	lib := &Library{
-		Name:      "Test Library",
-		Path:      tmpDir,
+		Name: "Test Library",
+		Path: tmpDir,
 		Type: LibraryTypeMovies,
 	}
 	_ = service.Create(ctx, lib)
@@ -386,8 +392,8 @@ func TestServiceUpdate(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	lib := &Library{
-		Name:      "Original Name",
-		Path:      tmpDir,
+		Name: "Original Name",
+		Path: tmpDir,
 		Type: LibraryTypeMovies,
 	}
 	_ = service.Create(ctx, lib)
@@ -407,9 +413,9 @@ func TestServiceUpdate(t *testing.T) {
 
 	t.Run("validation error", func(t *testing.T) {
 		invalid := &Library{
-			ID:        lib.ID,
-			Name:      "",
-			Path:      tmpDir,
+			ID:   lib.ID,
+			Name: "",
+			Path: tmpDir,
 			Type: LibraryTypeMovies,
 		}
 
@@ -421,9 +427,9 @@ func TestServiceUpdate(t *testing.T) {
 
 	t.Run("library not found", func(t *testing.T) {
 		nonExistent := &Library{
-			ID:        999,
-			Name:      "Test",
-			Path:      tmpDir,
+			ID:   999,
+			Name: "Test",
+			Path: tmpDir,
 			Type: LibraryTypeMovies,
 		}
 
@@ -437,19 +443,18 @@ func TestServiceUpdate(t *testing.T) {
 	})
 
 	t.Run("duplicate path on update", func(t *testing.T) {
-		t.Skip("Skipping - test logic issue with mock")
 		tmpDir2 := t.TempDir()
 		lib2 := &Library{
-			Name:      "Library 2",
-			Path:      tmpDir2,
+			Name: "Library 2",
+			Path: tmpDir2,
 			Type: LibraryTypeMovies,
 		}
 		_ = service.Create(ctx, lib2)
 
 		tmpDir3 := t.TempDir()
 		lib3 := &Library{
-			Name:      "Library 3",
-			Path:      tmpDir3,
+			Name: "Library 3",
+			Path: tmpDir3,
 			Type: LibraryTypeMovies,
 		}
 		_ = service.Create(ctx, lib3)
@@ -494,8 +499,8 @@ func TestServiceDelete(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	lib := &Library{
-		Name:      "Test Library",
-		Path:      tmpDir,
+		Name: "Test Library",
+		Path: tmpDir,
 		Type: LibraryTypeMovies,
 	}
 	_ = service.Create(ctx, lib)

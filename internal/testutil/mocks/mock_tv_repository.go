@@ -13,11 +13,11 @@ import (
 
 // TVRepository is a mock implementation of media.TVRepository for testing.
 type TVRepository struct {
-	t        testing.TB
-	mu       sync.RWMutex
-	episodes map[int64]*media.TVEpisode
-	shows    map[int64]media.TVShow    // ShowID -> Show
-	seasons  map[int64]media.TVSeason  // SeasonID -> Season
+	t             testing.TB
+	mu            sync.RWMutex
+	episodes      map[int64]*media.TVEpisode
+	shows         map[int64]media.TVShow   // ShowID -> Show
+	seasons       map[int64]media.TVSeason // SeasonID -> Season
 	nextEpisodeID int64
 	nextShowID    int64
 	nextSeasonID  int64
@@ -446,4 +446,76 @@ func (r *TVRepository) UpdateTVShow(ctx context.Context, show media.TVShow) erro
 
 	r.shows[show.ID] = show
 	return nil
+}
+
+// SearchTVShowsWithCountsByTitlePaginated searches for TV shows by title with pagination and includes counts.
+func (r *TVRepository) SearchTVShowsWithCountsByTitlePaginated(ctx context.Context, libraryID int64, query string, pagination *common.PaginationParams) ([]media.TVShowWithCounts, error) {
+	if r.SearchErr != nil {
+		return nil, r.SearchErr
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Collect all matching shows with counts
+	var matchingShows []media.TVShowWithCounts
+	queryLower := strings.ToLower(query)
+
+	for _, show := range r.shows {
+		if show.LibraryID == libraryID {
+			if strings.Contains(strings.ToLower(show.Title), queryLower) {
+				// Count seasons and episodes for this show
+				var seasonCount, episodeCount int64
+				for _, season := range r.seasons {
+					if season.ShowID == show.ID {
+						seasonCount++
+					}
+				}
+				for _, episode := range r.episodes {
+					if episode.ShowTitle == show.Title && episode.LibraryID == libraryID {
+						episodeCount++
+					}
+				}
+
+				matchingShows = append(matchingShows, media.TVShowWithCounts{
+					TVShow:       show,
+					SeasonCount:  seasonCount,
+					EpisodeCount: episodeCount,
+				})
+			}
+		}
+	}
+
+	// Apply pagination
+	start := int(pagination.Offset)
+	end := start + int(pagination.Limit)
+
+	if start >= len(matchingShows) {
+		return []media.TVShowWithCounts{}, nil
+	}
+
+	if end > len(matchingShows) {
+		end = len(matchingShows)
+	}
+
+	return matchingShows[start:end], nil
+}
+
+// ListTVSeasonsByShow retrieves all seasons for a specific show.
+func (r *TVRepository) ListTVSeasonsByShow(ctx context.Context, showID int64) ([]media.TVSeason, error) {
+	if r.ListErr != nil {
+		return nil, r.ListErr
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var result []media.TVSeason
+	for _, season := range r.seasons {
+		if season.ShowID == showID {
+			result = append(result, season)
+		}
+	}
+
+	return result, nil
 }
