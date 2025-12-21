@@ -985,8 +985,22 @@ func (p *AISearchPlugin) handleMoodTagsGenerate(
 		return jsonResponse(http.StatusBadRequest, map[string]string{"error": "library_id is required"})
 	}
 
+	p.logger.Info("handleMoodTagsGenerate called", "library_id", genReq.LibraryID)
+
+	// Capture library ID before goroutine to avoid closure issues
+	libraryID := genReq.LibraryID
+
 	// Start generation in background
 	go func() {
+		// Recover from any panics
+		defer func() {
+			if r := recover(); r != nil {
+				p.logger.Error("panic in mood tag generation", "panic", r, "library_id", libraryID)
+			}
+		}()
+
+		p.logger.Info("mood tag generation goroutine started", "library_id", libraryID)
+
 		// Callback to persist mood tags and reindex media
 		callback := func(entityType EntityType, entityID int64, tags []string) error {
 			if len(tags) == 0 {
@@ -1002,8 +1016,9 @@ func (p *AISearchPlugin) handleMoodTagsGenerate(
 				}
 			}
 			if _, err := dataClient.SetMoodTags(context.Background(), &pluginv1.SetMoodTagsRequest{
-				MediaId: entityID,
-				Tags:    moodTags,
+				MediaId:   entityID,
+				Tags:      moodTags,
+				MediaType: string(entityType),
 			}); err != nil {
 				p.logger.Warn("failed to persist mood tags",
 					"entity_id", entityID,
@@ -1015,7 +1030,7 @@ func (p *AISearchPlugin) handleMoodTagsGenerate(
 			// Fetch the media details again to rebuild text with mood tags
 			details, err := dataClient.GetMediaDetails(
 				context.Background(),
-				&pluginv1.MediaQuery{MediaId: entityID},
+				&pluginv1.MediaQuery{MediaId: entityID, MediaType: string(entityType)},
 			)
 			if err != nil {
 				return fmt.Errorf("get media details: %w", err)
@@ -1040,13 +1055,15 @@ func (p *AISearchPlugin) handleMoodTagsGenerate(
 			return err
 		}
 
+		p.logger.Debug("calling GenerateForLibrary", "library_id", libraryID)
 		if err := moodTagService.GenerateForLibrary(
 			context.Background(),
-			genReq.LibraryID,
+			libraryID,
 			callback,
 		); err != nil {
-			p.logger.Error("mood tag generation failed", "library_id", genReq.LibraryID, "error", err)
+			p.logger.Error("mood tag generation failed", "library_id", libraryID, "error", err)
 		}
+		p.logger.Info("mood tag generation completed", "library_id", libraryID)
 	}()
 
 	return jsonResponse(http.StatusOK, map[string]any{

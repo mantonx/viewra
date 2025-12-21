@@ -19,7 +19,6 @@ package sdk
 import (
 	"context"
 	"log/slog"
-	"os"
 	"sync/atomic"
 	"time"
 
@@ -45,11 +44,20 @@ func (Base) mustEmbedBase() {}
 
 // Init initializes the base plugin functionality.
 // Called automatically by the SDK during plugin initialization.
+// Use InitWithLogger for proper go-plugin log forwarding.
 func (b *Base) Init(dataDir string) {
 	b.dataDir = dataDir
-	b.logger = slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
+	// Use default slog logger - prefer InitWithLogger for proper go-plugin integration
+	if b.logger == nil {
+		b.logger = slog.Default()
+	}
+}
+
+// InitWithLogger initializes the base plugin with a specific logger.
+// Use sdk.NewLogger() to create a logger that properly forwards to the host.
+func (b *Base) InitWithLogger(dataDir string, logger *slog.Logger) {
+	b.dataDir = dataDir
+	b.logger = logger
 }
 
 // SetLogger sets the logger for this plugin.

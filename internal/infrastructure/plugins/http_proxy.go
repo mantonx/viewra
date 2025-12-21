@@ -191,6 +191,12 @@ func (p *HTTPProxy) buildRequest(c *gin.Context, path string, pathParams map[str
 func (p *HTTPProxy) handleSimpleRequest(c *gin.Context, instance *PluginInstance, req *pluginv1.PluginHTTPRequest) {
 	ctx := c.Request.Context()
 
+	p.logger.Info("forwarding request to plugin",
+		"plugin", instance.ID,
+		"path", req.Path,
+		"method", req.Method,
+	)
+
 	resp, err := instance.CoreClient.HandleHTTP(ctx, req)
 	if err != nil {
 		p.logger.Error("plugin HandleHTTP failed",
@@ -203,6 +209,12 @@ func (p *HTTPProxy) handleSimpleRequest(c *gin.Context, instance *PluginInstance
 		})
 		return
 	}
+
+	p.logger.Info("plugin returned response",
+		"plugin", instance.ID,
+		"path", req.Path,
+		"status", resp.StatusCode,
+	)
 
 	// Write response headers
 	for k, v := range resp.Headers {

@@ -10,19 +10,74 @@ import (
 	"database/sql"
 )
 
-const deleteMoodTagsByMediaID = `-- name: DeleteMoodTagsByMediaID :exec
-DELETE FROM media_mood_tags WHERE media_id = ?
+const deleteMoodTagsByEntity = `-- name: DeleteMoodTagsByEntity :exec
+DELETE FROM mood_tags WHERE entity_type = ? AND entity_id = ?
 `
 
-func (q *Queries) DeleteMoodTagsByMediaID(ctx context.Context, mediaID int64) error {
-	_, err := q.db.ExecContext(ctx, deleteMoodTagsByMediaID, mediaID)
+type DeleteMoodTagsByEntityParams struct {
+	EntityType string `json:"entity_type"`
+	EntityID   int64  `json:"entity_id"`
+}
+
+func (q *Queries) DeleteMoodTagsByEntity(ctx context.Context, arg DeleteMoodTagsByEntityParams) error {
+	_, err := q.db.ExecContext(ctx, deleteMoodTagsByEntity, arg.EntityType, arg.EntityID)
 	return err
+}
+
+const deleteMoodTagsByMediaID = `-- name: DeleteMoodTagsByMediaID :exec
+DELETE FROM mood_tags WHERE entity_type = 'movie' AND entity_id = ?
+`
+
+// Deprecated: Use DeleteMoodTagsByEntity instead. Kept for backward compatibility.
+func (q *Queries) DeleteMoodTagsByMediaID(ctx context.Context, entityID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteMoodTagsByMediaID, entityID)
+	return err
+}
+
+const getMoodTagsByEntity = `-- name: GetMoodTagsByEntity :many
+SELECT tag, confidence
+FROM mood_tags
+WHERE entity_type = ? AND entity_id = ?
+ORDER BY confidence DESC, tag
+`
+
+type GetMoodTagsByEntityParams struct {
+	EntityType string `json:"entity_type"`
+	EntityID   int64  `json:"entity_id"`
+}
+
+type GetMoodTagsByEntityRow struct {
+	Tag        string          `json:"tag"`
+	Confidence sql.NullFloat64 `json:"confidence"`
+}
+
+func (q *Queries) GetMoodTagsByEntity(ctx context.Context, arg GetMoodTagsByEntityParams) ([]GetMoodTagsByEntityRow, error) {
+	rows, err := q.db.QueryContext(ctx, getMoodTagsByEntity, arg.EntityType, arg.EntityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetMoodTagsByEntityRow{}
+	for rows.Next() {
+		var i GetMoodTagsByEntityRow
+		if err := rows.Scan(&i.Tag, &i.Confidence); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getMoodTagsByMediaID = `-- name: GetMoodTagsByMediaID :many
 SELECT tag, confidence
-FROM media_mood_tags
-WHERE media_id = ?
+FROM mood_tags
+WHERE entity_type = 'movie' AND entity_id = ?
 ORDER BY confidence DESC, tag
 `
 
@@ -31,8 +86,9 @@ type GetMoodTagsByMediaIDRow struct {
 	Confidence sql.NullFloat64 `json:"confidence"`
 }
 
-func (q *Queries) GetMoodTagsByMediaID(ctx context.Context, mediaID int64) ([]GetMoodTagsByMediaIDRow, error) {
-	rows, err := q.db.QueryContext(ctx, getMoodTagsByMediaID, mediaID)
+// Deprecated: Use GetMoodTagsByEntity instead. Kept for backward compatibility.
+func (q *Queries) GetMoodTagsByMediaID(ctx context.Context, entityID int64) ([]GetMoodTagsByMediaIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getMoodTagsByMediaID, entityID)
 	if err != nil {
 		return nil, err
 	}
@@ -55,17 +111,24 @@ func (q *Queries) GetMoodTagsByMediaID(ctx context.Context, mediaID int64) ([]Ge
 }
 
 const insertMoodTag = `-- name: InsertMoodTag :exec
-INSERT INTO media_mood_tags (media_id, tag, confidence)
-VALUES (?, ?, ?)
+INSERT INTO mood_tags (entity_type, entity_id, tag, confidence)
+VALUES (?, ?, ?, ?)
+ON CONFLICT(entity_type, entity_id, tag) DO UPDATE SET confidence = excluded.confidence
 `
 
 type InsertMoodTagParams struct {
-	MediaID    int64           `json:"media_id"`
+	EntityType string          `json:"entity_type"`
+	EntityID   int64           `json:"entity_id"`
 	Tag        string          `json:"tag"`
 	Confidence sql.NullFloat64 `json:"confidence"`
 }
 
 func (q *Queries) InsertMoodTag(ctx context.Context, arg InsertMoodTagParams) error {
-	_, err := q.db.ExecContext(ctx, insertMoodTag, arg.MediaID, arg.Tag, arg.Confidence)
+	_, err := q.db.ExecContext(ctx, insertMoodTag,
+		arg.EntityType,
+		arg.EntityID,
+		arg.Tag,
+		arg.Confidence,
+	)
 	return err
 }

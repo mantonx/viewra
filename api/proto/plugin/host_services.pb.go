@@ -24,6 +24,7 @@ const (
 type MediaQuery struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	MediaId       int64                  `protobuf:"varint,1,opt,name=media_id,json=mediaId,proto3" json:"media_id,omitempty"`
+	MediaType     string                 `protobuf:"bytes,2,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"` // "movie", "tv_show", "tv_episode", "music_artist", "music_album", "music_track"
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -63,6 +64,13 @@ func (x *MediaQuery) GetMediaId() int64 {
 		return x.MediaId
 	}
 	return 0
+}
+
+func (x *MediaQuery) GetMediaType() string {
+	if x != nil {
+		return x.MediaType
+	}
+	return ""
 }
 
 type MediaId struct {
@@ -2130,6 +2138,7 @@ type SetMoodTagsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	MediaId       int64                  `protobuf:"varint,1,opt,name=media_id,json=mediaId,proto3" json:"media_id,omitempty"`
 	Tags          []*MoodTag             `protobuf:"bytes,2,rep,name=tags,proto3" json:"tags,omitempty"`
+	MediaType     string                 `protobuf:"bytes,3,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"` // "movie", "tv_show", "tv_episode", "music_artist", "music_album", "music_track"
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2178,14 +2187,23 @@ func (x *SetMoodTagsRequest) GetTags() []*MoodTag {
 	return nil
 }
 
+func (x *SetMoodTagsRequest) GetMediaType() string {
+	if x != nil {
+		return x.MediaType
+	}
+	return ""
+}
+
 var File_api_proto_plugin_host_services_proto protoreflect.FileDescriptor
 
 const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\n" +
-	"$api/proto/plugin/host_services.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"'\n" +
+	"$api/proto/plugin/host_services.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"F\n" +
 	"\n" +
 	"MediaQuery\x12\x19\n" +
-	"\bmedia_id\x18\x01 \x01(\x03R\amediaId\"\x19\n" +
+	"\bmedia_id\x18\x01 \x01(\x03R\amediaId\x12\x1d\n" +
+	"\n" +
+	"media_type\x18\x02 \x01(\tR\tmediaType\"\x19\n" +
 	"\aMediaId\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\"N\n" +
 	"\x0fExternalIdQuery\x12\x1a\n" +
@@ -2354,10 +2372,12 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"confidence\x18\x02 \x01(\x02R\n" +
 	"confidence\"<\n" +
 	"\vMoodTagList\x12-\n" +
-	"\x04tags\x18\x01 \x03(\v2\x19.viewra.plugin.v1.MoodTagR\x04tags\"^\n" +
+	"\x04tags\x18\x01 \x03(\v2\x19.viewra.plugin.v1.MoodTagR\x04tags\"}\n" +
 	"\x12SetMoodTagsRequest\x12\x19\n" +
 	"\bmedia_id\x18\x01 \x01(\x03R\amediaId\x12-\n" +
-	"\x04tags\x18\x02 \x03(\v2\x19.viewra.plugin.v1.MoodTagR\x04tags2\x8a\x06\n" +
+	"\x04tags\x18\x02 \x03(\v2\x19.viewra.plugin.v1.MoodTagR\x04tags\x12\x1d\n" +
+	"\n" +
+	"media_type\x18\x03 \x01(\tR\tmediaType2\x8a\x06\n" +
 	"\bHostData\x12A\n" +
 	"\bGetMedia\x12\x1c.viewra.plugin.v1.MediaQuery\x1a\x17.viewra.plugin.v1.Media\x12O\n" +
 	"\x0fGetMediaDetails\x12\x1c.viewra.plugin.v1.MediaQuery\x1a\x1e.viewra.plugin.v1.MediaDetails\x12R\n" +

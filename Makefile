@@ -1,4 +1,4 @@
-.PHONY: help dev dev-debug dev-clean stop build build-tools build-ffmpeg clean-ffmpeg clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen install-tools install-ollama ollama-status setup build-plugins build-plugin clean-plugins new-plugin
+.PHONY: help dev dev-debug dev-clean stop build build-tools build-ffmpeg clean-ffmpeg clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen proto-gen install-tools install-ollama ollama-status setup build-plugins build-plugin clean-plugins new-plugin
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -173,6 +173,18 @@ swagger-gen: ## Generate Swagger documentation
 api-client-gen: swagger-gen ## Generate TypeScript API client from Swagger
 	cd web && npm run generate:api
 	@echo "API client generated successfully in web/src/lib/api/generated/"
+
+proto-gen: ## Generate Go code from protobuf definitions
+	@echo "Generating protobuf code..."
+	PATH="$(HOME)/go/bin:$(PATH)" protoc --go_out=. --go_opt=paths=source_relative \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		api/proto/plugin/common.proto \
+		api/proto/plugin/enricher.proto \
+		api/proto/plugin/host_services.proto \
+		api/proto/plugin/host_ai.proto \
+		api/proto/plugin/plugin_ai.proto \
+		api/proto/plugin/plugin_core.proto
+	@echo "✓ Protobuf code generated"
 
 setup: install-tools ## Initial project setup
 	@echo "Setting up project..."

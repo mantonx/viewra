@@ -31,4 +31,4 @@ mood_tags:
   # Enable mood tag generation
   # When enabled, you can trigger generation via POST /mood-tags/generate
   # Uses the Chat provider configured in ViewRA Settings > AI
-  enabled: false
+  enabled: true

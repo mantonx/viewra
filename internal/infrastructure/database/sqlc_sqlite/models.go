@@ -157,14 +157,6 @@ type MediaMetadataSource struct {
 	UpdatedAt sql.NullString `json:"updated_at"`
 }
 
-type MediaMoodTag struct {
-	ID         int64           `json:"id"`
-	MediaID    int64           `json:"media_id"`
-	Tag        string          `json:"tag"`
-	Confidence sql.NullFloat64 `json:"confidence"`
-	CreatedAt  sql.NullTime    `json:"created_at"`
-}
-
 type MediaStudio struct {
 	MediaType string `json:"media_type"`
 	EntityID  int64  `json:"entity_id"`
@@ -224,6 +216,15 @@ type Medium struct {
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
 	IsExtra           bool            `json:"is_extra"`
 	AudioCodec        sql.NullString  `json:"audio_codec"`
+}
+
+type MoodTag struct {
+	ID         int64           `json:"id"`
+	EntityType string          `json:"entity_type"`
+	EntityID   int64           `json:"entity_id"`
+	Tag        string          `json:"tag"`
+	Confidence sql.NullFloat64 `json:"confidence"`
+	CreatedAt  sql.NullString  `json:"created_at"`
 }
 
 type Movie struct {

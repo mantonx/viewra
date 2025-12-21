@@ -5,6 +5,7 @@ go 1.25.4
 require (
 	github.com/hashicorp/go-plugin v1.7.0
 	github.com/mantonx/viewra/api/proto/plugin v0.0.0
+	github.com/mantonx/viewra/pkg/plugin/sdk v0.0.0
 	google.golang.org/grpc v1.67.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -24,6 +25,7 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 )
 
-// Use local proto package during development
-// Remove this line when building against a released version
+// Use local packages during development
 replace github.com/mantonx/viewra/api/proto/plugin => ../../api/proto/plugin
+
+replace github.com/mantonx/viewra/pkg/plugin/sdk => ../../pkg/plugin/sdk

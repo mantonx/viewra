@@ -5,19 +5,18 @@ package main
 import (
 	"context"
 	"log/slog"
-	"os"
 
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/pkg/plugin/sdk"
 	"github.com/mantonx/viewra/plugins/tmdb/internal"
 )
 
 func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
+	// Use SDK logger for go-plugin compatibility - logs will be forwarded to host
+	hclogger, logger := sdk.NewLogger("tmdb")
 
 	tmdbPlugin := internal.NewTMDbPlugin(logger)
 
@@ -40,6 +39,7 @@ func main() {
 			"host_storage": &HostStorageGRPCPlugin{},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
+		Logger:     hclogger, // Pass hclog to go-plugin for log forwarding
 	})
 }
 

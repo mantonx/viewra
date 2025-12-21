@@ -73,29 +73,48 @@ func (s *HostLLMServer) RefreshConfig(ctx context.Context) {
 		return
 	}
 
-	// Get provider
-	provider := s.configReader.GetProvider(ctx)
-	s.defaultEmbeddingProvider = provider
-	s.defaultChatProvider = provider
+	// Get embedding provider config
+	embeddingProvider := s.configReader.GetEmbeddingProvider(ctx)
+	s.defaultEmbeddingProvider = embeddingProvider
 
-	// Get provider-specific config
-	switch provider {
+	// Get chat provider config
+	chatProvider := s.configReader.GetChatProvider(ctx)
+	s.defaultChatProvider = chatProvider
+
+	// Get Ollama base URL (used by both embedding and chat if using Ollama)
+	s.ollamaBaseURL = s.configReader.GetOllamaURL(ctx)
+
+	// Get embedding model based on provider
+	switch embeddingProvider {
 	case ai.ProviderOpenAI:
-		_, model := s.configReader.GetOpenAIConfig(ctx)
-		s.defaultEmbeddingModel = model
-		s.defaultChatModel = model
+		s.defaultEmbeddingModel = s.configReader.GetOpenAIEmbeddingModel(ctx)
+	case ai.ProviderVoyage:
+		s.defaultEmbeddingModel = s.configReader.GetVoyageEmbeddingModel(ctx)
 	case ai.ProviderOllama:
 		fallthrough
 	default:
-		baseURL, model := s.configReader.GetOllamaConfig(ctx)
-		s.ollamaBaseURL = baseURL
-		s.defaultEmbeddingModel = model
-		s.defaultChatModel = model
+		s.defaultEmbeddingModel = s.configReader.GetOllamaEmbeddingModel(ctx)
+	}
+
+	// Get chat model based on provider
+	switch chatProvider {
+	case ai.ProviderOpenAI:
+		s.defaultChatModel = s.configReader.GetOpenAIChatModel(ctx)
+	case ai.ProviderAnthropic:
+		s.defaultChatModel = s.configReader.GetAnthropicChatModel(ctx)
+	case ai.ProviderOpenRouter:
+		s.defaultChatModel = s.configReader.GetOpenRouterChatModel(ctx)
+	case ai.ProviderOllama:
+		fallthrough
+	default:
+		s.defaultChatModel = s.configReader.GetOllamaChatModel(ctx)
 	}
 
 	s.logger.Info("AI config refreshed",
-		"provider", provider,
+		"embedding_provider", embeddingProvider,
 		"embedding_model", s.defaultEmbeddingModel,
+		"chat_provider", chatProvider,
+		"chat_model", s.defaultChatModel,
 		"ollama_url", s.ollamaBaseURL)
 }
 
@@ -277,12 +296,23 @@ func (s *HostLLMServer) Chat(ctx context.Context, req *pluginv1.ChatRequest) (*p
 		model = "llama3.1:8b"
 	}
 
+	s.logger.Debug("chat request",
+		"provider", providerType,
+		"model", model,
+		"messages", len(req.Messages),
+	)
+
 	provider, err := s.factory.CreateLLMProvider(ai.ProviderConfig{
 		Type:    providerType,
 		Model:   model,
 		BaseURL: s.ollamaBaseURL,
 	})
 	if err != nil {
+		s.logger.Error("failed to create LLM provider",
+			"provider", providerType,
+			"model", model,
+			"error", err,
+		)
 		return nil, err
 	}
 
@@ -300,6 +330,11 @@ func (s *HostLLMServer) Chat(ctx context.Context, req *pluginv1.ChatRequest) (*p
 		MaxTokens:   int(req.MaxTokens),
 	})
 	if err != nil {
+		s.logger.Error("chat completion failed",
+			"provider", providerType,
+			"model", model,
+			"error", err,
+		)
 		return nil, err
 	}
 

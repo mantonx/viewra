@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
@@ -46,7 +47,8 @@ func (p *EnricherGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPC
 // On the host side, this starts a gRPC server on a broker ID that the plugin can connect to.
 type HostDataGRPCPlugin struct {
 	plugin.Plugin
-	Impl pluginv1.HostDataServer
+	Impl   pluginv1.HostDataServer
+	Logger *slog.Logger
 }
 
 func (p *HostDataGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
@@ -68,8 +70,14 @@ func (p *HostDataGRPCPlugin) GRPCClient(
 	// Get a unique broker ID
 	brokerID := broker.NextId()
 
-	// Start the data server on this broker ID
+	// Start the data server on this broker ID with logging interceptor
 	go broker.AcceptAndServe(brokerID, func(opts []grpc.ServerOption) *grpc.Server {
+		if p.Logger != nil {
+			opts = append(opts,
+				grpc.UnaryInterceptor(LoggingInterceptor(p.Logger)),
+				grpc.StreamInterceptor(LoggingStreamInterceptor(p.Logger)),
+			)
+		}
 		s := grpc.NewServer(opts...)
 		pluginv1.RegisterHostDataServer(s, p.Impl)
 		return s
@@ -89,6 +97,7 @@ type HostStorageGRPCPlugin struct {
 	plugin.Plugin
 	Impl     pluginv1.HostStorageServer
 	PluginID string // The ID of the plugin that this storage is for
+	Logger   *slog.Logger
 }
 
 func (p *HostStorageGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
@@ -112,8 +121,14 @@ func (p *HostStorageGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.G
 		pluginID: p.PluginID,
 	}
 
-	// Start the storage server on this broker ID
+	// Start the storage server on this broker ID with logging interceptor
 	go broker.AcceptAndServe(brokerID, func(opts []grpc.ServerOption) *grpc.Server {
+		if p.Logger != nil {
+			opts = append(opts,
+				grpc.UnaryInterceptor(LoggingInterceptor(p.Logger)),
+				grpc.StreamInterceptor(LoggingStreamInterceptor(p.Logger)),
+			)
+		}
 		s := grpc.NewServer(opts...)
 		pluginv1.RegisterHostStorageServer(s, wrapper)
 		return s
@@ -173,7 +188,8 @@ func (w *hostStorageContextWrapper) GetDatabaseStats(ctx context.Context, req *p
 // On the host side, this starts a gRPC server on a broker ID that the plugin can connect to.
 type HostLLMGRPCPlugin struct {
 	plugin.Plugin
-	Impl pluginv1.HostLLMServer
+	Impl   pluginv1.HostLLMServer
+	Logger *slog.Logger
 }
 
 func (p *HostLLMGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
@@ -191,8 +207,14 @@ func (p *HostLLMGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCB
 	// Get a unique broker ID
 	brokerID := broker.NextId()
 
-	// Start the LLM server on this broker ID
+	// Start the LLM server on this broker ID with logging interceptor
 	go broker.AcceptAndServe(brokerID, func(opts []grpc.ServerOption) *grpc.Server {
+		if p.Logger != nil {
+			opts = append(opts,
+				grpc.UnaryInterceptor(LoggingInterceptor(p.Logger)),
+				grpc.StreamInterceptor(LoggingStreamInterceptor(p.Logger)),
+			)
+		}
 		s := grpc.NewServer(opts...)
 		pluginv1.RegisterHostLLMServer(s, p.Impl)
 		return s
@@ -210,7 +232,8 @@ type HostLLMBrokerInfo struct {
 // On the host side, this starts a gRPC server on a broker ID that the plugin can connect to.
 type HostEmbeddingsGRPCPlugin struct {
 	plugin.Plugin
-	Impl pluginv1.HostEmbeddingsServer
+	Impl   pluginv1.HostEmbeddingsServer
+	Logger *slog.Logger
 }
 
 func (p *HostEmbeddingsGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
@@ -228,8 +251,14 @@ func (p *HostEmbeddingsGRPCPlugin) GRPCClient(ctx context.Context, broker *plugi
 	// Get a unique broker ID
 	brokerID := broker.NextId()
 
-	// Start the embeddings server on this broker ID
+	// Start the embeddings server on this broker ID with logging interceptor
 	go broker.AcceptAndServe(brokerID, func(opts []grpc.ServerOption) *grpc.Server {
+		if p.Logger != nil {
+			opts = append(opts,
+				grpc.UnaryInterceptor(LoggingInterceptor(p.Logger)),
+				grpc.StreamInterceptor(LoggingStreamInterceptor(p.Logger)),
+			)
+		}
 		s := grpc.NewServer(opts...)
 		pluginv1.RegisterHostEmbeddingsServer(s, p.Impl)
 		return s

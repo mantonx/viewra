@@ -440,31 +440,42 @@ func (q *DBMediaQuerier) libraryToInfo(result any) *LibraryInfo {
 }
 
 // GetMediaDetails returns full metadata for a media item.
-func (q *DBMediaQuerier) GetMediaDetails(ctx context.Context, id int64) (*MediaDetailsInfo, error) {
-	// First get basic info to determine media type
-	basic, err := q.GetMediaByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	externalIDs, _ := q.GetExternalIDs(ctx, id)
+// If mediaType is provided, it queries the appropriate table directly.
+// If mediaType is empty, it falls back to looking up in the media table first.
+func (q *DBMediaQuerier) GetMediaDetails(ctx context.Context, id int64, mediaType string) (*MediaDetailsInfo, error) {
+	externalIDs, _ := q.getExternalIDsForEntity(ctx, id, mediaType)
 
 	var details *MediaDetailsInfo
-	switch basic.MediaType {
+	var err error
+
+	// Use provided mediaType if available, otherwise try to determine from media table
+	if mediaType == "" {
+		// Fallback: try to get basic info from media table to determine type
+		basic, basicErr := q.GetMediaByID(ctx, id)
+		if basicErr != nil {
+			return nil, basicErr
+		}
+		mediaType = basic.MediaType
+	}
+
+	switch mediaType {
 	case "movie":
-		details, err = q.getMovieDetails(ctx, id, basic, externalIDs)
+		details, err = q.getMovieDetailsDirectly(ctx, id, externalIDs)
 	case "tv_show":
-		details, err = q.getTVShowDetails(ctx, id, basic, externalIDs)
+		details, err = q.getTVShowDetailsDirectly(ctx, id, externalIDs)
 	case "tv_episode":
-		details, err = q.getTVEpisodeDetails(ctx, id, basic, externalIDs)
+		details, err = q.getTVEpisodeDetailsDirectly(ctx, id, externalIDs)
+	case "music_artist":
+		details, err = q.getMusicArtistDetailsDirectly(ctx, id, externalIDs)
+	case "music_album":
+		details, err = q.getMusicAlbumDetailsDirectly(ctx, id, externalIDs)
+	case "music_track":
+		details, err = q.getMusicTrackDetailsDirectly(ctx, id, externalIDs)
 	default:
-		// Return basic info for unsupported types
+		// Return minimal info for unsupported types
 		details = &MediaDetailsInfo{
-			ID:          basic.ID,
-			MediaType:   basic.MediaType,
-			Title:       basic.Title,
-			Year:        basic.Year,
-			LibraryID:   basic.LibraryID,
+			ID:          id,
+			MediaType:   mediaType,
 			ExternalIDs: externalIDs,
 		}
 	}
@@ -474,7 +485,7 @@ func (q *DBMediaQuerier) GetMediaDetails(ctx context.Context, id int64) (*MediaD
 	}
 
 	// Fetch and attach mood tags
-	moodTags, _ := q.GetMoodTags(ctx, id)
+	moodTags, _ := q.GetMoodTags(ctx, mediaType, id)
 	if len(moodTags) > 0 {
 		details.MoodTags = make([]string, len(moodTags))
 		for i, t := range moodTags {
@@ -483,6 +494,261 @@ func (q *DBMediaQuerier) GetMediaDetails(ctx context.Context, id int64) (*MediaD
 	}
 
 	return details, nil
+}
+
+// getExternalIDsForEntity fetches external IDs for an entity.
+// It uses different entity_type values based on the media type.
+func (q *DBMediaQuerier) getExternalIDsForEntity(ctx context.Context, id int64, mediaType string) (map[string]string, error) {
+	// For now, just use the existing method which queries by media_id
+	// The external_ids table uses entity_id and entity_type columns
+	return q.GetExternalIDs(ctx, id)
+}
+
+// getMovieDetailsDirectly fetches movie details directly from the movies table.
+func (q *DBMediaQuerier) getMovieDetailsDirectly(ctx context.Context, id int64, externalIDs map[string]string) (*MediaDetailsInfo, error) {
+	result, err := q.router.Route(
+		func() (any, error) {
+			return q.postgres.GetMovieByMediaID(ctx, int32(id))
+		},
+		func() (any, error) {
+			return q.sqlite.GetMovieByMediaID(ctx, id)
+		},
+	)
+	if err != nil {
+		// Movie metadata not found, return minimal info
+		return &MediaDetailsInfo{
+			ID:          id,
+			MediaType:   "movie",
+			ExternalIDs: externalIDs,
+		}, nil
+	}
+
+	return q.movieRowToDetails(result, externalIDs), nil
+}
+
+// getTVShowDetailsDirectly fetches TV show details directly from the tv_shows table.
+func (q *DBMediaQuerier) getTVShowDetailsDirectly(ctx context.Context, id int64, externalIDs map[string]string) (*MediaDetailsInfo, error) {
+	result, err := q.router.Route(
+		func() (any, error) {
+			return q.postgres.GetTVShowByID(ctx, int32(id))
+		},
+		func() (any, error) {
+			return q.sqlite.GetTVShowByID(ctx, id)
+		},
+	)
+	if err != nil {
+		return &MediaDetailsInfo{
+			ID:          id,
+			MediaType:   "tv_show",
+			ExternalIDs: externalIDs,
+		}, nil
+	}
+
+	return q.tvShowRowToDetails(result, externalIDs), nil
+}
+
+// getTVEpisodeDetailsDirectly fetches TV episode details directly.
+func (q *DBMediaQuerier) getTVEpisodeDetailsDirectly(ctx context.Context, id int64, externalIDs map[string]string) (*MediaDetailsInfo, error) {
+	result, err := q.router.Route(
+		func() (any, error) {
+			return q.postgres.GetEpisodeWithShowTitle(ctx, int32(id))
+		},
+		func() (any, error) {
+			return q.sqlite.GetEpisodeWithShowTitle(ctx, id)
+		},
+	)
+	if err != nil {
+		return &MediaDetailsInfo{
+			ID:          id,
+			MediaType:   "tv_episode",
+			ExternalIDs: externalIDs,
+		}, nil
+	}
+
+	return q.tvEpisodeRowToDetails(result, externalIDs), nil
+}
+
+// getMusicArtistDetailsDirectly fetches music artist details.
+func (q *DBMediaQuerier) getMusicArtistDetailsDirectly(ctx context.Context, id int64, externalIDs map[string]string) (*MediaDetailsInfo, error) {
+	result, err := q.router.Route(
+		func() (any, error) {
+			return q.postgres.GetArtistByID(ctx, int32(id))
+		},
+		func() (any, error) {
+			return q.sqlite.GetArtistByID(ctx, id)
+		},
+	)
+	if err != nil {
+		return &MediaDetailsInfo{
+			ID:          id,
+			MediaType:   "music_artist",
+			ExternalIDs: externalIDs,
+		}, nil
+	}
+
+	return q.musicArtistRowToDetails(result, externalIDs), nil
+}
+
+// getMusicAlbumDetailsDirectly fetches music album details.
+func (q *DBMediaQuerier) getMusicAlbumDetailsDirectly(ctx context.Context, id int64, externalIDs map[string]string) (*MediaDetailsInfo, error) {
+	result, err := q.router.Route(
+		func() (any, error) {
+			return q.postgres.GetAlbumByID(ctx, int32(id))
+		},
+		func() (any, error) {
+			return q.sqlite.GetAlbumByID(ctx, id)
+		},
+	)
+	if err != nil {
+		return &MediaDetailsInfo{
+			ID:          id,
+			MediaType:   "music_album",
+			ExternalIDs: externalIDs,
+		}, nil
+	}
+
+	return q.musicAlbumRowToDetails(result, externalIDs), nil
+}
+
+// getMusicTrackDetailsDirectly fetches music track details.
+func (q *DBMediaQuerier) getMusicTrackDetailsDirectly(ctx context.Context, id int64, externalIDs map[string]string) (*MediaDetailsInfo, error) {
+	result, err := q.router.Route(
+		func() (any, error) {
+			return q.postgres.GetMusicTrackByMediaID(ctx, int32(id))
+		},
+		func() (any, error) {
+			return q.sqlite.GetMusicTrackByMediaID(ctx, id)
+		},
+	)
+	if err != nil {
+		return &MediaDetailsInfo{
+			ID:          id,
+			MediaType:   "music_track",
+			ExternalIDs: externalIDs,
+		}, nil
+	}
+
+	return q.musicTrackRowToDetails(result, externalIDs), nil
+}
+
+// musicArtistRowToDetails converts a music artist row to details.
+func (q *DBMediaQuerier) musicArtistRowToDetails(result any, externalIDs map[string]string) *MediaDetailsInfo {
+	info := &MediaDetailsInfo{
+		MediaType:   "music_artist",
+		ExternalIDs: externalIDs,
+	}
+
+	if q.router.IsPostgresDB() {
+		row := result.(sqlc_postgres.MusicArtist)
+		info.ID = int64(row.ID)
+		info.Title = row.Name
+		info.LibraryID = int64(row.LibraryID)
+		if row.Bio.Valid {
+			info.Biography = row.Bio.String
+		}
+		if row.Country.Valid {
+			info.Country = row.Country.String
+		}
+		if row.Genre.Valid {
+			info.Genres = splitAndTrim(row.Genre.String)
+		}
+	} else {
+		row := result.(sqlc_sqlite.MusicArtist)
+		info.ID = row.ID
+		info.Title = row.Name
+		info.LibraryID = row.LibraryID
+		if row.Bio.Valid {
+			info.Biography = row.Bio.String
+		}
+		if row.Country.Valid {
+			info.Country = row.Country.String
+		}
+		if row.Genre.Valid {
+			info.Genres = splitAndTrim(row.Genre.String)
+		}
+	}
+
+	return info
+}
+
+// musicAlbumRowToDetails converts a music album row to details.
+func (q *DBMediaQuerier) musicAlbumRowToDetails(result any, externalIDs map[string]string) *MediaDetailsInfo {
+	info := &MediaDetailsInfo{
+		MediaType:   "music_album",
+		ExternalIDs: externalIDs,
+	}
+
+	if q.router.IsPostgresDB() {
+		row := result.(sqlc_postgres.MusicAlbum)
+		info.ID = int64(row.ID)
+		info.Title = row.Title
+		info.LibraryID = int64(row.LibraryID)
+		if row.Year.Valid {
+			info.Year = int(row.Year.Int32)
+		}
+		if row.Genre.Valid {
+			info.Genres = splitAndTrim(row.Genre.String)
+		}
+		if row.ReleaseType.Valid {
+			info.ReleaseType = row.ReleaseType.String
+		}
+	} else {
+		row := result.(sqlc_sqlite.MusicAlbum)
+		info.ID = row.ID
+		info.Title = row.Title
+		info.LibraryID = row.LibraryID
+		if row.Year.Valid {
+			info.Year = int(row.Year.Int64)
+		}
+		if row.Genre.Valid {
+			info.Genres = splitAndTrim(row.Genre.String)
+		}
+		if row.ReleaseType.Valid {
+			info.ReleaseType = row.ReleaseType.String
+		}
+	}
+
+	return info
+}
+
+// musicTrackRowToDetails converts a music track row to details.
+func (q *DBMediaQuerier) musicTrackRowToDetails(result any, externalIDs map[string]string) *MediaDetailsInfo {
+	info := &MediaDetailsInfo{
+		MediaType:   "music_track",
+		ExternalIDs: externalIDs,
+	}
+
+	if q.router.IsPostgresDB() {
+		row := result.(sqlc_postgres.GetMusicTrackByMediaIDRow)
+		info.ID = int64(row.MediaID)
+		info.Title = row.Title
+		info.LibraryID = int64(row.LibraryID)
+		if row.Artist.Valid {
+			info.ArtistName = row.Artist.String
+		}
+		if row.Album.Valid {
+			info.AlbumTitle = row.Album.String
+		}
+		if row.Genre.Valid {
+			info.Genres = splitAndTrim(row.Genre.String)
+		}
+	} else {
+		row := result.(sqlc_sqlite.GetMusicTrackByMediaIDRow)
+		info.ID = row.MediaID
+		info.Title = row.Title
+		info.LibraryID = row.LibraryID
+		if row.Artist.Valid {
+			info.ArtistName = row.Artist.String
+		}
+		if row.Album.Valid {
+			info.AlbumTitle = row.Album.String
+		}
+		if row.Genre.Valid {
+			info.Genres = splitAndTrim(row.Genre.String)
+		}
+	}
+
+	return info
 }
 
 func (q *DBMediaQuerier) getMovieDetails(ctx context.Context, id int64, basic *MediaInfo, externalIDs map[string]string) (*MediaDetailsInfo, error) {
@@ -1047,10 +1313,13 @@ func parseCastString(s string) []CastMemberInfo {
 	return cast
 }
 
-// GetMoodTags retrieves mood tags for a media item.
-func (q *DBMediaQuerier) GetMoodTags(ctx context.Context, mediaID int64) ([]*MoodTagInfo, error) {
+// GetMoodTags retrieves mood tags for an entity.
+func (q *DBMediaQuerier) GetMoodTags(ctx context.Context, entityType string, entityID int64) ([]*MoodTagInfo, error) {
 	if q.router.IsPostgresDB() {
-		rows, err := q.postgres.GetMoodTagsByMediaID(ctx, int32(mediaID))
+		rows, err := q.postgres.GetMoodTagsByEntity(ctx, sqlc_postgres.GetMoodTagsByEntityParams{
+			EntityType: entityType,
+			EntityID:   int32(entityID),
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -1068,7 +1337,10 @@ func (q *DBMediaQuerier) GetMoodTags(ctx context.Context, mediaID int64) ([]*Moo
 		return tags, nil
 	}
 
-	rows, err := q.sqlite.GetMoodTagsByMediaID(ctx, mediaID)
+	rows, err := q.sqlite.GetMoodTagsByEntity(ctx, sqlc_sqlite.GetMoodTagsByEntityParams{
+		EntityType: entityType,
+		EntityID:   entityID,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -1086,10 +1358,10 @@ func (q *DBMediaQuerier) GetMoodTags(ctx context.Context, mediaID int64) ([]*Moo
 	return tags, nil
 }
 
-// SetMoodTags stores mood tags for a media item (replaces existing).
-func (q *DBMediaQuerier) SetMoodTags(ctx context.Context, mediaID int64, tags []*MoodTagInfo) error {
+// SetMoodTags stores mood tags for an entity (replaces existing).
+func (q *DBMediaQuerier) SetMoodTags(ctx context.Context, entityType string, entityID int64, tags []*MoodTagInfo) error {
 	// Delete existing tags first
-	if err := q.DeleteMoodTags(ctx, mediaID); err != nil {
+	if err := q.DeleteMoodTags(ctx, entityType, entityID); err != nil {
 		return err
 	}
 
@@ -1097,7 +1369,8 @@ func (q *DBMediaQuerier) SetMoodTags(ctx context.Context, mediaID int64, tags []
 	for _, tag := range tags {
 		if q.router.IsPostgresDB() {
 			err := q.postgres.InsertMoodTag(ctx, sqlc_postgres.InsertMoodTagParams{
-				MediaID:    int32(mediaID),
+				EntityType: entityType,
+				EntityID:   int32(entityID),
 				Tag:        tag.Tag,
 				Confidence: sql.NullFloat64{Float64: float64(tag.Confidence), Valid: true},
 			})
@@ -1106,7 +1379,8 @@ func (q *DBMediaQuerier) SetMoodTags(ctx context.Context, mediaID int64, tags []
 			}
 		} else {
 			err := q.sqlite.InsertMoodTag(ctx, sqlc_sqlite.InsertMoodTagParams{
-				MediaID:    mediaID,
+				EntityType: entityType,
+				EntityID:   entityID,
 				Tag:        tag.Tag,
 				Confidence: sql.NullFloat64{Float64: float64(tag.Confidence), Valid: true},
 			})
@@ -1118,14 +1392,20 @@ func (q *DBMediaQuerier) SetMoodTags(ctx context.Context, mediaID int64, tags []
 	return nil
 }
 
-// DeleteMoodTags removes all mood tags for a media item.
-func (q *DBMediaQuerier) DeleteMoodTags(ctx context.Context, mediaID int64) error {
+// DeleteMoodTags removes all mood tags for an entity.
+func (q *DBMediaQuerier) DeleteMoodTags(ctx context.Context, entityType string, entityID int64) error {
 	return q.router.RouteVoid(
 		func() error {
-			return q.postgres.DeleteMoodTagsByMediaID(ctx, int32(mediaID))
+			return q.postgres.DeleteMoodTagsByEntity(ctx, sqlc_postgres.DeleteMoodTagsByEntityParams{
+				EntityType: entityType,
+				EntityID:   int32(entityID),
+			})
 		},
 		func() error {
-			return q.sqlite.DeleteMoodTagsByMediaID(ctx, mediaID)
+			return q.sqlite.DeleteMoodTagsByEntity(ctx, sqlc_sqlite.DeleteMoodTagsByEntityParams{
+				EntityType: entityType,
+				EntityID:   entityID,
+			})
 		},
 	)
 }

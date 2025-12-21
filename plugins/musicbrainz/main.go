@@ -5,19 +5,17 @@ package main
 import (
 	"context"
 	"log/slog"
-	"os"
 
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/pkg/plugin/sdk"
 	"github.com/mantonx/viewra/plugins/musicbrainz/internal"
 )
 
 func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
+	hclogger, logger := sdk.NewLogger("musicbrainz")
 
 	mbPlugin := internal.NewMusicBrainzPlugin(logger)
 
@@ -40,6 +38,7 @@ func main() {
 			"host_storage": &HostStorageGRPCPlugin{},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
+		Logger:     hclogger,
 	})
 }
 

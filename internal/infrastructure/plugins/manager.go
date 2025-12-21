@@ -308,9 +308,15 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		"ai_search": &AISearchGRPCPlugin{},
 	}
 
+	// Create a logger for host services with plugin context
+	hostServiceLogger := m.logger.With("plugin", manifest.ID, "component", "host-service")
+
 	// Add host data service if available
 	if m.hostDataServer != nil {
-		pluginMap["host_data"] = &HostDataGRPCPlugin{Impl: m.hostDataServer}
+		pluginMap["host_data"] = &HostDataGRPCPlugin{
+			Impl:   m.hostDataServer,
+			Logger: hostServiceLogger,
+		}
 	}
 
 	// Add host storage service if available (with plugin ID for context injection)
@@ -318,17 +324,24 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		pluginMap["host_storage"] = &HostStorageGRPCPlugin{
 			Impl:     m.hostStorageServer,
 			PluginID: manifest.ID,
+			Logger:   hostServiceLogger,
 		}
 	}
 
 	// Add host LLM service if available
 	if m.hostLLMServer != nil {
-		pluginMap["host_llm"] = &HostLLMGRPCPlugin{Impl: m.hostLLMServer}
+		pluginMap["host_llm"] = &HostLLMGRPCPlugin{
+			Impl:   m.hostLLMServer,
+			Logger: hostServiceLogger,
+		}
 	}
 
 	// Add host embeddings service if available
 	if m.hostEmbeddingsServer != nil {
-		pluginMap["host_embeddings"] = &HostEmbeddingsGRPCPlugin{Impl: m.hostEmbeddingsServer}
+		pluginMap["host_embeddings"] = &HostEmbeddingsGRPCPlugin{
+			Impl:   m.hostEmbeddingsServer,
+			Logger: hostServiceLogger,
+		}
 	}
 
 	// Create the go-plugin client
@@ -338,6 +351,8 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		Cmd:              exec.Command(path),
 		AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 		Logger:           newHCLogAdapter(m.logger),
+		SyncStdout:       os.Stdout,
+		SyncStderr:       os.Stderr,
 	})
 
 	// Connect to the plugin

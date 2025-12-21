@@ -119,7 +119,9 @@ type Querier interface {
 	DeleteMetadataSource(ctx context.Context, arg DeleteMetadataSourceParams) error
 	DeleteMetadataSourcesByMedia(ctx context.Context, mediaID int64) error
 	DeleteMetadataSourcesByPlugin(ctx context.Context, pluginID string) error
-	DeleteMoodTagsByMediaID(ctx context.Context, mediaID int64) error
+	DeleteMoodTagsByEntity(ctx context.Context, arg DeleteMoodTagsByEntityParams) error
+	// Deprecated: Use DeleteMoodTagsByEntity instead. Kept for backward compatibility.
+	DeleteMoodTagsByMediaID(ctx context.Context, entityID int64) error
 	DeleteMovie(ctx context.Context, mediaID int64) error
 	DeleteMusicTrack(ctx context.Context, mediaID int64) error
 	DeleteOldPlaybackSessions(ctx context.Context, startTime int64) error
@@ -246,7 +248,9 @@ type Querier interface {
 	GetMetadataSource(ctx context.Context, arg GetMetadataSourceParams) (MediaMetadataSource, error)
 	GetMetadataSourcesByField(ctx context.Context, arg GetMetadataSourcesByFieldParams) ([]MediaMetadataSource, error)
 	GetMetadataSourcesByMedia(ctx context.Context, mediaID int64) ([]MediaMetadataSource, error)
-	GetMoodTagsByMediaID(ctx context.Context, mediaID int64) ([]GetMoodTagsByMediaIDRow, error)
+	GetMoodTagsByEntity(ctx context.Context, arg GetMoodTagsByEntityParams) ([]GetMoodTagsByEntityRow, error)
+	// Deprecated: Use GetMoodTagsByEntity instead. Kept for backward compatibility.
+	GetMoodTagsByMediaID(ctx context.Context, entityID int64) ([]GetMoodTagsByMediaIDRow, error)
 	GetMovieByMediaID(ctx context.Context, mediaID int64) (GetMovieByMediaIDRow, error)
 	GetMusicTrackByMediaID(ctx context.Context, mediaID int64) (GetMusicTrackByMediaIDRow, error)
 	GetNextPipelinePosition(ctx context.Context, mediaType string) (int64, error)

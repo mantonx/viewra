@@ -3,6 +3,7 @@ module github.com/mantonx/viewra
 go 1.25.4
 
 require (
+	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/chai2010/webp v1.4.0
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
 	github.com/disintegration/imaging v1.6.2
@@ -40,7 +41,6 @@ require (
 
 require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
-	github.com/anthropics/anthropic-sdk-go v1.19.0 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.14.2 // indirect
 	github.com/bytedance/sonic/loader v0.4.0 // indirect

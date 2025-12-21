@@ -96,6 +96,7 @@ service HostFileParser {
 
 message MediaQuery {
   int64 media_id = 1;
+  string media_type = 2;  // "movie", "tv_show", "tv_episode", "music_artist", "music_album", "music_track"
 }
 
 message MediaId {
@@ -329,5 +330,6 @@ message MoodTagList {
 message SetMoodTagsRequest {
   int64 media_id = 1;
   repeated MoodTag tags = 2;
+  string media_type = 3;  // "movie", "tv_show", "tv_episode", "music_artist", "music_album", "music_track"
 }
 

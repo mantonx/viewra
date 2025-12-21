@@ -51,8 +51,12 @@ func NewIndexingService(
 // IndexSingle indexes a single entity. Called by the enrichment pipeline.
 // It fetches full media details from the host to build rich searchable text.
 func (s *IndexingService) IndexSingle(ctx context.Context, entityType EntityType, entityID int64, _ *pluginv1.Media) error {
-	// Fetch full media details from the host
-	details, err := s.dataClient.GetMediaDetails(ctx, &pluginv1.MediaQuery{MediaId: entityID})
+	// Fetch full media details from the host, passing the media type
+	// so the host can query the correct table directly
+	details, err := s.dataClient.GetMediaDetails(ctx, &pluginv1.MediaQuery{
+		MediaId:   entityID,
+		MediaType: string(entityType),
+	})
 	if err != nil {
 		return fmt.Errorf("get media details for %s:%d: %w", entityType, entityID, err)
 	}
@@ -138,8 +142,14 @@ func (s *IndexingService) IndexLibrary(ctx context.Context, libraryID int64, lib
 			default:
 			}
 
-			if err := s.IndexSingle(ctx, entityType, media.Id, nil); err != nil {
-				s.logger.Warn("failed to index media", "id", media.Id, "error", err)
+			// Use media type from the item - more reliable than library type
+			itemEntityType := EntityType(media.MediaType)
+			if itemEntityType == "" {
+				itemEntityType = entityType // fallback to library-derived type
+			}
+
+			if err := s.IndexSingle(ctx, itemEntityType, media.Id, nil); err != nil {
+				s.logger.Warn("failed to index media", "id", media.Id, "type", itemEntityType, "error", err)
 				atomic.AddInt64(&failed, 1)
 			} else {
 				atomic.AddInt64(&processed, 1)

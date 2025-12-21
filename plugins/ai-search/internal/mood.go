@@ -74,6 +74,12 @@ func (s *MoodTagService) GenerateForMedia(
 		return nil, fmt.Errorf("insufficient metadata for mood tag generation")
 	}
 
+	s.logger.Debug("calling LLM for mood tags",
+		"entity_id", details.Id,
+		"media_type", details.MediaType,
+		"prompt_length", len(prompt),
+	)
+
 	// Empty provider/model uses host defaults from AI settings
 	resp, err := s.llmClient.Chat(ctx, &pluginv1.ChatRequest{
 		Messages: []*pluginv1.ChatMessage{
@@ -131,6 +137,12 @@ func (s *MoodTagService) GenerateForLibrary(
 
 	s.logger.Info("starting mood tag generation", "library_id", libraryID)
 
+	// Verify dataClient is available
+	if s.dataClient == nil {
+		s.logger.Error("dataClient is nil in mood tag generation")
+		return fmt.Errorf("dataClient is nil")
+	}
+
 	// List media with pagination
 	var processed, failed int64
 	offset := int32(0)
@@ -139,9 +151,16 @@ func (s *MoodTagService) GenerateForLibrary(
 	for {
 		select {
 		case <-ctx.Done():
+			s.logger.Info("mood tag generation cancelled")
 			return ctx.Err()
 		default:
 		}
+
+		s.logger.Debug("listing media for mood tags",
+			"library_id", libraryID,
+			"offset", offset,
+			"limit", limit,
+		)
 
 		resp, err := s.dataClient.ListMediaByLibrary(ctx, &pluginv1.ListMediaRequest{
 			LibraryId: libraryID,
@@ -149,7 +168,26 @@ func (s *MoodTagService) GenerateForLibrary(
 			Offset:    offset,
 		})
 		if err != nil {
+			s.logger.Error("failed to list media for mood tags",
+				"library_id", libraryID,
+				"error", err,
+			)
 			return fmt.Errorf("list media: %w", err)
+		}
+
+		s.logger.Debug("listed media for mood tags",
+			"library_id", libraryID,
+			"items", len(resp.Items),
+			"total", resp.Total,
+			"has_more", resp.HasMore,
+		)
+
+		if len(resp.Items) == 0 {
+			s.logger.Debug("no items returned, ending pagination",
+				"library_id", libraryID,
+				"offset", offset,
+			)
+			break // No more items
 		}
 
 		total := int64(resp.Total)
@@ -166,12 +204,19 @@ func (s *MoodTagService) GenerateForLibrary(
 			if err != nil {
 				s.logger.Warn("failed to generate mood tags",
 					"entity_id", media.Id,
+					"media_type", media.MediaType,
+					"title", media.Title,
 					"error", err,
 				)
 				atomic.AddInt64(&failed, 1)
 				s.updateProgress(EntityType(media.MediaType), total, processed, failed, err.Error())
 				continue
 			}
+
+			s.logger.Debug("generated mood tags",
+				"entity_id", media.Id,
+				"tags", tags,
+			)
 
 			if callback != nil {
 				if err := callback(EntityType(media.MediaType), media.Id, tags); err != nil {
