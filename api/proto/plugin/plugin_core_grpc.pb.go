@@ -26,6 +26,9 @@ const (
 	PluginCore_Configure_FullMethodName         = "/viewra.plugin.v1.PluginCore/Configure"
 	PluginCore_GetSubscriptions_FullMethodName  = "/viewra.plugin.v1.PluginCore/GetSubscriptions"
 	PluginCore_OnEvent_FullMethodName           = "/viewra.plugin.v1.PluginCore/OnEvent"
+	PluginCore_GetRoutes_FullMethodName         = "/viewra.plugin.v1.PluginCore/GetRoutes"
+	PluginCore_HandleHTTP_FullMethodName        = "/viewra.plugin.v1.PluginCore/HandleHTTP"
+	PluginCore_HandleHTTPStream_FullMethodName  = "/viewra.plugin.v1.PluginCore/HandleHTTPStream"
 )
 
 // PluginCoreClient is the client API for PluginCore service.
@@ -33,7 +36,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // PluginCore is the base interface all plugins must implement.
-// Provides lifecycle, health, and configuration.
+// Provides lifecycle, health, configuration, and HTTP routing.
 //
 // Plugin identity comes from plugin.yml manifest file.
 // The host reads the manifest before starting the plugin binary.
@@ -52,6 +55,15 @@ type PluginCoreClient interface {
 	GetSubscriptions(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*EventSubscriptions, error)
 	// OnEvent delivers an event to the plugin.
 	OnEvent(ctx context.Context, in *Event, opts ...grpc.CallOption) (*EventResponse, error)
+	// GetRoutes returns HTTP routes this plugin provides.
+	// Called after Initialize to discover plugin endpoints.
+	GetRoutes(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*PluginRoutes, error)
+	// HandleHTTP handles a simple HTTP request/response.
+	// Used for non-streaming routes.
+	HandleHTTP(ctx context.Context, in *PluginHTTPRequest, opts ...grpc.CallOption) (*PluginHTTPResponse, error)
+	// HandleHTTPStream handles streaming requests/responses.
+	// Used for large uploads/downloads or real-time data.
+	HandleHTTPStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[PluginHTTPChunk, PluginHTTPChunk], error)
 }
 
 type pluginCoreClient struct {
@@ -132,12 +144,45 @@ func (c *pluginCoreClient) OnEvent(ctx context.Context, in *Event, opts ...grpc.
 	return out, nil
 }
 
+func (c *pluginCoreClient) GetRoutes(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*PluginRoutes, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PluginRoutes)
+	err := c.cc.Invoke(ctx, PluginCore_GetRoutes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *pluginCoreClient) HandleHTTP(ctx context.Context, in *PluginHTTPRequest, opts ...grpc.CallOption) (*PluginHTTPResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PluginHTTPResponse)
+	err := c.cc.Invoke(ctx, PluginCore_HandleHTTP_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *pluginCoreClient) HandleHTTPStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[PluginHTTPChunk, PluginHTTPChunk], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &PluginCore_ServiceDesc.Streams[0], PluginCore_HandleHTTPStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[PluginHTTPChunk, PluginHTTPChunk]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PluginCore_HandleHTTPStreamClient = grpc.BidiStreamingClient[PluginHTTPChunk, PluginHTTPChunk]
+
 // PluginCoreServer is the server API for PluginCore service.
 // All implementations must embed UnimplementedPluginCoreServer
 // for forward compatibility.
 //
 // PluginCore is the base interface all plugins must implement.
-// Provides lifecycle, health, and configuration.
+// Provides lifecycle, health, configuration, and HTTP routing.
 //
 // Plugin identity comes from plugin.yml manifest file.
 // The host reads the manifest before starting the plugin binary.
@@ -156,6 +201,15 @@ type PluginCoreServer interface {
 	GetSubscriptions(context.Context, *Empty) (*EventSubscriptions, error)
 	// OnEvent delivers an event to the plugin.
 	OnEvent(context.Context, *Event) (*EventResponse, error)
+	// GetRoutes returns HTTP routes this plugin provides.
+	// Called after Initialize to discover plugin endpoints.
+	GetRoutes(context.Context, *Empty) (*PluginRoutes, error)
+	// HandleHTTP handles a simple HTTP request/response.
+	// Used for non-streaming routes.
+	HandleHTTP(context.Context, *PluginHTTPRequest) (*PluginHTTPResponse, error)
+	// HandleHTTPStream handles streaming requests/responses.
+	// Used for large uploads/downloads or real-time data.
+	HandleHTTPStream(grpc.BidiStreamingServer[PluginHTTPChunk, PluginHTTPChunk]) error
 	mustEmbedUnimplementedPluginCoreServer()
 }
 
@@ -186,6 +240,15 @@ func (UnimplementedPluginCoreServer) GetSubscriptions(context.Context, *Empty) (
 }
 func (UnimplementedPluginCoreServer) OnEvent(context.Context, *Event) (*EventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method OnEvent not implemented")
+}
+func (UnimplementedPluginCoreServer) GetRoutes(context.Context, *Empty) (*PluginRoutes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRoutes not implemented")
+}
+func (UnimplementedPluginCoreServer) HandleHTTP(context.Context, *PluginHTTPRequest) (*PluginHTTPResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method HandleHTTP not implemented")
+}
+func (UnimplementedPluginCoreServer) HandleHTTPStream(grpc.BidiStreamingServer[PluginHTTPChunk, PluginHTTPChunk]) error {
+	return status.Errorf(codes.Unimplemented, "method HandleHTTPStream not implemented")
 }
 func (UnimplementedPluginCoreServer) mustEmbedUnimplementedPluginCoreServer() {}
 func (UnimplementedPluginCoreServer) testEmbeddedByValue()                    {}
@@ -334,6 +397,49 @@ func _PluginCore_OnEvent_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PluginCore_GetRoutes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PluginCoreServer).GetRoutes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PluginCore_GetRoutes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PluginCoreServer).GetRoutes(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PluginCore_HandleHTTP_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PluginHTTPRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PluginCoreServer).HandleHTTP(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PluginCore_HandleHTTP_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PluginCoreServer).HandleHTTP(ctx, req.(*PluginHTTPRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PluginCore_HandleHTTPStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(PluginCoreServer).HandleHTTPStream(&grpc.GenericServerStream[PluginHTTPChunk, PluginHTTPChunk]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PluginCore_HandleHTTPStreamServer = grpc.BidiStreamingServer[PluginHTTPChunk, PluginHTTPChunk]
+
 // PluginCore_ServiceDesc is the grpc.ServiceDesc for PluginCore service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -369,7 +475,22 @@ var PluginCore_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "OnEvent",
 			Handler:    _PluginCore_OnEvent_Handler,
 		},
+		{
+			MethodName: "GetRoutes",
+			Handler:    _PluginCore_GetRoutes_Handler,
+		},
+		{
+			MethodName: "HandleHTTP",
+			Handler:    _PluginCore_HandleHTTP_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "HandleHTTPStream",
+			Handler:       _PluginCore_HandleHTTPStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "api/proto/plugin/plugin_core.proto",
 }

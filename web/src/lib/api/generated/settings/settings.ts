@@ -22,8 +22,15 @@ import type {
 } from '@tanstack/react-query'
 
 import type {
+  DeleteApiSettingsAiModels200,
+  InternalApiHandlersAISettingsRequest,
+  InternalApiHandlersAISettingsResponse,
+  InternalApiHandlersConnectionTestResponse,
+  InternalApiHandlersDeleteOllamaModelRequest,
   InternalApiHandlersEffectiveSettingsResponse,
   InternalApiHandlersErrorResponse,
+  InternalApiHandlersOllamaModelsResponse,
+  InternalApiHandlersPullOllamaModelRequest,
   InternalApiHandlersSetSystemRequest,
   InternalApiHandlersSetUserRequest,
   InternalApiHandlersSettingsSchemaResponse,
@@ -37,6 +44,887 @@ import { customInstance } from '../../mutator/index'
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
 
+/**
+ * Returns AI configuration with sensitive values masked
+ * @summary Get AI settings
+ */
+export type getApiSettingsAiResponse200 = {
+  data: InternalApiHandlersAISettingsResponse
+  status: 200
+}
+
+export type getApiSettingsAiResponse401 = {
+  data: InternalApiHandlersErrorResponse
+  status: 401
+}
+
+export type getApiSettingsAiResponse403 = {
+  data: InternalApiHandlersErrorResponse
+  status: 403
+}
+
+export type getApiSettingsAiResponseSuccess = getApiSettingsAiResponse200 & {
+  headers: Headers
+}
+export type getApiSettingsAiResponseError = (
+  | getApiSettingsAiResponse401
+  | getApiSettingsAiResponse403
+) & {
+  headers: Headers
+}
+
+export type getApiSettingsAiResponse =
+  | getApiSettingsAiResponseSuccess
+  | getApiSettingsAiResponseError
+
+export const getGetApiSettingsAiUrl = () => {
+  return `/api/settings/ai`
+}
+
+export const getApiSettingsAi = async (
+  options?: RequestInit
+): Promise<getApiSettingsAiResponse> => {
+  return customInstance<getApiSettingsAiResponse>(getGetApiSettingsAiUrl(), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiSettingsAiQueryKey = () => {
+  return [`/api/settings/ai`] as const
+}
+
+export const getGetApiSettingsAiQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiSettingsAi>>,
+  TError = InternalApiHandlersErrorResponse,
+>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAi>>, TError, TData>>
+  request?: SecondParameter<typeof customInstance>
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiSettingsAiQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiSettingsAi>>> = ({ signal }) =>
+    getApiSettingsAi({ signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiSettingsAi>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiSettingsAiQueryResult = NonNullable<Awaited<ReturnType<typeof getApiSettingsAi>>>
+export type GetApiSettingsAiQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiSettingsAi<
+  TData = Awaited<ReturnType<typeof getApiSettingsAi>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAi>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiSettingsAi>>,
+          TError,
+          Awaited<ReturnType<typeof getApiSettingsAi>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiSettingsAi<
+  TData = Awaited<ReturnType<typeof getApiSettingsAi>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAi>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiSettingsAi>>,
+          TError,
+          Awaited<ReturnType<typeof getApiSettingsAi>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiSettingsAi<
+  TData = Awaited<ReturnType<typeof getApiSettingsAi>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAi>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get AI settings
+ */
+
+export function useGetApiSettingsAi<
+  TData = Awaited<ReturnType<typeof getApiSettingsAi>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAi>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiSettingsAiQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Updates AI configuration
+ * @summary Update AI settings
+ */
+export type putApiSettingsAiResponse200 = {
+  data: InternalApiHandlersAISettingsResponse
+  status: 200
+}
+
+export type putApiSettingsAiResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type putApiSettingsAiResponse401 = {
+  data: InternalApiHandlersErrorResponse
+  status: 401
+}
+
+export type putApiSettingsAiResponse403 = {
+  data: InternalApiHandlersErrorResponse
+  status: 403
+}
+
+export type putApiSettingsAiResponseSuccess = putApiSettingsAiResponse200 & {
+  headers: Headers
+}
+export type putApiSettingsAiResponseError = (
+  | putApiSettingsAiResponse400
+  | putApiSettingsAiResponse401
+  | putApiSettingsAiResponse403
+) & {
+  headers: Headers
+}
+
+export type putApiSettingsAiResponse =
+  | putApiSettingsAiResponseSuccess
+  | putApiSettingsAiResponseError
+
+export const getPutApiSettingsAiUrl = () => {
+  return `/api/settings/ai`
+}
+
+export const putApiSettingsAi = async (
+  internalApiHandlersAISettingsRequest: InternalApiHandlersAISettingsRequest,
+  options?: RequestInit
+): Promise<putApiSettingsAiResponse> => {
+  return customInstance<putApiSettingsAiResponse>(getPutApiSettingsAiUrl(), {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(internalApiHandlersAISettingsRequest),
+  })
+}
+
+export const getPutApiSettingsAiMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putApiSettingsAi>>,
+    TError,
+    { data: InternalApiHandlersAISettingsRequest },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof putApiSettingsAi>>,
+  TError,
+  { data: InternalApiHandlersAISettingsRequest },
+  TContext
+> => {
+  const mutationKey = ['putApiSettingsAi']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof putApiSettingsAi>>,
+    { data: InternalApiHandlersAISettingsRequest }
+  > = (props) => {
+    const { data } = props ?? {}
+
+    return putApiSettingsAi(data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PutApiSettingsAiMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putApiSettingsAi>>
+>
+export type PutApiSettingsAiMutationBody = InternalApiHandlersAISettingsRequest
+export type PutApiSettingsAiMutationError = InternalApiHandlersErrorResponse
+
+/**
+ * @summary Update AI settings
+ */
+export const usePutApiSettingsAi = <TError = InternalApiHandlersErrorResponse, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof putApiSettingsAi>>,
+      TError,
+      { data: InternalApiHandlersAISettingsRequest },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof putApiSettingsAi>>,
+  TError,
+  { data: InternalApiHandlersAISettingsRequest },
+  TContext
+> => {
+  const mutationOptions = getPutApiSettingsAiMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Returns list of models available on the Ollama server
+ * @summary List available Ollama models
+ */
+export type getApiSettingsAiModelsResponse200 = {
+  data: InternalApiHandlersOllamaModelsResponse
+  status: 200
+}
+
+export type getApiSettingsAiModelsResponse401 = {
+  data: InternalApiHandlersErrorResponse
+  status: 401
+}
+
+export type getApiSettingsAiModelsResponse503 = {
+  data: InternalApiHandlersErrorResponse
+  status: 503
+}
+
+export type getApiSettingsAiModelsResponseSuccess = getApiSettingsAiModelsResponse200 & {
+  headers: Headers
+}
+export type getApiSettingsAiModelsResponseError = (
+  | getApiSettingsAiModelsResponse401
+  | getApiSettingsAiModelsResponse503
+) & {
+  headers: Headers
+}
+
+export type getApiSettingsAiModelsResponse =
+  | getApiSettingsAiModelsResponseSuccess
+  | getApiSettingsAiModelsResponseError
+
+export const getGetApiSettingsAiModelsUrl = () => {
+  return `/api/settings/ai/models`
+}
+
+export const getApiSettingsAiModels = async (
+  options?: RequestInit
+): Promise<getApiSettingsAiModelsResponse> => {
+  return customInstance<getApiSettingsAiModelsResponse>(getGetApiSettingsAiModelsUrl(), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiSettingsAiModelsQueryKey = () => {
+  return [`/api/settings/ai/models`] as const
+}
+
+export const getGetApiSettingsAiModelsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiSettingsAiModels>>,
+  TError = InternalApiHandlersErrorResponse,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAiModels>>, TError, TData>
+  >
+  request?: SecondParameter<typeof customInstance>
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiSettingsAiModelsQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiSettingsAiModels>>> = ({ signal }) =>
+    getApiSettingsAiModels({ signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiSettingsAiModels>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiSettingsAiModelsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiSettingsAiModels>>
+>
+export type GetApiSettingsAiModelsQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiSettingsAiModels<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiModels>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAiModels>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiSettingsAiModels>>,
+          TError,
+          Awaited<ReturnType<typeof getApiSettingsAiModels>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiSettingsAiModels<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiModels>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAiModels>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiSettingsAiModels>>,
+          TError,
+          Awaited<ReturnType<typeof getApiSettingsAiModels>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiSettingsAiModels<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiModels>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAiModels>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List available Ollama models
+ */
+
+export function useGetApiSettingsAiModels<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiModels>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAiModels>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiSettingsAiModelsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Removes a model from the local Ollama installation
+ * @summary Delete an Ollama model
+ */
+export type deleteApiSettingsAiModelsResponse200 = {
+  data: DeleteApiSettingsAiModels200
+  status: 200
+}
+
+export type deleteApiSettingsAiModelsResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type deleteApiSettingsAiModelsResponse401 = {
+  data: InternalApiHandlersErrorResponse
+  status: 401
+}
+
+export type deleteApiSettingsAiModelsResponse503 = {
+  data: InternalApiHandlersErrorResponse
+  status: 503
+}
+
+export type deleteApiSettingsAiModelsResponseSuccess = deleteApiSettingsAiModelsResponse200 & {
+  headers: Headers
+}
+export type deleteApiSettingsAiModelsResponseError = (
+  | deleteApiSettingsAiModelsResponse400
+  | deleteApiSettingsAiModelsResponse401
+  | deleteApiSettingsAiModelsResponse503
+) & {
+  headers: Headers
+}
+
+export type deleteApiSettingsAiModelsResponse =
+  | deleteApiSettingsAiModelsResponseSuccess
+  | deleteApiSettingsAiModelsResponseError
+
+export const getDeleteApiSettingsAiModelsUrl = () => {
+  return `/api/settings/ai/models`
+}
+
+export const deleteApiSettingsAiModels = async (
+  internalApiHandlersDeleteOllamaModelRequest: InternalApiHandlersDeleteOllamaModelRequest,
+  options?: RequestInit
+): Promise<deleteApiSettingsAiModelsResponse> => {
+  return customInstance<deleteApiSettingsAiModelsResponse>(getDeleteApiSettingsAiModelsUrl(), {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(internalApiHandlersDeleteOllamaModelRequest),
+  })
+}
+
+export const getDeleteApiSettingsAiModelsMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteApiSettingsAiModels>>,
+    TError,
+    { data: InternalApiHandlersDeleteOllamaModelRequest },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteApiSettingsAiModels>>,
+  TError,
+  { data: InternalApiHandlersDeleteOllamaModelRequest },
+  TContext
+> => {
+  const mutationKey = ['deleteApiSettingsAiModels']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteApiSettingsAiModels>>,
+    { data: InternalApiHandlersDeleteOllamaModelRequest }
+  > = (props) => {
+    const { data } = props ?? {}
+
+    return deleteApiSettingsAiModels(data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type DeleteApiSettingsAiModelsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteApiSettingsAiModels>>
+>
+export type DeleteApiSettingsAiModelsMutationBody = InternalApiHandlersDeleteOllamaModelRequest
+export type DeleteApiSettingsAiModelsMutationError = InternalApiHandlersErrorResponse
+
+/**
+ * @summary Delete an Ollama model
+ */
+export const useDeleteApiSettingsAiModels = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteApiSettingsAiModels>>,
+      TError,
+      { data: InternalApiHandlersDeleteOllamaModelRequest },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteApiSettingsAiModels>>,
+  TError,
+  { data: InternalApiHandlersDeleteOllamaModelRequest },
+  TContext
+> => {
+  const mutationOptions = getDeleteApiSettingsAiModelsMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Initiates download of an Ollama model with SSE progress streaming
+ * @summary Pull an Ollama model
+ */
+export type postApiSettingsAiModelsPullResponse200 = {
+  data: void
+  status: 200
+}
+
+export type postApiSettingsAiModelsPullResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type postApiSettingsAiModelsPullResponse401 = {
+  data: InternalApiHandlersErrorResponse
+  status: 401
+}
+
+export type postApiSettingsAiModelsPullResponse503 = {
+  data: InternalApiHandlersErrorResponse
+  status: 503
+}
+
+export type postApiSettingsAiModelsPullResponseSuccess = postApiSettingsAiModelsPullResponse200 & {
+  headers: Headers
+}
+export type postApiSettingsAiModelsPullResponseError = (
+  | postApiSettingsAiModelsPullResponse400
+  | postApiSettingsAiModelsPullResponse401
+  | postApiSettingsAiModelsPullResponse503
+) & {
+  headers: Headers
+}
+
+export type postApiSettingsAiModelsPullResponse =
+  | postApiSettingsAiModelsPullResponseSuccess
+  | postApiSettingsAiModelsPullResponseError
+
+export const getPostApiSettingsAiModelsPullUrl = () => {
+  return `/api/settings/ai/models/pull`
+}
+
+export const postApiSettingsAiModelsPull = async (
+  internalApiHandlersPullOllamaModelRequest: InternalApiHandlersPullOllamaModelRequest,
+  options?: RequestInit
+): Promise<postApiSettingsAiModelsPullResponse> => {
+  return customInstance<postApiSettingsAiModelsPullResponse>(getPostApiSettingsAiModelsPullUrl(), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(internalApiHandlersPullOllamaModelRequest),
+  })
+}
+
+export const getPostApiSettingsAiModelsPullMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiSettingsAiModelsPull>>,
+    TError,
+    { data: InternalApiHandlersPullOllamaModelRequest },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiSettingsAiModelsPull>>,
+  TError,
+  { data: InternalApiHandlersPullOllamaModelRequest },
+  TContext
+> => {
+  const mutationKey = ['postApiSettingsAiModelsPull']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiSettingsAiModelsPull>>,
+    { data: InternalApiHandlersPullOllamaModelRequest }
+  > = (props) => {
+    const { data } = props ?? {}
+
+    return postApiSettingsAiModelsPull(data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiSettingsAiModelsPullMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiSettingsAiModelsPull>>
+>
+export type PostApiSettingsAiModelsPullMutationBody = InternalApiHandlersPullOllamaModelRequest
+export type PostApiSettingsAiModelsPullMutationError = InternalApiHandlersErrorResponse
+
+/**
+ * @summary Pull an Ollama model
+ */
+export const usePostApiSettingsAiModelsPull = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiSettingsAiModelsPull>>,
+      TError,
+      { data: InternalApiHandlersPullOllamaModelRequest },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiSettingsAiModelsPull>>,
+  TError,
+  { data: InternalApiHandlersPullOllamaModelRequest },
+  TContext
+> => {
+  const mutationOptions = getPostApiSettingsAiModelsPullMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Tests connectivity to the Ollama server
+ * @summary Test Ollama connection
+ */
+export type postApiSettingsAiTestOllamaResponse200 = {
+  data: InternalApiHandlersConnectionTestResponse
+  status: 200
+}
+
+export type postApiSettingsAiTestOllamaResponse503 = {
+  data: InternalApiHandlersConnectionTestResponse
+  status: 503
+}
+
+export type postApiSettingsAiTestOllamaResponseSuccess = postApiSettingsAiTestOllamaResponse200 & {
+  headers: Headers
+}
+export type postApiSettingsAiTestOllamaResponseError = postApiSettingsAiTestOllamaResponse503 & {
+  headers: Headers
+}
+
+export type postApiSettingsAiTestOllamaResponse =
+  | postApiSettingsAiTestOllamaResponseSuccess
+  | postApiSettingsAiTestOllamaResponseError
+
+export const getPostApiSettingsAiTestOllamaUrl = () => {
+  return `/api/settings/ai/test/ollama`
+}
+
+export const postApiSettingsAiTestOllama = async (
+  options?: RequestInit
+): Promise<postApiSettingsAiTestOllamaResponse> => {
+  return customInstance<postApiSettingsAiTestOllamaResponse>(getPostApiSettingsAiTestOllamaUrl(), {
+    ...options,
+    method: 'POST',
+  })
+}
+
+export const getPostApiSettingsAiTestOllamaMutationOptions = <
+  TError = InternalApiHandlersConnectionTestResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiSettingsAiTestOllama>>,
+    TError,
+    void,
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiSettingsAiTestOllama>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['postApiSettingsAiTestOllama']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiSettingsAiTestOllama>>,
+    void
+  > = () => {
+    return postApiSettingsAiTestOllama(requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiSettingsAiTestOllamaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiSettingsAiTestOllama>>
+>
+
+export type PostApiSettingsAiTestOllamaMutationError = InternalApiHandlersConnectionTestResponse
+
+/**
+ * @summary Test Ollama connection
+ */
+export const usePostApiSettingsAiTestOllama = <
+  TError = InternalApiHandlersConnectionTestResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiSettingsAiTestOllama>>,
+      TError,
+      void,
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiSettingsAiTestOllama>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions = getPostApiSettingsAiTestOllamaMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Tests connectivity to OpenAI with the configured API key
+ * @summary Test OpenAI connection
+ */
+export type postApiSettingsAiTestOpenaiResponse200 = {
+  data: InternalApiHandlersConnectionTestResponse
+  status: 200
+}
+
+export type postApiSettingsAiTestOpenaiResponse503 = {
+  data: InternalApiHandlersConnectionTestResponse
+  status: 503
+}
+
+export type postApiSettingsAiTestOpenaiResponseSuccess = postApiSettingsAiTestOpenaiResponse200 & {
+  headers: Headers
+}
+export type postApiSettingsAiTestOpenaiResponseError = postApiSettingsAiTestOpenaiResponse503 & {
+  headers: Headers
+}
+
+export type postApiSettingsAiTestOpenaiResponse =
+  | postApiSettingsAiTestOpenaiResponseSuccess
+  | postApiSettingsAiTestOpenaiResponseError
+
+export const getPostApiSettingsAiTestOpenaiUrl = () => {
+  return `/api/settings/ai/test/openai`
+}
+
+export const postApiSettingsAiTestOpenai = async (
+  options?: RequestInit
+): Promise<postApiSettingsAiTestOpenaiResponse> => {
+  return customInstance<postApiSettingsAiTestOpenaiResponse>(getPostApiSettingsAiTestOpenaiUrl(), {
+    ...options,
+    method: 'POST',
+  })
+}
+
+export const getPostApiSettingsAiTestOpenaiMutationOptions = <
+  TError = InternalApiHandlersConnectionTestResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiSettingsAiTestOpenai>>,
+    TError,
+    void,
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiSettingsAiTestOpenai>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['postApiSettingsAiTestOpenai']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiSettingsAiTestOpenai>>,
+    void
+  > = () => {
+    return postApiSettingsAiTestOpenai(requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiSettingsAiTestOpenaiMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiSettingsAiTestOpenai>>
+>
+
+export type PostApiSettingsAiTestOpenaiMutationError = InternalApiHandlersConnectionTestResponse
+
+/**
+ * @summary Test OpenAI connection
+ */
+export const usePostApiSettingsAiTestOpenai = <
+  TError = InternalApiHandlersConnectionTestResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiSettingsAiTestOpenai>>,
+      TError,
+      void,
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiSettingsAiTestOpenai>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions = getPostApiSettingsAiTestOpenaiMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
 /**
  * Returns the schema for all settings (for UI generation)
  * @summary Get settings schema

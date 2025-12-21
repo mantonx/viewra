@@ -4,11 +4,16 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/renderer"
+	"github.com/olekukonko/tablewriter/tw"
 )
 
 // ProfileSystem quickly detects system characteristics and returns a profile
@@ -444,4 +449,77 @@ func (p *Profile) String() string {
 		p.Storage.Type,
 		p.GPU.Type,
 	)
+}
+
+// PrintTable writes a formatted table of the system profile to the given writer.
+func (p *Profile) PrintTable(w io.Writer, title string, settings *RecommendedSettings) {
+	// Print title if provided
+	if title != "" {
+		fmt.Fprintf(w, "\n%s\n", title)
+	}
+
+	table := tablewriter.NewTable(w,
+		tablewriter.WithRenderer(renderer.NewBlueprint(tw.Rendition{
+			Borders: tw.Border{
+				Left:   tw.On,
+				Right:  tw.On,
+				Top:    tw.On,
+				Bottom: tw.On,
+			},
+			Symbols: tw.NewSymbols(tw.StyleLight),
+			Settings: tw.Settings{
+				Separators: tw.Separators{
+					BetweenColumns: tw.On,
+				},
+				Lines: tw.Lines{
+					ShowHeaderLine: tw.On,
+				},
+			},
+		})),
+	)
+
+	table.Header("Component", "Value")
+
+	// CPU information
+	table.Append([]string{"CPU Model", p.CPU.Model})
+	table.Append([]string{"CPU Cores", fmt.Sprintf("%d physical / %d logical", p.CPU.NumPhysical, p.CPU.NumCPU)})
+
+	// Memory information
+	memGB := float64(p.Memory.TotalBytes) / (1024 * 1024 * 1024)
+	table.Append([]string{"Memory", fmt.Sprintf("%.1f GB", memGB)})
+
+	// GPU information
+	if p.GPU.Available {
+		gpuInfo := string(p.GPU.Type)
+		if p.GPU.DeviceCount > 1 {
+			gpuInfo = fmt.Sprintf("%s (%d devices)", p.GPU.Type, p.GPU.DeviceCount)
+		}
+		table.Append([]string{"GPU", gpuInfo})
+
+		// Hardware acceleration capabilities
+		var caps []string
+		if p.GPU.HasVAAPI {
+			caps = append(caps, "VAAPI")
+		}
+		if p.GPU.HasOpenCL {
+			caps = append(caps, "OpenCL")
+		}
+		if p.GPU.HasVulkan {
+			caps = append(caps, "Vulkan")
+		}
+		if len(caps) > 0 {
+			table.Append([]string{"HW Capabilities", strings.Join(caps, ", ")})
+		}
+	} else {
+		table.Append([]string{"GPU", "None detected"})
+	}
+
+	// Recommended settings (if provided)
+	if settings != nil {
+		table.Append([]string{"Hash Workers", fmt.Sprintf("%d", settings.HashWorkers)})
+		table.Append([]string{"Transcode Workers", fmt.Sprintf("%d", settings.TranscodeWorkers)})
+		table.Append([]string{"HW Acceleration", settings.HardwareAccel})
+	}
+
+	table.Render()
 }

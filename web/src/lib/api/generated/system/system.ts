@@ -5,21 +5,27 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
   DataTag,
   DefinedInitialDataOptions,
   DefinedUseQueryResult,
+  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
   UndefinedInitialDataOptions,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from '@tanstack/react-query'
 
 import type {
+  InternalApiHandlersAdminStatusEvent,
   InternalApiHandlersErrorResponse,
+  InternalApiHandlersRestartRequest,
+  InternalApiHandlersRestartResponse,
   InternalApiHandlersSystemInfoResponse,
 } from '.././models'
 
@@ -27,6 +33,668 @@ import { customInstance } from '../../mutator/index'
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
 
+/**
+ * SSE stream of admin-relevant status updates (restart pending, etc.)
+ * @summary Stream admin status updates
+ */
+export type getApiAdminStatusStreamResponse200 = {
+  data: InternalApiHandlersAdminStatusEvent
+  status: 200
+}
+
+export type getApiAdminStatusStreamResponse401 = {
+  data: InternalApiHandlersErrorResponse
+  status: 401
+}
+
+export type getApiAdminStatusStreamResponse403 = {
+  data: InternalApiHandlersErrorResponse
+  status: 403
+}
+
+export type getApiAdminStatusStreamResponseSuccess = getApiAdminStatusStreamResponse200 & {
+  headers: Headers
+}
+export type getApiAdminStatusStreamResponseError = (
+  | getApiAdminStatusStreamResponse401
+  | getApiAdminStatusStreamResponse403
+) & {
+  headers: Headers
+}
+
+export type getApiAdminStatusStreamResponse =
+  | getApiAdminStatusStreamResponseSuccess
+  | getApiAdminStatusStreamResponseError
+
+export const getGetApiAdminStatusStreamUrl = () => {
+  return `/api/admin/status/stream`
+}
+
+export const getApiAdminStatusStream = async (
+  options?: RequestInit
+): Promise<getApiAdminStatusStreamResponse> => {
+  return customInstance<getApiAdminStatusStreamResponse>(getGetApiAdminStatusStreamUrl(), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiAdminStatusStreamQueryKey = () => {
+  return [`/api/admin/status/stream`] as const
+}
+
+export const getGetApiAdminStatusStreamQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiAdminStatusStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof getApiAdminStatusStream>>, TError, TData>
+  >
+  request?: SecondParameter<typeof customInstance>
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiAdminStatusStreamQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiAdminStatusStream>>> = ({
+    signal,
+  }) => getApiAdminStatusStream({ signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiAdminStatusStream>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiAdminStatusStreamQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiAdminStatusStream>>
+>
+export type GetApiAdminStatusStreamQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiAdminStatusStream<
+  TData = Awaited<ReturnType<typeof getApiAdminStatusStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAdminStatusStream>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminStatusStream>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminStatusStream>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminStatusStream<
+  TData = Awaited<ReturnType<typeof getApiAdminStatusStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAdminStatusStream>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminStatusStream>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminStatusStream>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminStatusStream<
+  TData = Awaited<ReturnType<typeof getApiAdminStatusStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAdminStatusStream>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Stream admin status updates
+ */
+
+export function useGetApiAdminStatusStream<
+  TData = Awaited<ReturnType<typeof getApiAdminStatusStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAdminStatusStream>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiAdminStatusStreamQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Returns the current restart status including pending settings
+ * @summary Get restart status
+ */
+export type getApiAdminSystemRestartResponse200 = {
+  data: InternalApiHandlersRestartResponse
+  status: 200
+}
+
+export type getApiAdminSystemRestartResponse401 = {
+  data: InternalApiHandlersErrorResponse
+  status: 401
+}
+
+export type getApiAdminSystemRestartResponseSuccess = getApiAdminSystemRestartResponse200 & {
+  headers: Headers
+}
+export type getApiAdminSystemRestartResponseError = getApiAdminSystemRestartResponse401 & {
+  headers: Headers
+}
+
+export type getApiAdminSystemRestartResponse =
+  | getApiAdminSystemRestartResponseSuccess
+  | getApiAdminSystemRestartResponseError
+
+export const getGetApiAdminSystemRestartUrl = () => {
+  return `/api/admin/system/restart`
+}
+
+export const getApiAdminSystemRestart = async (
+  options?: RequestInit
+): Promise<getApiAdminSystemRestartResponse> => {
+  return customInstance<getApiAdminSystemRestartResponse>(getGetApiAdminSystemRestartUrl(), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiAdminSystemRestartQueryKey = () => {
+  return [`/api/admin/system/restart`] as const
+}
+
+export const getGetApiAdminSystemRestartQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiAdminSystemRestart>>,
+  TError = InternalApiHandlersErrorResponse,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSystemRestart>>, TError, TData>
+  >
+  request?: SecondParameter<typeof customInstance>
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiAdminSystemRestartQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiAdminSystemRestart>>> = ({
+    signal,
+  }) => getApiAdminSystemRestart({ signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiAdminSystemRestart>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiAdminSystemRestartQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiAdminSystemRestart>>
+>
+export type GetApiAdminSystemRestartQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiAdminSystemRestart<
+  TData = Awaited<ReturnType<typeof getApiAdminSystemRestart>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSystemRestart>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminSystemRestart>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminSystemRestart>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminSystemRestart<
+  TData = Awaited<ReturnType<typeof getApiAdminSystemRestart>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSystemRestart>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminSystemRestart>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminSystemRestart>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminSystemRestart<
+  TData = Awaited<ReturnType<typeof getApiAdminSystemRestart>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSystemRestart>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get restart status
+ */
+
+export function useGetApiAdminSystemRestart<
+  TData = Awaited<ReturnType<typeof getApiAdminSystemRestart>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSystemRestart>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiAdminSystemRestartQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Requests the server to restart (admin only). The restart is graceful.
+ * @summary Request server restart
+ */
+export type postApiAdminSystemRestartResponse200 = {
+  data: InternalApiHandlersRestartResponse
+  status: 200
+}
+
+export type postApiAdminSystemRestartResponse401 = {
+  data: InternalApiHandlersErrorResponse
+  status: 401
+}
+
+export type postApiAdminSystemRestartResponse403 = {
+  data: InternalApiHandlersErrorResponse
+  status: 403
+}
+
+export type postApiAdminSystemRestartResponseSuccess = postApiAdminSystemRestartResponse200 & {
+  headers: Headers
+}
+export type postApiAdminSystemRestartResponseError = (
+  | postApiAdminSystemRestartResponse401
+  | postApiAdminSystemRestartResponse403
+) & {
+  headers: Headers
+}
+
+export type postApiAdminSystemRestartResponse =
+  | postApiAdminSystemRestartResponseSuccess
+  | postApiAdminSystemRestartResponseError
+
+export const getPostApiAdminSystemRestartUrl = () => {
+  return `/api/admin/system/restart`
+}
+
+export const postApiAdminSystemRestart = async (
+  internalApiHandlersRestartRequest: InternalApiHandlersRestartRequest,
+  options?: RequestInit
+): Promise<postApiAdminSystemRestartResponse> => {
+  return customInstance<postApiAdminSystemRestartResponse>(getPostApiAdminSystemRestartUrl(), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(internalApiHandlersRestartRequest),
+  })
+}
+
+export const getPostApiAdminSystemRestartMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiAdminSystemRestart>>,
+    TError,
+    { data: InternalApiHandlersRestartRequest },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiAdminSystemRestart>>,
+  TError,
+  { data: InternalApiHandlersRestartRequest },
+  TContext
+> => {
+  const mutationKey = ['postApiAdminSystemRestart']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiAdminSystemRestart>>,
+    { data: InternalApiHandlersRestartRequest }
+  > = (props) => {
+    const { data } = props ?? {}
+
+    return postApiAdminSystemRestart(data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiAdminSystemRestartMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiAdminSystemRestart>>
+>
+export type PostApiAdminSystemRestartMutationBody = InternalApiHandlersRestartRequest
+export type PostApiAdminSystemRestartMutationError = InternalApiHandlersErrorResponse
+
+/**
+ * @summary Request server restart
+ */
+export const usePostApiAdminSystemRestart = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiAdminSystemRestart>>,
+      TError,
+      { data: InternalApiHandlersRestartRequest },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiAdminSystemRestart>>,
+  TError,
+  { data: InternalApiHandlersRestartRequest },
+  TContext
+> => {
+  const mutationOptions = getPostApiAdminSystemRestartMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Cancels a pending server restart (admin only)
+ * @summary Cancel pending restart
+ */
+export type deleteApiAdminSystemRestartResponse200 = {
+  data: InternalApiHandlersRestartResponse
+  status: 200
+}
+
+export type deleteApiAdminSystemRestartResponse401 = {
+  data: InternalApiHandlersErrorResponse
+  status: 401
+}
+
+export type deleteApiAdminSystemRestartResponse403 = {
+  data: InternalApiHandlersErrorResponse
+  status: 403
+}
+
+export type deleteApiAdminSystemRestartResponse404 = {
+  data: InternalApiHandlersErrorResponse
+  status: 404
+}
+
+export type deleteApiAdminSystemRestartResponseSuccess = deleteApiAdminSystemRestartResponse200 & {
+  headers: Headers
+}
+export type deleteApiAdminSystemRestartResponseError = (
+  | deleteApiAdminSystemRestartResponse401
+  | deleteApiAdminSystemRestartResponse403
+  | deleteApiAdminSystemRestartResponse404
+) & {
+  headers: Headers
+}
+
+export type deleteApiAdminSystemRestartResponse =
+  | deleteApiAdminSystemRestartResponseSuccess
+  | deleteApiAdminSystemRestartResponseError
+
+export const getDeleteApiAdminSystemRestartUrl = () => {
+  return `/api/admin/system/restart`
+}
+
+export const deleteApiAdminSystemRestart = async (
+  options?: RequestInit
+): Promise<deleteApiAdminSystemRestartResponse> => {
+  return customInstance<deleteApiAdminSystemRestartResponse>(getDeleteApiAdminSystemRestartUrl(), {
+    ...options,
+    method: 'DELETE',
+  })
+}
+
+export const getDeleteApiAdminSystemRestartMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteApiAdminSystemRestart>>,
+    TError,
+    void,
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteApiAdminSystemRestart>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['deleteApiAdminSystemRestart']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteApiAdminSystemRestart>>,
+    void
+  > = () => {
+    return deleteApiAdminSystemRestart(requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type DeleteApiAdminSystemRestartMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteApiAdminSystemRestart>>
+>
+
+export type DeleteApiAdminSystemRestartMutationError = InternalApiHandlersErrorResponse
+
+/**
+ * @summary Cancel pending restart
+ */
+export const useDeleteApiAdminSystemRestart = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteApiAdminSystemRestart>>,
+      TError,
+      void,
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteApiAdminSystemRestart>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions = getDeleteApiAdminSystemRestartMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Triggers an immediate server restart (admin only). Use with caution.
+ * @summary Execute restart immediately
+ */
+export type postApiAdminSystemRestartNowResponse202 = {
+  data: InternalApiHandlersRestartResponse
+  status: 202
+}
+
+export type postApiAdminSystemRestartNowResponse401 = {
+  data: InternalApiHandlersErrorResponse
+  status: 401
+}
+
+export type postApiAdminSystemRestartNowResponse403 = {
+  data: InternalApiHandlersErrorResponse
+  status: 403
+}
+
+export type postApiAdminSystemRestartNowResponseSuccess =
+  postApiAdminSystemRestartNowResponse202 & {
+    headers: Headers
+  }
+export type postApiAdminSystemRestartNowResponseError = (
+  | postApiAdminSystemRestartNowResponse401
+  | postApiAdminSystemRestartNowResponse403
+) & {
+  headers: Headers
+}
+
+export type postApiAdminSystemRestartNowResponse =
+  | postApiAdminSystemRestartNowResponseSuccess
+  | postApiAdminSystemRestartNowResponseError
+
+export const getPostApiAdminSystemRestartNowUrl = () => {
+  return `/api/admin/system/restart/now`
+}
+
+export const postApiAdminSystemRestartNow = async (
+  options?: RequestInit
+): Promise<postApiAdminSystemRestartNowResponse> => {
+  return customInstance<postApiAdminSystemRestartNowResponse>(
+    getPostApiAdminSystemRestartNowUrl(),
+    {
+      ...options,
+      method: 'POST',
+    }
+  )
+}
+
+export const getPostApiAdminSystemRestartNowMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiAdminSystemRestartNow>>,
+    TError,
+    void,
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiAdminSystemRestartNow>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['postApiAdminSystemRestartNow']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiAdminSystemRestartNow>>,
+    void
+  > = () => {
+    return postApiAdminSystemRestartNow(requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiAdminSystemRestartNowMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiAdminSystemRestartNow>>
+>
+
+export type PostApiAdminSystemRestartNowMutationError = InternalApiHandlersErrorResponse
+
+/**
+ * @summary Execute restart immediately
+ */
+export const usePostApiAdminSystemRestartNow = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiAdminSystemRestartNow>>,
+      TError,
+      void,
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiAdminSystemRestartNow>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions = getPostApiAdminSystemRestartNowMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
 /**
  * Returns detected system hardware information
  * @summary Get system information

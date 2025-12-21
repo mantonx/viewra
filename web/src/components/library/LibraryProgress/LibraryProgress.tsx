@@ -2,7 +2,6 @@ import { Progress } from '@/components/ui'
 import { formatETA } from '@/lib/utils/format'
 import type { ScanProgressState } from '@/lib/hooks/useScanProgress'
 import type { EnrichmentProgressState } from '@/lib/hooks/useEnrichmentProgress'
-import { basename } from '@/lib/utils/path'
 
 export interface LibraryProgressProps {
   /** Current scan progress state */
@@ -53,18 +52,17 @@ const LibraryProgress = ({
   // Truncate text to max length with ellipsis
   const truncate = (text: string, maxLength: number): string => {
     if (text.length <= maxLength) return text
-    return text.slice(0, maxLength - 1) + '…'
+    return text.slice(0, maxLength - 1) + '...'
   }
 
   // Get current enrichment item display
   const getCurrentEnrichmentDisplay = (): string | null => {
     if (!isEnrichmentActive || !enrichmentProgress) return null
 
-    const currentItem = enrichmentProgress.currentItems?.[0]
+    const currentItem = enrichmentProgress.currentItem
     if (currentItem) {
-      const displayName =
-        currentItem.title || (currentItem.filePath ? basename(currentItem.filePath) : '')
-      const stageName = currentItem.stageDisplayName || currentItem.stage || 'Enriching'
+      const displayName = currentItem.title || ''
+      const stageName = currentItem.stage || 'Enriching'
 
       if (displayName) {
         return `${stageName}: ${truncate(displayName, 40)}`
@@ -115,7 +113,7 @@ const LibraryProgress = ({
             <span className="text-neutral-700 dark:text-neutral-300">{statusText}</span>
             <span className="text-neutral-600 dark:text-neutral-400">
               {!isDiscovering && `${Math.round(scanProgress)}%`}
-              {eta && ` • ETA ${eta}`}
+              {eta && ` - ETA ${eta}`}
             </span>
           </div>
           <Progress
@@ -146,7 +144,7 @@ const LibraryProgress = ({
               {enrichmentDisplay || 'Enriching...'}
             </span>
             <span className="text-neutral-600 dark:text-neutral-400">
-              {percent}%{remaining > 0 && ` • ${remaining.toLocaleString()} remaining`}
+              {percent}%{remaining > 0 && ` - ${remaining.toLocaleString()} remaining`}
             </span>
           </div>
           <Progress value={percent} size="sm" />
@@ -159,5 +157,4 @@ const LibraryProgress = ({
   return null
 }
 
-export type { LibraryProgressProps }
 export { LibraryProgress }

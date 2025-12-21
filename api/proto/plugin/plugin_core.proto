@@ -7,7 +7,7 @@ option go_package = "github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1";
 import "api/proto/plugin/common.proto";
 
 // PluginCore is the base interface all plugins must implement.
-// Provides lifecycle, health, and configuration.
+// Provides lifecycle, health, configuration, and HTTP routing.
 //
 // Plugin identity comes from plugin.yml manifest file.
 // The host reads the manifest before starting the plugin binary.
@@ -32,6 +32,18 @@ service PluginCore {
 
   // OnEvent delivers an event to the plugin.
   rpc OnEvent(Event) returns (EventResponse);
+
+  // GetRoutes returns HTTP routes this plugin provides.
+  // Called after Initialize to discover plugin endpoints.
+  rpc GetRoutes(Empty) returns (PluginRoutes);
+
+  // HandleHTTP handles a simple HTTP request/response.
+  // Used for non-streaming routes.
+  rpc HandleHTTP(PluginHTTPRequest) returns (PluginHTTPResponse);
+
+  // HandleHTTPStream handles streaming requests/responses.
+  // Used for large uploads/downloads or real-time data.
+  rpc HandleHTTPStream(stream PluginHTTPChunk) returns (stream PluginHTTPChunk);
 }
 
 // Empty is defined in common.proto
@@ -53,6 +65,14 @@ message InitRequest {
   // Broker ID for host data service (0 = not available)
   // Plugin can dial this ID to get a HostDataClient
   uint32 host_data_broker_id = 5;
+
+  // Broker ID for host LLM service (0 = not available)
+  // Plugin can dial this ID to get a HostLLMClient
+  uint32 host_llm_broker_id = 6;
+
+  // Broker ID for host embeddings service (0 = not available)
+  // Plugin can dial this ID to get a HostEmbeddingsClient
+  uint32 host_embeddings_broker_id = 7;
 }
 
 message InitResponse {
@@ -108,4 +128,119 @@ message Event {
 message EventResponse {
   bool handled = 1;
   string error = 2;
+}
+
+// ============================================================
+// HTTP Routing - Plugin-defined endpoints
+// ============================================================
+
+message PluginRoutes {
+  repeated PluginRoute routes = 1;
+}
+
+message PluginRoute {
+  // Path relative to plugin namespace, e.g., "/search" or "/items/:id"
+  // Supports :param syntax for path parameters
+  string path = 1;
+
+  // HTTP methods this route handles: GET, POST, PUT, DELETE, PATCH
+  repeated string methods = 2;
+
+  // If true, requires admin role (otherwise just authenticated)
+  bool admin_only = 3;
+
+  // Human-readable description for API docs
+  string description = 4;
+
+  // Well-known capability for stable URL aliasing
+  // e.g., "semantic_search" creates /api/search alias
+  string capability = 5;
+
+  // If true, use HandleHTTPStream instead of HandleHTTP
+  bool streaming = 6;
+
+  // Optional rate limiting for this route
+  PluginRateLimit rate_limit = 7;
+}
+
+message PluginRateLimit {
+  // Maximum requests per minute (0 = no limit)
+  int32 requests_per_minute = 1;
+
+  // If true, limit is per-user; otherwise global for this route
+  bool per_user = 2;
+}
+
+message PluginHTTPRequest {
+  // Request path (relative to plugin, e.g., "/search")
+  string path = 1;
+
+  // HTTP method: GET, POST, etc.
+  string method = 2;
+
+  // HTTP headers (lowercase keys)
+  map<string, string> headers = 3;
+
+  // Query string parameters
+  map<string, string> query = 4;
+
+  // Path parameters extracted from :param patterns
+  map<string, string> path_params = 5;
+
+  // Request body (for POST, PUT, PATCH)
+  bytes body = 6;
+
+  // Authenticated user ID (empty if not authenticated, but all plugin routes require auth)
+  string user_id = 7;
+
+  // Whether the user has admin role
+  bool is_admin = 8;
+}
+
+message PluginHTTPResponse {
+  // HTTP status code
+  int32 status_code = 1;
+
+  // Response headers
+  map<string, string> headers = 2;
+
+  // Response body
+  bytes body = 3;
+
+  // Content-Type header (convenience, also in headers)
+  string content_type = 4;
+}
+
+message PluginHTTPChunk {
+  // Chunk type for streaming protocol
+  enum Type {
+    // Client -> Plugin: First chunk with request metadata
+    REQUEST_START = 0;
+    // Client -> Plugin: Request body chunk
+    REQUEST_BODY = 1;
+    // Client -> Plugin: End of request body
+    REQUEST_END = 2;
+    // Plugin -> Client: Response headers and status
+    RESPONSE_START = 3;
+    // Plugin -> Client: Response body chunk
+    RESPONSE_BODY = 4;
+    // Plugin -> Client: End of response
+    RESPONSE_END = 5;
+  }
+
+  Type type = 1;
+
+  // Body data (for REQUEST_BODY and RESPONSE_BODY)
+  bytes data = 2;
+
+  // Full request (for REQUEST_START only)
+  PluginHTTPRequest request = 3;
+
+  // Response metadata (for RESPONSE_START only)
+  int32 status_code = 4;
+  map<string, string> headers = 5;
+  string content_type = 6;
+
+  // Error message if streaming fails mid-way
+  string error = 7;
 }

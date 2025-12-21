@@ -1,0 +1,412 @@
+package internal
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+)
+
+// MoodTagService generates mood/vibe tags for media using LLM.
+type MoodTagService struct {
+	llmClient  pluginv1.HostLLMClient
+	dataClient pluginv1.HostDataClient
+	provider   string
+	model      string
+	logger     *slog.Logger
+
+	// Generation state
+	mu           sync.RWMutex
+	isGenerating bool
+	cancelFunc   context.CancelFunc
+	progress     MoodTagProgress
+}
+
+// MoodTagProgress tracks mood tag generation progress.
+type MoodTagProgress struct {
+	EntityType  EntityType `json:"entity_type"`
+	Total       int64      `json:"total"`
+	Processed   int64      `json:"processed"`
+	Failed      int64      `json:"failed"`
+	LastError   string     `json:"last_error,omitempty"`
+	StartedAt   int64      `json:"started_at"`
+	LastUpdated int64      `json:"last_updated"`
+}
+
+// MoodTags represents generated mood tags for a media item.
+type MoodTags struct {
+	EntityType  EntityType `json:"entity_type"`
+	EntityID    int64      `json:"entity_id"`
+	Tags        []string   `json:"tags"`
+	GeneratedAt time.Time  `json:"generated_at"`
+}
+
+// NewMoodTagService creates a new mood tag service.
+func NewMoodTagService(
+	llmClient pluginv1.HostLLMClient,
+	dataClient pluginv1.HostDataClient,
+	provider, model string,
+	logger *slog.Logger,
+) *MoodTagService {
+	return &MoodTagService{
+		llmClient:  llmClient,
+		dataClient: dataClient,
+		provider:   provider,
+		model:      model,
+		logger:     logger,
+	}
+}
+
+// GenerateForMedia generates mood tags for a single media item.
+func (s *MoodTagService) GenerateForMedia(
+	ctx context.Context,
+	details *pluginv1.MediaDetails,
+) ([]string, error) {
+	if s.llmClient == nil {
+		return nil, fmt.Errorf("LLM client not available")
+	}
+
+	prompt := s.buildPrompt(details)
+	if prompt == "" {
+		return nil, fmt.Errorf("insufficient metadata for mood tag generation")
+	}
+
+	resp, err := s.llmClient.Chat(ctx, &pluginv1.ChatRequest{
+		Messages: []*pluginv1.ChatMessage{
+			{
+				Role:    "system",
+				Content: moodTagSystemPrompt,
+			},
+			{
+				Role:    "user",
+				Content: prompt,
+			},
+		},
+		Provider:    s.provider,
+		Model:       s.model,
+		Temperature: 0.3, // Low temperature for consistent results
+		MaxTokens:   100, // Tags should be short
+	})
+	if err != nil {
+		return nil, fmt.Errorf("chat completion: %w", err)
+	}
+
+	tags := s.parseTags(resp.Content)
+	if len(tags) == 0 {
+		return nil, fmt.Errorf("no tags parsed from response: %s", resp.Content)
+	}
+
+	s.logger.Debug("generated mood tags",
+		"entity_type", details.MediaType,
+		"entity_id", details.Id,
+		"tags", tags,
+	)
+
+	return tags, nil
+}
+
+// GenerateForLibrary generates mood tags for all media in a library.
+func (s *MoodTagService) GenerateForLibrary(
+	ctx context.Context,
+	libraryID int64,
+	callback func(entityType EntityType, entityID int64, tags []string) error,
+) error {
+	s.mu.Lock()
+	if s.isGenerating {
+		s.mu.Unlock()
+		return fmt.Errorf("mood tag generation already in progress")
+	}
+	s.isGenerating = true
+	ctx, s.cancelFunc = context.WithCancel(ctx)
+	s.mu.Unlock()
+
+	defer func() {
+		s.mu.Lock()
+		s.isGenerating = false
+		s.cancelFunc = nil
+		s.mu.Unlock()
+	}()
+
+	s.logger.Info("starting mood tag generation", "library_id", libraryID)
+
+	// List media with pagination
+	var processed, failed int64
+	offset := int32(0)
+	limit := int32(100)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		resp, err := s.dataClient.ListMediaByLibrary(ctx, &pluginv1.ListMediaRequest{
+			LibraryId: libraryID,
+			Limit:     limit,
+			Offset:    offset,
+		})
+		if err != nil {
+			return fmt.Errorf("list media: %w", err)
+		}
+
+		total := int64(resp.Total)
+		s.updateProgress(EntityType(resp.Items[0].MediaType), total, processed, failed, "")
+
+		for _, media := range resp.Items {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+
+			tags, err := s.GenerateForMedia(ctx, media)
+			if err != nil {
+				s.logger.Warn("failed to generate mood tags",
+					"entity_id", media.Id,
+					"error", err,
+				)
+				atomic.AddInt64(&failed, 1)
+				s.updateProgress(EntityType(media.MediaType), total, processed, failed, err.Error())
+				continue
+			}
+
+			if callback != nil {
+				if err := callback(EntityType(media.MediaType), media.Id, tags); err != nil {
+					s.logger.Warn("callback failed",
+						"entity_id", media.Id,
+						"error", err,
+					)
+				}
+			}
+
+			atomic.AddInt64(&processed, 1)
+			if processed%10 == 0 {
+				s.updateProgress(EntityType(media.MediaType), total, processed, failed, "")
+			}
+		}
+
+		if !resp.HasMore {
+			break
+		}
+		offset += limit
+	}
+
+	s.logger.Info("mood tag generation complete",
+		"processed", processed,
+		"failed", failed,
+	)
+
+	return nil
+}
+
+// Cancel cancels any running mood tag generation.
+func (s *MoodTagService) Cancel() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cancelFunc != nil {
+		s.cancelFunc()
+	}
+}
+
+// IsGenerating returns whether mood tag generation is in progress.
+func (s *MoodTagService) IsGenerating() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.isGenerating
+}
+
+// GetProgress returns the current generation progress.
+func (s *MoodTagService) GetProgress() *MoodTagProgress {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.isGenerating {
+		return nil
+	}
+	progress := s.progress
+	return &progress
+}
+
+func (s *MoodTagService) updateProgress(
+	entityType EntityType,
+	total, processed, failed int64,
+	lastError string,
+) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now().Unix()
+	if s.progress.StartedAt == 0 {
+		s.progress.StartedAt = now
+	}
+	s.progress = MoodTagProgress{
+		EntityType:  entityType,
+		Total:       total,
+		Processed:   processed,
+		Failed:      failed,
+		LastError:   lastError,
+		StartedAt:   s.progress.StartedAt,
+		LastUpdated: now,
+	}
+}
+
+// buildPrompt creates the LLM prompt for mood tag generation.
+func (s *MoodTagService) buildPrompt(details *pluginv1.MediaDetails) string {
+	if details == nil {
+		return ""
+	}
+
+	var b strings.Builder
+
+	switch details.MediaType {
+	case "movie":
+		b.WriteString(fmt.Sprintf("Movie: %s", details.Title))
+		if details.Year > 0 {
+			b.WriteString(fmt.Sprintf(" (%d)", details.Year))
+		}
+		b.WriteString("\n")
+		if len(details.Genres) > 0 {
+			b.WriteString(fmt.Sprintf("Genres: %s\n", strings.Join(details.Genres, ", ")))
+		}
+		if details.Plot != "" {
+			b.WriteString(fmt.Sprintf("Plot: %s\n", details.Plot))
+		}
+
+	case "tv_show":
+		b.WriteString(fmt.Sprintf("TV Show: %s", details.Title))
+		if details.Year > 0 {
+			b.WriteString(fmt.Sprintf(" (%d)", details.Year))
+		}
+		b.WriteString("\n")
+		if len(details.Genres) > 0 {
+			b.WriteString(fmt.Sprintf("Genres: %s\n", strings.Join(details.Genres, ", ")))
+		}
+		if details.Plot != "" {
+			b.WriteString(fmt.Sprintf("Plot: %s\n", details.Plot))
+		}
+
+	case "tv_episode":
+		if details.ShowTitle != "" {
+			b.WriteString(fmt.Sprintf("TV Episode from: %s\n", details.ShowTitle))
+		}
+		b.WriteString(fmt.Sprintf("Episode: S%02dE%02d - %s\n",
+			details.SeasonNumber, details.EpisodeNumber, details.Title))
+		if details.Plot != "" {
+			b.WriteString(fmt.Sprintf("Plot: %s\n", details.Plot))
+		}
+
+	case "music_album":
+		b.WriteString(fmt.Sprintf("Album: %s", details.Title))
+		if details.ArtistName != "" {
+			b.WriteString(fmt.Sprintf(" by %s", details.ArtistName))
+		}
+		if details.Year > 0 {
+			b.WriteString(fmt.Sprintf(" (%d)", details.Year))
+		}
+		b.WriteString("\n")
+		if len(details.Genres) > 0 {
+			b.WriteString(fmt.Sprintf("Genres: %s\n", strings.Join(details.Genres, ", ")))
+		}
+
+	default:
+		// For other types, use a generic format
+		b.WriteString(fmt.Sprintf("Title: %s\n", details.Title))
+		if len(details.Genres) > 0 {
+			b.WriteString(fmt.Sprintf("Genres: %s\n", strings.Join(details.Genres, ", ")))
+		}
+		if details.Plot != "" {
+			b.WriteString(fmt.Sprintf("Description: %s\n", details.Plot))
+		}
+	}
+
+	return b.String()
+}
+
+// parseTags extracts mood tags from LLM response.
+// Handles both JSON array format and comma-separated format.
+func (s *MoodTagService) parseTags(response string) []string {
+	response = strings.TrimSpace(response)
+
+	// Try JSON array first
+	var tags []string
+	if err := json.Unmarshal([]byte(response), &tags); err == nil {
+		return s.normalizeTags(tags)
+	}
+
+	// Try comma-separated format
+	// Remove common prefixes like "Tags:" or "Mood tags:"
+	response = strings.TrimPrefix(response, "Tags:")
+	response = strings.TrimPrefix(response, "Mood tags:")
+	response = strings.TrimPrefix(response, "Mood:")
+	response = strings.TrimSpace(response)
+
+	// Split by comma or newline
+	var parts []string
+	if strings.Contains(response, ",") {
+		parts = strings.Split(response, ",")
+	} else {
+		parts = strings.Split(response, "\n")
+	}
+
+	for _, part := range parts {
+		tag := strings.TrimSpace(part)
+		// Remove bullet points, numbers, etc.
+		tag = strings.TrimLeft(tag, "•-*0123456789. ")
+		if tag != "" {
+			tags = append(tags, tag)
+		}
+	}
+
+	return s.normalizeTags(tags)
+}
+
+// normalizeTags cleans and limits tags.
+func (s *MoodTagService) normalizeTags(tags []string) []string {
+	seen := make(map[string]bool)
+	result := make([]string, 0, 5)
+
+	for _, tag := range tags {
+		// Lowercase and trim
+		tag = strings.ToLower(strings.TrimSpace(tag))
+
+		// Skip empty or very long tags
+		if tag == "" || len(tag) > 30 {
+			continue
+		}
+
+		// Skip duplicates
+		if seen[tag] {
+			continue
+		}
+		seen[tag] = true
+
+		result = append(result, tag)
+
+		// Limit to 5 tags
+		if len(result) >= 5 {
+			break
+		}
+	}
+
+	return result
+}
+
+// moodTagSystemPrompt is the system prompt for mood tag generation.
+//
+//nolint:lll // Long prompt string is acceptable for LLM system prompts.
+const moodTagSystemPrompt = `You are a media mood analyzer. ` +
+	`Given information about a movie, TV show, or album, ` +
+	`generate 3-5 mood/vibe tags that describe its emotional tone and atmosphere.
+
+Focus on:
+- Emotional tone: uplifting, dark, tense, relaxing, heartwarming, melancholic, hopeful, intense
+- Energy level: slow-paced, fast-paced, calm, meditative, energetic, thrilling
+- Themes: thought-provoking, escapist, nostalgic, inspiring, suspenseful, romantic, comedic
+
+Respond with ONLY a JSON array of lowercase tags, no explanations.
+Example: ["dark", "tense", "thought-provoking", "slow-paced", "atmospheric"]`

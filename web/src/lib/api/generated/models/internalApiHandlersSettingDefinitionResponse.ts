@@ -21,6 +21,8 @@ export interface InternalApiHandlersSettingDefinitionResponse {
   /** True for display-only values */
   readOnly?: boolean
   restartable?: boolean
+  /** True if value is encrypted (API keys) */
+  sensitive?: boolean
   type?: string
   validation?: InternalApiHandlersSettingValidationResponse
 }

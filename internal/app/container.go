@@ -3,12 +3,14 @@ package app
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"os"
 
 	"github.com/mantonx/viewra/internal/api"
 	appconfig "github.com/mantonx/viewra/internal/app/config"
 	apphandlers "github.com/mantonx/viewra/internal/app/handlers"
+	"github.com/mantonx/viewra/internal/app/lifecycle"
 	"github.com/mantonx/viewra/internal/app/repositories"
 	"github.com/mantonx/viewra/internal/app/services"
 	"github.com/mantonx/viewra/internal/app/usecases"
@@ -32,6 +34,9 @@ type Container struct {
 
 	// Use cases (exposed for startup tasks)
 	UseCases *usecases.UseCases
+
+	// Lifecycle manager for server restart
+	LifecycleMgr *lifecycle.Manager
 }
 
 // NewContainer creates and wires up all application dependencies
@@ -64,6 +69,9 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 		registerTasks(taskScheduler, cfg, cases, svcs, repos, logger)
 	}
 
+	// Create lifecycle manager for server restart coordination
+	lifecycleMgr := lifecycle.NewManager(logger, svcs.EventBus)
+
 	// Seed dev user in development mode (before handlers so auth works immediately)
 	seedDevUser(context.Background(), cfg, repos, svcs, logger)
 
@@ -83,6 +91,7 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 		TranscodeOutputDir: cfg.Media.TranscodeOutputDir,
 		Repos:              repos,
 		Config:             cfg,
+		LifecycleMgr:       lifecycleMgr,
 	}
 	handlers := apphandlers.BuildHandlers(infra, svcs, cases, logger)
 
@@ -115,6 +124,7 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 		TranscodeQueue: svcs.TranscodeQueue,
 		Services:       svcs,
 		UseCases:       cases,
+		LifecycleMgr:   lifecycleMgr,
 	}
 }
 
@@ -475,16 +485,15 @@ func loadExternalPlugins(ctx context.Context, svcs *services.Services, repos *re
 		}
 
 		// Register with the unified registry
-		if err := registry.RegisterExternal(enricher, instance.Manifest.Name, instance.Manifest.Version); err != nil {
+		if err := registry.RegisterExternal(enricher, instance.Manifest.Name, instance.Manifest.Version, instance.BuildTime); err != nil {
 			logger.Warn("Failed to register plugin in registry",
 				"plugin", instance.ID,
 				"error", err)
 		}
 	}
 
-	// Print enricher summary table
+	// Print plugin summary table
 	if registry.Count() > 0 {
-		logger.Info("Enrichers loaded", "count", registry.Count())
-		registry.PrintTable(os.Stderr)
+		registry.PrintTable(os.Stderr, fmt.Sprintf("Plugins (%d loaded)", registry.Count()))
 	}
 }

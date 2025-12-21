@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"os"
 
 	appconfig "github.com/mantonx/viewra/internal/app/config"
 	"github.com/mantonx/viewra/internal/application/library"
@@ -21,20 +22,9 @@ func RunPreContainerTasks(ctx context.Context, db *sql.DB, cfg *appconfig.Config
 		logger.Warn("Failed to profile system, using conservative defaults", "error", err)
 	} else {
 		settings := profile.Calculate()
-		logger.Info("System profile detected",
-			"cpu_cores", profile.CPU.NumPhysical,
-			"cpu_threads", profile.CPU.NumCPU,
-			"cpu_model", profile.CPU.Model,
-			"memory_gb", float64(profile.Memory.TotalBytes)/(1024*1024*1024),
-			"gpu_type", profile.GPU.Type,
-			"gpu_available", profile.GPU.Available,
-			"gpu_count", profile.GPU.DeviceCount,
-			"has_vaapi", profile.GPU.HasVAAPI,
-			"has_opencl", profile.GPU.HasOpenCL,
-			"has_vulkan", profile.GPU.HasVulkan,
-			"hash_workers", settings.HashWorkers,
-			"transcode_workers", settings.TranscodeWorkers,
-			"transcode_hwaccel", settings.HardwareAccel)
+
+		// Log system profile as a formatted table
+		profile.PrintTable(os.Stderr, "System Profile", &settings)
 
 		// Store profile in config for use throughout application
 		cfg.SystemProfile = profile

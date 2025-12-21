@@ -194,6 +194,23 @@ FROM tv_episodes e
 JOIN media med ON e.media_id = med.id
 WHERE e.media_id = ?;
 
+-- name: GetEpisodeWithShowTitle :one
+-- Returns episode details with the parent show's title for AI indexing
+SELECT
+    e.media_id,
+    med.library_id,
+    med.title,
+    e.season_number,
+    e.episode_number,
+    e.episode_title,
+    e.plot,
+    s.title as show_title,
+    s.genre as show_genre
+FROM tv_episodes e
+JOIN media med ON e.media_id = med.id
+JOIN tv_shows s ON e.show_id = s.id
+WHERE e.media_id = ?;
+
 -- name: ListTVEpisodesByLibrary :many
 SELECT
     e.*,

@@ -1,0 +1,56 @@
+# AI Search Plugin Configuration
+# Copy this file to your ViewRA config directory and customize as needed
+
+# Embedding configuration
+embedding:
+  # Provider to use for embeddings: ollama, openai
+  provider: ollama
+  
+  # Model to use for embeddings
+  # Ollama: nomic-embed-text, bge-base-en-v1.5
+  # OpenAI: text-embedding-3-small, text-embedding-3-large
+  model: nomic-embed-text
+  
+  # Target dimension for embeddings (will normalize if model produces different)
+  target_dimensions: 768
+
+# Indexing configuration
+indexing:
+  # Batch size for bulk indexing operations
+  batch_size: 50
+  
+  # Enable automatic indexing in enrichment pipeline
+  # When false, indexing only happens manually or via scheduled task
+  auto_index: true
+  
+  # Enrichment stage position (99 = runs last)
+  stage_position: 99
+
+# Search configuration
+search:
+  # Default number of results to return
+  default_limit: 20
+  
+  # Maximum results allowed
+  max_limit: 100
+  
+  # Minimum similarity score (0.0 - 1.0) for results
+  min_similarity: 0.3
+
+# Mood tag generation configuration
+# Generates mood/vibe tags (e.g., "uplifting", "dark", "tense") for media
+# to enhance semantic search with emotional tone matching
+mood_tags:
+  # Enable mood tag generation
+  # When enabled, you can trigger generation via POST /mood-tags/generate
+  enabled: false
+  
+  # LLM provider for chat completions (mood tag generation uses chat, not embeddings)
+  # Options: ollama, openai, anthropic, openrouter
+  provider: ollama
+  
+  # LLM model for mood tag generation
+  # Ollama: llama3.1:8b, mistral:7b, phi3:medium
+  # OpenAI: gpt-4o-mini, gpt-4o
+  # Anthropic: claude-3-haiku, claude-3-sonnet
+  model: llama3.1:8b

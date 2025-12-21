@@ -102,7 +102,15 @@ const (
 	EventUserLogout = domainevents.EventUserLogout
 
 	// System events
-	EventSystemLowDiskSpace = domainevents.EventSystemLowDiskSpace
+	EventSystemLowDiskSpace     = domainevents.EventSystemLowDiskSpace
+	EventSystemRestartRequested = domainevents.EventSystemRestartRequested
+	EventSystemRestartScheduled = domainevents.EventSystemRestartScheduled
+	EventSystemRestartCancelled = domainevents.EventSystemRestartCancelled
+	EventSystemShuttingDown     = domainevents.EventSystemShuttingDown
+
+	// Settings events
+	EventSettingsChanged        = domainevents.EventSettingsChanged
+	EventSettingsPendingRestart = domainevents.EventSettingsPendingRestart
 
 	// Log events
 	EventLog = domainevents.EventLog

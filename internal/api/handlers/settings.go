@@ -539,6 +539,7 @@ type SettingDefinitionResponse struct {
 	Validation  *SettingValidationResponse `json:"validation,omitempty"`
 	AdminOnly   bool                       `json:"adminOnly"`
 	Restartable bool                       `json:"restartable"`
+	Sensitive   bool                       `json:"sensitive"`        // True if value is encrypted (API keys)
 	EnvVar      string                     `json:"envVar,omitempty"` // Associated env var name
 	ReadOnly    bool                       `json:"readOnly"`         // True for display-only values
 }
@@ -599,21 +600,21 @@ type CPUInfoResponse struct {
 
 // MemoryInfoResponse represents memory information.
 type MemoryInfoResponse struct {
-	TotalBytes     uint64  `json:"totalBytes"`
-	TotalFormatted string  `json:"totalFormatted"`
-	AvailableBytes uint64  `json:"availableBytes,omitempty"`
+	TotalBytes     uint64 `json:"totalBytes"`
+	TotalFormatted string `json:"totalFormatted"`
+	AvailableBytes uint64 `json:"availableBytes,omitempty"`
 }
 
 // GPUInfoResponse represents GPU information.
 type GPUInfoResponse struct {
-	Available      bool     `json:"available"`
-	Type           string   `json:"type"`
-	DeviceCount    int      `json:"deviceCount"`
-	DeviceNames    []string `json:"deviceNames"`
-	HWAccelType    string   `json:"hwAccelType"`
-	HasVAAPI       bool     `json:"hasVaapi"`
-	HasOpenCL      bool     `json:"hasOpenCL"`
-	HasVulkan      bool     `json:"hasVulkan"`
+	Available   bool     `json:"available"`
+	Type        string   `json:"type"`
+	DeviceCount int      `json:"deviceCount"`
+	DeviceNames []string `json:"deviceNames"`
+	HWAccelType string   `json:"hwAccelType"`
+	HasVAAPI    bool     `json:"hasVaapi"`
+	HasOpenCL   bool     `json:"hasOpenCL"`
+	HasVulkan   bool     `json:"hasVulkan"`
 }
 
 // StorageInfoResponse represents storage information.
@@ -635,6 +636,7 @@ func definitionToResponse(d settingsDomain.Definition) SettingDefinitionResponse
 		Default:     d.Default,
 		AdminOnly:   d.AdminOnly,
 		Restartable: d.Restartable,
+		Sensitive:   d.Sensitive,
 		EnvVar:      d.EnvVar,
 		ReadOnly:    d.ReadOnly,
 	}

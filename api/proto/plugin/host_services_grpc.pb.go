@@ -20,10 +20,15 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	HostData_GetMedia_FullMethodName             = "/viewra.plugin.v1.HostData/GetMedia"
+	HostData_GetMediaDetails_FullMethodName      = "/viewra.plugin.v1.HostData/GetMediaDetails"
 	HostData_GetMediaByExternalId_FullMethodName = "/viewra.plugin.v1.HostData/GetMediaByExternalId"
 	HostData_SearchMedia_FullMethodName          = "/viewra.plugin.v1.HostData/SearchMedia"
+	HostData_ListMediaByLibrary_FullMethodName   = "/viewra.plugin.v1.HostData/ListMediaByLibrary"
 	HostData_GetLibrary_FullMethodName           = "/viewra.plugin.v1.HostData/GetLibrary"
 	HostData_GetFilePath_FullMethodName          = "/viewra.plugin.v1.HostData/GetFilePath"
+	HostData_GetMoodTags_FullMethodName          = "/viewra.plugin.v1.HostData/GetMoodTags"
+	HostData_SetMoodTags_FullMethodName          = "/viewra.plugin.v1.HostData/SetMoodTags"
+	HostData_DeleteMoodTags_FullMethodName       = "/viewra.plugin.v1.HostData/DeleteMoodTags"
 )
 
 // HostDataClient is the client API for HostData service.
@@ -35,14 +40,25 @@ const (
 type HostDataClient interface {
 	// GetMedia retrieves a single media item by ID.
 	GetMedia(ctx context.Context, in *MediaQuery, opts ...grpc.CallOption) (*Media, error)
+	// GetMediaDetails retrieves full metadata for a media item.
+	// Includes plot, cast, genres, mood tags, etc. for AI indexing.
+	GetMediaDetails(ctx context.Context, in *MediaQuery, opts ...grpc.CallOption) (*MediaDetails, error)
 	// GetMediaByExternalId looks up media by external ID (e.g., IMDB, TMDB).
 	GetMediaByExternalId(ctx context.Context, in *ExternalIdQuery, opts ...grpc.CallOption) (*Media, error)
 	// SearchMedia searches for media by title/year.
 	SearchMedia(ctx context.Context, in *SearchQuery, opts ...grpc.CallOption) (*MediaList, error)
+	// ListMediaByLibrary lists all media in a library with pagination.
+	ListMediaByLibrary(ctx context.Context, in *ListMediaRequest, opts ...grpc.CallOption) (*MediaDetailsList, error)
 	// GetLibrary retrieves library information.
 	GetLibrary(ctx context.Context, in *LibraryId, opts ...grpc.CallOption) (*Library, error)
 	// GetFilePath returns the full file path for a media item.
 	GetFilePath(ctx context.Context, in *MediaId, opts ...grpc.CallOption) (*FilePath, error)
+	// GetMoodTags retrieves mood tags for a media item.
+	GetMoodTags(ctx context.Context, in *MediaQuery, opts ...grpc.CallOption) (*MoodTagList, error)
+	// SetMoodTags stores mood tags for a media item (replaces existing).
+	SetMoodTags(ctx context.Context, in *SetMoodTagsRequest, opts ...grpc.CallOption) (*Empty, error)
+	// DeleteMoodTags removes all mood tags for a media item.
+	DeleteMoodTags(ctx context.Context, in *MediaQuery, opts ...grpc.CallOption) (*Empty, error)
 }
 
 type hostDataClient struct {
@@ -57,6 +73,16 @@ func (c *hostDataClient) GetMedia(ctx context.Context, in *MediaQuery, opts ...g
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Media)
 	err := c.cc.Invoke(ctx, HostData_GetMedia_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostDataClient) GetMediaDetails(ctx context.Context, in *MediaQuery, opts ...grpc.CallOption) (*MediaDetails, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MediaDetails)
+	err := c.cc.Invoke(ctx, HostData_GetMediaDetails_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -83,6 +109,16 @@ func (c *hostDataClient) SearchMedia(ctx context.Context, in *SearchQuery, opts 
 	return out, nil
 }
 
+func (c *hostDataClient) ListMediaByLibrary(ctx context.Context, in *ListMediaRequest, opts ...grpc.CallOption) (*MediaDetailsList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MediaDetailsList)
+	err := c.cc.Invoke(ctx, HostData_ListMediaByLibrary_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *hostDataClient) GetLibrary(ctx context.Context, in *LibraryId, opts ...grpc.CallOption) (*Library, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Library)
@@ -103,6 +139,36 @@ func (c *hostDataClient) GetFilePath(ctx context.Context, in *MediaId, opts ...g
 	return out, nil
 }
 
+func (c *hostDataClient) GetMoodTags(ctx context.Context, in *MediaQuery, opts ...grpc.CallOption) (*MoodTagList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MoodTagList)
+	err := c.cc.Invoke(ctx, HostData_GetMoodTags_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostDataClient) SetMoodTags(ctx context.Context, in *SetMoodTagsRequest, opts ...grpc.CallOption) (*Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, HostData_SetMoodTags_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostDataClient) DeleteMoodTags(ctx context.Context, in *MediaQuery, opts ...grpc.CallOption) (*Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, HostData_DeleteMoodTags_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HostDataServer is the server API for HostData service.
 // All implementations must embed UnimplementedHostDataServer
 // for forward compatibility.
@@ -112,14 +178,25 @@ func (c *hostDataClient) GetFilePath(ctx context.Context, in *MediaId, opts ...g
 type HostDataServer interface {
 	// GetMedia retrieves a single media item by ID.
 	GetMedia(context.Context, *MediaQuery) (*Media, error)
+	// GetMediaDetails retrieves full metadata for a media item.
+	// Includes plot, cast, genres, mood tags, etc. for AI indexing.
+	GetMediaDetails(context.Context, *MediaQuery) (*MediaDetails, error)
 	// GetMediaByExternalId looks up media by external ID (e.g., IMDB, TMDB).
 	GetMediaByExternalId(context.Context, *ExternalIdQuery) (*Media, error)
 	// SearchMedia searches for media by title/year.
 	SearchMedia(context.Context, *SearchQuery) (*MediaList, error)
+	// ListMediaByLibrary lists all media in a library with pagination.
+	ListMediaByLibrary(context.Context, *ListMediaRequest) (*MediaDetailsList, error)
 	// GetLibrary retrieves library information.
 	GetLibrary(context.Context, *LibraryId) (*Library, error)
 	// GetFilePath returns the full file path for a media item.
 	GetFilePath(context.Context, *MediaId) (*FilePath, error)
+	// GetMoodTags retrieves mood tags for a media item.
+	GetMoodTags(context.Context, *MediaQuery) (*MoodTagList, error)
+	// SetMoodTags stores mood tags for a media item (replaces existing).
+	SetMoodTags(context.Context, *SetMoodTagsRequest) (*Empty, error)
+	// DeleteMoodTags removes all mood tags for a media item.
+	DeleteMoodTags(context.Context, *MediaQuery) (*Empty, error)
 	mustEmbedUnimplementedHostDataServer()
 }
 
@@ -133,17 +210,32 @@ type UnimplementedHostDataServer struct{}
 func (UnimplementedHostDataServer) GetMedia(context.Context, *MediaQuery) (*Media, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetMedia not implemented")
 }
+func (UnimplementedHostDataServer) GetMediaDetails(context.Context, *MediaQuery) (*MediaDetails, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMediaDetails not implemented")
+}
 func (UnimplementedHostDataServer) GetMediaByExternalId(context.Context, *ExternalIdQuery) (*Media, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetMediaByExternalId not implemented")
 }
 func (UnimplementedHostDataServer) SearchMedia(context.Context, *SearchQuery) (*MediaList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SearchMedia not implemented")
 }
+func (UnimplementedHostDataServer) ListMediaByLibrary(context.Context, *ListMediaRequest) (*MediaDetailsList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListMediaByLibrary not implemented")
+}
 func (UnimplementedHostDataServer) GetLibrary(context.Context, *LibraryId) (*Library, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLibrary not implemented")
 }
 func (UnimplementedHostDataServer) GetFilePath(context.Context, *MediaId) (*FilePath, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetFilePath not implemented")
+}
+func (UnimplementedHostDataServer) GetMoodTags(context.Context, *MediaQuery) (*MoodTagList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMoodTags not implemented")
+}
+func (UnimplementedHostDataServer) SetMoodTags(context.Context, *SetMoodTagsRequest) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetMoodTags not implemented")
+}
+func (UnimplementedHostDataServer) DeleteMoodTags(context.Context, *MediaQuery) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteMoodTags not implemented")
 }
 func (UnimplementedHostDataServer) mustEmbedUnimplementedHostDataServer() {}
 func (UnimplementedHostDataServer) testEmbeddedByValue()                  {}
@@ -184,6 +276,24 @@ func _HostData_GetMedia_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HostData_GetMediaDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MediaQuery)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostDataServer).GetMediaDetails(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostData_GetMediaDetails_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostDataServer).GetMediaDetails(ctx, req.(*MediaQuery))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _HostData_GetMediaByExternalId_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ExternalIdQuery)
 	if err := dec(in); err != nil {
@@ -216,6 +326,24 @@ func _HostData_SearchMedia_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(HostDataServer).SearchMedia(ctx, req.(*SearchQuery))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostData_ListMediaByLibrary_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMediaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostDataServer).ListMediaByLibrary(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostData_ListMediaByLibrary_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostDataServer).ListMediaByLibrary(ctx, req.(*ListMediaRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -256,6 +384,60 @@ func _HostData_GetFilePath_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HostData_GetMoodTags_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MediaQuery)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostDataServer).GetMoodTags(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostData_GetMoodTags_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostDataServer).GetMoodTags(ctx, req.(*MediaQuery))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostData_SetMoodTags_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetMoodTagsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostDataServer).SetMoodTags(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostData_SetMoodTags_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostDataServer).SetMoodTags(ctx, req.(*SetMoodTagsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostData_DeleteMoodTags_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MediaQuery)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostDataServer).DeleteMoodTags(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostData_DeleteMoodTags_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostDataServer).DeleteMoodTags(ctx, req.(*MediaQuery))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // HostData_ServiceDesc is the grpc.ServiceDesc for HostData service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -268,6 +450,10 @@ var HostData_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _HostData_GetMedia_Handler,
 		},
 		{
+			MethodName: "GetMediaDetails",
+			Handler:    _HostData_GetMediaDetails_Handler,
+		},
+		{
 			MethodName: "GetMediaByExternalId",
 			Handler:    _HostData_GetMediaByExternalId_Handler,
 		},
@@ -276,12 +462,28 @@ var HostData_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _HostData_SearchMedia_Handler,
 		},
 		{
+			MethodName: "ListMediaByLibrary",
+			Handler:    _HostData_ListMediaByLibrary_Handler,
+		},
+		{
 			MethodName: "GetLibrary",
 			Handler:    _HostData_GetLibrary_Handler,
 		},
 		{
 			MethodName: "GetFilePath",
 			Handler:    _HostData_GetFilePath_Handler,
+		},
+		{
+			MethodName: "GetMoodTags",
+			Handler:    _HostData_GetMoodTags_Handler,
+		},
+		{
+			MethodName: "SetMoodTags",
+			Handler:    _HostData_SetMoodTags_Handler,
+		},
+		{
+			MethodName: "DeleteMoodTags",
+			Handler:    _HostData_DeleteMoodTags_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -15,11 +15,17 @@ type MediaQuerier interface {
 	// GetMediaByID returns a media item by its database ID.
 	GetMediaByID(ctx context.Context, id int64) (*MediaInfo, error)
 
+	// GetMediaDetails returns full metadata for a media item (for AI indexing).
+	GetMediaDetails(ctx context.Context, id int64) (*MediaDetailsInfo, error)
+
 	// GetMediaByExternalID returns a media item by an external ID.
 	GetMediaByExternalID(ctx context.Context, provider, externalID string) (*MediaInfo, error)
 
 	// SearchMedia searches for media by title and optional year.
 	SearchMedia(ctx context.Context, title string, year int, mediaType string, limit int) ([]*MediaInfo, error)
+
+	// ListMediaByLibrary lists all media in a library with pagination.
+	ListMediaByLibrary(ctx context.Context, libraryID int64, limit, offset int) ([]*MediaDetailsInfo, int, error)
 
 	// GetFilePath returns the file path for a media item.
 	GetFilePath(ctx context.Context, mediaID int64) (string, error)
@@ -29,6 +35,21 @@ type MediaQuerier interface {
 
 	// GetLibrary returns library information by ID.
 	GetLibrary(ctx context.Context, id int64) (*LibraryInfo, error)
+
+	// GetMoodTags returns mood tags for a media item.
+	GetMoodTags(ctx context.Context, mediaID int64) ([]*MoodTagInfo, error)
+
+	// SetMoodTags stores mood tags for a media item (replaces existing).
+	SetMoodTags(ctx context.Context, mediaID int64, tags []*MoodTagInfo) error
+
+	// DeleteMoodTags removes all mood tags for a media item.
+	DeleteMoodTags(ctx context.Context, mediaID int64) error
+}
+
+// MoodTagInfo represents a mood tag for a media item.
+type MoodTagInfo struct {
+	Tag        string
+	Confidence float32
 }
 
 // LibraryInfo represents library information exposed to plugins.
@@ -48,6 +69,49 @@ type MediaInfo struct {
 	FilePath    string
 	LibraryID   int64
 	ExternalIDs map[string]string
+}
+
+// MediaDetailsInfo contains full metadata for AI indexing.
+type MediaDetailsInfo struct {
+	ID          int64
+	MediaType   string
+	Title       string
+	Year        int
+	LibraryID   int64
+	ExternalIDs map[string]string
+
+	// Rich metadata
+	Plot           string
+	Tagline        string
+	Genres         []string
+	Directors      []string
+	Writers        []string
+	Cast           []CastMemberInfo
+	Studios        []string
+	ContentRating  string
+	RuntimeMinutes int
+
+	// TV-specific
+	ShowTitle     string
+	SeasonNumber  int
+	EpisodeNumber int
+
+	// Music-specific
+	ArtistName  string
+	AlbumTitle  string
+	Biography   string
+	Country     string
+	ReleaseType string
+
+	// AI-generated
+	MoodTags []string
+}
+
+// CastMemberInfo represents a cast member.
+type CastMemberInfo struct {
+	Name      string
+	Character string
+	Order     int
 }
 
 // HostDataServer implements the HostData gRPC service.
@@ -173,6 +237,159 @@ func (s *HostDataServer) GetFilePath(ctx context.Context, req *pluginv1.MediaId)
 	}
 
 	return &pluginv1.FilePath{Path: path}, nil
+}
+
+// GetMediaDetails retrieves full metadata for a media item.
+func (s *HostDataServer) GetMediaDetails(ctx context.Context, req *pluginv1.MediaQuery) (*pluginv1.MediaDetails, error) {
+	if req.MediaId == 0 {
+		return nil, errors.New("media_id is required")
+	}
+
+	details, err := s.querier.GetMediaDetails(ctx, req.MediaId)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("media not found")
+		}
+		s.logger.Error("failed to get media details", "media_id", req.MediaId, "error", err)
+		return nil, err
+	}
+
+	return mediaDetailsToProto(details), nil
+}
+
+// ListMediaByLibrary lists all media in a library with pagination.
+func (s *HostDataServer) ListMediaByLibrary(ctx context.Context, req *pluginv1.ListMediaRequest) (*pluginv1.MediaDetailsList, error) {
+	if req.LibraryId == 0 {
+		return nil, errors.New("library_id is required")
+	}
+
+	limit := int(req.Limit)
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	offset := int(req.Offset)
+	if offset < 0 {
+		offset = 0
+	}
+
+	items, total, err := s.querier.ListMediaByLibrary(ctx, req.LibraryId, limit, offset)
+	if err != nil {
+		s.logger.Error("failed to list media by library", "library_id", req.LibraryId, "error", err)
+		return nil, err
+	}
+
+	protoItems := make([]*pluginv1.MediaDetails, len(items))
+	for i, item := range items {
+		protoItems[i] = mediaDetailsToProto(item)
+	}
+
+	return &pluginv1.MediaDetailsList{
+		Items:   protoItems,
+		Total:   int32(total),
+		HasMore: offset+len(items) < total,
+	}, nil
+}
+
+// GetMoodTags retrieves mood tags for a media item.
+func (s *HostDataServer) GetMoodTags(ctx context.Context, req *pluginv1.MediaQuery) (*pluginv1.MoodTagList, error) {
+	if req.MediaId == 0 {
+		return nil, errors.New("media_id is required")
+	}
+
+	tags, err := s.querier.GetMoodTags(ctx, req.MediaId)
+	if err != nil {
+		s.logger.Error("failed to get mood tags", "media_id", req.MediaId, "error", err)
+		return nil, err
+	}
+
+	protoTags := make([]*pluginv1.MoodTag, len(tags))
+	for i, t := range tags {
+		protoTags[i] = &pluginv1.MoodTag{
+			Tag:        t.Tag,
+			Confidence: t.Confidence,
+		}
+	}
+
+	return &pluginv1.MoodTagList{Tags: protoTags}, nil
+}
+
+// SetMoodTags stores mood tags for a media item (replaces existing).
+func (s *HostDataServer) SetMoodTags(ctx context.Context, req *pluginv1.SetMoodTagsRequest) (*pluginv1.Empty, error) {
+	if req.MediaId == 0 {
+		return nil, errors.New("media_id is required")
+	}
+
+	tags := make([]*MoodTagInfo, len(req.Tags))
+	for i, t := range req.Tags {
+		tags[i] = &MoodTagInfo{
+			Tag:        t.Tag,
+			Confidence: t.Confidence,
+		}
+	}
+
+	if err := s.querier.SetMoodTags(ctx, req.MediaId, tags); err != nil {
+		s.logger.Error("failed to set mood tags", "media_id", req.MediaId, "error", err)
+		return nil, err
+	}
+
+	s.logger.Debug("set mood tags", "media_id", req.MediaId, "count", len(tags))
+	return &pluginv1.Empty{}, nil
+}
+
+// DeleteMoodTags removes all mood tags for a media item.
+func (s *HostDataServer) DeleteMoodTags(ctx context.Context, req *pluginv1.MediaQuery) (*pluginv1.Empty, error) {
+	if req.MediaId == 0 {
+		return nil, errors.New("media_id is required")
+	}
+
+	if err := s.querier.DeleteMoodTags(ctx, req.MediaId); err != nil {
+		s.logger.Error("failed to delete mood tags", "media_id", req.MediaId, "error", err)
+		return nil, err
+	}
+
+	s.logger.Debug("deleted mood tags", "media_id", req.MediaId)
+	return &pluginv1.Empty{}, nil
+}
+
+func mediaDetailsToProto(d *MediaDetailsInfo) *pluginv1.MediaDetails {
+	if d == nil {
+		return nil
+	}
+
+	cast := make([]*pluginv1.MediaCastMember, len(d.Cast))
+	for i, c := range d.Cast {
+		cast[i] = &pluginv1.MediaCastMember{
+			Name: c.Name,
+			Role: c.Character,
+		}
+	}
+
+	return &pluginv1.MediaDetails{
+		Id:             d.ID,
+		MediaType:      d.MediaType,
+		Title:          d.Title,
+		Year:           int32(d.Year),
+		LibraryId:      d.LibraryID,
+		ExternalIds:    d.ExternalIDs,
+		Plot:           d.Plot,
+		Tagline:        d.Tagline,
+		Genres:         d.Genres,
+		Directors:      d.Directors,
+		Writers:        d.Writers,
+		Cast:           cast,
+		Studios:        d.Studios,
+		ContentRating:  d.ContentRating,
+		RuntimeMinutes: int32(d.RuntimeMinutes),
+		ShowTitle:      d.ShowTitle,
+		SeasonNumber:   int32(d.SeasonNumber),
+		EpisodeNumber:  int32(d.EpisodeNumber),
+		ArtistName:     d.ArtistName,
+		AlbumTitle:     d.AlbumTitle,
+		Biography:      d.Biography,
+		Country:        d.Country,
+		ReleaseType:    d.ReleaseType,
+		MoodTags:       d.MoodTags,
+	}
 }
 
 func mediaInfoToProto(m *MediaInfo) *pluginv1.Media {

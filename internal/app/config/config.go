@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -15,9 +16,15 @@ import (
 	pkgLogger "github.com/mantonx/viewra/internal/pkg/logger"
 )
 
+const (
+	// DefaultDataDir is the default base directory for all ViewRA data.
+	DefaultDataDir = "./data"
+)
+
 // Config holds all application configuration
 type Config struct {
 	Environment   string
+	DataDir       string // Base directory for all data (default: "./data")
 	Database      DatabaseConfig
 	Server        ServerConfig
 	Media         MediaConfig
@@ -28,24 +35,30 @@ type Config struct {
 	SystemProfile *system.Profile // Detected system profile for auto-tuning
 }
 
+// DataPath returns the full path for a data subdirectory.
+// Example: config.DataPath("cache/images") returns "{DataDir}/cache/images"
+func (c *Config) DataPath(subpath string) string {
+	return filepath.Join(c.DataDir, subpath)
+}
+
 // AuthConfig holds authentication configuration.
 type AuthConfig struct {
-	JWTSecret        string        // Secret for signing JWTs (generated if empty)
-	AccessTokenTTL   time.Duration // Access token lifetime (default: 15m)
-	RefreshTokenTTL  time.Duration // Refresh token lifetime (default: 7d)
-	MaxSessionsPerUser int         // Maximum concurrent sessions per user (0 = unlimited)
+	JWTSecret          string        // Secret for signing JWTs (generated if empty)
+	AccessTokenTTL     time.Duration // Access token lifetime (default: 15m)
+	RefreshTokenTTL    time.Duration // Refresh token lifetime (default: 7d)
+	MaxSessionsPerUser int           // Maximum concurrent sessions per user (0 = unlimited)
 }
 
 // DatabaseConfig holds database connection and migration configuration.
 // Supports both SQLite and PostgreSQL databases.
 type DatabaseConfig struct {
-	Driver   string // "sqlite" or "postgres"
-	Host     string // PostgreSQL host
-	Port     string // PostgreSQL port
-	User     string // PostgreSQL user
-	Password string // PostgreSQL password
-	DBName   string // Database name (or SQLite file path)
-	SSLMode  string // PostgreSQL SSL mode
+	Driver     string // "sqlite" or "postgres"
+	Host       string // PostgreSQL host
+	Port       string // PostgreSQL port
+	User       string // PostgreSQL user
+	Password   string // PostgreSQL password
+	DBName     string // Database name (or SQLite file path)
+	SSLMode    string // PostgreSQL SSL mode
 	Migrations MigrationConfig
 }
 
@@ -76,8 +89,8 @@ type MediaConfig struct {
 	ScanTimeout time.Duration // Maximum time for a library scan operation
 
 	// Scan performance
-	ScanParallelWalkers  int  // Number of concurrent directory walkers (0 = sequential, >0 = parallel)
-	ScanProgressInterval int  // Log progress every N files discovered (0 = disabled)
+	ScanParallelWalkers  int // Number of concurrent directory walkers (0 = sequential, >0 = parallel)
+	ScanProgressInterval int // Log progress every N files discovered (0 = disabled)
 
 	// Scan job cleanup
 	ScanJobRetentionMinutes int // How many minutes to keep completed/failed scan jobs before cleanup
@@ -89,15 +102,15 @@ type MediaConfig struct {
 
 // TranscodeConfig holds transcode cleanup policies and thresholds.
 type TranscodeConfig struct {
-	CleanupEnabled        bool
-	DiskThresholdPercent  int
-	DiskWarningPercent    int
-	MinFreeSpaceGB        int64
-	MaxAgeDays            int
-	MaxIdleDays           int
-	MaxStorageGB          int64
-	CleanupBatchSize      int
-	KeepFailedHours       int
+	CleanupEnabled       bool
+	DiskThresholdPercent int
+	DiskWarningPercent   int
+	MinFreeSpaceGB       int64
+	MaxAgeDays           int
+	MaxIdleDays          int
+	MaxStorageGB         int64
+	CleanupBatchSize     int
+	KeepFailedHours      int
 }
 
 // ImagesConfig holds image cache and processing configuration.
@@ -126,15 +139,24 @@ func Load() (*Config, error) {
 	env := getEnv("ENVIRONMENT", "development")
 	logger := pkgLogger.DefaultIfNil(nil)
 
+	// Load DataDir first as other configs depend on it
+	dataDir := loadDataDir(logger)
+
 	config := &Config{
 		Environment: env,
-		Database:    loadDatabaseConfig(),
+		DataDir:     dataDir,
+		Database:    loadDatabaseConfig(dataDir),
 		Server:      loadServerConfig(logger),
-		Media:       loadMediaConfig(logger),
+		Media:       loadMediaConfig(logger, dataDir),
 		Transcode:   loadTranscodeConfig(logger),
-		Images:      loadImagesConfig(),
-		Plugins:     loadPluginsConfig(),
+		Images:      loadImagesConfig(dataDir),
+		Plugins:     loadPluginsConfig(dataDir),
 		Auth:        loadAuthConfig(logger),
+	}
+
+	// Ensure data directory exists
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create data directory %q: %w", dataDir, err)
 	}
 
 	// Validate configuration
@@ -143,6 +165,27 @@ func Load() (*Config, error) {
 	}
 
 	return config, nil
+}
+
+// loadDataDir loads the base data directory from environment.
+// All other data paths derive from this directory.
+func loadDataDir(logger *slog.Logger) string {
+	dataDir := getEnv("DATA_DIR", DefaultDataDir)
+
+	// Convert to absolute path for consistency
+	if !filepath.IsAbs(dataDir) {
+		absPath, err := filepath.Abs(dataDir)
+		if err != nil {
+			logger.Warn("Failed to resolve absolute path for DATA_DIR, using as-is",
+				"data_dir", dataDir,
+				"error", err)
+		} else {
+			dataDir = absPath
+		}
+	}
+
+	logger.Info("Using data directory", "path", dataDir)
+	return dataDir
 }
 
 // Validate ensures all required configuration values are present and valid
@@ -236,11 +279,19 @@ func (c *Config) IsProduction() bool {
 	return c.Environment == "production"
 }
 
-// loadDatabaseConfig loads database configuration from environment
-func loadDatabaseConfig() DatabaseConfig {
+// loadDatabaseConfig loads database configuration from environment.
+// For SQLite, if DB_PATH is not explicitly set, it derives the path from dataDir.
+func loadDatabaseConfig(dataDir string) DatabaseConfig {
 	// Delegate to existing database package
 	dbConfig := database.LoadConfigFromEnv()
 	migrationConfig := database.LoadMigrationConfigFromEnv()
+
+	// For SQLite, use dataDir if DB_PATH not explicitly set
+	if dbConfig.Driver == "sqlite" || dbConfig.Driver == "sqlite3" {
+		if os.Getenv("DB_PATH") == "" {
+			dbConfig.DBName = filepath.Join(dataDir, "viewra.db")
+		}
+	}
 
 	return DatabaseConfig{
 		Driver:   dbConfig.Driver,
@@ -286,19 +337,23 @@ func loadServerConfig(logger *slog.Logger) ServerConfig {
 	}
 }
 
-// loadMediaConfig loads media processing configuration from environment
-func loadMediaConfig(logger *slog.Logger) MediaConfig {
+// loadMediaConfig loads media processing configuration from environment.
+// Uses dataDir for default transcode output path.
+func loadMediaConfig(logger *slog.Logger, dataDir string) MediaConfig {
+	// Default transcode output dir derives from dataDir
+	defaultTranscodeDir := filepath.Join(dataDir, "cache", "transcodes")
+
 	return MediaConfig{
-		TranscodeOutputDir:      getEnv("TRANSCODE_OUTPUT_DIR", "./data/cache/transcodes"),
+		TranscodeOutputDir:      getEnv("TRANSCODE_OUTPUT_DIR", defaultTranscodeDir),
 		TranscodeWorkers:        getEnvIntWithLog(logger, "TRANSCODE_WORKERS", 8),
 		TranscodePollInterval:   getEnvDurationWithLog(logger, "TRANSCODE_POLL_INTERVAL", 10*time.Second),
 		TranscodeIdleTimeout:    getEnvDurationWithLog(logger, "TRANSCODE_IDLE_TIMEOUT", 5*time.Minute),
-		ScanTimeout:             getEnvDurationWithLog(logger, "SCAN_TIMEOUT", 24*time.Hour),  // Default 24 hours for large libraries
-		ScanParallelWalkers:     getEnvIntWithLog(logger, "SCAN_PARALLEL_WALKERS", 10),        // 10 concurrent directory walkers for network storage
-		ScanProgressInterval:    getEnvIntWithLog(logger, "SCAN_PROGRESS_INTERVAL", 1000),     // Log every 1000 files discovered
-		ScanJobRetentionMinutes: getEnvIntWithLog(logger, "SCAN_JOB_RETENTION_MINUTES", 30),   // Keep scan jobs for 30 minutes by default
-		AutoScanEnabled:         getEnvBool("AUTO_SCAN_ENABLED", true),                        // Enable automatic scanning by default
-		AutoScanInterval:        getEnv("AUTO_SCAN_INTERVAL", "*/15 * * * *"),                 // Default: every 15 minutes
+		ScanTimeout:             getEnvDurationWithLog(logger, "SCAN_TIMEOUT", 24*time.Hour), // Default 24 hours for large libraries
+		ScanParallelWalkers:     getEnvIntWithLog(logger, "SCAN_PARALLEL_WALKERS", 10),       // 10 concurrent directory walkers for network storage
+		ScanProgressInterval:    getEnvIntWithLog(logger, "SCAN_PROGRESS_INTERVAL", 1000),    // Log every 1000 files discovered
+		ScanJobRetentionMinutes: getEnvIntWithLog(logger, "SCAN_JOB_RETENTION_MINUTES", 30),  // Keep scan jobs for 30 minutes by default
+		AutoScanEnabled:         getEnvBool("AUTO_SCAN_ENABLED", true),                       // Enable automatic scanning by default
+		AutoScanInterval:        getEnv("AUTO_SCAN_INTERVAL", "*/15 * * * *"),                // Default: every 15 minutes
 	}
 }
 
@@ -319,10 +374,12 @@ func loadTranscodeConfig(logger *slog.Logger) TranscodeConfig {
 	}
 }
 
-// loadImagesConfig loads image processing configuration from environment
-func loadImagesConfig() ImagesConfig {
+// loadImagesConfig loads image processing configuration from environment.
+// Uses dataDir for default cache path.
+func loadImagesConfig(dataDir string) ImagesConfig {
+	defaultCacheDir := filepath.Join(dataDir, "cache", "images")
 	return ImagesConfig{
-		CacheDir: getEnv("IMAGE_CACHE_DIR", "./data/cache/images"),
+		CacheDir: getEnv("IMAGE_CACHE_DIR", defaultCacheDir),
 	}
 }
 
@@ -336,11 +393,14 @@ func loadAuthConfig(logger *slog.Logger) AuthConfig {
 	}
 }
 
-// loadPluginsConfig loads plugin system configuration from environment
-func loadPluginsConfig() PluginsConfig {
+// loadPluginsConfig loads plugin system configuration from environment.
+// Uses dataDir for default plugin paths.
+func loadPluginsConfig(dataDir string) PluginsConfig {
+	defaultPluginsDir := filepath.Join(dataDir, "plugins")
+	defaultStorageDir := filepath.Join(dataDir, "plugins", "storage")
 	return PluginsConfig{
-		Dir:        getEnv("PLUGINS_DIR", "./data/plugins"),
-		StorageDir: getEnv("PLUGINS_STORAGE_DIR", "./data/plugins/storage"),
+		Dir:        getEnv("PLUGINS_DIR", defaultPluginsDir),
+		StorageDir: getEnv("PLUGINS_STORAGE_DIR", defaultStorageDir),
 		Enabled:    getEnvBool("PLUGINS_ENABLED", true),
 	}
 }

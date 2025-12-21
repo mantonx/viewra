@@ -12,17 +12,33 @@ service HostData {
   // GetMedia retrieves a single media item by ID.
   rpc GetMedia(MediaQuery) returns (Media);
 
+  // GetMediaDetails retrieves full metadata for a media item.
+  // Includes plot, cast, genres, mood tags, etc. for AI indexing.
+  rpc GetMediaDetails(MediaQuery) returns (MediaDetails);
+
   // GetMediaByExternalId looks up media by external ID (e.g., IMDB, TMDB).
   rpc GetMediaByExternalId(ExternalIdQuery) returns (Media);
 
   // SearchMedia searches for media by title/year.
   rpc SearchMedia(SearchQuery) returns (MediaList);
 
+  // ListMediaByLibrary lists all media in a library with pagination.
+  rpc ListMediaByLibrary(ListMediaRequest) returns (MediaDetailsList);
+
   // GetLibrary retrieves library information.
   rpc GetLibrary(LibraryId) returns (Library);
 
   // GetFilePath returns the full file path for a media item.
   rpc GetFilePath(MediaId) returns (FilePath);
+
+  // GetMoodTags retrieves mood tags for a media item.
+  rpc GetMoodTags(MediaQuery) returns (MoodTagList);
+
+  // SetMoodTags stores mood tags for a media item (replaces existing).
+  rpc SetMoodTags(SetMoodTagsRequest) returns (Empty);
+
+  // DeleteMoodTags removes all mood tags for a media item.
+  rpc DeleteMoodTags(MediaQuery) returns (Empty);
 }
 
 // HostStorage provides plugin-scoped storage.
@@ -125,6 +141,63 @@ message Library {
 
 message FilePath {
   string path = 1;
+}
+
+// ListMediaRequest is used for paginated media listing.
+message ListMediaRequest {
+  int64 library_id = 1;
+  int32 limit = 2;     // Max items per page (default: 100)
+  int32 offset = 3;    // Offset for pagination
+}
+
+// MediaDetails contains full metadata for AI indexing.
+message MediaDetails {
+  int64 id = 1;
+  string media_type = 2;  // "movie", "tv_show", "tv_episode", "music_artist", "music_album", "music_track"
+  string title = 3;
+  int32 year = 4;
+  int64 library_id = 5;
+  map<string, string> external_ids = 6;
+
+  // Rich metadata for embedding generation
+  string plot = 7;
+  string tagline = 8;
+  repeated string genres = 9;
+  repeated string directors = 10;
+  repeated string writers = 11;
+  repeated MediaCastMember cast = 12;
+  repeated string studios = 13;
+  string content_rating = 14;
+  int32 runtime_minutes = 15;
+
+  // TV-specific
+  string show_title = 20;       // For episodes: the parent show title
+  int32 season_number = 21;
+  int32 episode_number = 22;
+
+  // Music-specific
+  string artist_name = 30;      // For albums/tracks
+  string album_title = 31;      // For tracks
+  string biography = 32;        // For artists
+  string country = 33;          // For artists
+  string release_type = 34;     // For albums: "album", "single", "ep", etc.
+
+  // AI-generated metadata
+  repeated string mood_tags = 40;  // e.g., ["dark", "tense", "atmospheric"]
+}
+
+// MediaCastMember represents an actor in a movie/show.
+// Simpler than enricher's CastMember - just what's needed for indexing.
+message MediaCastMember {
+  string name = 1;
+  string role = 2;  // Character name
+}
+
+// MediaDetailsList is a paginated list of media details.
+message MediaDetailsList {
+  repeated MediaDetails items = 1;
+  int32 total = 2;       // Total count (for pagination)
+  bool has_more = 3;     // Whether more items exist
 }
 
 // HostStorage messages
@@ -240,5 +313,21 @@ message ExtractedImage {
   string path = 2;  // Path where image was saved
   int32 width = 3;
   int32 height = 4;
+}
+
+// Mood tag messages
+
+message MoodTag {
+  string tag = 1;
+  float confidence = 2;  // 0.0 - 1.0
+}
+
+message MoodTagList {
+  repeated MoodTag tags = 1;
+}
+
+message SetMoodTagsRequest {
+  int64 media_id = 1;
+  repeated MoodTag tags = 2;
 }
 

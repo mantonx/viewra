@@ -17,7 +17,8 @@ import type {
   PlaybackMode,
   ToneMappingInfo,
 } from '@/lib/types/streamStats'
-import type { GithubComMantonxViewraInternalApplicationMediaStreamInfoResponse } from '@/lib/api/generated/media/media.schemas'
+import type { GithubComMantonxViewraInternalApplicationMediaStreamInfoResponse } from '@/lib/api/generated/models/githubComMantonxViewraInternalApplicationMediaStreamInfoResponse'
+import type { GithubComMantonxViewraInternalApplicationMediaAudioTrackInfo } from '@/lib/api/generated/models/githubComMantonxViewraInternalApplicationMediaAudioTrackInfo'
 
 export interface UseStreamStatsOptions {
   mediaId: number | null
@@ -83,7 +84,7 @@ export const useStreamStats = (options: UseStreamStatsOptions): UseStreamStatsRe
     refetch,
   } = useQuery({
     queryKey: ['stream-info', mediaId, selectedQualityId],
-    queryFn: async (): Promise<{ status: 200; data: GithubComMantonxViewraInternalApplicationMediaStreamInfoResponse } | { status: number; data: unknown }> => {
+    queryFn: async (): Promise<{ status: number; data: GithubComMantonxViewraInternalApplicationMediaStreamInfoResponse | null }> => {
       const url = new URL(`/api/media/${mediaId}/stream-info`, window.location.origin)
       if (selectedQualityId) {
         url.searchParams.set('quality', selectedQualityId)
@@ -116,8 +117,11 @@ export const useStreamStats = (options: UseStreamStatsOptions): UseStreamStatsRe
         credentials: 'include',
       })
 
-      const data = await response.json()
-      return { status: response.status as 200, data }
+      if (!response.ok) {
+        return { status: response.status, data: null }
+      }
+      const data = await response.json() as GithubComMantonxViewraInternalApplicationMediaStreamInfoResponse
+      return { status: response.status, data }
     },
     enabled: enabled && mediaId !== null && mediaId > 0,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
@@ -266,7 +270,7 @@ export const useStreamStats = (options: UseStreamStatsOptions): UseStreamStatsRe
       colorSpace: apiData.video?.color_space,
     }
 
-    const audio: SourceAudioInfo[] = (apiData.audio_tracks ?? []).map((track, index) => ({
+    const audio: SourceAudioInfo[] = (apiData.audio_tracks ?? []).map((track: GithubComMantonxViewraInternalApplicationMediaAudioTrackInfo, index: number) => ({
       codec: track.codec ?? 'Unknown',
       channels: track.channel_label ?? `${track.channels ?? 2}ch`,
       language: track.language ?? 'Unknown',

@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+package viewra.plugin.v1;
+
+option go_package = "github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1";
+
+import "api/proto/plugin/common.proto";
+
+// AISearch is the interface for AI search plugins.
+// Plugins that provide semantic search functionality implement this.
+service AISearch {
+  // Search performs semantic search across indexed media.
+  rpc Search(SemanticSearchRequest) returns (SemanticSearchResponse);
+
+  // FindSimilar finds items similar to a given entity.
+  rpc FindSimilar(FindSimilarRequest) returns (SemanticSearchResponse);
+
+  // GetStatus returns the current indexing status.
+  rpc GetStatus(Empty) returns (AISearchStatus);
+
+  // IndexLibrary triggers indexing for a library.
+  rpc IndexLibrary(IndexLibraryRequest) returns (IndexLibraryResponse);
+
+  // CancelIndexing cancels any running indexing operation.
+  rpc CancelIndexing(Empty) returns (Empty);
+}
+
+message SemanticSearchRequest {
+  // Natural language query
+  string query = 1;
+
+  // Filter by entity types (empty = all types)
+  // Values: "movie", "tv_show", "tv_episode", "music_artist", "music_album", "music_track"
+  repeated string entity_types = 2;
+
+  // Maximum number of results (default: 20, max: 100)
+  int32 limit = 3;
+}
+
+message SemanticSearchResponse {
+  repeated SemanticSearchResult results = 1;
+  int32 total = 2;  // Total matching results (may be more than returned)
+}
+
+message SemanticSearchResult {
+  string entity_type = 1;
+  int64 entity_id = 2;
+  float similarity = 3;  // 0.0 - 1.0
+  string text = 4;       // The indexed text snippet
+}
+
+message FindSimilarRequest {
+  string entity_type = 1;
+  int64 entity_id = 2;
+  int32 limit = 3;
+}
+
+message AISearchStatus {
+  // Whether indexing is currently running
+  bool is_indexing = 1;
+
+  // Current indexing progress (if indexing)
+  IndexingProgress progress = 2;
+
+  // Stats per entity type
+  repeated EntityTypeStats stats = 3;
+
+  // Total indexed items
+  int64 total_indexed = 4;
+}
+
+message IndexingProgress {
+  string entity_type = 1;
+  int64 total = 2;
+  int64 processed = 3;
+  int64 failed = 4;
+  string last_error = 5;
+  int64 started_at = 6;    // Unix timestamp
+  int64 last_updated = 7;  // Unix timestamp
+}
+
+message EntityTypeStats {
+  string entity_type = 1;
+  int64 indexed = 2;
+  int64 total = 3;  // Total items of this type in library
+}
+
+message IndexLibraryRequest {
+  int64 library_id = 1;
+  string library_type = 2;  // "movie", "tv", "music"
+}
+
+message IndexLibraryResponse {
+  bool started = 1;
+  string message = 2;  // Error message if not started
+}

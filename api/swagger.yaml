@@ -1,16 +1,66 @@
-basePath: /
 definitions:
-  github_com_viewra_viewra_internal_application_images.BatchImagesResponse:
+  github_com_mantonx_viewra_internal_application_auth.ListUsersResponse:
+    properties:
+      total:
+        type: integer
+      users:
+        items:
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_auth.UserResponse'
+        type: array
+    type: object
+  github_com_mantonx_viewra_internal_application_auth.LoginResponse:
+    properties:
+      accessToken:
+        type: string
+      expiresIn:
+        description: seconds until access token expires
+        format: int64
+        type: integer
+      refreshToken:
+        type: string
+      user:
+        $ref: '#/definitions/github_com_mantonx_viewra_internal_application_auth.UserResponse'
+    type: object
+  github_com_mantonx_viewra_internal_application_auth.SessionResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        description: Public ID for API
+        type: string
+      ip_address:
+        type: string
+      is_current:
+        type: boolean
+      last_used_at:
+        type: string
+      user_agent:
+        type: string
+    type: object
+  github_com_mantonx_viewra_internal_application_auth.UserResponse:
+    properties:
+      created_at:
+        type: string
+      display_name:
+        type: string
+      id:
+        type: string
+      is_admin:
+        type: boolean
+      username:
+        type: string
+    type: object
+  github_com_mantonx_viewra_internal_application_images.BatchImagesResponse:
     properties:
       media_images:
         additionalProperties:
           items:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ImageResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_images.ImageResponse'
           type: array
         description: map[mediaID][]images
         type: object
     type: object
-  github_com_viewra_viewra_internal_application_images.ImageResponse:
+  github_com_mantonx_viewra_internal_application_images.ImageResponse:
     properties:
       aspect_ratio:
         type: number
@@ -51,16 +101,16 @@ definitions:
       width:
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_images.ListImagesResponse:
+  github_com_mantonx_viewra_internal_application_images.ListImagesResponse:
     properties:
       images:
         items:
-          $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ImageResponse'
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_images.ImageResponse'
         type: array
       total:
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_library.CreateLibraryRequest:
+  github_com_mantonx_viewra_internal_application_library.CreateLibraryRequest:
     properties:
       name:
         maxLength: 100
@@ -79,12 +129,12 @@ definitions:
     - path
     - type
     type: object
-  github_com_viewra_viewra_internal_application_library.GetLibraryResponse:
+  github_com_mantonx_viewra_internal_application_library.GetLibraryResponse:
     properties:
       library:
-        $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.LibraryResponse'
+        $ref: '#/definitions/github_com_mantonx_viewra_internal_application_library.LibraryResponse'
     type: object
-  github_com_viewra_viewra_internal_application_library.LibraryResponse:
+  github_com_mantonx_viewra_internal_application_library.LibraryResponse:
     properties:
       created_at:
         type: string
@@ -99,16 +149,16 @@ definitions:
       updated_at:
         type: string
     type: object
-  github_com_viewra_viewra_internal_application_library.ListLibrariesResponse:
+  github_com_mantonx_viewra_internal_application_library.ListLibrariesResponse:
     properties:
       libraries:
         items:
-          $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.LibraryResponse'
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_library.LibraryResponse'
         type: array
       total:
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_library.StartScanResponse:
+  github_com_mantonx_viewra_internal_application_library.StartScanResponse:
     properties:
       job_id:
         type: integer
@@ -119,7 +169,7 @@ definitions:
       status:
         type: string
     type: object
-  github_com_viewra_viewra_internal_application_library.UpdateLibraryRequest:
+  github_com_mantonx_viewra_internal_application_library.UpdateLibraryRequest:
     properties:
       id:
         type: integer
@@ -138,21 +188,87 @@ definitions:
     required:
     - id
     type: object
-  github_com_viewra_viewra_internal_application_media.GetMediaResponse:
+  github_com_mantonx_viewra_internal_application_media.AudioTrackInfo:
+    properties:
+      bitrate:
+        type: integer
+      channel_label:
+        description: '"stereo", "5.1", "7.1", etc.'
+        type: string
+      channels:
+        type: integer
+      codec:
+        type: string
+      index:
+        type: integer
+      is_commentary:
+        type: boolean
+      is_default:
+        type: boolean
+      language:
+        type: string
+      title:
+        type: string
+    type: object
+  github_com_mantonx_viewra_internal_application_media.AudioTrackResponse:
+    properties:
+      bit_rate:
+        type: integer
+      channel_layout:
+        type: string
+      channels:
+        type: integer
+      codec:
+        type: string
+      codec_profile:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      is_commentary:
+        type: boolean
+      is_default:
+        type: boolean
+      is_descriptive:
+        type: boolean
+      language:
+        type: string
+      media_id:
+        type: integer
+      sample_rate:
+        type: integer
+      stream_index:
+        type: integer
+      title:
+        type: string
+    type: object
+  github_com_mantonx_viewra_internal_application_media.GetMediaResponse:
     properties:
       media:
-        $ref: '#/definitions/github_com_viewra_viewra_internal_application_media.MediaResponse'
+        $ref: '#/definitions/github_com_mantonx_viewra_internal_application_media.MediaResponse'
     type: object
-  github_com_viewra_viewra_internal_application_media.ListMediaResponse:
+  github_com_mantonx_viewra_internal_application_media.GetTracksResponse:
+    properties:
+      audio_tracks:
+        items:
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_media.AudioTrackResponse'
+        type: array
+      subtitle_tracks:
+        items:
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_media.SubtitleTrackResponse'
+        type: array
+    type: object
+  github_com_mantonx_viewra_internal_application_media.ListMediaResponse:
     properties:
       media:
         items:
-          $ref: '#/definitions/github_com_viewra_viewra_internal_application_media.MediaResponse'
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_media.MediaResponse'
         type: array
       total:
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_media.MediaResponse:
+  github_com_mantonx_viewra_internal_application_media.MediaResponse:
     properties:
       audio_codec:
         description: aac, mp3, etc.
@@ -198,18 +314,141 @@ definitions:
         description: Technical video metadata
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_movies.ListMoviesResponse:
+  github_com_mantonx_viewra_internal_application_media.StreamInfoResponse:
     properties:
-      movies:
+      audio_tracks:
+        description: Audio tracks (all available)
         items:
-          $ref: '#/definitions/github_com_viewra_viewra_internal_application_movies.MovieResponse'
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_media.AudioTrackInfo'
+        type: array
+      bitrate:
+        type: integer
+      container:
+        description: Source file info
+        type: string
+      duration:
+        type: integer
+      file_size:
+        type: integer
+      selected_audio_index:
+        type: integer
+      strategy:
+        allOf:
+        - $ref: '#/definitions/github_com_mantonx_viewra_internal_application_media.StreamingStrategy'
+        description: Streaming strategy (what type of processing will be used)
+      tone_mapping:
+        allOf:
+        - $ref: '#/definitions/github_com_mantonx_viewra_internal_application_media.ToneMappingInfo'
+        description: Tone mapping information (for HDR content)
+      video:
+        allOf:
+        - $ref: '#/definitions/github_com_mantonx_viewra_internal_application_media.VideoStreamInfo'
+        description: Video stream info
+    type: object
+  github_com_mantonx_viewra_internal_application_media.StreamingStrategy:
+    properties:
+      mode:
+        description: '"direct", "remux", "remux_audio", "remux_hevc", "transcode"'
+        type: string
+      reason:
+        description: Human-readable explanation
+        type: string
+    type: object
+  github_com_mantonx_viewra_internal_application_media.SubtitleTrackResponse:
+    properties:
+      codec:
+        type: string
+      created_at:
+        type: string
+      file_path:
+        type: string
+      id:
+        type: integer
+      is_bitmap:
+        type: boolean
+      is_commentary:
+        type: boolean
+      is_default:
+        type: boolean
+      is_forced:
+        type: boolean
+      is_sdh:
+        type: boolean
+      language:
+        type: string
+      media_id:
+        type: integer
+      source_type:
+        description: '"embedded" or "external"'
+        type: string
+      stream_index:
+        type: integer
+      title:
+        type: string
+    type: object
+  github_com_mantonx_viewra_internal_application_media.ToneMappingInfo:
+    properties:
+      algorithm:
+        description: Algorithm being used (bt.2390, hable, mobius, etc.)
+        type: string
+      backend:
+        description: Backend being used (libplacebo, opencl, vaapi, cpu)
+        type: string
+      enabled:
+        description: Whether tone mapping is active for this stream
+        type: boolean
+    type: object
+  github_com_mantonx_viewra_internal_application_media.VideoStreamInfo:
+    properties:
+      bit_depth:
+        type: integer
+      bitrate:
+        type: integer
+      codec:
+        type: string
+      color_primaries:
+        type: string
+      color_space:
+        type: string
+      frame_rate:
+        type: number
+      hdr_format:
+        description: '"HDR10", "HLG", "Dolby Vision", etc.'
+        type: string
+      height:
+        type: integer
+      is_hdr:
+        type: boolean
+      pixel_format:
+        type: string
+      profile:
+        type: string
+      width:
+        type: integer
+    type: object
+  github_com_mantonx_viewra_internal_application_movies.ListIDsResponse:
+    properties:
+      ids:
+        items:
+          type: integer
         type: array
       pagination:
-        $ref: '#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata'
+        $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata'
       total:
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_movies.MovieResponse:
+  github_com_mantonx_viewra_internal_application_movies.ListMoviesResponse:
+    properties:
+      movies:
+        items:
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_movies.MovieResponse'
+        type: array
+      pagination:
+        $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata'
+      total:
+        type: integer
+    type: object
+  github_com_mantonx_viewra_internal_application_movies.MovieResponse:
     properties:
       audio_codec:
         type: string
@@ -299,7 +538,7 @@ definitions:
     - library_id
     - title
     type: object
-  github_com_viewra_viewra_internal_application_music.AlbumSummary:
+  github_com_mantonx_viewra_internal_application_music.AlbumSummary:
     properties:
       album:
         type: string
@@ -313,7 +552,7 @@ definitions:
       year:
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_music.ArtistSummary:
+  github_com_mantonx_viewra_internal_application_music.ArtistSummary:
     properties:
       album_count:
         type: integer
@@ -328,40 +567,51 @@ definitions:
     - id
     - name
     type: object
-  github_com_viewra_viewra_internal_application_music.ListAlbumsResponse:
+  github_com_mantonx_viewra_internal_application_music.ListAlbumsResponse:
     properties:
       albums:
         items:
-          $ref: '#/definitions/github_com_viewra_viewra_internal_application_music.AlbumSummary'
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_music.AlbumSummary'
         type: array
       pagination:
-        $ref: '#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata'
+        $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata'
       total:
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_music.ListArtistsResponse:
+  github_com_mantonx_viewra_internal_application_music.ListArtistsResponse:
     properties:
       artists:
         items:
-          $ref: '#/definitions/github_com_viewra_viewra_internal_application_music.ArtistSummary'
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_music.ArtistSummary'
         type: array
       pagination:
-        $ref: '#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata'
+        $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata'
       total:
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_music.ListTracksResponse:
+  github_com_mantonx_viewra_internal_application_music.ListIDsResponse:
+    properties:
+      ids:
+        items:
+          type: integer
+        type: array
+      pagination:
+        $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata'
+      total:
+        type: integer
+    type: object
+  github_com_mantonx_viewra_internal_application_music.ListTracksResponse:
     properties:
       pagination:
-        $ref: '#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata'
+        $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata'
       total:
         type: integer
       tracks:
         items:
-          $ref: '#/definitions/github_com_viewra_viewra_internal_application_music.MusicTrackResponse'
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_music.MusicTrackResponse'
         type: array
     type: object
-  github_com_viewra_viewra_internal_application_music.MusicTrackResponse:
+  github_com_mantonx_viewra_internal_application_music.MusicTrackResponse:
     properties:
       album:
         type: string
@@ -422,39 +672,244 @@ definitions:
       year:
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_progress.ListProgressResponse:
+  github_com_mantonx_viewra_internal_application_people.CreditResponse:
+    properties:
+      billing_order:
+        type: integer
+      character_name:
+        type: string
+      credit_type:
+        type: string
+      department:
+        type: string
+      id:
+        type: integer
+      job:
+        type: string
+      person:
+        $ref: '#/definitions/github_com_mantonx_viewra_internal_application_people.PersonResponse'
+    type: object
+  github_com_mantonx_viewra_internal_application_people.CreditsResponse:
+    properties:
+      cast:
+        items:
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_people.CreditResponse'
+        type: array
+      creators:
+        items:
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_people.CreditResponse'
+        type: array
+      directors:
+        items:
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_people.CreditResponse'
+        type: array
+      writers:
+        items:
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_people.CreditResponse'
+        type: array
+    type: object
+  github_com_mantonx_viewra_internal_application_people.PersonCreditsResponse:
+    properties:
+      credits:
+        items:
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_people.CreditResponse'
+        type: array
+      person:
+        $ref: '#/definitions/github_com_mantonx_viewra_internal_application_people.PersonResponse'
+    type: object
+  github_com_mantonx_viewra_internal_application_people.PersonResponse:
+    properties:
+      id:
+        type: integer
+      imdb_id:
+        type: string
+      name:
+        type: string
+      photo_path:
+        type: string
+      photo_url:
+        type: string
+      sort_name:
+        type: string
+      tmdb_id:
+        type: integer
+    type: object
+  github_com_mantonx_viewra_internal_application_plugins.EnricherCapabilities:
+    properties:
+      is_local:
+        type: boolean
+      media_types:
+        items:
+          type: string
+        type: array
+      provides:
+        items:
+          type: string
+        type: array
+      rate_limit:
+        type: integer
+      requires:
+        items:
+          type: string
+        type: array
+    type: object
+  github_com_mantonx_viewra_internal_application_plugins.LogEntry:
+    properties:
+      fields:
+        additionalProperties:
+          type: string
+        type: object
+      level:
+        type: string
+      message:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  github_com_mantonx_viewra_internal_application_plugins.PluginDetail:
+    properties:
+      author:
+        type: string
+      capabilities:
+        allOf:
+        - $ref: '#/definitions/github_com_mantonx_viewra_internal_application_plugins.EnricherCapabilities'
+        description: Enricher-specific capabilities (nil for non-enrichers)
+      categories:
+        items:
+          type: string
+        type: array
+      description:
+        type: string
+      enabled:
+        type: boolean
+      health:
+        description: '"healthy", "degraded", "unhealthy", "unknown"'
+        type: string
+      health_message:
+        type: string
+      homepage:
+        type: string
+      id:
+        type: string
+      installed_at:
+        type: string
+      is_builtin:
+        type: boolean
+      last_heartbeat:
+        type: string
+      license:
+        type: string
+      name:
+        type: string
+      restart_count:
+        type: integer
+      updated_at:
+        type: string
+      version:
+        type: string
+    type: object
+  github_com_mantonx_viewra_internal_application_plugins.PluginHealthDetail:
+    properties:
+      avg_latency_ms:
+        type: integer
+      error_rate:
+        type: number
+      last_heartbeat:
+        type: string
+      message:
+        type: string
+      restarts:
+        type: integer
+      status:
+        type: string
+      uptime_seconds:
+        type: integer
+    type: object
+  github_com_mantonx_viewra_internal_application_plugins.PluginSettings:
+    properties:
+      plugin_id:
+        type: string
+      schema:
+        items:
+          type: integer
+        type: array
+      values:
+        items:
+          type: integer
+        type: array
+    type: object
+  github_com_mantonx_viewra_internal_application_plugins.PluginSummary:
+    properties:
+      author:
+        type: string
+      categories:
+        items:
+          type: string
+        type: array
+      description:
+        type: string
+      enabled:
+        type: boolean
+      health:
+        description: '"healthy", "degraded", "unhealthy", "unknown"'
+        type: string
+      id:
+        type: string
+      is_builtin:
+        type: boolean
+      name:
+        type: string
+      version:
+        type: string
+    type: object
+  github_com_mantonx_viewra_internal_application_progress.BatchProgressResponse:
+    properties:
+      progress:
+        additionalProperties:
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_progress.WatchProgressResponse'
+        description: map[media_id]progress
+        type: object
+    type: object
+  github_com_mantonx_viewra_internal_application_progress.ListProgressResponse:
     properties:
       progress:
         items:
-          $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse'
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_progress.WatchProgressResponse'
         type: array
       total:
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_progress.MarkWatchedRequest:
+  github_com_mantonx_viewra_internal_application_progress.MarkWatchedRequest:
     properties:
       media_id:
         type: integer
       user_id:
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_progress.UpdateProgressRequest:
+  github_com_mantonx_viewra_internal_application_progress.UpdateProgressRequest:
     properties:
       duration_seconds:
-        type: integer
+        type: number
       media_id:
         type: integer
       progress_seconds:
+        type: number
+      selected_audio_track:
+        type: integer
+      selected_quality:
+        description: Playback preferences (omitted or null means don't update)
+        type: string
+      selected_subtitle_track:
         type: integer
       user_id:
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_progress.WatchProgressResponse:
+  github_com_mantonx_viewra_internal_application_progress.WatchProgressResponse:
     properties:
       created_at:
         type: string
       duration_seconds:
-        type: integer
+        type: number
       id:
         type: integer
       is_watched:
@@ -466,13 +921,22 @@ definitions:
       progress_percentage:
         type: number
       progress_seconds:
+        type: number
+      selected_audio_track:
+        type: integer
+      selected_quality:
+        description: |-
+          Playback preferences (null means no saved preference / use defaults)
+          Note: No omitempty - we need to distinguish "never set" from "explicitly null"
+        type: string
+      selected_subtitle_track:
         type: integer
       updated_at:
         type: string
       user_id:
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_transcode.QueueStats:
+  github_com_mantonx_viewra_internal_application_transcode.QueueStats:
     properties:
       completedJobs:
         format: int64
@@ -489,30 +953,44 @@ definitions:
       workerCount:
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_tv.ListTVEpisodesResponse:
+  github_com_mantonx_viewra_internal_application_tv.ListIDsResponse:
+    properties:
+      ids:
+        items:
+          type: integer
+        type: array
+      pagination:
+        $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata'
+      total:
+        type: integer
+    type: object
+  github_com_mantonx_viewra_internal_application_tv.ListTVEpisodesResponse:
     properties:
       episodes:
         items:
-          $ref: '#/definitions/github_com_viewra_viewra_internal_application_tv.TVEpisodeResponse'
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_tv.TVEpisodeResponse'
         type: array
       pagination:
-        $ref: '#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata'
+        $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata'
       total:
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_tv.ListTVShowsResponse:
+  github_com_mantonx_viewra_internal_application_tv.ListTVShowsResponse:
     properties:
       pagination:
-        $ref: '#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata'
+        $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata'
       shows:
         items:
-          $ref: '#/definitions/github_com_viewra_viewra_internal_application_tv.TVShowSummary'
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_tv.TVShowSummary'
         type: array
       total:
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_tv.TVEpisodeResponse:
+  github_com_mantonx_viewra_internal_application_tv.TVEpisodeResponse:
     properties:
+      absolute_number:
+        description: Alternative ordering (for anime/DVD releases)
+        type: integer
       air_date:
         type: string
       audio_codec:
@@ -521,12 +999,18 @@ definitions:
         type: integer
       container_format:
         type: string
+      content_rating:
+        type: string
       created_at:
         type: string
       description:
         type: string
       duration:
         description: in seconds
+        type: integer
+      dvd_episode:
+        type: integer
+      dvd_season:
         type: integer
       episode:
         type: integer
@@ -550,6 +1034,18 @@ definitions:
         type: boolean
       library_id:
         type: integer
+      maturity_rating:
+        type: integer
+      original_title:
+        description: Additional metadata
+        type: string
+      rating:
+        type: number
+      rating_votes:
+        type: integer
+      runtime_minutes:
+        description: Ratings
+        type: integer
       season:
         type: integer
       season_id:
@@ -560,6 +1056,8 @@ definitions:
       title:
         description: filename
         type: string
+      tmdb_id:
+        type: integer
       tvdb_id:
         type: integer
       updated_at:
@@ -570,37 +1068,82 @@ definitions:
         description: Technical metadata
         type: integer
     type: object
-  github_com_viewra_viewra_internal_application_tv.TVShowDetailResponse:
+  github_com_mantonx_viewra_internal_application_tv.TVShowDetailResponse:
     properties:
+      content_rating:
+        type: string
       episode_count:
         type: integer
+      genre:
+        items:
+          type: string
+        type: array
       id:
         type: integer
+      imdb_id:
+        type: string
       library_id:
         type: integer
+      plot:
+        type: string
       season_count:
         type: integer
       title:
         type: string
+      tmdb_id:
+        type: integer
+      year:
+        type: integer
     type: object
-  github_com_viewra_viewra_internal_application_tv.TVShowSummary:
+  github_com_mantonx_viewra_internal_application_tv.TVShowSummary:
     properties:
+      content_rating:
+        type: string
+      created_at:
+        type: string
       episode_count:
         type: integer
+      genre:
+        items:
+          type: string
+        type: array
       id:
         type: integer
+      imdb_id:
+        type: string
       library_id:
         type: integer
+      plot:
+        type: string
       season_count:
         type: integer
       title:
         type: string
+      tmdb_id:
+        type: integer
+      year:
+        type: integer
     required:
     - id
     - library_id
     - title
     type: object
-  github_com_viewra_viewra_internal_domain_common.PaginationMetadata:
+  github_com_mantonx_viewra_internal_domain_ai.ModelInfo:
+    properties:
+      contextSize:
+        type: integer
+      description:
+        type: string
+      id:
+        type: string
+      isChat:
+        type: boolean
+      isEmbedding:
+        type: boolean
+      name:
+        type: string
+    type: object
+  github_com_mantonx_viewra_internal_domain_common.PaginationMetadata:
     properties:
       hasMore:
         description: Whether there are more items available
@@ -615,13 +1158,36 @@ definitions:
         description: Total number of items across all pages
         type: integer
     type: object
-  github_com_viewra_viewra_internal_domain_library.BrowseResult:
+  github_com_mantonx_viewra_internal_domain_enrichment.QueueStats:
+    properties:
+      completedCount:
+        format: int64
+        type: integer
+      failedCount:
+        format: int64
+        type: integer
+      pendingCount:
+        format: int64
+        type: integer
+      processingCount:
+        format: int64
+        type: integer
+      skippedCount:
+        format: int64
+        type: integer
+      stage:
+        type: string
+      totalCount:
+        format: int64
+        type: integer
+    type: object
+  github_com_mantonx_viewra_internal_domain_library.BrowseResult:
     properties:
       current_path:
         type: string
       directories:
         items:
-          $ref: '#/definitions/github_com_viewra_viewra_internal_domain_library.Directory'
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_library.Directory'
         type: array
       is_root:
         type: boolean
@@ -629,7 +1195,7 @@ definitions:
         description: null if at root
         type: string
     type: object
-  github_com_viewra_viewra_internal_domain_library.Directory:
+  github_com_mantonx_viewra_internal_domain_library.Directory:
     properties:
       modified_at:
         type: string
@@ -641,6 +1207,159 @@ definitions:
         type: boolean
       writable:
         type: boolean
+    type: object
+  github_com_mantonx_viewra_internal_infrastructure_subtitles.PGSFrame:
+    properties:
+      canvas_height:
+        description: PGS authoring resolution height (e.g., 1080 for 1080p subs on
+          4K video)
+        type: integer
+      canvas_width:
+        description: PGS authoring resolution width (e.g., 1920 for 1080p subs on
+          4K video)
+        type: integer
+      end_ms:
+        type: integer
+      height:
+        type: integer
+      image_base64:
+        type: string
+      start_ms:
+        type: integer
+      width:
+        type: integer
+      x:
+        type: integer
+      "y":
+        type: integer
+    type: object
+  github_com_mantonx_viewra_internal_infrastructure_transcoding_logging.LogInfo:
+    properties:
+      created_at:
+        type: string
+      error_count:
+        type: integer
+      file_path:
+        type: string
+      has_errors:
+        type: boolean
+      is_active:
+        description: True if still being written
+        type: boolean
+      line_count:
+        type: integer
+      media_id:
+        type: integer
+      modified_at:
+        type: string
+      quality:
+        type: string
+      session_id:
+        type: string
+      size_bytes:
+        type: integer
+    type: object
+  internal_api_handlers.AISettingsRequest:
+    properties:
+      enabled:
+        type: boolean
+      maxResults:
+        type: integer
+      ollamaModel:
+        type: string
+      ollamaUrl:
+        type: string
+      openaiApiKey:
+        type: string
+      openaiModel:
+        type: string
+      provider:
+        type: string
+      similarityThreshold:
+        type: string
+    type: object
+  internal_api_handlers.AISettingsResponse:
+    properties:
+      enabled:
+        type: boolean
+      maxResults:
+        type: integer
+      ollamaAvailable:
+        type: boolean
+      ollamaModel:
+        type: string
+      ollamaUrl:
+        type: string
+      openaiApiKey:
+        description: Masked for display
+        type: string
+      openaiModel:
+        type: string
+      provider:
+        type: string
+      similarityThreshold:
+        type: string
+    type: object
+  internal_api_handlers.ActiveSessionInfo:
+    properties:
+      has_log:
+        type: boolean
+      media_id:
+        type: integer
+      quality:
+        type: string
+      session_id:
+        type: string
+    type: object
+  internal_api_handlers.ActiveSessionsResponse:
+    properties:
+      count:
+        type: integer
+      sessions:
+        items:
+          $ref: '#/definitions/internal_api_handlers.ActiveSessionInfo'
+        type: array
+    type: object
+  internal_api_handlers.AdaptiveLadderResponse:
+    properties:
+      profiles:
+        items:
+          $ref: '#/definitions/internal_api_handlers.QualityProfile'
+        type: array
+    type: object
+  internal_api_handlers.AdminStatusEvent:
+    properties:
+      pending_settings:
+        items:
+          type: string
+        type: array
+      reason:
+        type: string
+      restart_pending:
+        type: boolean
+      timestamp:
+        type: string
+      type:
+        type: string
+    type: object
+  internal_api_handlers.CPUInfoResponse:
+    properties:
+      logicalCpus:
+        type: integer
+      model:
+        type: string
+      physicalCpus:
+        type: integer
+    type: object
+  internal_api_handlers.ChangePasswordRequest:
+    properties:
+      current_password:
+        type: string
+      new_password:
+        type: string
+    required:
+    - current_password
+    - new_password
     type: object
   internal_api_handlers.Check:
     properties:
@@ -682,12 +1401,60 @@ definitions:
       failed_count:
         type: integer
     type: object
+  internal_api_handlers.ConnectionTestResponse:
+    properties:
+      error:
+        type: string
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
   internal_api_handlers.CreateTranscodeJobRequest:
     properties:
+      codec:
+        description: 'Optional: h264, h265, vp9, av1 (defaults to h264)'
+        type: string
       quality:
         type: string
+      start_position:
+        description: 'Optional: start position in seconds for seek-based transcoding'
+        type: integer
     required:
     - quality
+    type: object
+  internal_api_handlers.CreateUserRequest:
+    properties:
+      display_name:
+        type: string
+      is_admin:
+        type: boolean
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - display_name
+    - password
+    - username
+    type: object
+  internal_api_handlers.CurrentItemResponse:
+    properties:
+      media_id:
+        type: integer
+      media_type:
+        type: string
+      stage:
+        type: string
+      title:
+        type: string
+    type: object
+  internal_api_handlers.DeleteOllamaModelRequest:
+    properties:
+      model:
+        type: string
+    required:
+    - model
     type: object
   internal_api_handlers.DiskUsageResponse:
     properties:
@@ -710,11 +1477,98 @@ definitions:
       total_size_human:
         type: string
     type: object
+  internal_api_handlers.EffectiveSettingResponse:
+    properties:
+      category:
+        description: Setting category
+        type: string
+      description:
+        description: Setting description
+        type: string
+      envVar:
+        description: Env var name if source is env_var
+        type: string
+      key:
+        type: string
+      label:
+        description: Human-readable label
+        type: string
+      locked:
+        description: True if cannot be changed via UI
+        type: boolean
+      readOnly:
+        description: True for display-only values
+        type: boolean
+      source:
+        description: default, database, env_var, detected
+        type: string
+      type:
+        description: Value type
+        type: string
+      value: {}
+    type: object
+  internal_api_handlers.EffectiveSettingsResponse:
+    properties:
+      settings:
+        items:
+          $ref: '#/definitions/internal_api_handlers.EffectiveSettingResponse'
+        type: array
+    type: object
+  internal_api_handlers.EnqueueMediaRequest:
+    properties:
+      library_id:
+        description: Library containing the media
+        type: integer
+      media_id:
+        type: integer
+      media_type:
+        description: movie, tv, tv_show, music
+        type: string
+      priority:
+        type: integer
+      stage:
+        type: string
+    required:
+    - library_id
+    - media_id
+    - media_type
+    - stage
+    type: object
+  internal_api_handlers.EnqueueMediaResponse:
+    properties:
+      media_id:
+        type: integer
+      stage:
+        type: string
+      status:
+        type: string
+    type: object
   internal_api_handlers.ErrorResponse:
     properties:
       error:
         type: string
       message:
+        type: string
+    type: object
+  internal_api_handlers.GPUInfoResponse:
+    properties:
+      available:
+        type: boolean
+      deviceCount:
+        type: integer
+      deviceNames:
+        items:
+          type: string
+        type: array
+      hasOpenCL:
+        type: boolean
+      hasVaapi:
+        type: boolean
+      hasVulkan:
+        type: boolean
+      hwAccelType:
+        type: string
+      type:
         type: string
     type: object
   internal_api_handlers.HealthResponse:
@@ -735,26 +1589,427 @@ definitions:
       version:
         type: string
     type: object
-  internal_api_handlers.OnDemandResponse:
+  internal_api_handlers.LibraryEnrichmentProgressResponse:
     properties:
-      estimated_time:
-        description: Estimated completion time
+      current_item:
+        $ref: '#/definitions/internal_api_handlers.CurrentItemResponse'
+      is_active:
+        type: boolean
+      library_id:
+        type: integer
+      overall_progress:
+        $ref: '#/definitions/internal_api_handlers.OverallProgressResponse'
+      stage_progress:
+        additionalProperties:
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_enrichment.QueueStats'
+        type: object
+      total_completed:
+        type: integer
+      total_failed:
+        type: integer
+      total_pending:
+        type: integer
+      total_processing:
+        type: integer
+    type: object
+  internal_api_handlers.ListSessionsResponse:
+    properties:
+      sessions:
+        items:
+          $ref: '#/definitions/internal_api_handlers.PlaybackSessionResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  internal_api_handlers.LogContentResponse:
+    properties:
+      content:
         type: string
+      is_active:
+        type: boolean
+      media_id:
+        type: integer
+      session_id:
+        type: string
+    type: object
+  internal_api_handlers.LogListResponse:
+    properties:
+      count:
+        type: integer
+      logs:
+        items:
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_infrastructure_transcoding_logging.LogInfo'
+        type: array
+      media_id:
+        type: integer
+    type: object
+  internal_api_handlers.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  internal_api_handlers.LogoutRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  internal_api_handlers.MemoryInfoResponse:
+    properties:
+      availableBytes:
+        type: integer
+      totalBytes:
+        type: integer
+      totalFormatted:
+        type: string
+    type: object
+  internal_api_handlers.OllamaModelsResponse:
+    properties:
+      models:
+        items:
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_ai.ModelInfo'
+        type: array
+    type: object
+  internal_api_handlers.OverallProgressResponse:
+    properties:
+      completed_items:
+        type: integer
+      percentage:
+        type: number
+      remaining_items:
+        type: integer
+      total_items:
+        type: integer
+    type: object
+  internal_api_handlers.PauseScanResponse:
+    properties:
       job_id:
-        description: For processing strategies
         type: integer
-      progress:
-        description: Job progress (0-100)
+      message:
+        type: string
+    type: object
+  internal_api_handlers.PlaybackAnalyticsRequest:
+    properties:
+      events:
+        items:
+          $ref: '#/definitions/internal_api_handlers.QualitySwitchEventRequest'
+        type: array
+      session:
+        $ref: '#/definitions/internal_api_handlers.PlaybackSessionRequest'
+    type: object
+  internal_api_handlers.PlaybackSessionRequest:
+    properties:
+      averageQuality:
+        type: string
+      connectionType:
+        type: string
+      deviceType:
+        type: string
+      endTime:
         type: integer
+      mediaId:
+        type: integer
+      qualitySwitchCount:
+        type: integer
+      sessionId:
+        type: string
+      stallCount:
+        type: integer
+      startTime:
+        type: integer
+      startupTimeMs:
+        type: integer
+      totalBufferTime:
+        type: integer
+      totalPlayTime:
+        type: integer
+    type: object
+  internal_api_handlers.PlaybackSessionResponse:
+    properties:
+      averageQuality:
+        type: string
+      backendStartupMs:
+        type: integer
+      connectionType:
+        type: string
+      deviceType:
+        type: string
+      endTime:
+        type: integer
+      firstFrameMs:
+        type: integer
+      firstSegmentMs:
+        type: integer
+      hwAccel:
+        type: string
+      mediaId:
+        type: integer
+      qualityProfile:
+        description: Transcode metrics (from backend, joined via session_id)
+        type: string
+      qualitySwitchCount:
+        type: integer
+      segmentsCreated:
+        type: integer
+      sessionId:
+        type: string
+      stallCount:
+        type: integer
+      startTime:
+        type: integer
+      startupTimeMs:
+        type: integer
+      totalBufferTimeMs:
+        type: integer
+      totalPlayTimeMs:
+        type: integer
+      transcodeStatus:
+        type: string
+      transcodeStrategy:
+        type: string
+    type: object
+  internal_api_handlers.PlaybackSummaryResponse:
+    properties:
+      avgBufferTimeMs:
+        type: number
+      avgPlayTimeMs:
+        type: number
+      avgStallsPerSession:
+        type: number
+      avgStartupTimeMs:
+        type: number
+      maxStartupTimeMs:
+        type: integer
+      minStartupTimeMs:
+        type: integer
+      totalSessions:
+        type: integer
+      totalStalls:
+        type: integer
+      uniqueMedia:
+        type: integer
+    type: object
+  internal_api_handlers.PluginListResponse:
+    properties:
+      plugins:
+        items:
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_plugins.PluginSummary'
+        type: array
+    type: object
+  internal_api_handlers.PluginLogsResponse:
+    properties:
+      logs:
+        items:
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_plugins.LogEntry'
+        type: array
+      plugin_id:
+        type: string
+    type: object
+  internal_api_handlers.PullOllamaModelRequest:
+    properties:
+      model:
+        type: string
+    required:
+    - model
+    type: object
+  internal_api_handlers.QualityProfile:
+    properties:
+      displayName:
+        type: string
+      height:
+        type: integer
+      id:
+        type: string
+      minNetworkMbps:
+        type: number
+      preferredCodec:
+        type: string
+      videoBitrate:
+        type: integer
+      width:
+        type: integer
+    type: object
+  internal_api_handlers.QualityRecommendationResponse:
+    properties:
+      audioBitrate:
+        type: integer
+      dataUsageMBPerHour:
+        type: integer
+      displayName:
+        type: string
+      fallbackCodecs:
+        items:
+          type: string
+        type: array
+      height:
+        type: integer
+      preferredCodec:
+        type: string
+      profileId:
+        type: string
+      reason:
+        type: string
+      score:
+        type: number
+      videoBitrate:
+        type: integer
+      width:
+        type: integer
+    type: object
+  internal_api_handlers.QualitySwitchEventRequest:
+    properties:
+      bufferSeconds:
+        type: number
+      causedStall:
+        type: boolean
+      connectionType:
+        type: string
+      deviceType:
+        type: string
+      fromQuality:
+        type: string
+      mediaId:
+        type: integer
+      networkSpeedMbps:
+        type: number
+      positionSeconds:
+        type: number
+      sessionId:
+        type: string
+      switchReason:
+        type: string
+      timestamp:
+        type: integer
+      toQuality:
+        type: string
+    type: object
+  internal_api_handlers.RecommendQualityRequest:
+    properties:
+      batteryLevel:
+        type: number
+      connectionType:
+        type: string
+      cpuCores:
+        description: Performance
+        type: integer
+      deviceType:
+        description: Device
+        type: string
+      hardwareAcceleration:
+        type: boolean
+      isCharging:
+        type: boolean
+      isMetered:
+        type: boolean
+      lowPowerMode:
+        type: boolean
+      maxDecodingProfile:
+        type: string
+      memoryGB:
+        type: number
+      networkSpeedMbps:
+        description: Network
+        minimum: 0
+        type: number
+      pixelRatio:
+        type: number
+      screenHeight:
+        minimum: 1
+        type: integer
+      screenWidth:
+        minimum: 1
+        type: integer
+      supportedCodecs:
+        description: Media capabilities
+        items:
+          type: string
+        type: array
+    required:
+    - deviceType
+    - networkSpeedMbps
+    - screenHeight
+    - screenWidth
+    type: object
+  internal_api_handlers.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  internal_api_handlers.ResetPasswordRequest:
+    properties:
+      new_password:
+        type: string
+    required:
+    - new_password
+    type: object
+  internal_api_handlers.RestartRequest:
+    properties:
+      reason:
+        type: string
+    type: object
+  internal_api_handlers.RestartResponse:
+    properties:
+      message:
+        type: string
+      pending:
+        type: boolean
+      pending_settings:
+        items:
+          type: string
+        type: array
+      reason:
+        type: string
+      requested_at:
+        type: string
+    type: object
+  internal_api_handlers.ResumeScanResponse:
+    properties:
+      job_id:
+        type: integer
+      message:
+        type: string
+    type: object
+  internal_api_handlers.RetryFailedResponse:
+    properties:
+      count:
+        type: integer
+      message:
+        type: string
+    type: object
+  internal_api_handlers.ScanErrorDetail:
+    properties:
+      error_category:
+        type: string
+      error_message:
+        type: string
+      file_path:
+        type: string
+      file_size:
+        type: integer
+      processed_at:
+        type: string
       status:
-        description: Job status
+        description: '"failed" or "warning"'
         type: string
-      strategy:
-        description: direct_play, remux, remux_audio, or transcode
-        type: string
-      url:
-        description: For direct_play
-        type: string
+    type: object
+  internal_api_handlers.ScanErrorsResponse:
+    properties:
+      by_category:
+        additionalProperties:
+          items:
+            $ref: '#/definitions/internal_api_handlers.ScanErrorDetail'
+          type: array
+        type: object
+      total_errors:
+        type: integer
     type: object
   internal_api_handlers.ScanHistoryItem:
     properties:
@@ -781,6 +2036,8 @@ definitions:
         type: string
       status:
         type: string
+      warning_count:
+        type: integer
     type: object
   internal_api_handlers.ScanHistoryResponse:
     properties:
@@ -797,18 +2054,51 @@ definitions:
       completed_at:
         description: ISO 8601 timestamp
         type: string
+      dirs_scanned:
+        description: Directories successfully scanned
+        type: integer
+      dirs_skipped:
+        description: Directories that couldn't be read
+        type: integer
+      discovery_done:
+        description: Whether file discovery is complete
+        type: boolean
+      discovery_errors:
+        description: Discovery health metrics (added in v0.18)
+        type: integer
+      discovery_warnings:
+        description: Warnings during discovery
+        type: integer
       error_count:
         description: Number of errors encountered
         type: integer
       error_message:
         description: Error message if failed
         type: string
+      errors_job_id:
+        description: Job ID where errors/warnings are from (if different from JobID)
+        type: integer
+      estimated_total:
+        description: Estimated total files from previous scan
+        type: integer
+      eta_seconds:
+        description: Estimated seconds remaining (nil if unknown)
+        type: integer
       files_found:
         description: Total files discovered
         type: integer
       files_processed:
         description: Files processed so far
         type: integer
+      files_skipped:
+        description: Files that couldn't be stat'd
+        type: integer
+      job_id:
+        description: Scan job ID
+        type: integer
+      phase:
+        description: Current scan phase (discovering/processing/completed)
+        type: string
       progress:
         description: 0-100
         type: number
@@ -818,6 +2108,115 @@ definitions:
       status:
         description: pending, running, paused, completed, failed
         type: string
+      warning_count:
+        description: Number of warnings encountered
+        type: integer
+    type: object
+  internal_api_handlers.SetSystemRequest:
+    properties:
+      value: {}
+    required:
+    - value
+    type: object
+  internal_api_handlers.SetUserRequest:
+    properties:
+      value: {}
+    required:
+    - value
+    type: object
+  internal_api_handlers.SettingDefinitionResponse:
+    properties:
+      adminOnly:
+        type: boolean
+      category:
+        type: string
+      default: {}
+      description:
+        type: string
+      envVar:
+        description: Associated env var name
+        type: string
+      key:
+        type: string
+      label:
+        type: string
+      options:
+        items:
+          $ref: '#/definitions/internal_api_handlers.SettingOptionResponse'
+        type: array
+      readOnly:
+        description: True for display-only values
+        type: boolean
+      restartable:
+        type: boolean
+      sensitive:
+        description: True if value is encrypted (API keys)
+        type: boolean
+      type:
+        type: string
+      validation:
+        $ref: '#/definitions/internal_api_handlers.SettingValidationResponse'
+    type: object
+  internal_api_handlers.SettingOptionResponse:
+    properties:
+      label:
+        type: string
+      value:
+        type: string
+    type: object
+  internal_api_handlers.SettingValidationResponse:
+    properties:
+      max:
+        type: integer
+      min:
+        type: integer
+      pattern:
+        type: string
+      required:
+        type: boolean
+    type: object
+  internal_api_handlers.SettingsSchemaResponse:
+    properties:
+      system:
+        items:
+          $ref: '#/definitions/internal_api_handlers.SettingDefinitionResponse'
+        type: array
+      user:
+        items:
+          $ref: '#/definitions/internal_api_handlers.SettingDefinitionResponse'
+        type: array
+    type: object
+  internal_api_handlers.SetupRequest:
+    properties:
+      display_name:
+        type: string
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - display_name
+    - password
+    - username
+    type: object
+  internal_api_handlers.SetupStatusResponse:
+    properties:
+      needs_setup:
+        type: boolean
+    type: object
+  internal_api_handlers.StorageInfoResponse:
+    properties:
+      detectedPath:
+        type: string
+      isRemote:
+        type: boolean
+      type:
+        type: string
+    type: object
+  internal_api_handlers.SuccessResponse:
+    properties:
+      success:
+        type: boolean
     type: object
   internal_api_handlers.SystemInfo:
     properties:
@@ -828,8 +2227,52 @@ definitions:
       num_goroutines:
         type: integer
     type: object
+  internal_api_handlers.SystemInfoResponse:
+    properties:
+      cpu:
+        $ref: '#/definitions/internal_api_handlers.CPUInfoResponse'
+      gpu:
+        $ref: '#/definitions/internal_api_handlers.GPUInfoResponse'
+      memory:
+        $ref: '#/definitions/internal_api_handlers.MemoryInfoResponse'
+      storage:
+        $ref: '#/definitions/internal_api_handlers.StorageInfoResponse'
+    type: object
+  internal_api_handlers.SystemSettingResponse:
+    properties:
+      category:
+        type: string
+      description:
+        type: string
+      key:
+        type: string
+      updated_at:
+        type: string
+      updated_by:
+        type: string
+      value:
+        type: string
+      value_type:
+        type: string
+    type: object
+  internal_api_handlers.SystemSettingValueResponse:
+    properties:
+      key:
+        type: string
+      value: {}
+    type: object
+  internal_api_handlers.SystemSettingsResponse:
+    properties:
+      settings:
+        items:
+          $ref: '#/definitions/internal_api_handlers.SystemSettingResponse'
+        type: array
+    type: object
   internal_api_handlers.TranscodeJobResponse:
     properties:
+      codec:
+        description: 'Video codec: h264, h265, vp9, av1'
+        type: string
       completed_at:
         type: string
       created_at:
@@ -852,20 +2295,608 @@ definitions:
         description: 'Job type: remux, remux_audio, or transcode'
         type: string
     type: object
-host: localhost:8080
+  internal_api_handlers.UpdatePluginSettingsRequest:
+    properties:
+      values:
+        items:
+          type: integer
+        type: array
+    required:
+    - values
+    type: object
+  internal_api_handlers.UpdateUserRequest:
+    properties:
+      display_name:
+        type: string
+      is_admin:
+        type: boolean
+      is_disabled:
+        type: boolean
+    type: object
+  internal_api_handlers.UserSettingResponse:
+    properties:
+      key:
+        type: string
+      updated_at:
+        type: string
+      value:
+        type: string
+    type: object
+  internal_api_handlers.UserSettingValueResponse:
+    properties:
+      key:
+        type: string
+      value: {}
+    type: object
+  internal_api_handlers.UserSettingsResponse:
+    properties:
+      settings:
+        items:
+          $ref: '#/definitions/internal_api_handlers.UserSettingResponse'
+        type: array
+    type: object
 info:
-  contact:
-    email: support@swagger.io
-    name: ViewRA Support
-    url: http://www.swagger.io/support
-  description: Self-hosted media server for movies, TV shows, and music
-  license:
-    name: MIT
-    url: https://opensource.org/licenses/MIT
-  termsOfService: http://swagger.io/terms/
-  title: ViewRA Media Server API
-  version: 0.0.1
+  contact: {}
 paths:
+  /api/adaptive/ladder:
+    post:
+      consumes:
+      - application/json
+      description: Returns a set of quality profiles for adaptive streaming (ABR)
+      parameters:
+      - description: Client capabilities
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.RecommendQualityRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.AdaptiveLadderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get adaptive bitrate ladder
+      tags:
+      - adaptive
+  /api/adaptive/recommend:
+    post:
+      consumes:
+      - application/json
+      description: Analyzes client capabilities and recommends the best quality profile
+      parameters:
+      - description: Client capabilities
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.RecommendQualityRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.QualityRecommendationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Recommend optimal quality profile
+      tags:
+      - adaptive
+  /api/admin/status/stream:
+    get:
+      description: SSE stream of admin-relevant status updates (restart pending, etc.)
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.AdminStatusEvent'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Stream admin status updates
+      tags:
+      - system
+  /api/admin/system/restart:
+    delete:
+      description: Cancels a pending server restart (admin only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.RestartResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: No pending restart
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cancel pending restart
+      tags:
+      - system
+    get:
+      description: Returns the current restart status including pending settings
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.RestartResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get restart status
+      tags:
+      - system
+    post:
+      consumes:
+      - application/json
+      description: Requests the server to restart (admin only). The restart is graceful.
+      parameters:
+      - description: Restart reason
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.RestartRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.RestartResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Request server restart
+      tags:
+      - system
+  /api/admin/system/restart/now:
+    post:
+      description: Triggers an immediate server restart (admin only). Use with caution.
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/internal_api_handlers.RestartResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Execute restart immediately
+      tags:
+      - system
+  /api/analytics/playback:
+    post:
+      consumes:
+      - application/json
+      description: Stores quality switch events and session data for analytics
+      parameters:
+      - description: Analytics data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.PlaybackAnalyticsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Record playback analytics
+      tags:
+      - analytics
+  /api/analytics/sessions:
+    get:
+      description: Lists playback sessions, optionally filtered by media ID
+      parameters:
+      - description: Filter by media ID
+        in: query
+        name: media_id
+        type: integer
+      - description: Maximum number of results (default 50)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset for pagination (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ListSessionsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List playback sessions
+      tags:
+      - analytics
+  /api/analytics/sessions/{id}:
+    get:
+      description: Retrieves a single playback session by its ID
+      parameters:
+      - description: Session ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.PlaybackSessionResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get playback session by ID
+      tags:
+      - analytics
+  /api/analytics/summary:
+    get:
+      description: Retrieves aggregated playback analytics, optionally filtered by
+        media ID
+      parameters:
+      - description: Filter by media ID (omit for overall summary)
+        in: query
+        name: media_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.PlaybackSummaryResponse'
+      summary: Get playback analytics summary
+      tags:
+      - analytics
+  /api/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates a user and returns access and refresh tokens
+      parameters:
+      - description: Login credentials
+        in: body
+        name: credentials
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_auth.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: User login
+      tags:
+      - auth
+  /api/auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Invalidates the current session
+      parameters:
+      - description: Refresh token to invalidate
+        in: body
+        name: token
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.LogoutRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Logout
+      tags:
+      - auth
+  /api/auth/logout-all:
+    post:
+      description: Invalidates all sessions for the current user
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Logout from all sessions
+      tags:
+      - auth
+  /api/auth/me:
+    get:
+      description: Returns the currently authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_auth.UserResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current user
+      tags:
+      - auth
+  /api/auth/password:
+    put:
+      consumes:
+      - application/json
+      description: Changes the current user's password
+      parameters:
+      - description: Password change request
+        in: body
+        name: passwords
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Change password
+      tags:
+      - auth
+  /api/auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Exchanges a refresh token for a new access token
+      parameters:
+      - description: Refresh token
+        in: body
+        name: token
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_auth.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Refresh access token
+      tags:
+      - auth
+  /api/auth/sessions:
+    get:
+      description: Returns all active sessions for the current user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_mantonx_viewra_internal_application_auth.SessionResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List sessions
+      tags:
+      - auth
+  /api/auth/sessions/{id}:
+    delete:
+      description: Revokes a specific session
+      parameters:
+      - description: Session ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Revoke session
+      tags:
+      - auth
+  /api/auth/setup:
+    get:
+      description: Returns whether initial setup is required (no users exist)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.SetupStatusResponse'
+      summary: Check setup status
+      tags:
+      - auth
+    post:
+      consumes:
+      - application/json
+      description: Creates the initial admin user (only works if no users exist)
+      parameters:
+      - description: Admin user details
+        in: body
+        name: admin
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.SetupRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_auth.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "409":
+          description: Setup already completed
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Initial setup
+      tags:
+      - auth
+  /api/enrichment/enqueue:
+    post:
+      consumes:
+      - application/json
+      description: Manually enqueues a media item for a specific enrichment stage
+      parameters:
+      - description: Enqueue request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.EnqueueMediaRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/internal_api_handlers.EnqueueMediaResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Enqueue media for enrichment
+      tags:
+      - enrichment
+  /api/enrichment/stats:
+    get:
+      description: Returns queue statistics for all enrichment stages
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_enrichment.QueueStats'
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get enrichment queue statistics
+      tags:
+      - enrichment
   /api/filesystem/browse:
     get:
       description: Browse directories for library path selection
@@ -880,7 +2911,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_domain_library.BrowseResult'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_library.BrowseResult'
         "400":
           description: Invalid path
           schema:
@@ -911,7 +2942,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ImageResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_images.ImageResponse'
         "404":
           description: Not Found
           schema:
@@ -961,19 +2992,25 @@ paths:
     post:
       consumes:
       - application/json
-      description: Returns images for multiple media items in a single request to
-        reduce N+1 queries
+      description: Returns images for multiple media items (movies, episodes) or entities
+        (TV shows, artists) in a single request to reduce N+1 queries
       parameters:
-      - description: Media IDs
+      - description: Batch request with either media_ids or (entity_ids + media_type)
         in: body
         name: request
         required: true
         schema:
           properties:
+            entity_ids:
+              items:
+                type: integer
+              type: array
             media_ids:
               items:
                 type: integer
               type: array
+            media_type:
+              type: string
           type: object
       produces:
       - application/json
@@ -981,7 +3018,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.BatchImagesResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_images.BatchImagesResponse'
         "400":
           description: Bad Request
           schema:
@@ -990,7 +3027,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-      summary: Get images for multiple media items
+      summary: Get images for multiple media items or entities
       tags:
       - images
   /api/libraries:
@@ -1002,7 +3039,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.ListLibrariesResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_library.ListLibrariesResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -1020,14 +3057,14 @@ paths:
         name: library
         required: true
         schema:
-          $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.CreateLibraryRequest'
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_library.CreateLibraryRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.LibraryResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_library.LibraryResponse'
         "400":
           description: Bad Request
           schema:
@@ -1082,7 +3119,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.GetLibraryResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_library.GetLibraryResponse'
         "400":
           description: Bad Request
           schema:
@@ -1113,14 +3150,14 @@ paths:
         name: library
         required: true
         schema:
-          $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.UpdateLibraryRequest'
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_library.UpdateLibraryRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.LibraryResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_library.LibraryResponse'
         "400":
           description: Bad Request
           schema:
@@ -1136,6 +3173,87 @@ paths:
       summary: Update a library
       tags:
       - libraries
+  /api/libraries/{id}/enrichment/progress:
+    get:
+      description: Returns enrichment progress for a specific library
+      parameters:
+      - description: Library ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.LibraryEnrichmentProgressResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get library enrichment progress
+      tags:
+      - enrichment
+  /api/libraries/{id}/enrichment/stream:
+    get:
+      description: Streams enrichment events for a specific library in real-time via
+        SSE
+      parameters:
+      - description: Library ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: SSE stream
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Stream library enrichment progress
+      tags:
+      - enrichment
+  /api/libraries/{id}/issues:
+    get:
+      consumes:
+      - application/json
+      description: Returns all files with warnings or errors from scan_state (persistent
+        across scans)
+      parameters:
+      - description: Library ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Library issues
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ScanErrorsResponse'
+        "400":
+          description: Invalid library ID
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get library warnings and errors
+      tags:
+      - scans
   /api/libraries/{id}/scan:
     post:
       description: Scans a library for media files
@@ -1151,7 +3269,7 @@ paths:
         "202":
           description: Accepted
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.StartScanResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_library.StartScanResponse'
         "400":
           description: Bad Request
           schema:
@@ -1171,6 +3289,160 @@ paths:
       summary: Scan a library
       tags:
       - libraries
+  /api/libraries/{id}/scan/{jobId}/errors:
+    get:
+      consumes:
+      - application/json
+      description: Returns all files that failed during scanning, grouped by error
+        category
+      parameters:
+      - description: Library ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Scan Job ID
+        in: path
+        name: jobId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Scan errors
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ScanErrorsResponse'
+        "400":
+          description: Invalid library ID or job ID
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get scan errors
+      tags:
+      - scans
+  /api/libraries/{id}/scan/{jobId}/pause:
+    post:
+      consumes:
+      - application/json
+      description: Pauses an active scan job, allowing it to be resumed later
+      parameters:
+      - description: Library ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Scan Job ID
+        in: path
+        name: jobId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Scan paused successfully
+          schema:
+            $ref: '#/definitions/internal_api_handlers.PauseScanResponse'
+        "400":
+          description: Invalid library ID or job ID
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Scan job not found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "409":
+          description: Scan is not running
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Pause scan
+      tags:
+      - scans
+  /api/libraries/{id}/scan/{jobId}/resume:
+    post:
+      consumes:
+      - application/json
+      description: Resumes a paused scan job, continuing from where it left off
+      parameters:
+      - description: Library ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Scan Job ID
+        in: path
+        name: jobId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Scan resumed successfully
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ResumeScanResponse'
+        "400":
+          description: Invalid library ID or job ID
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Scan job not found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "409":
+          description: Scan is not paused
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Resume scan
+      tags:
+      - scans
+  /api/libraries/{id}/scan/{jobId}/retry-failed:
+    post:
+      consumes:
+      - application/json
+      description: Resets all failed file processing attempts to pending status for
+        retry
+      parameters:
+      - description: Library ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Scan Job ID
+        in: path
+        name: jobId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Retry result
+          schema:
+            $ref: '#/definitions/internal_api_handlers.RetryFailedResponse'
+        "400":
+          description: Invalid library ID or job ID
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Retry failed files
+      tags:
+      - scans
   /api/libraries/{id}/scan/history:
     get:
       consumes:
@@ -1301,7 +3573,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_media.ListMediaResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_media.ListMediaResponse'
         "400":
           description: Bad Request
           schema:
@@ -1328,7 +3600,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_media.GetMediaResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_media.GetMediaResponse'
         "400":
           description: Bad Request
           schema:
@@ -1344,9 +3616,468 @@ paths:
       summary: Get a media item by ID
       tags:
       - media
+  /api/media/{id}/stream-info:
+    get:
+      description: |-
+        Returns detailed technical information about video and audio streams for the stats panel.
+        The strategy field indicates how the video will be processed (direct, remux, transcode).
+        Include X-Supported-Video-Codecs header for accurate strategy detection.
+        Pass quality query param to get accurate strategy for the selected quality level.
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Selected quality level (e.g., 'original', '1080p-10m', '480p')
+        in: query
+        name: quality
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_media.StreamInfoResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get detailed stream information for a media item
+      tags:
+      - media
+  /api/media/{id}/subtitles/{trackId}:
+    get:
+      description: Returns subtitle content converted to WebVTT format for HLS playback
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Subtitle Track ID
+        in: path
+        name: trackId
+        required: true
+        type: integer
+      produces:
+      - text/vtt
+      responses:
+        "200":
+          description: WebVTT content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get subtitle track as WebVTT
+      tags:
+      - subtitles
+  /api/media/{id}/subtitles/pgs/{index}:
+    get:
+      description: Extracts all PGS subtitle frames and returns them as a JSON array
+        with base64-encoded WebP images
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Stream Index (relative, 0-based among bitmap subtitle streams)
+        in: path
+        name: index
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Array of PGS frames
+          schema:
+            items:
+              $ref: '#/definitions/github_com_mantonx_viewra_internal_infrastructure_subtitles.PGSFrame'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get all PGS subtitle frames as JSON array
+      tags:
+      - subtitles
+  /api/media/{id}/subtitles/pgs/{index}/stream:
+    get:
+      description: Extracts PGS subtitle frames and returns them as JSON lines with
+        base64-encoded WebP images. Use start/end params to request frames in time
+        windows for efficient playback.
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Stream Index (relative, 0-based among bitmap subtitle streams)
+        in: path
+        name: index
+        required: true
+        type: integer
+      - description: 'Start time in milliseconds (default: 0)'
+        in: query
+        name: start
+        type: integer
+      - description: 'End time in milliseconds (default: 5 minutes from start). Use
+          0 for unlimited (not recommended for large files).'
+        in: query
+        name: end
+        type: integer
+      produces:
+      - application/x-ndjson
+      responses:
+        "200":
+          description: JSON lines of PGS frames
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_infrastructure_subtitles.PGSFrame'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Stream PGS subtitle frames as WebP images
+      tags:
+      - subtitles
+  /api/media/{id}/subtitles/stream/{index}:
+    get:
+      description: Extracts and converts an embedded subtitle stream to WebVTT format
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Stream Index
+        in: path
+        name: index
+        required: true
+        type: integer
+      produces:
+      - text/vtt
+      responses:
+        "200":
+          description: WebVTT content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get embedded subtitle by stream index as WebVTT
+      tags:
+      - subtitles
+  /api/media/{id}/subtitles/text/{index}/stream:
+    get:
+      description: Streams the embedded subtitle stream, converting to WebVTT. Supports
+        time-windowed extraction for faster initial load.
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Stream Index (relative, 0-based among subtitle streams)
+        in: path
+        name: index
+        required: true
+        type: integer
+      - description: 'Start time in milliseconds (default: 0, extracts full file)'
+        in: query
+        name: start
+        type: integer
+      - description: 'End time in milliseconds (default: 0, extracts full file)'
+        in: query
+        name: end
+        type: integer
+      produces:
+      - text/vtt
+      responses:
+        "200":
+          description: WebVTT content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Stream embedded text subtitle as WebVTT
+      tags:
+      - subtitles
+  /api/media/{id}/tracks:
+    get:
+      description: Returns all audio and subtitle tracks (both embedded and external)
+        for a specific media item
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_media.GetTracksResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get audio and subtitle tracks for a media item
+      tags:
+      - media
+  /api/media/{media_id}/ffmpeg-logs:
+    get:
+      description: Lists all available FFmpeg transcode logs for a specific media
+        item
+      parameters:
+      - description: Media ID
+        in: path
+        name: media_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.LogListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List FFmpeg logs for media
+      tags:
+      - ffmpeg-logs
+  /api/media/{media_id}/ffmpeg-logs/{session_id}:
+    delete:
+      description: Deletes a specific FFmpeg transcode log (cannot delete active logs)
+      parameters:
+      - description: Media ID
+        in: path
+        name: media_id
+        required: true
+        type: integer
+      - description: Session ID
+        in: path
+        name: session_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "409":
+          description: Cannot delete active log
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Delete FFmpeg log
+      tags:
+      - ffmpeg-logs
+    get:
+      description: Retrieves the content of a specific FFmpeg transcode log
+      parameters:
+      - description: Media ID
+        in: path
+        name: media_id
+        required: true
+        type: integer
+      - description: Session ID
+        in: path
+        name: session_id
+        required: true
+        type: string
+      - description: Only return last N lines
+        in: query
+        name: tail
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.LogContentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get FFmpeg log content
+      tags:
+      - ffmpeg-logs
+  /api/media/{media_id}/ffmpeg-logs/{session_id}/info:
+    get:
+      description: Retrieves metadata about a specific FFmpeg log (size, line count,
+        error count)
+      parameters:
+      - description: Media ID
+        in: path
+        name: media_id
+        required: true
+        type: integer
+      - description: Session ID
+        in: path
+        name: session_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_infrastructure_transcoding_logging.LogInfo'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get FFmpeg log info
+      tags:
+      - ffmpeg-logs
+  /api/media/{media_id}/ffmpeg-logs/{session_id}/stream:
+    get:
+      description: |-
+        Streams FFmpeg log output in real-time using Server-Sent Events (SSE).
+        For active sessions, new log lines are pushed as they appear.
+        For completed sessions, returns existing content then closes.
+      parameters:
+      - description: Media ID
+        in: path
+        name: media_id
+        required: true
+        type: integer
+      - description: Session ID
+        in: path
+        name: session_id
+        required: true
+        type: string
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: SSE stream of log lines
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Stream FFmpeg log in real-time
+      tags:
+      - ffmpeg-logs
   /api/media/{media_id}/hls/{quality}/{filename}:
     get:
-      description: Serves HLS segment files (.ts) for adaptive streaming
+      description: Serves HLS segment files (.ts) from progressive transcoding sessions
       parameters:
       - description: Media ID
         in: path
@@ -1358,7 +4089,7 @@ paths:
         name: quality
         required: true
         type: string
-      - description: Segment filename
+      - description: Segment filename (e.g., seg_000123.ts)
         in: path
         name: filename
         required: true
@@ -1370,8 +4101,16 @@ paths:
           description: HLS segment file
           schema:
             type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/internal_api_handlers.ErrorResponse'
       summary: Serve HLS segment
@@ -1380,8 +4119,8 @@ paths:
   /api/media/{media_id}/hls/{quality}/playlist.m3u8:
     get:
       description: |-
-        Serves the HLS playlist (.m3u8) file for adaptive streaming. If playlist doesn't exist, analyzes video
-        and either redirects to direct stream or creates a transcode job.
+        Serves the HLS playlist (.m3u8) file for adaptive streaming. Generates complete manifest instantly
+        from segment 0. Segments are created on-demand as the player requests them. Compatible videos redirect to direct stream.
       parameters:
       - description: Media ID
         in: path
@@ -1398,13 +4137,9 @@ paths:
       - application/json
       responses:
         "200":
-          description: HLS playlist file (if exists)
+          description: HLS playlist file - segments generated on-demand
           schema:
             type: file
-        "202":
-          description: Job created (for files needing processing)
-          schema:
-            $ref: '#/definitions/internal_api_handlers.OnDemandResponse'
         "302":
           description: Redirect to direct stream (for compatible files)
         "400":
@@ -1419,7 +4154,109 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-      summary: Serve HLS playlist (with on-demand transcoding)
+      summary: Serve HLS playlist (instant manifest generation)
+      tags:
+      - transcode
+  /api/media/{media_id}/hls/master.m3u8:
+    get:
+      description: |-
+        Serves an HLS master playlist (.m3u8) with the optimal quality based on client capabilities.
+        Uses screen size, bandwidth, and codec support to recommend the best quality.
+        If the video is compatible for direct play (right codec, audio, container), returns 302 redirect.
+      parameters:
+      - description: Media ID
+        in: path
+        name: media_id
+        required: true
+        type: integer
+      - description: Start position in seconds for seeking
+        in: query
+        name: start
+        type: number
+      - description: Client screen width in pixels
+        in: query
+        name: screenWidth
+        type: integer
+      - description: Client screen height in pixels
+        in: query
+        name: screenHeight
+        type: integer
+      - description: Estimated bandwidth in bits per second
+        in: query
+        name: bandwidth
+        type: integer
+      - description: Comma-separated list of supported codecs (h264,h265,vp9,av1)
+        in: query
+        name: codecs
+        type: string
+      - description: 'Override: force specific quality (e.g., 4k-25m, 1080p-10m)'
+        in: query
+        name: quality
+        type: string
+      produces:
+      - application/vnd.apple.mpegurl
+      - application/json
+      responses:
+        "200":
+          description: HLS master playlist with recommended quality
+          schema:
+            type: file
+        "302":
+          description: Redirect to direct stream (for compatible files)
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Serve HLS master playlist
+      tags:
+      - transcode
+  /api/media/{media_id}/hls/subtitle/{trackIndex}/subtitles.vtt:
+    get:
+      description: Streams a text subtitle as WebVTT for HLS playback (fast demux,
+        no full file scan)
+      parameters:
+      - description: Media ID
+        in: path
+        name: media_id
+        required: true
+        type: integer
+      - description: Subtitle track index (0-based, among text subtitles only)
+        in: path
+        name: trackIndex
+        required: true
+        type: integer
+      - description: Start position in seconds (for seeking)
+        in: query
+        name: start
+        type: number
+      produces:
+      - text/vtt
+      responses:
+        "200":
+          description: WebVTT subtitle file
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Serve subtitle WebVTT file
       tags:
       - transcode
   /api/media/{media_id}/transcode:
@@ -1546,7 +4383,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_images.ListImagesResponse'
         "400":
           description: Bad Request
           schema:
@@ -1568,6 +4405,10 @@ paths:
         name: library_id
         required: true
         type: integer
+      - description: Search query to filter movies by title
+        in: query
+        name: q
+        type: string
       - description: 'Number of items per page (default: 50, max: 200)'
         in: query
         name: limit
@@ -1576,13 +4417,17 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: 'Sort order: title_asc or title_desc (default: title_asc)'
+        in: query
+        name: sort
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_movies.ListMoviesResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_movies.ListMoviesResponse'
         "400":
           description: Bad Request
           schema:
@@ -1609,7 +4454,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_movies.MovieResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_movies.MovieResponse'
         "400":
           description: Bad Request
           schema:
@@ -1623,6 +4468,37 @@ paths:
           schema:
             $ref: '#/definitions/internal_api_handlers.ErrorResponse'
       summary: Get a movie by ID
+      tags:
+      - movies
+  /api/movies/{id}/credits:
+    get:
+      description: Returns cast, directors, and writers for a specific movie
+      parameters:
+      - description: Movie ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_people.CreditsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get credits for a movie
       tags:
       - movies
   /api/movies/{id}/images:
@@ -1641,7 +4517,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_images.ListImagesResponse'
         "400":
           description: Bad Request
           schema:
@@ -1654,6 +4530,46 @@ paths:
       tags:
       - movies
       - images
+  /api/movies/ids:
+    get:
+      description: Returns a list of movie IDs only for prefetching images with optional
+        pagination
+      parameters:
+      - description: Library ID to filter movies
+        in: query
+        name: library_id
+        required: true
+        type: integer
+      - description: 'Number of items per page (default: 50, max: 200)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Number of items to skip (default: 0)'
+        in: query
+        name: offset
+        type: integer
+      - description: 'Sort order: title_asc or title_desc (default: title_asc)'
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_movies.ListIDsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List movie IDs
+      tags:
+      - movies
   /api/movies/search:
     get:
       description: Searches for movies by title in a specific library with optional
@@ -1683,7 +4599,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_movies.ListMoviesResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_movies.ListMoviesResponse'
         "400":
           description: Bad Request
           schema:
@@ -1711,7 +4627,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_images.ListImagesResponse'
         "400":
           description: Bad Request
           schema:
@@ -1726,10 +4642,10 @@ paths:
       - images
   /api/music/albums/{id}/tracks:
     get:
-      description: Returns all tracks for an album identified by a representative
-        track ID
+      description: Returns all tracks for an album identified by album entity ID from
+        music_albums table
       parameters:
-      - description: Album representative track ID
+      - description: Album ID (music_albums.id)
         in: path
         name: id
         required: true
@@ -1740,7 +4656,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_music.ListTracksResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_music.ListTracksResponse'
         "400":
           description: Bad Request
           schema:
@@ -1766,6 +4682,10 @@ paths:
         name: library_id
         required: true
         type: integer
+      - description: Search query to filter artists by name
+        in: query
+        name: q
+        type: string
       - description: 'Number of items per page (default: 50, max: 200)'
         in: query
         name: limit
@@ -1774,13 +4694,17 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: 'Sort order: title_asc or title_desc (default: title_asc)'
+        in: query
+        name: sort
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_music.ListArtistsResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_music.ListArtistsResponse'
         "400":
           description: Bad Request
           schema:
@@ -1794,10 +4718,10 @@ paths:
       - music
   /api/music/artists/{id}/albums:
     get:
-      description: Returns all albums for an artist identified by a representative
-        track ID
+      description: Returns all albums for an artist identified by artist entity ID
+        from music_artists table
       parameters:
-      - description: Artist representative track ID
+      - description: Artist ID (music_artists.id)
         in: path
         name: id
         required: true
@@ -1808,7 +4732,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_music.ListAlbumsResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_music.ListAlbumsResponse'
         "400":
           description: Bad Request
           schema:
@@ -1840,7 +4764,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_images.ListImagesResponse'
         "400":
           description: Bad Request
           schema:
@@ -1853,6 +4777,46 @@ paths:
       tags:
       - music
       - images
+  /api/music/ids:
+    get:
+      description: Returns a list of artist representative IDs only for prefetching
+        images with optional pagination
+      parameters:
+      - description: Library ID to filter artists
+        in: query
+        name: library_id
+        required: true
+        type: integer
+      - description: 'Number of items per page (default: 50, max: 200)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Number of items to skip (default: 0)'
+        in: query
+        name: offset
+        type: integer
+      - description: 'Sort order: title_asc or title_desc (default: title_asc)'
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_music.ListIDsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List artist IDs
+      tags:
+      - music
   /api/music/search:
     get:
       description: Searches for music tracks by title, artist, or album in a specific
@@ -1874,7 +4838,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_music.ListTracksResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_music.ListTracksResponse'
         "400":
           description: Bad Request
           schema:
@@ -1901,7 +4865,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_music.MusicTrackResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_music.MusicTrackResponse'
         "400":
           description: Bad Request
           schema:
@@ -1917,6 +4881,403 @@ paths:
       summary: Get a music track by ID
       tags:
       - music
+  /api/people/{id}:
+    get:
+      description: Returns details of a specific person (actor, director, etc.)
+      parameters:
+      - description: Person ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_people.PersonResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get a person by ID
+      tags:
+      - people
+  /api/people/{id}/credits:
+    get:
+      description: Returns all credits for a specific person
+      parameters:
+      - description: Person ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_people.PersonCreditsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get a person's credits (filmography)
+      tags:
+      - people
+  /api/plugins:
+    get:
+      description: Returns all installed plugins with their status
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.PluginListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List all plugins
+      tags:
+      - plugins
+  /api/plugins/{id}:
+    get:
+      description: Returns detailed information about a specific plugin
+      parameters:
+      - description: Plugin ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_plugins.PluginDetail'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get plugin details
+      tags:
+      - plugins
+  /api/plugins/{id}/disable:
+    post:
+      description: Disables a plugin (admin only). Cannot disable built-in plugins.
+      parameters:
+      - description: Plugin ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.SuccessResponse'
+        "400":
+          description: Cannot disable built-in plugin
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Disable plugin
+      tags:
+      - plugins
+  /api/plugins/{id}/enable:
+    post:
+      description: Enables a plugin (admin only)
+      parameters:
+      - description: Plugin ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Enable plugin
+      tags:
+      - plugins
+  /api/plugins/{id}/health:
+    get:
+      description: Returns detailed health information for a plugin
+      parameters:
+      - description: Plugin ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_plugins.PluginHealthDetail'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get plugin health
+      tags:
+      - plugins
+  /api/plugins/{id}/logs:
+    get:
+      description: Returns recent log entries for a plugin (admin only)
+      parameters:
+      - description: Plugin ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 100
+        description: Max entries to return
+        in: query
+        name: limit
+        type: integer
+      - description: Filter by log level (error, warn, info, debug)
+        in: query
+        name: level
+        type: string
+      - description: Only entries after this RFC3339 timestamp
+        in: query
+        name: since
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.PluginLogsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get plugin logs
+      tags:
+      - plugins
+  /api/plugins/{id}/restart:
+    post:
+      description: Restarts a plugin process (admin only)
+      parameters:
+      - description: Plugin ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Restart plugin
+      tags:
+      - plugins
+  /api/plugins/{id}/settings:
+    get:
+      description: Returns the settings schema and current values for a plugin
+      parameters:
+      - description: Plugin ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_plugins.PluginSettings'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get plugin settings
+      tags:
+      - plugins
+    put:
+      consumes:
+      - application/json
+      description: Updates the settings for a plugin (admin only)
+      parameters:
+      - description: Plugin ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Settings values
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.UpdatePluginSettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update plugin settings
+      tags:
+      - plugins
   /api/progress:
     get:
       description: Gets all watch progress records for the current user
@@ -1937,7 +5298,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.ListProgressResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_progress.ListProgressResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -1945,25 +5306,57 @@ paths:
       summary: List watch progress
       tags:
       - progress
-    put:
+    post:
       consumes:
       - application/json
       description: Updates or creates watch progress for a media item. Automatically
-        marks as watched if progress exceeds 90%.
+        marks as watched if progress exceeds 90%. Supports both PUT and POST for browser
+        sendBeacon compatibility.
       parameters:
       - description: Update progress request
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.UpdateProgressRequest'
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_progress.UpdateProgressRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_progress.WatchProgressResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Update watch progress
+      tags:
+      - progress
+    put:
+      consumes:
+      - application/json
+      description: Updates or creates watch progress for a media item. Automatically
+        marks as watched if progress exceeds 90%. Supports both PUT and POST for browser
+        sendBeacon compatibility.
+      parameters:
+      - description: Update progress request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_progress.UpdateProgressRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_progress.WatchProgressResponse'
         "400":
           description: Bad Request
           schema:
@@ -2016,7 +5409,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_progress.WatchProgressResponse'
         "404":
           description: Not Found
           schema:
@@ -2026,6 +5419,33 @@ paths:
           schema:
             $ref: '#/definitions/internal_api_handlers.ErrorResponse'
       summary: Get watch progress
+      tags:
+      - progress
+  /api/progress/batch:
+    get:
+      description: Gets watch progress for multiple media items
+      parameters:
+      - description: Comma-separated media IDs
+        in: query
+        name: media_ids
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_progress.BatchProgressResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get batch watch progress
       tags:
       - progress
   /api/progress/in-progress:
@@ -2049,7 +5469,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.ListProgressResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_progress.ListProgressResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -2068,14 +5488,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.MarkWatchedRequest'
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_progress.MarkWatchedRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_progress.WatchProgressResponse'
         "400":
           description: Bad Request
           schema:
@@ -2102,14 +5522,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.MarkWatchedRequest'
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_application_progress.MarkWatchedRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_progress.WatchProgressResponse'
         "400":
           description: Bad Request
           schema:
@@ -2141,7 +5561,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.ListProgressResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_progress.ListProgressResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -2149,6 +5569,470 @@ paths:
       summary: List watched items
       tags:
       - progress
+  /api/settings/ai:
+    get:
+      description: Returns AI configuration with sensitive values masked
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.AISettingsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get AI settings
+      tags:
+      - settings
+    put:
+      consumes:
+      - application/json
+      description: Updates AI configuration
+      parameters:
+      - description: AI settings to update
+        in: body
+        name: settings
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.AISettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.AISettingsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update AI settings
+      tags:
+      - settings
+  /api/settings/ai/models:
+    delete:
+      consumes:
+      - application/json
+      description: Removes a model from the local Ollama installation
+      parameters:
+      - description: Model to delete
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.DeleteOllamaModelRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "503":
+          description: Ollama unavailable
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete an Ollama model
+      tags:
+      - settings
+    get:
+      description: Returns list of models available on the Ollama server
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.OllamaModelsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "503":
+          description: Ollama unavailable
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List available Ollama models
+      tags:
+      - settings
+  /api/settings/ai/models/pull:
+    post:
+      consumes:
+      - application/json
+      description: Initiates download of an Ollama model with SSE progress streaming
+      parameters:
+      - description: Model to pull
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.PullOllamaModelRequest'
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: SSE stream of pull progress
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "503":
+          description: Ollama unavailable
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Pull an Ollama model
+      tags:
+      - settings
+  /api/settings/ai/test/ollama:
+    post:
+      description: Tests connectivity to the Ollama server
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ConnectionTestResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ConnectionTestResponse'
+      security:
+      - BearerAuth: []
+      summary: Test Ollama connection
+      tags:
+      - settings
+  /api/settings/ai/test/openai:
+    post:
+      description: Tests connectivity to OpenAI with the configured API key
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ConnectionTestResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ConnectionTestResponse'
+      security:
+      - BearerAuth: []
+      summary: Test OpenAI connection
+      tags:
+      - settings
+  /api/settings/schema:
+    get:
+      description: Returns the schema for all settings (for UI generation)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.SettingsSchemaResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get settings schema
+      tags:
+      - settings
+  /api/settings/system:
+    get:
+      description: Returns all system settings (admin only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.SystemSettingsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List system settings
+      tags:
+      - settings
+  /api/settings/system/{key}:
+    get:
+      description: Returns a system setting by key (admin only)
+      parameters:
+      - description: Setting key
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.SystemSettingValueResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get system setting
+      tags:
+      - settings
+    put:
+      consumes:
+      - application/json
+      description: Updates a system setting (admin only)
+      parameters:
+      - description: Setting key
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: Setting value
+        in: body
+        name: setting
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.SetSystemRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.SystemSettingValueResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update system setting
+      tags:
+      - settings
+  /api/settings/system/effective:
+    get:
+      description: Returns all system settings with their effective values and sources
+        (admin only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.EffectiveSettingsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List effective system settings
+      tags:
+      - settings
+  /api/settings/user:
+    get:
+      description: Returns all settings for the current user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.UserSettingsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List user settings
+      tags:
+      - settings
+  /api/settings/user/{key}:
+    delete:
+      description: Resets a user setting to default for the current user
+      parameters:
+      - description: Setting key
+        in: path
+        name: key
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete user setting
+      tags:
+      - settings
+    get:
+      description: Returns a user setting by key for the current user
+      parameters:
+      - description: Setting key
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.UserSettingValueResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user setting
+      tags:
+      - settings
+    put:
+      consumes:
+      - application/json
+      description: Updates a user setting for the current user
+      parameters:
+      - description: Setting key
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: Setting value
+        in: body
+        name: setting
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.SetUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.UserSettingValueResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update user setting
+      tags:
+      - settings
+  /api/speedtest/chunk:
+    get:
+      description: Returns a chunk of random data for client-side speed testing
+      parameters:
+      - default: 1048576
+        description: Chunk size in bytes
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+      summary: Download speed test chunk
+      tags:
+      - adaptive
   /api/stream/{id}:
     get:
       description: Streams a media file with HTTP range request support for seeking
@@ -2192,6 +6076,43 @@ paths:
       summary: Stream media file
       tags:
       - streaming
+  /api/system/info:
+    get:
+      description: Returns detected system hardware information
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.SystemInfoResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get system information
+      tags:
+      - system
+  /api/transcode/active-sessions:
+    get:
+      description: Lists all currently active transcode sessions and whether they
+        have logging enabled
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ActiveSessionsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List active transcode sessions
+      tags:
+      - ffmpeg-logs
   /api/transcode/cleanup:
     post:
       consumes:
@@ -2248,7 +6169,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_transcode.QueueStats'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_transcode.QueueStats'
         "500":
           description: Internal Server Error
           schema:
@@ -2271,7 +6192,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_tv.TVEpisodeResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_tv.TVEpisodeResponse'
         "400":
           description: Bad Request
           schema:
@@ -2285,6 +6206,37 @@ paths:
           schema:
             $ref: '#/definitions/internal_api_handlers.ErrorResponse'
       summary: Get a TV episode by ID
+      tags:
+      - tv
+  /api/tv/episodes/{id}/credits:
+    get:
+      description: Returns cast and crew for a specific TV episode
+      parameters:
+      - description: TV Episode ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_people.CreditsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get credits for a TV episode
       tags:
       - tv
   /api/tv/episodes/{id}/images:
@@ -2302,7 +6254,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_images.ListImagesResponse'
         "400":
           description: Bad Request
           schema:
@@ -2315,6 +6267,46 @@ paths:
       tags:
       - tv
       - images
+  /api/tv/ids:
+    get:
+      description: Returns a list of TV show IDs only for prefetching images with
+        optional pagination
+      parameters:
+      - description: Library ID to filter shows
+        in: query
+        name: library_id
+        required: true
+        type: integer
+      - description: 'Number of items per page (default: 50, max: 200)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Number of items to skip (default: 0)'
+        in: query
+        name: offset
+        type: integer
+      - description: 'Sort order: title_asc or title_desc (default: title_asc)'
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_tv.ListIDsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List TV show IDs
+      tags:
+      - tv
   /api/tv/search:
     get:
       description: Searches for TV shows and episodes by title in a specific library
@@ -2335,7 +6327,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_tv.ListTVEpisodesResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_tv.ListTVEpisodesResponse'
         "400":
           description: Bad Request
           schema:
@@ -2363,7 +6355,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_images.ListImagesResponse'
         "400":
           description: Bad Request
           schema:
@@ -2386,6 +6378,10 @@ paths:
         name: library_id
         required: true
         type: integer
+      - description: Search query to filter shows by title
+        in: query
+        name: q
+        type: string
       - description: 'Number of items per page (default: 50, max: 200)'
         in: query
         name: limit
@@ -2400,7 +6396,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_tv.ListTVShowsResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_tv.ListTVShowsResponse'
         "400":
           description: Bad Request
           schema:
@@ -2428,7 +6424,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_tv.TVShowDetailResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_tv.TVShowDetailResponse'
         "400":
           description: Bad Request
           schema:
@@ -2442,6 +6438,37 @@ paths:
           schema:
             $ref: '#/definitions/internal_api_handlers.ErrorResponse'
       summary: Get a TV show by ID
+      tags:
+      - tv
+  /api/tv/shows/{id}/credits:
+    get:
+      description: Returns cast, creators, and other credits for a specific TV show
+      parameters:
+      - description: TV Show ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_people.CreditsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get credits for a TV show
       tags:
       - tv
   /api/tv/shows/{id}/episodes:
@@ -2459,7 +6486,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_tv.ListTVEpisodesResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_tv.ListTVEpisodesResponse'
         "400":
           description: Bad Request
           schema:
@@ -2491,7 +6518,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_images.ListImagesResponse'
         "400":
           description: Bad Request
           schema:
@@ -2504,6 +6531,39 @@ paths:
       tags:
       - tv
       - images
+  /api/tv/shows/{id}/next-episode:
+    get:
+      description: Returns the next episode to watch for a show based on watch progress.
+        Returns in-progress episode if exists, otherwise first unwatched episode,
+        or first episode if all watched
+      parameters:
+      - description: Show ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_tv.TVEpisodeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get next episode to watch for a show
+      tags:
+      - tv
   /api/tv/shows/{showTitle}/episodes:
     get:
       description: Returns all episodes for a specific TV show
@@ -2524,7 +6584,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_viewra_viewra_internal_application_tv.ListTVEpisodesResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_tv.ListTVEpisodesResponse'
         "400":
           description: Bad Request
           schema:
@@ -2540,6 +6600,225 @@ paths:
       summary: List episodes for a TV show
       tags:
       - tv
+  /api/users:
+    get:
+      description: Returns a paginated list of all users (admin only)
+      parameters:
+      - default: 50
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_auth.ListUsersResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List users
+      tags:
+      - users
+    post:
+      consumes:
+      - application/json
+      description: Creates a new user (admin only)
+      parameters:
+      - description: User details
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_auth.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "409":
+          description: Username exists
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create user
+      tags:
+      - users
+  /api/users/{id}:
+    delete:
+      description: Deletes a user (admin only)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete user
+      tags:
+      - users
+    get:
+      description: Returns a user by ID (admin only)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_auth.UserResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user
+      tags:
+      - users
+    put:
+      consumes:
+      - application/json
+      description: Updates a user (admin only)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: User updates
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_auth.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update user
+      tags:
+      - users
+  /api/users/{id}/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: Resets a user's password (admin only)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New password
+        in: body
+        name: password
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.ResetPasswordRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Reset user password
+      tags:
+      - users
   /health:
     get:
       description: Returns comprehensive health status of the application and its
@@ -2558,7 +6837,4 @@ paths:
       summary: Health check endpoint
       tags:
       - health
-schemes:
-- http
-- https
 swagger: "2.0"

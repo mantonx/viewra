@@ -22,6 +22,7 @@ import { Route as LayoutSettingsSystemRouteImport } from './routes/_layout/setti
 import { Route as LayoutSettingsSchedulerRouteImport } from './routes/_layout/settings.scheduler'
 import { Route as LayoutSettingsPreferencesRouteImport } from './routes/_layout/settings.preferences'
 import { Route as LayoutSettingsDisplayRouteImport } from './routes/_layout/settings.display'
+import { Route as LayoutSettingsAiRouteImport } from './routes/_layout/settings.ai'
 import { Route as LayoutSettingsAccountRouteImport } from './routes/_layout/settings.account'
 import { Route as LayoutTvShowIdIndexRouteImport } from './routes/_layout/tv.$showId.index'
 import { Route as LayoutMusicArtistsArtistIdRouteImport } from './routes/_layout/music.artists.$artistId'
@@ -93,6 +94,11 @@ const LayoutSettingsDisplayRoute = LayoutSettingsDisplayRouteImport.update({
   path: '/settings/display',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutSettingsAiRoute = LayoutSettingsAiRouteImport.update({
+  id: '/settings/ai',
+  path: '/settings/ai',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutSettingsAccountRoute = LayoutSettingsAccountRouteImport.update({
   id: '/settings/account',
   path: '/settings/account',
@@ -128,6 +134,7 @@ export interface FileRoutesByFullPath {
   '/libraries': typeof LayoutLibrariesRoute
   '/': typeof LayoutIndexRoute
   '/settings/account': typeof LayoutSettingsAccountRoute
+  '/settings/ai': typeof LayoutSettingsAiRoute
   '/settings/display': typeof LayoutSettingsDisplayRoute
   '/settings/preferences': typeof LayoutSettingsPreferencesRoute
   '/settings/scheduler': typeof LayoutSettingsSchedulerRoute
@@ -147,6 +154,7 @@ export interface FileRoutesByTo {
   '/libraries': typeof LayoutLibrariesRoute
   '/': typeof LayoutIndexRoute
   '/settings/account': typeof LayoutSettingsAccountRoute
+  '/settings/ai': typeof LayoutSettingsAiRoute
   '/settings/display': typeof LayoutSettingsDisplayRoute
   '/settings/preferences': typeof LayoutSettingsPreferencesRoute
   '/settings/scheduler': typeof LayoutSettingsSchedulerRoute
@@ -168,6 +176,7 @@ export interface FileRoutesById {
   '/_layout/libraries': typeof LayoutLibrariesRoute
   '/_layout/': typeof LayoutIndexRoute
   '/_layout/settings/account': typeof LayoutSettingsAccountRoute
+  '/_layout/settings/ai': typeof LayoutSettingsAiRoute
   '/_layout/settings/display': typeof LayoutSettingsDisplayRoute
   '/_layout/settings/preferences': typeof LayoutSettingsPreferencesRoute
   '/_layout/settings/scheduler': typeof LayoutSettingsSchedulerRoute
@@ -189,6 +198,7 @@ export interface FileRouteTypes {
     | '/libraries'
     | '/'
     | '/settings/account'
+    | '/settings/ai'
     | '/settings/display'
     | '/settings/preferences'
     | '/settings/scheduler'
@@ -208,6 +218,7 @@ export interface FileRouteTypes {
     | '/libraries'
     | '/'
     | '/settings/account'
+    | '/settings/ai'
     | '/settings/display'
     | '/settings/preferences'
     | '/settings/scheduler'
@@ -228,6 +239,7 @@ export interface FileRouteTypes {
     | '/_layout/libraries'
     | '/_layout/'
     | '/_layout/settings/account'
+    | '/_layout/settings/ai'
     | '/_layout/settings/display'
     | '/_layout/settings/preferences'
     | '/_layout/settings/scheduler'
@@ -341,6 +353,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutSettingsDisplayRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/settings/ai': {
+      id: '/_layout/settings/ai'
+      path: '/settings/ai'
+      fullPath: '/settings/ai'
+      preLoaderRoute: typeof LayoutSettingsAiRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/settings/account': {
       id: '/_layout/settings/account'
       path: '/settings/account'
@@ -383,6 +402,7 @@ interface LayoutRouteChildren {
   LayoutLibrariesRoute: typeof LayoutLibrariesRoute
   LayoutIndexRoute: typeof LayoutIndexRoute
   LayoutSettingsAccountRoute: typeof LayoutSettingsAccountRoute
+  LayoutSettingsAiRoute: typeof LayoutSettingsAiRoute
   LayoutSettingsDisplayRoute: typeof LayoutSettingsDisplayRoute
   LayoutSettingsPreferencesRoute: typeof LayoutSettingsPreferencesRoute
   LayoutSettingsSchedulerRoute: typeof LayoutSettingsSchedulerRoute
@@ -401,6 +421,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutLibrariesRoute: LayoutLibrariesRoute,
   LayoutIndexRoute: LayoutIndexRoute,
   LayoutSettingsAccountRoute: LayoutSettingsAccountRoute,
+  LayoutSettingsAiRoute: LayoutSettingsAiRoute,
   LayoutSettingsDisplayRoute: LayoutSettingsDisplayRoute,
   LayoutSettingsPreferencesRoute: LayoutSettingsPreferencesRoute,
   LayoutSettingsSchedulerRoute: LayoutSettingsSchedulerRoute,

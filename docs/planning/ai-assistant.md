@@ -16,6 +16,15 @@ A modular AI system for Viewra that provides semantic search, conversational AI,
 
 ## 2. Architecture
 
+### Design Philosophy: Thin Core, Rich Plugins
+
+The core Viewra application provides **minimal AI infrastructure** - just enough to let plugins do their work. All AI features live in plugins, making them:
+
+- **Optional**: Users only install what they need
+- **Independently updatable**: Fix bugs or add features without updating Viewra
+- **Substitutable**: Users can swap plugins (e.g., use a different recommendation engine)
+- **Resource-conscious**: No AI overhead if no AI plugins installed
+
 ### Core Infrastructure (Built into Viewra)
 
 ```
@@ -23,26 +32,20 @@ A modular AI system for Viewra that provides semantic search, conversational AI,
 │                         Viewra Host                             │
 │                                                                 │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │                 Built-in AI Infrastructure                  │ │
+│  │              Minimal AI Infrastructure (Core)               │ │
 │  │                                                             │ │
-│  │  • LLM Provider Abstraction                                 │ │
-│  │    - Ollama (local)                                         │ │
-│  │    - OpenRouter (cloud, multi-model)                        │ │
-│  │    - OpenAI (cloud)                                         │ │
-│  │    - Anthropic (cloud)                                      │ │
+│  │  • LLM Provider Clients (shared library)                    │ │
+│  │    - Ollama, OpenRouter, OpenAI, Anthropic                  │ │
+│  │    - Plugins call these via gRPC                            │ │
 │  │                                                             │ │
-│  │  • Embedding Service                                        │ │
-│  │    - Generates embeddings for media metadata                │ │
-│  │    - Normalizes to fixed dimension                          │ │
-│  │    - Indexes: title + plot + genre + cast + tags            │ │
-│  │                                                             │ │
-│  │  • Vector Storage                                           │ │
+│  │  • Vector Storage (database layer only)                     │ │
 │  │    - PostgreSQL: pgvector extension                         │ │
-│  │    - SQLite: sqlite-vss extension                           │ │
-│  │    - Optional: External Qdrant for advanced users           │ │
+│  │    - SQLite: BLOB + cosine similarity                       │ │
+│  │    - Exposed via data:embeddings permission                 │ │
 │  │                                                             │ │
-│  │  • Semantic Search API                                      │ │
-│  │    - GET /api/search/semantic                               │ │
+│  │  • AI Settings Storage                                      │ │
+│  │    - Provider configs, API keys, preferences                │ │
+│  │    - Exposed via data:settings permission                   │ │
 │  │                                                             │ │
 │  └────────────────────────────────────────────────────────────┘ │
 │                                                                 │
@@ -51,13 +54,24 @@ A modular AI system for Viewra that provides semantic search, conversational AI,
 │  └──────────────────────────┬─────────────────────────────────┘ │
 └─────────────────────────────┼───────────────────────────────────┘
                               │ gRPC
-                ┌─────────────┴─────────────┐
-                │                           │
-                ▼                           ▼
-        ┌───────────────┐           ┌───────────────────┐
-        │   ai-chat     │           │ ai-recommendations│
-        │   (plugin)    │           │     (plugin)      │
-        └───────────────┘           └───────────────────┘
+          ┌───────────────────┼───────────────────┐
+          │                   │                   │
+          ▼                   ▼                   ▼
+   ┌─────────────┐     ┌─────────────┐     ┌───────────────────┐
+   │  ai-search  │     │   ai-chat   │     │ ai-recommendations│
+   │  (plugin)   │     │  (plugin)   │     │     (plugin)      │
+   └─────────────┘     └─────────────┘     └───────────────────┘
+         │
+         │ Provides semantic search
+         │ that other plugins use
+         ▼
+   ┌─────────────────────────────────────────────────────────────┐
+   │  ai-search exposes:                                          │
+   │  • GET /api/search/semantic                                  │
+   │  • GET /api/search/similar/:type/:id                         │
+   │  • Indexing (enrichment stage + scheduled reindex)           │
+   │  • Index management endpoints                                │
+   └─────────────────────────────────────────────────────────────┘
 
 External Services (optional, user-managed):
 ┌───────────────┐     ┌───────────────┐
@@ -70,8 +84,24 @@ External Services (optional, user-managed):
 
 | Plugin | Purpose | Dependencies |
 |--------|---------|--------------|
-| **ai-chat** | Conversational interface, natural language queries | Core AI infrastructure |
-| **ai-recommendations** | Personalized, context-aware recommendations | Core AI infrastructure |
+| **ai-search** | Semantic search, indexing, similar items | Core (LLM clients, vector storage) |
+| **ai-chat** | Conversational interface, natural language queries | ai-search |
+| **ai-recommendations** | Personalized, context-aware recommendations | ai-search |
+
+### What Lives Where
+
+| Component | Location | Rationale |
+|-----------|----------|-----------|
+| LLM provider clients | Core | Shared by all AI plugins, avoids duplication |
+| Vector storage (repository) | Core | Database-level, plugins store/retrieve via gRPC |
+| AI settings table | Core | Shared config for provider keys, model preferences |
+| Embedding generation | ai-search plugin | Plugin-specific logic, not all users need it |
+| Semantic search | ai-search plugin | Feature that requires indexing |
+| Media indexing | ai-search plugin | Tightly coupled to search |
+| Enrichment stage | ai-search plugin | Only runs when plugin installed |
+| Chat UI/logic | ai-chat plugin | Standalone feature |
+| Recommendations | ai-recommendations plugin | Standalone feature |
+| Mood tag generation | ai-search plugin | Part of indexing pipeline |
 
 ---
 
@@ -178,16 +208,176 @@ When no LLM provider is configured or limits are reached:
 - **Priority**: New items indexed first, then backfill existing
 - **Manual trigger**: Re-index button in settings
 
+### Indexing Service Architecture
+
+The media indexing service lives in the **ai-search plugin** and integrates with Viewra's enrichment pipeline:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      ai-search Plugin                                │
+│  (plugins/ai-search/)                                               │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  MediaIndexingService                                               │
+│  ├─ IndexSingle(mediaID, mediaType) → enricher calls this          │
+│  ├─ IndexBatch([]mediaID, mediaType) → efficient batching          │
+│  ├─ IndexLibrary(libraryID) → full reindex with progress           │
+│  └─ GetIndexStatus() → stats (indexed/total per type)              │
+│                                                                     │
+│  EmbeddingService                                                   │
+│  ├─ Embed(texts) → generate embeddings via LLM provider            │
+│  └─ Normalize(embedding, targetDim) → dimension normalization      │
+│                                                                     │
+│  SemanticSearchService                                              │
+│  ├─ Search(query, filters) → natural language search               │
+│  └─ FindSimilar(entityType, entityID) → similarity search          │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│  Uses from Core (via gRPC):                                         │
+│  - LLM provider clients (for embedding generation)                  │
+│  - Embedding repository (store/retrieve vectors)                    │
+│  - Media repositories (read metadata for indexing)                  │
+│  - Event bus (publish: indexing.progress, indexing.complete)        │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              │ Registers:
+                              ▼
+┌──────────────────────┐    ┌──────────────────────┐
+│  AIIndexerEnricher   │    │   Scheduled Task     │
+│  (enrichment stage)  │    │   (daily reindex)    │
+├──────────────────────┤    ├──────────────────────┤
+│ Stage: "ai_index"    │    │ ID: "ai-full-reindex"│
+│ Position: 99         │    │ Schedule: 0 3 * * *  │
+│ After: tmdb, mb      │    │ (3 AM daily)         │
+│ Disabled by default  │    │ Disabled by default  │
+└──────────────────────┘    └──────────────────────┘
+```
+
+#### Integration with Enrichment Pipeline
+
+The AI indexer runs as the **final enrichment stage** (position 99):
+
+1. **Scanner** discovers/updates media → saves to database
+2. **Scanner** calls `EnqueueFirstStage()` → adds to enrichment queue
+3. **NFO enricher** (stage 1) → extracts local metadata
+4. **Local Images enricher** (stage 2) → extracts embedded artwork
+5. **TMDB/MusicBrainz** (stage 3-4) → fetches external metadata
+6. **AI Indexer** (stage 99) → generates embedding from complete metadata
+
+This ensures embeddings are generated with **full metadata** (plot, cast, genres) rather than just file names.
+
+#### Text Assembly
+
+For each media type, we build rich searchable text:
+
+**Movies:**
+```
+Title: The Shawshank Redemption (1994)
+Genre: Drama
+Plot: Two imprisoned men bond over a number of years...
+Cast: Tim Robbins, Morgan Freeman, Bob Gunton
+Director: Frank Darabont
+Mood: hopeful, inspiring, dramatic, emotional, uplifting
+```
+
+**TV Shows:**
+```
+Title: Breaking Bad (2008)
+Genre: Crime, Drama, Thriller  
+Plot: A high school chemistry teacher diagnosed with lung cancer...
+Cast: Bryan Cranston, Aaron Paul, Anna Gunn
+Mood: tense, dark, thrilling, morally complex
+```
+
+**TV Episodes:**
+```
+Show: Breaking Bad
+Episode: S5E14 - Ozymandias
+Plot: Everyone copes with radically changed circumstances.
+Mood: devastating, climactic, intense
+```
+
+**Music Albums:**
+```
+Artist: Pink Floyd
+Album: The Dark Side of the Moon (1973)
+Genre: Progressive Rock
+Mood: atmospheric, introspective, psychedelic
+```
+
+#### Mood Tag Generation (Lazy)
+
+Mood tags are generated **separately** from initial indexing:
+
+1. **Initial indexing**: Fast, no LLM calls, embeddings based on existing metadata
+2. **Mood tag generation**: Optional scheduled task or manual trigger
+   - Uses LLM to analyze plot/metadata
+   - Generates 3-5 mood tags per item
+   - Stores in `media_mood_tags` table
+   - Regenerates embedding with mood tags included
+
+This approach provides:
+- Fast initial indexing (no LLM latency)
+- User control over when/if to generate mood tags
+- Ability to use mood tags without cloud LLM (can run on Ollama)
+
+#### Model Change Handling
+
+When user changes the embedding model in settings:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  AI Settings                                                 │
+├─────────────────────────────────────────────────────────────┤
+│  Embedding Model: [nomic-embed-text ▼]                      │
+│                                                             │
+│  ⚠️  Changing the embedding model will invalidate existing  │
+│     search index. Your library has 1,247 indexed items.     │
+│                                                             │
+│  What would you like to do?                                 │
+│  ○ Reindex now (recommended) - ~15 minutes                  │
+│  ○ Reindex overnight (next scheduled run at 3 AM)          │
+│  ○ Clear index and reindex manually later                   │
+│                                                             │
+│  [Cancel]  [Save & Apply]                                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Backend behavior:
+1. Detect model change in settings update
+2. Store new model config
+3. Based on user choice:
+   - **Reindex now**: Clear embeddings, trigger immediate full reindex
+   - **Reindex overnight**: Mark embeddings as stale, scheduled task will rebuild
+   - **Clear and wait**: Delete all embeddings, user triggers manually later
+
 ---
 
 ## 6. API Endpoints
 
-### Core (Viewra)
+### Core (Viewra) - Minimal
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `GET /api/search` | GET | Existing keyword search (unchanged) |
+| `GET /api/ai/providers` | GET | List available LLM providers |
+| `GET /api/ai/providers/:id/models` | GET | List models for a provider |
+| `GET /api/settings/ai` | GET | Get AI settings (provider configs) |
+| `PUT /api/settings/ai` | PUT | Update AI settings |
+
+### ai-search Plugin
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
 | `GET /api/search/semantic` | GET | Semantic search via embeddings |
+| `GET /api/search/semantic/status` | GET | Check if semantic search is ready |
+| `GET /api/search/similar/:type/:id` | GET | Find items similar to entity |
+| `GET /api/ai/index/status` | GET | Get indexing status and statistics |
+| `GET /api/ai/index/estimate` | GET | Estimate cost before indexing |
+| `POST /api/ai/index/start` | POST | Trigger manual reindex |
+| `POST /api/ai/index/cancel` | POST | Cancel running reindex |
+| `DELETE /api/ai/index` | DELETE | Clear all embeddings |
+| `POST /api/ai/mood-tags/generate` | POST | Trigger mood tag generation |
 
 **Semantic Search Parameters:**
 
@@ -197,6 +387,122 @@ GET /api/search/semantic
     &similar_to=123               # OR find similar to media ID
     &types=movie,tv_show          # Filter by media type
     &limit=20                     # Results limit
+```
+
+**Index Status Response:**
+
+```json
+{
+  "ready": true,
+  "indexing": false,
+  "stats": {
+    "movie": { "indexed": 450, "total": 500 },
+    "tv_show": { "indexed": 80, "total": 80 },
+    "tv_episode": { "indexed": 2400, "total": 2500 },
+    "music_artist": { "indexed": 120, "total": 120 },
+    "music_album": { "indexed": 450, "total": 450 },
+    "music_track": { "indexed": 5000, "total": 5200 }
+  },
+  "last_indexed_at": "2024-01-15T03:00:00Z",
+  "embedding_model": "nomic-embed-text",
+  "embedding_dimensions": 768
+}
+```
+
+**Cost Estimate Response:**
+
+```json
+GET /api/ai/index/estimate?library_id=1
+
+{
+  "library_id": 1,
+  "library_name": "Movies",
+  "items": {
+    "movie": 1247,
+    "tv_show": 0,
+    "tv_episode": 0
+  },
+  "estimated_tokens": {
+    "embeddings": 312000,
+    "mood_tags_input": 625000,
+    "mood_tags_output": 62000
+  },
+  "estimated_cost": {
+    "embeddings_usd": 0.01,
+    "mood_tags_usd": 0.17,
+    "total_usd": 0.18,
+    "disclaimer": "Approximate estimate based on configured pricing. Actual costs may vary."
+  },
+  "provider": {
+    "embedding": "openai/text-embedding-3-small",
+    "llm": "openai/gpt-4o-mini",
+    "is_local": false
+  }
+}
+```
+
+For local providers (Ollama):
+
+```json
+{
+  "estimated_cost": {
+    "embeddings_usd": 0,
+    "mood_tags_usd": 0,
+    "total_usd": 0,
+    "disclaimer": "Free - using local processing"
+  },
+  "provider": {
+    "embedding": "ollama/nomic-embed-text",
+    "llm": "ollama/llama3.1:8b",
+    "is_local": true
+  }
+}
+```
+
+### Cost Estimation
+
+Token estimates per entity type (used for cost calculation):
+
+| Entity Type | Avg Tokens | Rationale |
+|-------------|------------|-----------|
+| Movie | 250 | Title + year + plot (~150) + cast (5×10) + genres + director |
+| TV Show | 200 | Similar to movie, slightly shorter plots |
+| TV Episode | 100 | Show reference + episode title + short plot |
+| Music Artist | 60 | Name + bio excerpt + genres + country |
+| Music Album | 80 | Artist + album + year + genres |
+| Music Track | 50 | Track + artist + album + genre |
+
+Default pricing is stored in settings and user-editable:
+
+| Provider | Model | Default Price (per 1M tokens) |
+|----------|-------|-------------------------------|
+| Ollama | any | $0.00 (local) |
+| OpenAI | text-embedding-3-small | $0.02 |
+| OpenAI | text-embedding-3-large | $0.13 |
+| OpenAI | gpt-4o-mini (input/output) | $0.15 / $0.60 |
+| OpenAI | gpt-4o (input/output) | $2.50 / $10.00 |
+| Anthropic | claude-3-haiku (input/output) | $0.25 / $1.25 |
+
+**UI Display:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Index Library: Movies                                       │
+├─────────────────────────────────────────────────────────────┤
+│  Items to index: 1,247                                       │
+│  Estimated tokens: ~312,000                                  │
+│                                                             │
+│  Estimated cost (approximate):                              │
+│  • Embeddings (text-embedding-3-small): ~$0.01              │
+│  • Mood tags (gpt-4o-mini): ~$0.17                          │
+│                                                             │
+│  ☑ Generate embeddings                                      │
+│  ☐ Generate mood tags (+~$0.17)                             │
+│                                                             │
+│  Using local Ollama? Costs are $0.00                        │
+│                                                             │
+│  [Cancel]  [Start Indexing]                                 │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### ai-chat Plugin
@@ -219,6 +525,48 @@ GET /api/search/semantic
 
 ## 7. Plugin Specifications
 
+### ai-search Plugin (Foundation)
+
+**plugin.yml:**
+
+```yaml
+id: ai-search
+name: AI Search
+version: 1.0.0
+description: Semantic search and media indexing for AI features
+
+categories:
+  - ai
+
+permissions:
+  - data:media:read        # Read media metadata for indexing
+  - data:embeddings:write  # Store embeddings in vector DB
+  - data:embeddings:read   # Query embeddings for search
+  - ai:llm                 # Generate embeddings via LLM providers
+  - enrichment:register    # Register as enrichment stage
+
+provides:
+  - ai:search              # Other plugins can depend on this
+```
+
+**Features:**
+
+- Semantic search across all media types
+- Similar item discovery
+- Media indexing (automatic via enrichment + manual reindex)
+- Embedding generation with dimension normalization
+- Cost estimation for cloud providers
+
+**API Endpoints (registered by plugin):**
+
+- `GET /api/search/semantic` - Natural language search
+- `GET /api/search/similar/:type/:id` - Find similar items
+- `GET /api/ai/index/status` - Indexing statistics
+- `GET /api/ai/index/estimate` - Cost estimation
+- `POST /api/ai/index/start` - Trigger reindex
+- `POST /api/ai/index/cancel` - Cancel reindex
+- `DELETE /api/ai/index` - Clear all embeddings
+
 ### ai-chat Plugin
 
 **plugin.yml:**
@@ -232,11 +580,14 @@ description: Conversational AI for natural language media queries
 categories:
   - ai
 
+dependencies:
+  - ai-search              # Requires ai-search for queries
+
 permissions:
   - data:media:read
   - data:users:read
   - ai:llm
-  - ai:search
+  - ai:search              # Use semantic search from ai-search plugin
 ```
 
 **Features:**
@@ -259,12 +610,15 @@ description: Personalized, context-aware media recommendations
 categories:
   - ai
 
+dependencies:
+  - ai-search              # Requires ai-search for similarity
+
 permissions:
-  - network                 # Weather API
+  - network                # Weather API
   - data:media:read
   - data:users:read
   - ai:llm
-  - ai:search
+  - ai:search              # Use similarity search from ai-search plugin
 ```
 
 **Features:**
@@ -537,34 +891,78 @@ The following fields should be added to the `users` table when implementation be
 
 ## 17. Implementation Priority
 
-### Phase 1: Core AI Infrastructure
+### Phase 1: Core AI Infrastructure ✓ (Completed)
 
-- LLM provider abstraction (Ollama, OpenRouter, OpenAI, Anthropic)
-- Embedding service with dimension normalization
-- Vector storage (pgvector + sqlite-vss)
-- Semantic search API (`GET /api/search/semantic`)
-- Settings UI for AI configuration
-- Privacy controls and warnings
-- Cost tracking and limits
-- Guided setup wizard
+Minimal infrastructure in Viewra core:
 
-### Phase 2: ai-recommendations Plugin
+- [x] LLM provider clients (Ollama, OpenRouter, OpenAI, Anthropic)
+- [x] Vector storage repository (pgvector for PostgreSQL, BLOB for SQLite)
+- [x] Database migrations for `embeddings` and `ai_settings` tables
+- [x] Domain layer types and interfaces
+- [x] gRPC service definitions for plugin access
 
-- Similar-to recommendations
-- Watch history-based recommendations
-- Context services (weather, holidays, time)
-- Personalized recommendation API
-- UI integration (home, movie/TV pages, video player)
-- Dedicated recommendations page
+**What was removed from core (moved to ai-search plugin):**
+- ~~Embedding service~~ → ai-search plugin
+- ~~Semantic search service~~ → ai-search plugin
+- ~~Media indexing service~~ → ai-search plugin
+- ~~Search API endpoints~~ → ai-search plugin
 
-### Phase 3: ai-chat Plugin
+### Phase 2: ai-search Plugin (Current)
 
-- Chat service with floating overlay UI
-- Conversation state management
-- Natural language query processing
-- Conversational response generation
-- Multi-turn conversation support
-- History retention with configurable cleanup
+The foundational AI plugin that other AI plugins depend on:
+
+- [ ] Embedding generation with dimension normalization
+- [ ] Semantic search (`Search()`, `FindSimilar()`)
+- [ ] Media indexing service
+  - `IndexSingle()` for enricher integration
+  - `IndexBatch()` for efficient bulk processing
+  - `IndexLibrary()` for full reindex with progress
+  - Text builders for movies, TV, music
+- [ ] Enrichment pipeline stage (`ai_index`, position 99)
+- [ ] Scheduled task `ai-full-reindex` (daily, disabled by default)
+- [ ] API endpoints:
+  - `GET /api/search/semantic`
+  - `GET /api/search/similar/:type/:id`
+  - `GET /api/ai/index/status`
+  - `GET /api/ai/index/estimate`
+  - `POST /api/ai/index/start`
+  - `POST /api/ai/index/cancel`
+  - `DELETE /api/ai/index`
+- [ ] Optional: Mood tag generation via LLM
+- [ ] Settings UI integration (index status, reindex trigger)
+
+### Phase 3: ai-recommendations Plugin
+
+Depends on ai-search for similarity queries:
+
+- [ ] Similar-to recommendations (calls ai-search `FindSimilar()`)
+- [ ] Watch history-based recommendations
+- [ ] Context services (weather, holidays, time)
+- [ ] Personalized recommendation API
+- [ ] UI integration (home, movie/TV pages, video player)
+- [ ] Dedicated recommendations page
+
+### Phase 4: ai-chat Plugin
+
+Depends on ai-search for natural language queries:
+
+- [ ] Chat service with floating overlay UI
+- [ ] Conversation state management
+- [ ] Natural language query processing (calls ai-search)
+- [ ] Conversational response generation (uses LLM)
+- [ ] Multi-turn conversation support
+- [ ] History retention with configurable cleanup
+
+### Phase 5: Settings UI & Setup Wizard
+
+Frontend work (can be done in parallel with plugins):
+
+- [ ] AI Settings page
+- [ ] LLM provider configuration
+- [ ] Embedding model selection with reindex warning
+- [ ] Index status display with progress
+- [ ] Privacy controls and warnings
+- [ ] First-time AI setup wizard
 
 ---
 

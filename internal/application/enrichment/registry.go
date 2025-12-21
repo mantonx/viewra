@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/olekukonko/tablewriter/renderer"
@@ -54,6 +55,9 @@ type EnricherInfo struct {
 
 	// RateLimit is requests per minute for remote enrichers (0 = unlimited)
 	RateLimit int
+
+	// BuildTime is the time when the plugin binary was built (external plugins only)
+	BuildTime time.Time
 }
 
 // Registry manages all enrichers (both built-in and external).
@@ -150,13 +154,18 @@ func (r *Registry) Count() int {
 }
 
 // PrintTable writes a formatted table of all registered enrichers.
-func (r *Registry) PrintTable(w io.Writer) {
+func (r *Registry) PrintTable(w io.Writer, title string) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	if len(r.enrichers) == 0 {
 		fmt.Fprintln(w, "No enrichers registered")
 		return
+	}
+
+	// Print title if provided
+	if title != "" {
+		fmt.Fprintf(w, "\n%s\n", title)
 	}
 
 	// Create table with Unicode box-drawing style
@@ -180,7 +189,7 @@ func (r *Registry) PrintTable(w io.Writer) {
 		})),
 	)
 
-	table.Header("Name", "Version", "Type", "Provides", "Media Types")
+	table.Header("Name", "Version", "Type", "Provides", "Media Types", "Built")
 
 	for _, stage := range r.order {
 		info := r.enrichers[stage]
@@ -199,12 +208,19 @@ func (r *Registry) PrintTable(w io.Writer) {
 		// Format media types (abbreviate if too long)
 		mediaTypes := formatMediaTypes(info.MediaTypes)
 
+		// Format build time (only for external plugins)
+		buildTimeStr := "-"
+		if info.Source == SourceExternal && !info.BuildTime.IsZero() {
+			buildTimeStr = info.BuildTime.Format("2006-01-02 15:04")
+		}
+
 		table.Append([]string{
 			info.Name,
 			info.Version,
 			typeStr,
 			provides,
 			mediaTypes,
+			buildTimeStr,
 		})
 	}
 
@@ -233,13 +249,14 @@ func (r *Registry) RegisterBuiltin(enricher Enricher) error {
 }
 
 // RegisterExternal is a helper to register an external plugin enricher.
-func (r *Registry) RegisterExternal(enricher Enricher, name, version string) error {
+func (r *Registry) RegisterExternal(enricher Enricher, name, version string, buildTime time.Time) error {
 	info := &EnricherInfo{
-		Stage:    enricher.Stage(),
-		Name:     name,
-		Version:  version,
-		Source:   SourceExternal,
-		Enricher: enricher,
+		Stage:     enricher.Stage(),
+		Name:      name,
+		Version:   version,
+		Source:    SourceExternal,
+		Enricher:  enricher,
+		BuildTime: buildTime,
 	}
 
 	return r.Register(info)

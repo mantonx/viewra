@@ -7,11 +7,13 @@ import (
 	"github.com/mantonx/viewra/internal/api"
 	"github.com/mantonx/viewra/internal/api/handlers"
 	"github.com/mantonx/viewra/internal/app/config"
+	"github.com/mantonx/viewra/internal/app/lifecycle"
 	"github.com/mantonx/viewra/internal/app/repositories"
 	"github.com/mantonx/viewra/internal/app/services"
 	"github.com/mantonx/viewra/internal/app/usecases"
 	appauth "github.com/mantonx/viewra/internal/application/auth"
 	appplugins "github.com/mantonx/viewra/internal/application/plugins"
+	infraPlugins "github.com/mantonx/viewra/internal/infrastructure/plugins"
 	"github.com/mantonx/viewra/internal/infrastructure/scheduler"
 	"github.com/mantonx/viewra/internal/infrastructure/streaming"
 )
@@ -25,6 +27,7 @@ type InfrastructureDeps struct {
 	TranscodeOutputDir string
 	Repos              *repositories.Repositories
 	Config             *config.Config
+	LifecycleMgr       *lifecycle.Manager
 }
 
 // BuildHandlers creates all HTTP handler instances.
@@ -141,8 +144,10 @@ func BuildHandlers(
 
 	// Settings handler
 	var settingsHandler *handlers.SettingsHandler
+	var aiSettingsHandler *handlers.AISettingsHandler
 	if svcs.Settings != nil {
 		settingsHandler = handlers.NewSettingsHandler(svcs.Settings)
+		aiSettingsHandler = handlers.NewAISettingsHandler(svcs.Settings, svcs.EventBus)
 	}
 
 	// Enrichment handler
@@ -169,6 +174,18 @@ func BuildHandlers(
 		pluginHandler = handlers.NewPluginHandler(pluginService)
 	}
 
+	// Get the plugin HTTP proxy if plugin manager is available
+	var pluginProxy *infraPlugins.HTTPProxy
+	if svcs.PluginManager != nil {
+		pluginProxy = svcs.PluginManager.GetHTTPProxy()
+	}
+
+	// System handler (requires lifecycle manager)
+	var systemHandler *handlers.SystemHandler
+	if infra.LifecycleMgr != nil {
+		systemHandler = handlers.NewSystemHandler(infra.LifecycleMgr)
+	}
+
 	return &api.Handlers{
 		Health:        healthHandler,
 		Browser:       browserHandler,
@@ -190,8 +207,11 @@ func BuildHandlers(
 		Auth:          authHandler,
 		Users:         usersHandler,
 		Settings:      settingsHandler,
+		AISettings:    aiSettingsHandler,
 		Enrichment:    enrichmentHandler,
 		Plugins:       pluginHandler,
+		System:        systemHandler,
+		PluginProxy:   pluginProxy,
 		AuthValidator: authService,
 	}
 }

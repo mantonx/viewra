@@ -4,9 +4,6 @@ export interface LibraryIssuesDialogProps {
   isOpen: boolean
   onClose: () => void
   onRetrySuccess?: () => void
-  /** Initial tab to display */
-  initialTab?: 'scan' | 'enrichment'
   /** Counts passed in to avoid fetching just for badges */
   scanErrorCount?: number
-  enrichmentErrorCount?: number
 }

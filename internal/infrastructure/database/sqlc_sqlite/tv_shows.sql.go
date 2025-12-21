@@ -291,6 +291,53 @@ func (q *Queries) DeleteTVShow(ctx context.Context, id int64) error {
 	return err
 }
 
+const getEpisodeWithShowTitle = `-- name: GetEpisodeWithShowTitle :one
+SELECT
+    e.media_id,
+    med.library_id,
+    med.title,
+    e.season_number,
+    e.episode_number,
+    e.episode_title,
+    e.plot,
+    s.title as show_title,
+    s.genre as show_genre
+FROM tv_episodes e
+JOIN media med ON e.media_id = med.id
+JOIN tv_shows s ON e.show_id = s.id
+WHERE e.media_id = ?
+`
+
+type GetEpisodeWithShowTitleRow struct {
+	MediaID       int64          `json:"media_id"`
+	LibraryID     int64          `json:"library_id"`
+	Title         string         `json:"title"`
+	SeasonNumber  int64          `json:"season_number"`
+	EpisodeNumber int64          `json:"episode_number"`
+	EpisodeTitle  sql.NullString `json:"episode_title"`
+	Plot          sql.NullString `json:"plot"`
+	ShowTitle     string         `json:"show_title"`
+	ShowGenre     sql.NullString `json:"show_genre"`
+}
+
+// Returns episode details with the parent show's title for AI indexing
+func (q *Queries) GetEpisodeWithShowTitle(ctx context.Context, mediaID int64) (GetEpisodeWithShowTitleRow, error) {
+	row := q.db.QueryRowContext(ctx, getEpisodeWithShowTitle, mediaID)
+	var i GetEpisodeWithShowTitleRow
+	err := row.Scan(
+		&i.MediaID,
+		&i.LibraryID,
+		&i.Title,
+		&i.SeasonNumber,
+		&i.EpisodeNumber,
+		&i.EpisodeTitle,
+		&i.Plot,
+		&i.ShowTitle,
+		&i.ShowGenre,
+	)
+	return i, err
+}
+
 const getTVEpisodeByMediaID = `-- name: GetTVEpisodeByMediaID :one
 SELECT
     e.media_id, e.show_id, e.season_id, e.season_number, e.episode_number, e.absolute_number, e.dvd_season, e.dvd_episode, e.episode_title, e.original_title, e.air_date, e.plot, e.content_rating, e.maturity_rating, e.imdb_id, e.tmdb_id, e.tvdb_id, e.rating, e.rating_votes, e.runtime_minutes,

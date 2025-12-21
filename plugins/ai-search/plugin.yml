@@ -1,0 +1,52 @@
+# AI Search Plugin Manifest
+id: ai-search
+name: AI Search
+version: 1.0.0
+description: Semantic search and media indexing for AI features
+
+author: ViewRA Team
+license: MIT
+homepage: https://github.com/mantonx/viewra
+
+# Minimum ViewRA version required
+min_host_version: "0.1.0"
+
+# Plugin capabilities
+categories:
+  - ai
+  - enricher
+
+# What this plugin provides
+capabilities:
+  media_types:
+    - movie
+    - tv
+    - tv_show
+    - tv_episode
+    - music_artist
+    - music_album
+    - music_track
+  provides:
+    - semantic_search
+    - similar_items
+    - embeddings
+  is_local: false
+
+# Other AI plugins can depend on this
+provides:
+  - ai:search
+
+# Service capabilities for stable URL aliasing
+# Maps to /api/search, /api/similar, etc.
+service_capabilities:
+  - semantic_search
+  - similar_items
+
+# Permissions required
+permissions:
+  - network              # For LLM API calls
+  - data:media:read      # Read media metadata for indexing
+  - data:embeddings:read # Query embeddings
+  - data:embeddings:write # Store embeddings
+  - ai:llm               # Use LLM providers for embeddings
+  - enrichment:register  # Register as enrichment stage

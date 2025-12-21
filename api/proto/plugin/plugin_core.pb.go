@@ -73,6 +73,71 @@ func (HealthStatus_Status) EnumDescriptor() ([]byte, []int) {
 	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{2, 0}
 }
 
+// Chunk type for streaming protocol
+type PluginHTTPChunk_Type int32
+
+const (
+	// Client -> Plugin: First chunk with request metadata
+	PluginHTTPChunk_REQUEST_START PluginHTTPChunk_Type = 0
+	// Client -> Plugin: Request body chunk
+	PluginHTTPChunk_REQUEST_BODY PluginHTTPChunk_Type = 1
+	// Client -> Plugin: End of request body
+	PluginHTTPChunk_REQUEST_END PluginHTTPChunk_Type = 2
+	// Plugin -> Client: Response headers and status
+	PluginHTTPChunk_RESPONSE_START PluginHTTPChunk_Type = 3
+	// Plugin -> Client: Response body chunk
+	PluginHTTPChunk_RESPONSE_BODY PluginHTTPChunk_Type = 4
+	// Plugin -> Client: End of response
+	PluginHTTPChunk_RESPONSE_END PluginHTTPChunk_Type = 5
+)
+
+// Enum value maps for PluginHTTPChunk_Type.
+var (
+	PluginHTTPChunk_Type_name = map[int32]string{
+		0: "REQUEST_START",
+		1: "REQUEST_BODY",
+		2: "REQUEST_END",
+		3: "RESPONSE_START",
+		4: "RESPONSE_BODY",
+		5: "RESPONSE_END",
+	}
+	PluginHTTPChunk_Type_value = map[string]int32{
+		"REQUEST_START":  0,
+		"REQUEST_BODY":   1,
+		"REQUEST_END":    2,
+		"RESPONSE_START": 3,
+		"RESPONSE_BODY":  4,
+		"RESPONSE_END":   5,
+	}
+)
+
+func (x PluginHTTPChunk_Type) Enum() *PluginHTTPChunk_Type {
+	p := new(PluginHTTPChunk_Type)
+	*p = x
+	return p
+}
+
+func (x PluginHTTPChunk_Type) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PluginHTTPChunk_Type) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_proto_plugin_plugin_core_proto_enumTypes[1].Descriptor()
+}
+
+func (PluginHTTPChunk_Type) Type() protoreflect.EnumType {
+	return &file_api_proto_plugin_plugin_core_proto_enumTypes[1]
+}
+
+func (x PluginHTTPChunk_Type) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PluginHTTPChunk_Type.Descriptor instead.
+func (PluginHTTPChunk_Type) EnumDescriptor() ([]byte, []int) {
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{14, 0}
+}
+
 type InitRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Host version for compatibility checking
@@ -87,8 +152,14 @@ type InitRequest struct {
 	// Broker ID for host data service (0 = not available)
 	// Plugin can dial this ID to get a HostDataClient
 	HostDataBrokerId uint32 `protobuf:"varint,5,opt,name=host_data_broker_id,json=hostDataBrokerId,proto3" json:"host_data_broker_id,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Broker ID for host LLM service (0 = not available)
+	// Plugin can dial this ID to get a HostLLMClient
+	HostLlmBrokerId uint32 `protobuf:"varint,6,opt,name=host_llm_broker_id,json=hostLlmBrokerId,proto3" json:"host_llm_broker_id,omitempty"`
+	// Broker ID for host embeddings service (0 = not available)
+	// Plugin can dial this ID to get a HostEmbeddingsClient
+	HostEmbeddingsBrokerId uint32 `protobuf:"varint,7,opt,name=host_embeddings_broker_id,json=hostEmbeddingsBrokerId,proto3" json:"host_embeddings_broker_id,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *InitRequest) Reset() {
@@ -152,6 +223,20 @@ func (x *InitRequest) GetHostStorageBrokerId() uint32 {
 func (x *InitRequest) GetHostDataBrokerId() uint32 {
 	if x != nil {
 		return x.HostDataBrokerId
+	}
+	return 0
+}
+
+func (x *InitRequest) GetHostLlmBrokerId() uint32 {
+	if x != nil {
+		return x.HostLlmBrokerId
+	}
+	return 0
+}
+
+func (x *InitRequest) GetHostEmbeddingsBrokerId() uint32 {
+	if x != nil {
+		return x.HostEmbeddingsBrokerId
 	}
 	return 0
 }
@@ -600,17 +685,494 @@ func (x *EventResponse) GetError() string {
 	return ""
 }
 
+type PluginRoutes struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Routes        []*PluginRoute         `protobuf:"bytes,1,rep,name=routes,proto3" json:"routes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PluginRoutes) Reset() {
+	*x = PluginRoutes{}
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PluginRoutes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PluginRoutes) ProtoMessage() {}
+
+func (x *PluginRoutes) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PluginRoutes.ProtoReflect.Descriptor instead.
+func (*PluginRoutes) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *PluginRoutes) GetRoutes() []*PluginRoute {
+	if x != nil {
+		return x.Routes
+	}
+	return nil
+}
+
+type PluginRoute struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Path relative to plugin namespace, e.g., "/search" or "/items/:id"
+	// Supports :param syntax for path parameters
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// HTTP methods this route handles: GET, POST, PUT, DELETE, PATCH
+	Methods []string `protobuf:"bytes,2,rep,name=methods,proto3" json:"methods,omitempty"`
+	// If true, requires admin role (otherwise just authenticated)
+	AdminOnly bool `protobuf:"varint,3,opt,name=admin_only,json=adminOnly,proto3" json:"admin_only,omitempty"`
+	// Human-readable description for API docs
+	Description string `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	// Well-known capability for stable URL aliasing
+	// e.g., "semantic_search" creates /api/search alias
+	Capability string `protobuf:"bytes,5,opt,name=capability,proto3" json:"capability,omitempty"`
+	// If true, use HandleHTTPStream instead of HandleHTTP
+	Streaming bool `protobuf:"varint,6,opt,name=streaming,proto3" json:"streaming,omitempty"`
+	// Optional rate limiting for this route
+	RateLimit     *PluginRateLimit `protobuf:"bytes,7,opt,name=rate_limit,json=rateLimit,proto3" json:"rate_limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PluginRoute) Reset() {
+	*x = PluginRoute{}
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PluginRoute) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PluginRoute) ProtoMessage() {}
+
+func (x *PluginRoute) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PluginRoute.ProtoReflect.Descriptor instead.
+func (*PluginRoute) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *PluginRoute) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *PluginRoute) GetMethods() []string {
+	if x != nil {
+		return x.Methods
+	}
+	return nil
+}
+
+func (x *PluginRoute) GetAdminOnly() bool {
+	if x != nil {
+		return x.AdminOnly
+	}
+	return false
+}
+
+func (x *PluginRoute) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *PluginRoute) GetCapability() string {
+	if x != nil {
+		return x.Capability
+	}
+	return ""
+}
+
+func (x *PluginRoute) GetStreaming() bool {
+	if x != nil {
+		return x.Streaming
+	}
+	return false
+}
+
+func (x *PluginRoute) GetRateLimit() *PluginRateLimit {
+	if x != nil {
+		return x.RateLimit
+	}
+	return nil
+}
+
+type PluginRateLimit struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Maximum requests per minute (0 = no limit)
+	RequestsPerMinute int32 `protobuf:"varint,1,opt,name=requests_per_minute,json=requestsPerMinute,proto3" json:"requests_per_minute,omitempty"`
+	// If true, limit is per-user; otherwise global for this route
+	PerUser       bool `protobuf:"varint,2,opt,name=per_user,json=perUser,proto3" json:"per_user,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PluginRateLimit) Reset() {
+	*x = PluginRateLimit{}
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PluginRateLimit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PluginRateLimit) ProtoMessage() {}
+
+func (x *PluginRateLimit) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PluginRateLimit.ProtoReflect.Descriptor instead.
+func (*PluginRateLimit) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *PluginRateLimit) GetRequestsPerMinute() int32 {
+	if x != nil {
+		return x.RequestsPerMinute
+	}
+	return 0
+}
+
+func (x *PluginRateLimit) GetPerUser() bool {
+	if x != nil {
+		return x.PerUser
+	}
+	return false
+}
+
+type PluginHTTPRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Request path (relative to plugin, e.g., "/search")
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// HTTP method: GET, POST, etc.
+	Method string `protobuf:"bytes,2,opt,name=method,proto3" json:"method,omitempty"`
+	// HTTP headers (lowercase keys)
+	Headers map[string]string `protobuf:"bytes,3,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Query string parameters
+	Query map[string]string `protobuf:"bytes,4,rep,name=query,proto3" json:"query,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Path parameters extracted from :param patterns
+	PathParams map[string]string `protobuf:"bytes,5,rep,name=path_params,json=pathParams,proto3" json:"path_params,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Request body (for POST, PUT, PATCH)
+	Body []byte `protobuf:"bytes,6,opt,name=body,proto3" json:"body,omitempty"`
+	// Authenticated user ID (empty if not authenticated, but all plugin routes require auth)
+	UserId string `protobuf:"bytes,7,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Whether the user has admin role
+	IsAdmin       bool `protobuf:"varint,8,opt,name=is_admin,json=isAdmin,proto3" json:"is_admin,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PluginHTTPRequest) Reset() {
+	*x = PluginHTTPRequest{}
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PluginHTTPRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PluginHTTPRequest) ProtoMessage() {}
+
+func (x *PluginHTTPRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PluginHTTPRequest.ProtoReflect.Descriptor instead.
+func (*PluginHTTPRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *PluginHTTPRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *PluginHTTPRequest) GetMethod() string {
+	if x != nil {
+		return x.Method
+	}
+	return ""
+}
+
+func (x *PluginHTTPRequest) GetHeaders() map[string]string {
+	if x != nil {
+		return x.Headers
+	}
+	return nil
+}
+
+func (x *PluginHTTPRequest) GetQuery() map[string]string {
+	if x != nil {
+		return x.Query
+	}
+	return nil
+}
+
+func (x *PluginHTTPRequest) GetPathParams() map[string]string {
+	if x != nil {
+		return x.PathParams
+	}
+	return nil
+}
+
+func (x *PluginHTTPRequest) GetBody() []byte {
+	if x != nil {
+		return x.Body
+	}
+	return nil
+}
+
+func (x *PluginHTTPRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *PluginHTTPRequest) GetIsAdmin() bool {
+	if x != nil {
+		return x.IsAdmin
+	}
+	return false
+}
+
+type PluginHTTPResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// HTTP status code
+	StatusCode int32 `protobuf:"varint,1,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"`
+	// Response headers
+	Headers map[string]string `protobuf:"bytes,2,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Response body
+	Body []byte `protobuf:"bytes,3,opt,name=body,proto3" json:"body,omitempty"`
+	// Content-Type header (convenience, also in headers)
+	ContentType   string `protobuf:"bytes,4,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PluginHTTPResponse) Reset() {
+	*x = PluginHTTPResponse{}
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PluginHTTPResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PluginHTTPResponse) ProtoMessage() {}
+
+func (x *PluginHTTPResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PluginHTTPResponse.ProtoReflect.Descriptor instead.
+func (*PluginHTTPResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *PluginHTTPResponse) GetStatusCode() int32 {
+	if x != nil {
+		return x.StatusCode
+	}
+	return 0
+}
+
+func (x *PluginHTTPResponse) GetHeaders() map[string]string {
+	if x != nil {
+		return x.Headers
+	}
+	return nil
+}
+
+func (x *PluginHTTPResponse) GetBody() []byte {
+	if x != nil {
+		return x.Body
+	}
+	return nil
+}
+
+func (x *PluginHTTPResponse) GetContentType() string {
+	if x != nil {
+		return x.ContentType
+	}
+	return ""
+}
+
+type PluginHTTPChunk struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Type  PluginHTTPChunk_Type   `protobuf:"varint,1,opt,name=type,proto3,enum=viewra.plugin.v1.PluginHTTPChunk_Type" json:"type,omitempty"`
+	// Body data (for REQUEST_BODY and RESPONSE_BODY)
+	Data []byte `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	// Full request (for REQUEST_START only)
+	Request *PluginHTTPRequest `protobuf:"bytes,3,opt,name=request,proto3" json:"request,omitempty"`
+	// Response metadata (for RESPONSE_START only)
+	StatusCode  int32             `protobuf:"varint,4,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"`
+	Headers     map[string]string `protobuf:"bytes,5,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ContentType string            `protobuf:"bytes,6,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	// Error message if streaming fails mid-way
+	Error         string `protobuf:"bytes,7,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PluginHTTPChunk) Reset() {
+	*x = PluginHTTPChunk{}
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PluginHTTPChunk) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PluginHTTPChunk) ProtoMessage() {}
+
+func (x *PluginHTTPChunk) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PluginHTTPChunk.ProtoReflect.Descriptor instead.
+func (*PluginHTTPChunk) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *PluginHTTPChunk) GetType() PluginHTTPChunk_Type {
+	if x != nil {
+		return x.Type
+	}
+	return PluginHTTPChunk_REQUEST_START
+}
+
+func (x *PluginHTTPChunk) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *PluginHTTPChunk) GetRequest() *PluginHTTPRequest {
+	if x != nil {
+		return x.Request
+	}
+	return nil
+}
+
+func (x *PluginHTTPChunk) GetStatusCode() int32 {
+	if x != nil {
+		return x.StatusCode
+	}
+	return 0
+}
+
+func (x *PluginHTTPChunk) GetHeaders() map[string]string {
+	if x != nil {
+		return x.Headers
+	}
+	return nil
+}
+
+func (x *PluginHTTPChunk) GetContentType() string {
+	if x != nil {
+		return x.ContentType
+	}
+	return ""
+}
+
+func (x *PluginHTTPChunk) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 var File_api_proto_plugin_plugin_core_proto protoreflect.FileDescriptor
 
 const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
 	"\n" +
-	"\"api/proto/plugin/plugin_core.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"\xc7\x01\n" +
+	"\"api/proto/plugin/plugin_core.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"\xaf\x02\n" +
 	"\vInitRequest\x12!\n" +
 	"\fhost_version\x18\x01 \x01(\tR\vhostVersion\x12\x19\n" +
 	"\bdata_dir\x18\x02 \x01(\tR\adataDir\x12\x16\n" +
 	"\x06config\x18\x03 \x01(\fR\x06config\x123\n" +
 	"\x16host_storage_broker_id\x18\x04 \x01(\rR\x13hostStorageBrokerId\x12-\n" +
-	"\x13host_data_broker_id\x18\x05 \x01(\rR\x10hostDataBrokerId\">\n" +
+	"\x13host_data_broker_id\x18\x05 \x01(\rR\x10hostDataBrokerId\x12+\n" +
+	"\x12host_llm_broker_id\x18\x06 \x01(\rR\x0fhostLlmBrokerId\x129\n" +
+	"\x19host_embeddings_broker_id\x18\a \x01(\rR\x16hostEmbeddingsBrokerId\">\n" +
 	"\fInitResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\"\x98\x02\n" +
@@ -644,7 +1206,72 @@ const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
 	"\x0ecorrelation_id\x18\x05 \x01(\tR\rcorrelationId\"?\n" +
 	"\rEventResponse\x12\x18\n" +
 	"\ahandled\x18\x01 \x01(\bR\ahandled\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error2\x95\x04\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"E\n" +
+	"\fPluginRoutes\x125\n" +
+	"\x06routes\x18\x01 \x03(\v2\x1d.viewra.plugin.v1.PluginRouteR\x06routes\"\xfc\x01\n" +
+	"\vPluginRoute\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
+	"\amethods\x18\x02 \x03(\tR\amethods\x12\x1d\n" +
+	"\n" +
+	"admin_only\x18\x03 \x01(\bR\tadminOnly\x12 \n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x1e\n" +
+	"\n" +
+	"capability\x18\x05 \x01(\tR\n" +
+	"capability\x12\x1c\n" +
+	"\tstreaming\x18\x06 \x01(\bR\tstreaming\x12@\n" +
+	"\n" +
+	"rate_limit\x18\a \x01(\v2!.viewra.plugin.v1.PluginRateLimitR\trateLimit\"\\\n" +
+	"\x0fPluginRateLimit\x12.\n" +
+	"\x13requests_per_minute\x18\x01 \x01(\x05R\x11requestsPerMinute\x12\x19\n" +
+	"\bper_user\x18\x02 \x01(\bR\aperUser\"\xa4\x04\n" +
+	"\x11PluginHTTPRequest\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x16\n" +
+	"\x06method\x18\x02 \x01(\tR\x06method\x12J\n" +
+	"\aheaders\x18\x03 \x03(\v20.viewra.plugin.v1.PluginHTTPRequest.HeadersEntryR\aheaders\x12D\n" +
+	"\x05query\x18\x04 \x03(\v2..viewra.plugin.v1.PluginHTTPRequest.QueryEntryR\x05query\x12T\n" +
+	"\vpath_params\x18\x05 \x03(\v23.viewra.plugin.v1.PluginHTTPRequest.PathParamsEntryR\n" +
+	"pathParams\x12\x12\n" +
+	"\x04body\x18\x06 \x01(\fR\x04body\x12\x17\n" +
+	"\auser_id\x18\a \x01(\tR\x06userId\x12\x19\n" +
+	"\bis_admin\x18\b \x01(\bR\aisAdmin\x1a:\n" +
+	"\fHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a8\n" +
+	"\n" +
+	"QueryEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a=\n" +
+	"\x0fPathParamsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xf5\x01\n" +
+	"\x12PluginHTTPResponse\x12\x1f\n" +
+	"\vstatus_code\x18\x01 \x01(\x05R\n" +
+	"statusCode\x12K\n" +
+	"\aheaders\x18\x02 \x03(\v21.viewra.plugin.v1.PluginHTTPResponse.HeadersEntryR\aheaders\x12\x12\n" +
+	"\x04body\x18\x03 \x01(\fR\x04body\x12!\n" +
+	"\fcontent_type\x18\x04 \x01(\tR\vcontentType\x1a:\n" +
+	"\fHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xf7\x03\n" +
+	"\x0fPluginHTTPChunk\x12:\n" +
+	"\x04type\x18\x01 \x01(\x0e2&.viewra.plugin.v1.PluginHTTPChunk.TypeR\x04type\x12\x12\n" +
+	"\x04data\x18\x02 \x01(\fR\x04data\x12=\n" +
+	"\arequest\x18\x03 \x01(\v2#.viewra.plugin.v1.PluginHTTPRequestR\arequest\x12\x1f\n" +
+	"\vstatus_code\x18\x04 \x01(\x05R\n" +
+	"statusCode\x12H\n" +
+	"\aheaders\x18\x05 \x03(\v2..viewra.plugin.v1.PluginHTTPChunk.HeadersEntryR\aheaders\x12!\n" +
+	"\fcontent_type\x18\x06 \x01(\tR\vcontentType\x12\x14\n" +
+	"\x05error\x18\a \x01(\tR\x05error\x1a:\n" +
+	"\fHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"u\n" +
+	"\x04Type\x12\x11\n" +
+	"\rREQUEST_START\x10\x00\x12\x10\n" +
+	"\fREQUEST_BODY\x10\x01\x12\x0f\n" +
+	"\vREQUEST_END\x10\x02\x12\x12\n" +
+	"\x0eRESPONSE_START\x10\x03\x12\x11\n" +
+	"\rRESPONSE_BODY\x10\x04\x12\x10\n" +
+	"\fRESPONSE_END\x10\x052\x92\x06\n" +
 	"\n" +
 	"PluginCore\x12K\n" +
 	"\n" +
@@ -654,7 +1281,11 @@ const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
 	"\x11GetSettingsSchema\x12\x17.viewra.plugin.v1.Empty\x1a .viewra.plugin.v1.SettingsSchema\x12L\n" +
 	"\tConfigure\x12\x1a.viewra.plugin.v1.Settings\x1a#.viewra.plugin.v1.ConfigureResponse\x12Q\n" +
 	"\x10GetSubscriptions\x12\x17.viewra.plugin.v1.Empty\x1a$.viewra.plugin.v1.EventSubscriptions\x12C\n" +
-	"\aOnEvent\x12\x17.viewra.plugin.v1.Event\x1a\x1f.viewra.plugin.v1.EventResponseB8Z6github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1b\x06proto3"
+	"\aOnEvent\x12\x17.viewra.plugin.v1.Event\x1a\x1f.viewra.plugin.v1.EventResponse\x12D\n" +
+	"\tGetRoutes\x12\x17.viewra.plugin.v1.Empty\x1a\x1e.viewra.plugin.v1.PluginRoutes\x12W\n" +
+	"\n" +
+	"HandleHTTP\x12#.viewra.plugin.v1.PluginHTTPRequest\x1a$.viewra.plugin.v1.PluginHTTPResponse\x12\\\n" +
+	"\x10HandleHTTPStream\x12!.viewra.plugin.v1.PluginHTTPChunk\x1a!.viewra.plugin.v1.PluginHTTPChunk(\x010\x01B8Z6github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1b\x06proto3"
 
 var (
 	file_api_proto_plugin_plugin_core_proto_rawDescOnce sync.Once
@@ -668,42 +1299,69 @@ func file_api_proto_plugin_plugin_core_proto_rawDescGZIP() []byte {
 	return file_api_proto_plugin_plugin_core_proto_rawDescData
 }
 
-var file_api_proto_plugin_plugin_core_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_proto_plugin_plugin_core_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_api_proto_plugin_plugin_core_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_api_proto_plugin_plugin_core_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_api_proto_plugin_plugin_core_proto_goTypes = []any{
 	(HealthStatus_Status)(0),   // 0: viewra.plugin.v1.HealthStatus.Status
-	(*InitRequest)(nil),        // 1: viewra.plugin.v1.InitRequest
-	(*InitResponse)(nil),       // 2: viewra.plugin.v1.InitResponse
-	(*HealthStatus)(nil),       // 3: viewra.plugin.v1.HealthStatus
-	(*SettingsSchema)(nil),     // 4: viewra.plugin.v1.SettingsSchema
-	(*Settings)(nil),           // 5: viewra.plugin.v1.Settings
-	(*ConfigureResponse)(nil),  // 6: viewra.plugin.v1.ConfigureResponse
-	(*EventSubscriptions)(nil), // 7: viewra.plugin.v1.EventSubscriptions
-	(*Event)(nil),              // 8: viewra.plugin.v1.Event
-	(*EventResponse)(nil),      // 9: viewra.plugin.v1.EventResponse
-	(*Empty)(nil),              // 10: viewra.plugin.v1.Empty
+	(PluginHTTPChunk_Type)(0),  // 1: viewra.plugin.v1.PluginHTTPChunk.Type
+	(*InitRequest)(nil),        // 2: viewra.plugin.v1.InitRequest
+	(*InitResponse)(nil),       // 3: viewra.plugin.v1.InitResponse
+	(*HealthStatus)(nil),       // 4: viewra.plugin.v1.HealthStatus
+	(*SettingsSchema)(nil),     // 5: viewra.plugin.v1.SettingsSchema
+	(*Settings)(nil),           // 6: viewra.plugin.v1.Settings
+	(*ConfigureResponse)(nil),  // 7: viewra.plugin.v1.ConfigureResponse
+	(*EventSubscriptions)(nil), // 8: viewra.plugin.v1.EventSubscriptions
+	(*Event)(nil),              // 9: viewra.plugin.v1.Event
+	(*EventResponse)(nil),      // 10: viewra.plugin.v1.EventResponse
+	(*PluginRoutes)(nil),       // 11: viewra.plugin.v1.PluginRoutes
+	(*PluginRoute)(nil),        // 12: viewra.plugin.v1.PluginRoute
+	(*PluginRateLimit)(nil),    // 13: viewra.plugin.v1.PluginRateLimit
+	(*PluginHTTPRequest)(nil),  // 14: viewra.plugin.v1.PluginHTTPRequest
+	(*PluginHTTPResponse)(nil), // 15: viewra.plugin.v1.PluginHTTPResponse
+	(*PluginHTTPChunk)(nil),    // 16: viewra.plugin.v1.PluginHTTPChunk
+	nil,                        // 17: viewra.plugin.v1.PluginHTTPRequest.HeadersEntry
+	nil,                        // 18: viewra.plugin.v1.PluginHTTPRequest.QueryEntry
+	nil,                        // 19: viewra.plugin.v1.PluginHTTPRequest.PathParamsEntry
+	nil,                        // 20: viewra.plugin.v1.PluginHTTPResponse.HeadersEntry
+	nil,                        // 21: viewra.plugin.v1.PluginHTTPChunk.HeadersEntry
+	(*Empty)(nil),              // 22: viewra.plugin.v1.Empty
 }
 var file_api_proto_plugin_plugin_core_proto_depIdxs = []int32{
 	0,  // 0: viewra.plugin.v1.HealthStatus.status:type_name -> viewra.plugin.v1.HealthStatus.Status
-	1,  // 1: viewra.plugin.v1.PluginCore.Initialize:input_type -> viewra.plugin.v1.InitRequest
-	10, // 2: viewra.plugin.v1.PluginCore.Shutdown:input_type -> viewra.plugin.v1.Empty
-	10, // 3: viewra.plugin.v1.PluginCore.HealthCheck:input_type -> viewra.plugin.v1.Empty
-	10, // 4: viewra.plugin.v1.PluginCore.GetSettingsSchema:input_type -> viewra.plugin.v1.Empty
-	5,  // 5: viewra.plugin.v1.PluginCore.Configure:input_type -> viewra.plugin.v1.Settings
-	10, // 6: viewra.plugin.v1.PluginCore.GetSubscriptions:input_type -> viewra.plugin.v1.Empty
-	8,  // 7: viewra.plugin.v1.PluginCore.OnEvent:input_type -> viewra.plugin.v1.Event
-	2,  // 8: viewra.plugin.v1.PluginCore.Initialize:output_type -> viewra.plugin.v1.InitResponse
-	10, // 9: viewra.plugin.v1.PluginCore.Shutdown:output_type -> viewra.plugin.v1.Empty
-	3,  // 10: viewra.plugin.v1.PluginCore.HealthCheck:output_type -> viewra.plugin.v1.HealthStatus
-	4,  // 11: viewra.plugin.v1.PluginCore.GetSettingsSchema:output_type -> viewra.plugin.v1.SettingsSchema
-	6,  // 12: viewra.plugin.v1.PluginCore.Configure:output_type -> viewra.plugin.v1.ConfigureResponse
-	7,  // 13: viewra.plugin.v1.PluginCore.GetSubscriptions:output_type -> viewra.plugin.v1.EventSubscriptions
-	9,  // 14: viewra.plugin.v1.PluginCore.OnEvent:output_type -> viewra.plugin.v1.EventResponse
-	8,  // [8:15] is the sub-list for method output_type
-	1,  // [1:8] is the sub-list for method input_type
-	1,  // [1:1] is the sub-list for extension type_name
-	1,  // [1:1] is the sub-list for extension extendee
-	0,  // [0:1] is the sub-list for field type_name
+	12, // 1: viewra.plugin.v1.PluginRoutes.routes:type_name -> viewra.plugin.v1.PluginRoute
+	13, // 2: viewra.plugin.v1.PluginRoute.rate_limit:type_name -> viewra.plugin.v1.PluginRateLimit
+	17, // 3: viewra.plugin.v1.PluginHTTPRequest.headers:type_name -> viewra.plugin.v1.PluginHTTPRequest.HeadersEntry
+	18, // 4: viewra.plugin.v1.PluginHTTPRequest.query:type_name -> viewra.plugin.v1.PluginHTTPRequest.QueryEntry
+	19, // 5: viewra.plugin.v1.PluginHTTPRequest.path_params:type_name -> viewra.plugin.v1.PluginHTTPRequest.PathParamsEntry
+	20, // 6: viewra.plugin.v1.PluginHTTPResponse.headers:type_name -> viewra.plugin.v1.PluginHTTPResponse.HeadersEntry
+	1,  // 7: viewra.plugin.v1.PluginHTTPChunk.type:type_name -> viewra.plugin.v1.PluginHTTPChunk.Type
+	14, // 8: viewra.plugin.v1.PluginHTTPChunk.request:type_name -> viewra.plugin.v1.PluginHTTPRequest
+	21, // 9: viewra.plugin.v1.PluginHTTPChunk.headers:type_name -> viewra.plugin.v1.PluginHTTPChunk.HeadersEntry
+	2,  // 10: viewra.plugin.v1.PluginCore.Initialize:input_type -> viewra.plugin.v1.InitRequest
+	22, // 11: viewra.plugin.v1.PluginCore.Shutdown:input_type -> viewra.plugin.v1.Empty
+	22, // 12: viewra.plugin.v1.PluginCore.HealthCheck:input_type -> viewra.plugin.v1.Empty
+	22, // 13: viewra.plugin.v1.PluginCore.GetSettingsSchema:input_type -> viewra.plugin.v1.Empty
+	6,  // 14: viewra.plugin.v1.PluginCore.Configure:input_type -> viewra.plugin.v1.Settings
+	22, // 15: viewra.plugin.v1.PluginCore.GetSubscriptions:input_type -> viewra.plugin.v1.Empty
+	9,  // 16: viewra.plugin.v1.PluginCore.OnEvent:input_type -> viewra.plugin.v1.Event
+	22, // 17: viewra.plugin.v1.PluginCore.GetRoutes:input_type -> viewra.plugin.v1.Empty
+	14, // 18: viewra.plugin.v1.PluginCore.HandleHTTP:input_type -> viewra.plugin.v1.PluginHTTPRequest
+	16, // 19: viewra.plugin.v1.PluginCore.HandleHTTPStream:input_type -> viewra.plugin.v1.PluginHTTPChunk
+	3,  // 20: viewra.plugin.v1.PluginCore.Initialize:output_type -> viewra.plugin.v1.InitResponse
+	22, // 21: viewra.plugin.v1.PluginCore.Shutdown:output_type -> viewra.plugin.v1.Empty
+	4,  // 22: viewra.plugin.v1.PluginCore.HealthCheck:output_type -> viewra.plugin.v1.HealthStatus
+	5,  // 23: viewra.plugin.v1.PluginCore.GetSettingsSchema:output_type -> viewra.plugin.v1.SettingsSchema
+	7,  // 24: viewra.plugin.v1.PluginCore.Configure:output_type -> viewra.plugin.v1.ConfigureResponse
+	8,  // 25: viewra.plugin.v1.PluginCore.GetSubscriptions:output_type -> viewra.plugin.v1.EventSubscriptions
+	10, // 26: viewra.plugin.v1.PluginCore.OnEvent:output_type -> viewra.plugin.v1.EventResponse
+	11, // 27: viewra.plugin.v1.PluginCore.GetRoutes:output_type -> viewra.plugin.v1.PluginRoutes
+	15, // 28: viewra.plugin.v1.PluginCore.HandleHTTP:output_type -> viewra.plugin.v1.PluginHTTPResponse
+	16, // 29: viewra.plugin.v1.PluginCore.HandleHTTPStream:output_type -> viewra.plugin.v1.PluginHTTPChunk
+	20, // [20:30] is the sub-list for method output_type
+	10, // [10:20] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_plugin_plugin_core_proto_init() }
@@ -717,8 +1375,8 @@ func file_api_proto_plugin_plugin_core_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_plugin_plugin_core_proto_rawDesc), len(file_api_proto_plugin_plugin_core_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   9,
+			NumEnums:      2,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

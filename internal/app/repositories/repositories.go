@@ -3,26 +3,27 @@ package repositories
 import (
 	"database/sql"
 
+	aiRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/ai"
 	analyticsRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/analytics"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 	enrichmentRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/enrichment"
-	transcodeAnalyticsRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/transcode_analytics"
 	imageRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/image"
 	libraryRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/library"
 	mediaRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/media"
 	movieRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/movie"
 	musicRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/music"
 	peopleRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/people"
+	pluginRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/plugins"
 	progressRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/progress"
 	scanJobRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/scanjob"
 	scanStateRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/scanstate"
 	settingsRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/settings"
 	studiosRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/studios"
 	transcodeRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/transcode"
+	transcodeAnalyticsRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/transcode_analytics"
 	tvRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/tvshow"
 	userRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/user"
 	"github.com/mantonx/viewra/internal/infrastructure/plugins"
-	pluginRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/plugins"
 )
 
 // Repositories holds all data access layer implementations.
@@ -64,6 +65,9 @@ type Repositories struct {
 
 	// Transcode analytics repository
 	TranscodeAnalytics *transcodeAnalyticsRepo.Repository
+
+	// AI embedding repository
+	Embedding *aiRepo.EmbeddingRepository
 }
 
 // BuildRepositories creates and wires all repository instances using the provided database connection.
@@ -120,23 +124,26 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	// Create transcode analytics repository
 	transcodeAnalyticsRepository := transcodeAnalyticsRepo.NewRepository(db, driver)
 
+	// Create AI embedding repository
+	embeddingRepository := aiRepo.NewEmbeddingRepository(db, driver)
+
 	return &Repositories{
-		Library:            libraryRepository,
-		Media:              mediaRepository,
-		Progress:           progressRepository,
-		ScanJob:            scanJobRepository,
-		Checkpoint:         checkpointRepository,
-		ScanState:          scanStateRepository,
-		Transcode:          transcodeRepository,
-		Movie:              movieRepository,
-		TV:                 tvRepository,
-		Music:              musicRepository,
-		Image:              imageRepository,
-		Analytics:          analyticsRepository,
-		User:               userRepository,
-		Session:            sessionRepository,
-		SystemSettings:     systemSettingsRepository,
-		UserSettings:       userSettingsRepository,
+		Library:                  libraryRepository,
+		Media:                    mediaRepository,
+		Progress:                 progressRepository,
+		ScanJob:                  scanJobRepository,
+		Checkpoint:               checkpointRepository,
+		ScanState:                scanStateRepository,
+		Transcode:                transcodeRepository,
+		Movie:                    movieRepository,
+		TV:                       tvRepository,
+		Music:                    musicRepository,
+		Image:                    imageRepository,
+		Analytics:                analyticsRepository,
+		User:                     userRepository,
+		Session:                  sessionRepository,
+		SystemSettings:           systemSettingsRepository,
+		UserSettings:             userSettingsRepository,
 		EnrichmentQueue:          enrichmentQueueRepository,
 		EnrichmentStatus:         enrichmentStatusRepository,
 		EnrichmentPipeline:       enrichmentPipelineRepository,
@@ -147,5 +154,6 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 		Plugin:                   pluginRepository,
 		PluginMediaQuerier:       pluginMediaQuerier,
 		TranscodeAnalytics:       transcodeAnalyticsRepository,
+		Embedding:                embeddingRepository,
 	}
 }

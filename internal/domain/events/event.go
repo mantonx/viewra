@@ -58,7 +58,15 @@ const (
 	EventUserLogout EventType = "user.logout"
 
 	// System events
-	EventSystemLowDiskSpace EventType = "system.low_disk_space"
+	EventSystemLowDiskSpace     EventType = "system.low_disk_space"
+	EventSystemRestartRequested EventType = "system.restart_requested"
+	EventSystemRestartScheduled EventType = "system.restart_scheduled"
+	EventSystemRestartCancelled EventType = "system.restart_cancelled"
+	EventSystemShuttingDown     EventType = "system.shutting_down"
+
+	// Settings events
+	EventSettingsChanged        EventType = "settings.changed"
+	EventSettingsPendingRestart EventType = "settings.pending_restart"
 
 	// Log events (from slog integration)
 	EventLog EventType = "log"
@@ -149,6 +157,26 @@ func (e *Event) WithUsername(username string) *Event {
 // Build returns the event value (for chaining convenience).
 func (e *Event) Build() Event {
 	return *e
+}
+
+// WithSettingKey is a convenience method for settings events.
+func (e *Event) WithSettingKey(key string) *Event {
+	return e.WithData("setting_key", key)
+}
+
+// WithCategory is a convenience method for settings events.
+func (e *Event) WithCategory(category string) *Event {
+	return e.WithData("category", category)
+}
+
+// WithRequiresRestart is a convenience method for settings events.
+func (e *Event) WithRequiresRestart(requires bool) *Event {
+	return e.WithData("requires_restart", requires)
+}
+
+// WithReason is a convenience method for system events.
+func (e *Event) WithReason(reason string) *Event {
+	return e.WithData("reason", reason)
 }
 
 // LogLevel represents severity for log events.

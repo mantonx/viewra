@@ -9,6 +9,25 @@ import (
 	"time"
 )
 
+type AiSetting struct {
+	ID        int64        `json:"id"`
+	Key       string       `json:"key"`
+	Value     string       `json:"value"`
+	UpdatedAt sql.NullTime `json:"updated_at"`
+}
+
+type AiUsage struct {
+	ID               int64         `json:"id"`
+	UserID           string        `json:"user_id"`
+	Date             string        `json:"date"`
+	PromptTokens     sql.NullInt64 `json:"prompt_tokens"`
+	CompletionTokens sql.NullInt64 `json:"completion_tokens"`
+	EmbeddingTokens  sql.NullInt64 `json:"embedding_tokens"`
+	RequestCount     sql.NullInt64 `json:"request_count"`
+	CreatedAt        sql.NullTime  `json:"created_at"`
+	UpdatedAt        sql.NullTime  `json:"updated_at"`
+}
+
 type Credit struct {
 	ID            int64          `json:"id"`
 	PersonID      int64          `json:"person_id"`
@@ -20,6 +39,17 @@ type Credit struct {
 	Job           sql.NullString `json:"job"`
 	BillingOrder  sql.NullInt64  `json:"billing_order"`
 	CreatedAt     sql.NullTime   `json:"created_at"`
+}
+
+type Embedding struct {
+	ID         int64          `json:"id"`
+	EntityType string         `json:"entity_type"`
+	EntityID   int64          `json:"entity_id"`
+	Vector     []byte         `json:"vector"`
+	Text       sql.NullString `json:"text"`
+	Dimensions int64          `json:"dimensions"`
+	CreatedAt  sql.NullTime   `json:"created_at"`
+	UpdatedAt  sql.NullTime   `json:"updated_at"`
 }
 
 type EnrichmentPipeline struct {
@@ -132,6 +162,14 @@ type MediaMetadataSource struct {
 	PluginID  string         `json:"plugin_id"`
 	RawValue  sql.NullString `json:"raw_value"`
 	UpdatedAt sql.NullString `json:"updated_at"`
+}
+
+type MediaMoodTag struct {
+	ID         int64           `json:"id"`
+	MediaID    int64           `json:"media_id"`
+	Tag        string          `json:"tag"`
+	Confidence sql.NullFloat64 `json:"confidence"`
+	CreatedAt  sql.NullTime    `json:"created_at"`
 }
 
 type MediaStudio struct {

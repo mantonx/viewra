@@ -372,3 +372,137 @@ func isEmbeddingModel(name string) bool {
 	}
 	return false
 }
+
+// Pull downloads a model from the Ollama registry with progress streaming.
+// The progress channel receives updates during the download.
+// The channel is closed when the pull is complete or on error.
+func (p *OllamaProvider) Pull(ctx context.Context, modelName string) (<-chan ai.PullProgress, error) {
+	pullReq := ollamaPullRequest{
+		Name:   modelName,
+		Stream: true,
+	}
+
+	body, err := json.Marshal(pullReq)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+
+	// Use a longer timeout for model pulls (can take many minutes)
+	client := &http.Client{
+		Timeout: 0, // No timeout for streaming
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/api/pull", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ai.ErrProviderUnavailable, err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, fmt.Errorf("ollama pull error (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	progress := make(chan ai.PullProgress)
+	go func() {
+		defer resp.Body.Close()
+		defer close(progress)
+
+		decoder := json.NewDecoder(resp.Body)
+		for {
+			var pullResp ollamaPullResponse
+			if err := decoder.Decode(&pullResp); err != nil {
+				if err == io.EOF {
+					return
+				}
+				select {
+				case progress <- ai.PullProgress{Error: err.Error(), Done: true}:
+				case <-ctx.Done():
+				}
+				return
+			}
+
+			// Calculate percentage if we have total/completed
+			var percent float64
+			if pullResp.Total > 0 {
+				percent = float64(pullResp.Completed) / float64(pullResp.Total) * 100
+			}
+
+			event := ai.PullProgress{
+				Status:    pullResp.Status,
+				Digest:    pullResp.Digest,
+				Total:     pullResp.Total,
+				Completed: pullResp.Completed,
+				Percent:   percent,
+				Done:      pullResp.Status == "success",
+			}
+
+			select {
+			case progress <- event:
+			case <-ctx.Done():
+				return
+			}
+
+			if pullResp.Status == "success" {
+				return
+			}
+		}
+	}()
+
+	return progress, nil
+}
+
+// DeleteModel removes a model from the local Ollama installation.
+func (p *OllamaProvider) DeleteModel(ctx context.Context, modelName string) error {
+	deleteReq := ollamaDeleteRequest{
+		Name: modelName,
+	}
+
+	body, err := json.Marshal(deleteReq)
+	if err != nil {
+		return fmt.Errorf("marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodDelete, p.baseURL+"/api/delete", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := p.httpClient.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ai.ErrProviderUnavailable, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("ollama delete error (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
+// Ollama pull/delete API types
+
+type ollamaPullRequest struct {
+	Name   string `json:"name"`
+	Stream bool   `json:"stream"`
+}
+
+type ollamaPullResponse struct {
+	Status    string `json:"status"`
+	Digest    string `json:"digest,omitempty"`
+	Total     int64  `json:"total,omitempty"`
+	Completed int64  `json:"completed,omitempty"`
+}
+
+type ollamaDeleteRequest struct {
+	Name string `json:"name"`
+}

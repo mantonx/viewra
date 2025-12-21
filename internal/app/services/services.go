@@ -16,7 +16,9 @@ import (
 	"github.com/mantonx/viewra/internal/application/settings"
 	"github.com/mantonx/viewra/internal/application/transcode"
 	domaintranscode "github.com/mantonx/viewra/internal/domain/transcode"
+	"github.com/mantonx/viewra/internal/infrastructure/ai/providers"
 	"github.com/mantonx/viewra/internal/infrastructure/auth"
+	"github.com/mantonx/viewra/internal/infrastructure/crypto"
 	"github.com/mantonx/viewra/internal/infrastructure/events"
 	infraimages "github.com/mantonx/viewra/internal/infrastructure/images"
 	"github.com/mantonx/viewra/internal/infrastructure/pathbrowser"
@@ -234,13 +236,27 @@ func BuildServices(
 	}
 	tokenService := auth.NewTokenService(tokenConfig)
 
+	// Initialize encryption for sensitive settings
+	var encryptor *crypto.Encryptor
+	encryptor, err = crypto.NewEncryptor(cfg.DataDir)
+	if err != nil {
+		logger.Warn("Failed to initialize encryption, sensitive settings will be stored in plaintext",
+			"error", err)
+		encryptor = nil
+	} else {
+		logger.Info("Encryption initialized for sensitive settings")
+	}
+
 	// Initialize settings service
-	settingsService := settings.NewService(repos.SystemSettings, repos.UserSettings)
+	settingsService := settings.NewService(repos.SystemSettings, repos.UserSettings, encryptor)
 
 	// Wire system profile into settings service for read-only system info
 	if cfg.SystemProfile != nil {
 		settingsService.SetSystemProfile(cfg.SystemProfile)
 	}
+
+	// Create AI config reader for HostLLMServer integration
+	aiConfigReader := settings.NewAIConfigReader(settingsService)
 
 	// Wire settings service into session manager for dynamic config
 	// This enables runtime changes to tone mapping settings without restart
@@ -331,13 +347,40 @@ func BuildServices(
 			}
 		}
 
+		// Create AI host servers for plugins (embedding, LLM)
+		var hostLLMServer *plugins.HostLLMServer
+		var hostEmbeddingsServer *plugins.HostEmbeddingsServer
+
+		// Create provider factory for LLM/embedding providers
+		providerFactory := providers.NewFactory()
+
+		// Create HostLLMServer with provider factory
+		// Default to Ollama on localhost for local AI inference
+		hostLLMServer = plugins.NewHostLLMServer(plugins.HostLLMConfig{
+			OllamaBaseURL: "http://localhost:11434",
+		}, providerFactory, logger.With("component", "host-llm"))
+
+		// Wire AI config reader for dynamic settings from database
+		hostLLMServer.SetConfigReader(aiConfigReader)
+		hostLLMServer.RefreshConfig(context.Background())
+
+		// Create HostEmbeddingsServer if embedding repository is available
+		if repos.Embedding != nil {
+			hostEmbeddingsServer = plugins.NewHostEmbeddingsServer(
+				repos.Embedding,
+				logger.With("component", "host-embeddings"),
+			)
+		}
+
 		var err error
 		pluginManager, err = plugins.NewManager(plugins.ManagerConfig{
-			PluginDir:         cfg.Plugins.Dir,
-			StorageDir:        cfg.Plugins.StorageDir,
-			HostVersion:       version.Version,
-			MediaQuerier:      repos.PluginMediaQuerier,
-			HostStorageServer: hostStorageServer,
+			PluginDir:            cfg.Plugins.Dir,
+			StorageDir:           cfg.Plugins.StorageDir,
+			HostVersion:          version.Version,
+			MediaQuerier:         repos.PluginMediaQuerier,
+			HostStorageServer:    hostStorageServer,
+			HostLLMServer:        hostLLMServer,
+			HostEmbeddingsServer: hostEmbeddingsServer,
 		}, pluginLogger)
 		if err != nil {
 			logger.Warn("Failed to create plugin manager", "error", err)
@@ -347,8 +390,15 @@ func BuildServices(
 		if pluginManager != nil && eventBus != nil {
 			pluginManager.SetPublisher(eventBus)
 		}
+
+		// Subscribe to AI settings changes for dynamic config refresh
+		if hostLLMServer != nil && eventBus != nil {
+			go subscribeToAISettingsChanges(eventBus, hostLLMServer, logger)
+		}
 	}
 
+	// Create AI services
+	// Embedding provider is nil initially - configured later via settings UI
 	return &Services{
 		ImageCache:        imageCacheService,
 		ImageTransformer:  imageTransformer,
@@ -393,4 +443,29 @@ func (a *metadataExtractorAdapter) ExtractMetadata(imagePath string) (*pipeline.
 		MimeType:      info.MimeType,
 		FileHash:      info.FileHash,
 	}, nil
+}
+
+// subscribeToAISettingsChanges listens for AI settings changes and refreshes the LLM config.
+// This runs as a background goroutine and automatically refreshes HostLLMServer config
+// when AI-related settings are changed via the settings API.
+func subscribeToAISettingsChanges(
+	eventBus *events.Bus,
+	hostLLMServer *plugins.HostLLMServer,
+	logger *slog.Logger,
+) {
+	sub := eventBus.Subscribe(events.WithEventTypes(events.EventSettingsChanged))
+	defer sub.Close()
+
+	for event := range sub.Events() {
+		// Check if this is an AI settings change
+		category, ok := event.Data["category"].(string)
+		if !ok {
+			continue
+		}
+
+		if category == "ai" {
+			logger.Debug("AI settings changed, refreshing HostLLMServer config")
+			hostLLMServer.RefreshConfig(context.Background())
+		}
+	}
 }

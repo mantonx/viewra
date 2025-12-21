@@ -13,6 +13,7 @@ import (
 	"github.com/mantonx/viewra/internal/api/handlers"
 	"github.com/mantonx/viewra/internal/api/middleware"
 	"github.com/mantonx/viewra/internal/api/routes"
+	"github.com/mantonx/viewra/internal/infrastructure/plugins"
 )
 
 // Server represents the HTTP server
@@ -70,28 +71,34 @@ func DefaultServerConfig() ServerConfig {
 // Handlers holds all HTTP handlers. This type alias allows the api package
 // to accept handlers without importing the app/handlers package.
 type Handlers struct {
-	Health    *handlers.HealthHandler
-	Browser   *handlers.BrowserHandler
-	Scheduler *handlers.SchedulerHandler
-	Analytics *handlers.AnalyticsHandler
-	Library   *handlers.LibraryHandler
-	ScanJob   *handlers.ScanJobHandler
-	Media     *handlers.MediaHandler
-	Stream    *handlers.StreamHandler
-	Progress  *handlers.ProgressHandler
-	Images    *handlers.ImagesHandler
+	Health     *handlers.HealthHandler
+	Browser    *handlers.BrowserHandler
+	Scheduler  *handlers.SchedulerHandler
+	Analytics  *handlers.AnalyticsHandler
+	Library    *handlers.LibraryHandler
+	ScanJob    *handlers.ScanJobHandler
+	Media      *handlers.MediaHandler
+	Stream     *handlers.StreamHandler
+	Progress   *handlers.ProgressHandler
+	Images     *handlers.ImagesHandler
 	Transcode  *handlers.TranscodeHandler
 	FFmpegLogs *handlers.FFmpegLogsHandler
 	Subtitle   *handlers.SubtitleHandler
-	Movies    *handlers.MoviesHandler
-	TV        *handlers.TVHandler
-	Music     *handlers.MusicHandler
-	People    *handlers.PeopleHandler
-	Auth      *handlers.AuthHandler
-	Users     *handlers.UsersHandler
+	Movies     *handlers.MoviesHandler
+	TV         *handlers.TVHandler
+	Music      *handlers.MusicHandler
+	People     *handlers.PeopleHandler
+	Auth       *handlers.AuthHandler
+	Users      *handlers.UsersHandler
 	Settings   *handlers.SettingsHandler
 	Enrichment *handlers.EnrichmentHandler
 	Plugins    *handlers.PluginHandler
+	System     *handlers.SystemHandler
+	AISettings *handlers.AISettingsHandler
+
+	// PluginProxy proxies HTTP requests to plugin-defined routes.
+	// This replaces the hardcoded AISearchHandler.
+	PluginProxy *plugins.HTTPProxy
 
 	// AuthValidator is used by routes to set up auth middleware
 	AuthValidator middleware.AuthValidator
@@ -194,11 +201,17 @@ func (s *Server) setupRoutes() {
 	// Register settings routes (protected, with admin requirement for system settings)
 	routes.RegisterSettingsRoutes(protected, h.Settings, h.AuthValidator)
 
+	// Register AI settings routes (protected, admin only)
+	routes.RegisterAISettingsRoutes(protected, h.AISettings, h.AuthValidator)
+
 	// Register enrichment routes (protected)
 	routes.RegisterEnrichmentRoutes(protected, h.Enrichment)
 
 	// Register plugin routes (protected, with admin requirement for mutations)
 	routes.RegisterPluginRoutes(protected, h.Plugins, h.AuthValidator)
+
+	// Register dynamic plugin routes (replaces hardcoded AI routes)
+	s.registerPluginRoutes(protected)
 
 	// Register image routes (protected via api group)
 	routes.RegisterImageRoutes(s.router, h.Images)
@@ -211,9 +224,11 @@ func (s *Server) setupRoutes() {
 		admin := api.Group("/admin")
 		admin.Use(middleware.RequireAdmin(h.AuthValidator))
 		routes.RegisterSchedulerRoutes(admin, h.Scheduler)
+		routes.RegisterSystemRoutes(admin, h.System, h.AuthValidator)
 	} else {
 		admin := api.Group("/admin")
 		routes.RegisterSchedulerRoutes(admin, h.Scheduler)
+		routes.RegisterSystemRoutes(admin, h.System, nil)
 	}
 }
 
@@ -230,4 +245,48 @@ func (s *Server) Shutdown(ctx context.Context) error {
 // Router returns the Gin router (for testing)
 func (s *Server) Router() *gin.Engine {
 	return s.router
+}
+
+// registerPluginRoutes sets up routes for plugin-defined HTTP endpoints.
+// This includes:
+// - /api/plugins/:plugin_id/*path - Direct plugin access
+// - /api/search, /api/similar, etc. - Capability-aliased stable URLs
+func (s *Server) registerPluginRoutes(protected *gin.RouterGroup) {
+	proxy := s.handlers.PluginProxy
+	if proxy == nil {
+		s.logger.Debug("plugin proxy not configured, skipping plugin route registration")
+		return
+	}
+
+	// Register the plugin namespace route
+	// All routes under /api/plugins/:plugin_id/* are handled by the proxy
+	// Note: There's already a /api/plugins group from RegisterPluginRoutes for plugin management.
+	// We use a different sub-path pattern to avoid conflicts.
+	protected.Any("/plugin-routes/:plugin_id/*path", proxy.HandlePluginRoute)
+
+	// Register capability alias routes (e.g., /api/search -> ai-search plugin)
+	// These go on the parent protected group to get stable URLs
+	for capability, aliasPath := range plugins.CapabilityAliases {
+		// Handle both the exact path and with trailing wildcard for sub-paths
+		// e.g., /api/search and /api/search/suggestions
+		cap := capability // capture for closure
+
+		// Register the base path
+		basePath := aliasPath[4:] // strip "/api" prefix since we're in protected group
+		if basePath == "" {
+			basePath = "/"
+		}
+
+		handler := func(c *gin.Context) {
+			proxy.HandleCapabilityRoute(cap)(c)
+		}
+
+		// Register for all HTTP methods
+		protected.Any(basePath, handler)
+		protected.Any(basePath+"/*subpath", handler)
+
+		s.logger.Debug("registered capability alias",
+			"capability", capability,
+			"path", aliasPath)
+	}
 }

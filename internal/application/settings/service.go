@@ -9,6 +9,7 @@ import (
 	"time"
 
 	settingsDomain "github.com/mantonx/viewra/internal/domain/settings"
+	"github.com/mantonx/viewra/internal/infrastructure/crypto"
 	"github.com/mantonx/viewra/internal/infrastructure/system"
 )
 
@@ -16,12 +17,13 @@ import (
 type Service struct {
 	systemRepo settingsDomain.SystemRepository
 	userRepo   settingsDomain.UserRepository
+	encryptor  *crypto.Encryptor
 
 	// In-memory cache
-	mu           sync.RWMutex
-	systemCache  map[string]*settingsDomain.SystemSetting
-	userCache    map[string]map[string]*settingsDomain.UserSetting // userID -> key -> setting
-	cacheWarmed  bool
+	mu          sync.RWMutex
+	systemCache map[string]*settingsDomain.SystemSetting
+	userCache   map[string]map[string]*settingsDomain.UserSetting // userID -> key -> setting
+	cacheWarmed bool
 
 	// System profile for detected values
 	systemProfile *system.Profile
@@ -31,10 +33,12 @@ type Service struct {
 func NewService(
 	systemRepo settingsDomain.SystemRepository,
 	userRepo settingsDomain.UserRepository,
+	encryptor *crypto.Encryptor,
 ) *Service {
 	return &Service{
 		systemRepo:  systemRepo,
 		userRepo:    userRepo,
+		encryptor:   encryptor,
 		systemCache: make(map[string]*settingsDomain.SystemSetting),
 		userCache:   make(map[string]map[string]*settingsDomain.UserSetting),
 	}
@@ -100,6 +104,7 @@ func (s *Service) GetSystem(ctx context.Context, key string) (*settingsDomain.Sy
 
 // GetSystemValue retrieves a system setting value by key.
 // Returns the default value from definition if not found.
+// Sensitive values are decrypted automatically.
 func (s *Service) GetSystemValue(ctx context.Context, key string) (any, error) {
 	setting, err := s.GetSystem(ctx, key)
 	if err != nil {
@@ -115,22 +120,37 @@ func (s *Service) GetSystemValue(ctx context.Context, key string) (any, error) {
 	}
 
 	// Decode based on type
+	var value any
 	switch setting.ValueType {
 	case settingsDomain.TypeString:
-		return setting.GetString(), nil
+		value = setting.GetString()
 	case settingsDomain.TypeInt:
-		return setting.GetInt(), nil
+		value = setting.GetInt()
 	case settingsDomain.TypeBool:
-		return setting.GetBool(), nil
+		value = setting.GetBool()
 	case settingsDomain.TypeJSON:
 		var v any
 		if err := setting.GetJSON(&v); err != nil {
 			return nil, err
 		}
-		return v, nil
+		value = v
+	default:
+		value = setting.Value
 	}
 
-	return setting.Value, nil
+	// Decrypt sensitive values
+	def := settingsDomain.GetSystemDefinition(key)
+	if def != nil && def.Sensitive && s.encryptor != nil {
+		if strVal, ok := value.(string); ok && crypto.IsEncrypted(strVal) {
+			decrypted, decErr := s.encryptor.Decrypt(strVal)
+			if decErr != nil {
+				return nil, fmt.Errorf("failed to decrypt sensitive value: %w", decErr)
+			}
+			return decrypted, nil
+		}
+	}
+
+	return value, nil
 }
 
 // SetSystem creates or updates a system setting.
@@ -145,6 +165,21 @@ func (s *Service) SetSystem(ctx context.Context, key string, value any, updatedB
 	encoded, err := settingsDomain.EncodeValue(value)
 	if err != nil {
 		return settingsDomain.ErrInvalidValue
+	}
+
+	// Encrypt sensitive values
+	if def.Sensitive && s.encryptor != nil {
+		// For strings, encrypt the raw value before JSON encoding
+		if strVal, ok := value.(string); ok && strVal != "" {
+			encrypted, encErr := s.encryptor.Encrypt(strVal)
+			if encErr != nil {
+				return fmt.Errorf("failed to encrypt sensitive value: %w", encErr)
+			}
+			encoded, err = settingsDomain.EncodeValue(encrypted)
+			if err != nil {
+				return settingsDomain.ErrInvalidValue
+			}
+		}
 	}
 
 	setting := &settingsDomain.SystemSetting{
@@ -366,6 +401,44 @@ func (s *Service) GetUserDefinitions() []settingsDomain.Definition {
 	return settingsDomain.UserSettingDefinitions
 }
 
+// GetSystemValueMasked retrieves a system setting value with sensitive values masked.
+// Use this for displaying values in the UI where full decryption is not needed.
+func (s *Service) GetSystemValueMasked(ctx context.Context, key string) (any, error) {
+	def := settingsDomain.GetSystemDefinition(key)
+	if def == nil {
+		return nil, settingsDomain.ErrUnknownSetting
+	}
+
+	// For non-sensitive settings, return the normal value
+	if !def.Sensitive {
+		return s.GetSystemValue(ctx, key)
+	}
+
+	// Get the raw (possibly encrypted) value from the database
+	setting, err := s.GetSystem(ctx, key)
+	if err != nil {
+		if err == settingsDomain.ErrSettingNotFound {
+			return def.Default, nil
+		}
+		return nil, err
+	}
+
+	// Get the string value and mask it
+	strVal := setting.GetString()
+	if strVal == "" {
+		return "", nil
+	}
+
+	// Return masked value
+	return crypto.MaskAPIKey(strVal), nil
+}
+
+// IsSensitiveSetting returns true if the setting is marked as sensitive.
+func (s *Service) IsSensitiveSetting(key string) bool {
+	def := settingsDomain.GetSystemDefinition(key)
+	return def != nil && def.Sensitive
+}
+
 // GetEffectiveSystemValue resolves a system setting with full source tracking.
 // Resolution order: env var > database > detected value > default
 func (s *Service) GetEffectiveSystemValue(ctx context.Context, key string) (settingsDomain.EffectiveValue, error) {
@@ -417,6 +490,14 @@ func (s *Service) GetEffectiveSystemValue(ctx context.Context, key string) (sett
 		default:
 			value = setting.Value
 		}
+
+		// For sensitive values, mask the value for display
+		if def.Sensitive {
+			if strVal, ok := value.(string); ok && strVal != "" {
+				value = crypto.MaskAPIKey(strVal)
+			}
+		}
+
 		return settingsDomain.EffectiveValue{
 			Value:  value,
 			Source: settingsDomain.SourceDatabase,
@@ -433,10 +514,15 @@ func (s *Service) GetEffectiveSystemValue(ctx context.Context, key string) (sett
 }
 
 // GetAllEffectiveSystemValues returns all system settings with their effective values.
+// Note: AI settings are excluded as they have a dedicated API endpoint.
 func (s *Service) GetAllEffectiveSystemValues(ctx context.Context) (map[string]settingsDomain.EffectiveValue, error) {
 	result := make(map[string]settingsDomain.EffectiveValue)
 
 	for _, def := range settingsDomain.SystemSettingDefinitions {
+		// Skip AI settings - they have their own dedicated endpoint
+		if def.Category == settingsDomain.CategoryAI {
+			continue
+		}
 		effectiveValue, err := s.GetEffectiveSystemValue(ctx, def.Key)
 		if err != nil {
 			continue // Skip settings that fail to resolve

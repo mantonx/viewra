@@ -439,5 +439,696 @@ func (q *DBMediaQuerier) libraryToInfo(result any) *LibraryInfo {
 	}
 }
 
+// GetMediaDetails returns full metadata for a media item.
+func (q *DBMediaQuerier) GetMediaDetails(ctx context.Context, id int64) (*MediaDetailsInfo, error) {
+	// First get basic info to determine media type
+	basic, err := q.GetMediaByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	externalIDs, _ := q.GetExternalIDs(ctx, id)
+
+	var details *MediaDetailsInfo
+	switch basic.MediaType {
+	case "movie":
+		details, err = q.getMovieDetails(ctx, id, basic, externalIDs)
+	case "tv_show":
+		details, err = q.getTVShowDetails(ctx, id, basic, externalIDs)
+	case "tv_episode":
+		details, err = q.getTVEpisodeDetails(ctx, id, basic, externalIDs)
+	default:
+		// Return basic info for unsupported types
+		details = &MediaDetailsInfo{
+			ID:          basic.ID,
+			MediaType:   basic.MediaType,
+			Title:       basic.Title,
+			Year:        basic.Year,
+			LibraryID:   basic.LibraryID,
+			ExternalIDs: externalIDs,
+		}
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Fetch and attach mood tags
+	moodTags, _ := q.GetMoodTags(ctx, id)
+	if len(moodTags) > 0 {
+		details.MoodTags = make([]string, len(moodTags))
+		for i, t := range moodTags {
+			details.MoodTags[i] = t.Tag
+		}
+	}
+
+	return details, nil
+}
+
+func (q *DBMediaQuerier) getMovieDetails(ctx context.Context, id int64, basic *MediaInfo, externalIDs map[string]string) (*MediaDetailsInfo, error) {
+	result, err := q.router.Route(
+		func() (any, error) {
+			return q.postgres.GetMovieByMediaID(ctx, int32(id))
+		},
+		func() (any, error) {
+			return q.sqlite.GetMovieByMediaID(ctx, id)
+		},
+	)
+	if err != nil {
+		// Movie metadata not found, return basic info
+		return &MediaDetailsInfo{
+			ID:          basic.ID,
+			MediaType:   basic.MediaType,
+			Title:       basic.Title,
+			Year:        basic.Year,
+			LibraryID:   basic.LibraryID,
+			ExternalIDs: externalIDs,
+		}, nil
+	}
+
+	return q.movieRowToDetails(result, externalIDs), nil
+}
+
+func (q *DBMediaQuerier) movieRowToDetails(result any, externalIDs map[string]string) *MediaDetailsInfo {
+	info := &MediaDetailsInfo{
+		MediaType:   "movie",
+		ExternalIDs: externalIDs,
+	}
+
+	if q.router.IsPostgresDB() {
+		row := result.(sqlc_postgres.GetMovieByMediaIDRow)
+		info.ID = int64(row.MediaID)
+		info.Title = row.Title
+		info.LibraryID = int64(row.LibraryID)
+		if row.Year.Valid {
+			info.Year = int(row.Year.Int32)
+		}
+		if row.Plot.Valid {
+			info.Plot = row.Plot.String
+		}
+		if row.Tagline.Valid {
+			info.Tagline = row.Tagline.String
+		}
+		if row.Genre.Valid {
+			info.Genres = splitAndTrim(row.Genre.String)
+		}
+		if row.Director.Valid {
+			info.Directors = splitAndTrim(row.Director.String)
+		}
+		if row.Cast.Valid {
+			info.Cast = parseCastString(row.Cast.String)
+		}
+		if row.ContentRating.Valid {
+			info.ContentRating = row.ContentRating.String
+		}
+		if row.RuntimeMinutes.Valid {
+			info.RuntimeMinutes = int(row.RuntimeMinutes.Int32)
+		}
+	} else {
+		row := result.(sqlc_sqlite.GetMovieByMediaIDRow)
+		info.ID = row.MediaID
+		info.Title = row.Title
+		info.LibraryID = row.LibraryID
+		if row.Year.Valid {
+			info.Year = int(row.Year.Int64)
+		}
+		if row.Plot.Valid {
+			info.Plot = row.Plot.String
+		}
+		if row.Tagline.Valid {
+			info.Tagline = row.Tagline.String
+		}
+		if row.Genre.Valid {
+			info.Genres = splitAndTrim(row.Genre.String)
+		}
+		if row.Director.Valid {
+			info.Directors = splitAndTrim(row.Director.String)
+		}
+		if row.Cast.Valid {
+			info.Cast = parseCastString(row.Cast.String)
+		}
+		if row.ContentRating.Valid {
+			info.ContentRating = row.ContentRating.String
+		}
+		if row.RuntimeMinutes.Valid {
+			info.RuntimeMinutes = int(row.RuntimeMinutes.Int64)
+		}
+	}
+
+	return info
+}
+
+func (q *DBMediaQuerier) getTVShowDetails(ctx context.Context, id int64, basic *MediaInfo, externalIDs map[string]string) (*MediaDetailsInfo, error) {
+	result, err := q.router.Route(
+		func() (any, error) {
+			return q.postgres.GetTVShowByID(ctx, int32(id))
+		},
+		func() (any, error) {
+			return q.sqlite.GetTVShowByID(ctx, id)
+		},
+	)
+	if err != nil {
+		return &MediaDetailsInfo{
+			ID:          basic.ID,
+			MediaType:   basic.MediaType,
+			Title:       basic.Title,
+			Year:        basic.Year,
+			LibraryID:   basic.LibraryID,
+			ExternalIDs: externalIDs,
+		}, nil
+	}
+
+	return q.tvShowRowToDetails(result, externalIDs), nil
+}
+
+func (q *DBMediaQuerier) tvShowRowToDetails(result any, externalIDs map[string]string) *MediaDetailsInfo {
+	info := &MediaDetailsInfo{
+		MediaType:   "tv_show",
+		ExternalIDs: externalIDs,
+	}
+
+	if q.router.IsPostgresDB() {
+		row := result.(sqlc_postgres.TvShow)
+		info.ID = int64(row.ID)
+		info.Title = row.Title
+		info.LibraryID = int64(row.LibraryID)
+		if row.Year.Valid {
+			info.Year = int(row.Year.Int32)
+		}
+		if row.Plot.Valid {
+			info.Plot = row.Plot.String
+		}
+		if row.Genre.Valid {
+			info.Genres = splitAndTrim(row.Genre.String)
+		}
+		if row.ContentRating.Valid {
+			info.ContentRating = row.ContentRating.String
+		}
+	} else {
+		row := result.(sqlc_sqlite.TvShow)
+		info.ID = row.ID
+		info.Title = row.Title
+		info.LibraryID = row.LibraryID
+		if row.Year.Valid {
+			info.Year = int(row.Year.Int64)
+		}
+		if row.Plot.Valid {
+			info.Plot = row.Plot.String
+		}
+		if row.Genre.Valid {
+			info.Genres = splitAndTrim(row.Genre.String)
+		}
+		if row.ContentRating.Valid {
+			info.ContentRating = row.ContentRating.String
+		}
+	}
+
+	return info
+}
+
+func (q *DBMediaQuerier) getTVEpisodeDetails(ctx context.Context, id int64, basic *MediaInfo, externalIDs map[string]string) (*MediaDetailsInfo, error) {
+	result, err := q.router.Route(
+		func() (any, error) {
+			return q.postgres.GetEpisodeWithShowTitle(ctx, int32(id))
+		},
+		func() (any, error) {
+			return q.sqlite.GetEpisodeWithShowTitle(ctx, id)
+		},
+	)
+	if err != nil {
+		return &MediaDetailsInfo{
+			ID:          basic.ID,
+			MediaType:   basic.MediaType,
+			Title:       basic.Title,
+			Year:        basic.Year,
+			LibraryID:   basic.LibraryID,
+			ExternalIDs: externalIDs,
+		}, nil
+	}
+
+	return q.tvEpisodeRowToDetails(result, externalIDs), nil
+}
+
+func (q *DBMediaQuerier) tvEpisodeRowToDetails(result any, externalIDs map[string]string) *MediaDetailsInfo {
+	info := &MediaDetailsInfo{
+		MediaType:   "tv_episode",
+		ExternalIDs: externalIDs,
+	}
+
+	if q.router.IsPostgresDB() {
+		row := result.(sqlc_postgres.GetEpisodeWithShowTitleRow)
+		info.ID = int64(row.MediaID)
+		info.Title = row.Title
+		info.LibraryID = int64(row.LibraryID)
+		if row.Plot.Valid {
+			info.Plot = row.Plot.String
+		}
+		info.SeasonNumber = int(row.SeasonNumber)
+		info.EpisodeNumber = int(row.EpisodeNumber)
+		info.ShowTitle = row.ShowTitle
+		if row.ShowGenre.Valid {
+			info.Genres = splitAndTrim(row.ShowGenre.String)
+		}
+	} else {
+		row := result.(sqlc_sqlite.GetEpisodeWithShowTitleRow)
+		info.ID = row.MediaID
+		info.Title = row.Title
+		info.LibraryID = row.LibraryID
+		if row.Plot.Valid {
+			info.Plot = row.Plot.String
+		}
+		info.SeasonNumber = int(row.SeasonNumber)
+		info.EpisodeNumber = int(row.EpisodeNumber)
+		info.ShowTitle = row.ShowTitle
+		if row.ShowGenre.Valid {
+			info.Genres = splitAndTrim(row.ShowGenre.String)
+		}
+	}
+
+	return info
+}
+
+// ListMediaByLibrary lists all media in a library with pagination.
+func (q *DBMediaQuerier) ListMediaByLibrary(ctx context.Context, libraryID int64, limit, offset int) ([]*MediaDetailsInfo, int, error) {
+	lib, err := q.GetLibrary(ctx, libraryID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	switch lib.MediaType {
+	case "movies":
+		return q.listMovieDetailsByLibrary(ctx, libraryID, limit, offset)
+	case "tv":
+		return q.listTVShowDetailsByLibrary(ctx, libraryID, limit, offset)
+	case "music":
+		return q.listMusicDetailsByLibrary(ctx, libraryID, limit, offset)
+	default:
+		return nil, 0, errors.New("unsupported library type: " + lib.MediaType)
+	}
+}
+
+func (q *DBMediaQuerier) listMovieDetailsByLibrary(ctx context.Context, libraryID int64, limit, offset int) ([]*MediaDetailsInfo, int, error) {
+	results, err := q.router.Route(
+		func() (any, error) {
+			return q.postgres.ListMoviesByLibraryPaginated(ctx, sqlc_postgres.ListMoviesByLibraryPaginatedParams{
+				LibraryID: int32(libraryID),
+				Limit:     int32(limit),
+				Offset:    int32(offset),
+			})
+		},
+		func() (any, error) {
+			return q.sqlite.ListMoviesByLibraryPaginated(ctx, sqlc_sqlite.ListMoviesByLibraryPaginatedParams{
+				LibraryID: libraryID,
+				Limit:     int64(limit),
+				Offset:    int64(offset),
+			})
+		},
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	countResult, err := q.router.Route(
+		func() (any, error) {
+			return q.postgres.CountMoviesByLibrary(ctx, int32(libraryID))
+		},
+		func() (any, error) {
+			return q.sqlite.CountMoviesByLibrary(ctx, libraryID)
+		},
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	total := int(countResult.(int64))
+	return q.moviePaginatedRowsToDetails(results), total, nil
+}
+
+func (q *DBMediaQuerier) moviePaginatedRowsToDetails(results any) []*MediaDetailsInfo {
+	var infos []*MediaDetailsInfo
+
+	if q.router.IsPostgresDB() {
+		for _, row := range results.([]sqlc_postgres.ListMoviesByLibraryPaginatedRow) {
+			info := &MediaDetailsInfo{
+				ID:        int64(row.MediaID),
+				MediaType: "movie",
+				Title:     row.Title,
+				LibraryID: int64(row.LibraryID),
+			}
+			if row.Year.Valid {
+				info.Year = int(row.Year.Int32)
+			}
+			if row.Plot.Valid {
+				info.Plot = row.Plot.String
+			}
+			if row.Tagline.Valid {
+				info.Tagline = row.Tagline.String
+			}
+			if row.Genre.Valid {
+				info.Genres = splitAndTrim(row.Genre.String)
+			}
+			if row.Director.Valid {
+				info.Directors = splitAndTrim(row.Director.String)
+			}
+			if row.Cast.Valid {
+				info.Cast = parseCastString(row.Cast.String)
+			}
+			if row.ContentRating.Valid {
+				info.ContentRating = row.ContentRating.String
+			}
+			if row.RuntimeMinutes.Valid {
+				info.RuntimeMinutes = int(row.RuntimeMinutes.Int32)
+			}
+			infos = append(infos, info)
+		}
+	} else {
+		for _, row := range results.([]sqlc_sqlite.ListMoviesByLibraryPaginatedRow) {
+			info := &MediaDetailsInfo{
+				ID:        row.MediaID,
+				MediaType: "movie",
+				Title:     row.Title,
+				LibraryID: row.LibraryID,
+			}
+			if row.Year.Valid {
+				info.Year = int(row.Year.Int64)
+			}
+			if row.Plot.Valid {
+				info.Plot = row.Plot.String
+			}
+			if row.Tagline.Valid {
+				info.Tagline = row.Tagline.String
+			}
+			if row.Genre.Valid {
+				info.Genres = splitAndTrim(row.Genre.String)
+			}
+			if row.Director.Valid {
+				info.Directors = splitAndTrim(row.Director.String)
+			}
+			if row.Cast.Valid {
+				info.Cast = parseCastString(row.Cast.String)
+			}
+			if row.ContentRating.Valid {
+				info.ContentRating = row.ContentRating.String
+			}
+			if row.RuntimeMinutes.Valid {
+				info.RuntimeMinutes = int(row.RuntimeMinutes.Int64)
+			}
+			infos = append(infos, info)
+		}
+	}
+
+	return infos
+}
+
+func (q *DBMediaQuerier) listTVShowDetailsByLibrary(ctx context.Context, libraryID int64, limit, offset int) ([]*MediaDetailsInfo, int, error) {
+	results, err := q.router.Route(
+		func() (any, error) {
+			return q.postgres.ListTVShowsByLibraryPaginated(ctx, sqlc_postgres.ListTVShowsByLibraryPaginatedParams{
+				LibraryID: int32(libraryID),
+				Limit:     int32(limit),
+				Offset:    int32(offset),
+			})
+		},
+		func() (any, error) {
+			return q.sqlite.ListTVShowsByLibraryPaginated(ctx, sqlc_sqlite.ListTVShowsByLibraryPaginatedParams{
+				LibraryID: libraryID,
+				Limit:     int64(limit),
+				Offset:    int64(offset),
+			})
+		},
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	countResult, err := q.router.Route(
+		func() (any, error) {
+			return q.postgres.CountTVShowsByLibrary(ctx, int32(libraryID))
+		},
+		func() (any, error) {
+			return q.sqlite.CountTVShowsByLibrary(ctx, libraryID)
+		},
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	total := int(countResult.(int64))
+	return q.tvShowPaginatedRowsToDetails(results), total, nil
+}
+
+func (q *DBMediaQuerier) tvShowPaginatedRowsToDetails(results any) []*MediaDetailsInfo {
+	var infos []*MediaDetailsInfo
+
+	if q.router.IsPostgresDB() {
+		for _, row := range results.([]sqlc_postgres.TvShow) {
+			info := &MediaDetailsInfo{
+				ID:        int64(row.ID),
+				MediaType: "tv_show",
+				Title:     row.Title,
+				LibraryID: int64(row.LibraryID),
+			}
+			if row.Year.Valid {
+				info.Year = int(row.Year.Int32)
+			}
+			if row.Plot.Valid {
+				info.Plot = row.Plot.String
+			}
+			if row.Genre.Valid {
+				info.Genres = splitAndTrim(row.Genre.String)
+			}
+			if row.ContentRating.Valid {
+				info.ContentRating = row.ContentRating.String
+			}
+			infos = append(infos, info)
+		}
+	} else {
+		for _, row := range results.([]sqlc_sqlite.TvShow) {
+			info := &MediaDetailsInfo{
+				ID:        row.ID,
+				MediaType: "tv_show",
+				Title:     row.Title,
+				LibraryID: row.LibraryID,
+			}
+			if row.Year.Valid {
+				info.Year = int(row.Year.Int64)
+			}
+			if row.Plot.Valid {
+				info.Plot = row.Plot.String
+			}
+			if row.Genre.Valid {
+				info.Genres = splitAndTrim(row.Genre.String)
+			}
+			if row.ContentRating.Valid {
+				info.ContentRating = row.ContentRating.String
+			}
+			infos = append(infos, info)
+		}
+	}
+
+	return infos
+}
+
+func (q *DBMediaQuerier) listMusicDetailsByLibrary(ctx context.Context, libraryID int64, limit, offset int) ([]*MediaDetailsInfo, int, error) {
+	// Music libraries contain tracks - list them with album/artist context
+	results, err := q.router.Route(
+		func() (any, error) {
+			return q.postgres.ListMusicTracksByLibraryPaginated(ctx, sqlc_postgres.ListMusicTracksByLibraryPaginatedParams{
+				LibraryID: int32(libraryID),
+				Limit:     int32(limit),
+				Offset:    int32(offset),
+			})
+		},
+		func() (any, error) {
+			return q.sqlite.ListMusicTracksByLibraryPaginated(ctx, sqlc_sqlite.ListMusicTracksByLibraryPaginatedParams{
+				LibraryID: libraryID,
+				Limit:     int64(limit),
+				Offset:    int64(offset),
+			})
+		},
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	countResult, err := q.router.Route(
+		func() (any, error) {
+			return q.postgres.CountMusicTracksByLibrary(ctx, int32(libraryID))
+		},
+		func() (any, error) {
+			return q.sqlite.CountMusicTracksByLibrary(ctx, libraryID)
+		},
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	total := int(countResult.(int64))
+	return q.musicTrackRowsToDetails(results), total, nil
+}
+
+func (q *DBMediaQuerier) musicTrackRowsToDetails(results any) []*MediaDetailsInfo {
+	var infos []*MediaDetailsInfo
+
+	if q.router.IsPostgresDB() {
+		for _, row := range results.([]sqlc_postgres.ListMusicTracksByLibraryPaginatedRow) {
+			info := &MediaDetailsInfo{
+				ID:        int64(row.MediaID),
+				MediaType: "music_track",
+				Title:     row.Title,
+				LibraryID: int64(row.LibraryID),
+			}
+			if row.Artist.Valid {
+				info.ArtistName = row.Artist.String
+			}
+			if row.Album.Valid {
+				info.AlbumTitle = row.Album.String
+			}
+			if row.Genre.Valid {
+				info.Genres = splitAndTrim(row.Genre.String)
+			}
+			infos = append(infos, info)
+		}
+	} else {
+		for _, row := range results.([]sqlc_sqlite.ListMusicTracksByLibraryPaginatedRow) {
+			info := &MediaDetailsInfo{
+				ID:        row.MediaID,
+				MediaType: "music_track",
+				Title:     row.Title,
+				LibraryID: row.LibraryID,
+			}
+			if row.Artist.Valid {
+				info.ArtistName = row.Artist.String
+			}
+			if row.Album.Valid {
+				info.AlbumTitle = row.Album.String
+			}
+			if row.Genre.Valid {
+				info.Genres = splitAndTrim(row.Genre.String)
+			}
+			infos = append(infos, info)
+		}
+	}
+
+	return infos
+}
+
+// splitAndTrim splits a comma-separated string and trims whitespace.
+func splitAndTrim(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
+// parseCastString parses a cast string (format varies by source).
+// Returns simplified cast member info.
+func parseCastString(s string) []CastMemberInfo {
+	if s == "" {
+		return nil
+	}
+	// Cast is typically stored as comma-separated names
+	names := splitAndTrim(s)
+	cast := make([]CastMemberInfo, len(names))
+	for i, name := range names {
+		cast[i] = CastMemberInfo{
+			Name:  name,
+			Order: i,
+		}
+	}
+	return cast
+}
+
+// GetMoodTags retrieves mood tags for a media item.
+func (q *DBMediaQuerier) GetMoodTags(ctx context.Context, mediaID int64) ([]*MoodTagInfo, error) {
+	if q.router.IsPostgresDB() {
+		rows, err := q.postgres.GetMoodTagsByMediaID(ctx, int32(mediaID))
+		if err != nil {
+			return nil, err
+		}
+		tags := make([]*MoodTagInfo, len(rows))
+		for i, row := range rows {
+			confidence := float32(1.0)
+			if row.Confidence.Valid {
+				confidence = float32(row.Confidence.Float64)
+			}
+			tags[i] = &MoodTagInfo{
+				Tag:        row.Tag,
+				Confidence: confidence,
+			}
+		}
+		return tags, nil
+	}
+
+	rows, err := q.sqlite.GetMoodTagsByMediaID(ctx, mediaID)
+	if err != nil {
+		return nil, err
+	}
+	tags := make([]*MoodTagInfo, len(rows))
+	for i, row := range rows {
+		confidence := float32(1.0)
+		if row.Confidence.Valid {
+			confidence = float32(row.Confidence.Float64)
+		}
+		tags[i] = &MoodTagInfo{
+			Tag:        row.Tag,
+			Confidence: confidence,
+		}
+	}
+	return tags, nil
+}
+
+// SetMoodTags stores mood tags for a media item (replaces existing).
+func (q *DBMediaQuerier) SetMoodTags(ctx context.Context, mediaID int64, tags []*MoodTagInfo) error {
+	// Delete existing tags first
+	if err := q.DeleteMoodTags(ctx, mediaID); err != nil {
+		return err
+	}
+
+	// Insert new tags
+	for _, tag := range tags {
+		if q.router.IsPostgresDB() {
+			err := q.postgres.InsertMoodTag(ctx, sqlc_postgres.InsertMoodTagParams{
+				MediaID:    int32(mediaID),
+				Tag:        tag.Tag,
+				Confidence: sql.NullFloat64{Float64: float64(tag.Confidence), Valid: true},
+			})
+			if err != nil {
+				return err
+			}
+		} else {
+			err := q.sqlite.InsertMoodTag(ctx, sqlc_sqlite.InsertMoodTagParams{
+				MediaID:    mediaID,
+				Tag:        tag.Tag,
+				Confidence: sql.NullFloat64{Float64: float64(tag.Confidence), Valid: true},
+			})
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// DeleteMoodTags removes all mood tags for a media item.
+func (q *DBMediaQuerier) DeleteMoodTags(ctx context.Context, mediaID int64) error {
+	return q.router.RouteVoid(
+		func() error {
+			return q.postgres.DeleteMoodTagsByMediaID(ctx, int32(mediaID))
+		},
+		func() error {
+			return q.sqlite.DeleteMoodTagsByMediaID(ctx, mediaID)
+		},
+	)
+}
+
 // Ensure DBMediaQuerier implements MediaQuerier
 var _ MediaQuerier = (*DBMediaQuerier)(nil)

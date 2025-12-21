@@ -12,6 +12,25 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type AiSetting struct {
+	ID        int32        `json:"id"`
+	Key       string       `json:"key"`
+	Value     string       `json:"value"`
+	UpdatedAt sql.NullTime `json:"updated_at"`
+}
+
+type AiUsage struct {
+	ID               int32         `json:"id"`
+	UserID           string        `json:"user_id"`
+	Date             string        `json:"date"`
+	PromptTokens     sql.NullInt32 `json:"prompt_tokens"`
+	CompletionTokens sql.NullInt32 `json:"completion_tokens"`
+	EmbeddingTokens  sql.NullInt32 `json:"embedding_tokens"`
+	RequestCount     sql.NullInt32 `json:"request_count"`
+	CreatedAt        sql.NullTime  `json:"created_at"`
+	UpdatedAt        sql.NullTime  `json:"updated_at"`
+}
+
 type Credit struct {
 	ID            int32          `json:"id"`
 	PersonID      int32          `json:"person_id"`
@@ -23,6 +42,17 @@ type Credit struct {
 	Job           sql.NullString `json:"job"`
 	BillingOrder  sql.NullInt32  `json:"billing_order"`
 	CreatedAt     sql.NullTime   `json:"created_at"`
+}
+
+type Embedding struct {
+	ID         int32          `json:"id"`
+	EntityType string         `json:"entity_type"`
+	EntityID   int32          `json:"entity_id"`
+	Vector     interface{}    `json:"vector"`
+	Text       sql.NullString `json:"text"`
+	Dimensions int32          `json:"dimensions"`
+	CreatedAt  sql.NullTime   `json:"created_at"`
+	UpdatedAt  sql.NullTime   `json:"updated_at"`
 }
 
 type EnrichmentPipeline struct {
@@ -135,6 +165,14 @@ type MediaMetadataSource struct {
 	PluginID  string         `json:"plugin_id"`
 	RawValue  sql.NullString `json:"raw_value"`
 	UpdatedAt sql.NullTime   `json:"updated_at"`
+}
+
+type MediaMoodTag struct {
+	ID         int32           `json:"id"`
+	MediaID    int32           `json:"media_id"`
+	Tag        string          `json:"tag"`
+	Confidence sql.NullFloat64 `json:"confidence"`
+	CreatedAt  sql.NullTime    `json:"created_at"`
 }
 
 type MediaStudio struct {

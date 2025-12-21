@@ -1,4 +1,4 @@
-.PHONY: help dev dev-debug dev-clean stop build build-tools build-ffmpeg clean-ffmpeg clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen install-tools setup build-plugins build-plugin clean-plugins new-plugin
+.PHONY: help dev dev-debug dev-clean stop build build-tools build-ffmpeg clean-ffmpeg clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen install-tools install-ollama ollama-status setup build-plugins build-plugin clean-plugins new-plugin
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -13,6 +13,27 @@ install-tools: ## Install development tools (Air, sqlc, swag, migrate)
 	go install github.com/swaggo/swag/cmd/swag@latest
 	go install -tags 'sqlite3' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 	@echo "Tools installed successfully!"
+
+install-ollama: ## Install Ollama and pull embedding model for AI features
+	@echo "Installing Ollama..."
+	@if command -v ollama >/dev/null 2>&1; then \
+		echo "✓ Ollama already installed"; \
+	else \
+		curl -fsSL https://ollama.com/install.sh | sh; \
+	fi
+	@echo "Pulling nomic-embed-text embedding model..."
+	@ollama pull nomic-embed-text
+	@echo "✓ Ollama ready! Run 'ollama serve' if not using systemd."
+
+ollama-status: ## Check Ollama status and available models
+	@echo "Checking Ollama status..."
+	@if curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then \
+		echo "✓ Ollama is running"; \
+		echo "Available models:"; \
+		curl -s http://localhost:11434/api/tags | jq -r '.models[].name' 2>/dev/null || curl -s http://localhost:11434/api/tags; \
+	else \
+		echo "✗ Ollama is not running. Start with: systemctl start ollama"; \
+	fi
 
 dev-clean: ## Clean up stale dev processes and sockets
 	@echo "🧹 Cleaning up stale development state..."

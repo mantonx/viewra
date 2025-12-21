@@ -9,21 +9,885 @@ const docTemplate = `{
     "info": {
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
-        "termsOfService": "http://swagger.io/terms/",
-        "contact": {
-            "name": "ViewRA Support",
-            "url": "http://www.swagger.io/support",
-            "email": "support@swagger.io"
-        },
-        "license": {
-            "name": "MIT",
-            "url": "https://opensource.org/licenses/MIT"
-        },
+        "contact": {},
         "version": "{{.Version}}"
     },
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/adaptive/ladder": {
+            "post": {
+                "description": "Returns a set of quality profiles for adaptive streaming (ABR)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "adaptive"
+                ],
+                "summary": "Get adaptive bitrate ladder",
+                "parameters": [
+                    {
+                        "description": "Client capabilities",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.RecommendQualityRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.AdaptiveLadderResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/adaptive/recommend": {
+            "post": {
+                "description": "Analyzes client capabilities and recommends the best quality profile",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "adaptive"
+                ],
+                "summary": "Recommend optimal quality profile",
+                "parameters": [
+                    {
+                        "description": "Client capabilities",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.RecommendQualityRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.QualityRecommendationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/status/stream": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "SSE stream of admin-relevant status updates (restart pending, etc.)",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Stream admin status updates",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.AdminStatusEvent"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/system/restart": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the current restart status including pending settings",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Get restart status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.RestartResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Requests the server to restart (admin only). The restart is graceful.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Request server restart",
+                "parameters": [
+                    {
+                        "description": "Restart reason",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.RestartRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.RestartResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Cancels a pending server restart (admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Cancel pending restart",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.RestartResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "No pending restart",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/system/restart/now": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Triggers an immediate server restart (admin only). Use with caution.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Execute restart immediately",
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.RestartResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/analytics/playback": {
+            "post": {
+                "description": "Stores quality switch events and session data for analytics",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "Record playback analytics",
+                "parameters": [
+                    {
+                        "description": "Analytics data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.PlaybackAnalyticsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/analytics/sessions": {
+            "get": {
+                "description": "Lists playback sessions, optionally filtered by media ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "List playback sessions",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Filter by media ID",
+                        "name": "media_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of results (default 50)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset for pagination (default 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ListSessionsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/analytics/sessions/{id}": {
+            "get": {
+                "description": "Retrieves a single playback session by its ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "Get playback session by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Session ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.PlaybackSessionResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/analytics/summary": {
+            "get": {
+                "description": "Retrieves aggregated playback analytics, optionally filtered by media ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "Get playback analytics summary",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Filter by media ID (omit for overall summary)",
+                        "name": "media_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.PlaybackSummaryResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/login": {
+            "post": {
+                "description": "Authenticates a user and returns access and refresh tokens",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "User login",
+                "parameters": [
+                    {
+                        "description": "Login credentials",
+                        "name": "credentials",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_auth.LoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/logout": {
+            "post": {
+                "description": "Invalidates the current session",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Logout",
+                "parameters": [
+                    {
+                        "description": "Refresh token to invalidate",
+                        "name": "token",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.LogoutRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/logout-all": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Invalidates all sessions for the current user",
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Logout from all sessions",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the currently authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Get current user",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_auth.UserResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/password": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Changes the current user's password",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Change password",
+                "parameters": [
+                    {
+                        "description": "Password change request",
+                        "name": "passwords",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ChangePasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/refresh": {
+            "post": {
+                "description": "Exchanges a refresh token for a new access token",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Refresh access token",
+                "parameters": [
+                    {
+                        "description": "Refresh token",
+                        "name": "token",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.RefreshRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_auth.LoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/sessions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all active sessions for the current user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "List sessions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_auth.SessionResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/sessions/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Revokes a specific session",
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Revoke session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Session ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/setup": {
+            "get": {
+                "description": "Returns whether initial setup is required (no users exist)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Check setup status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.SetupStatusResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates the initial admin user (only works if no users exist)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Initial setup",
+                "parameters": [
+                    {
+                        "description": "Admin user details",
+                        "name": "admin",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.SetupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_auth.UserResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Setup already completed",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/enrichment/enqueue": {
+            "post": {
+                "description": "Manually enqueues a media item for a specific enrichment stage",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "enrichment"
+                ],
+                "summary": "Enqueue media for enrichment",
+                "parameters": [
+                    {
+                        "description": "Enqueue request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.EnqueueMediaRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.EnqueueMediaResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/enrichment/stats": {
+            "get": {
+                "description": "Returns queue statistics for all enrichment stages",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "enrichment"
+                ],
+                "summary": "Get enrichment queue statistics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "$ref": "#/definitions/github_com_mantonx_viewra_internal_domain_enrichment.QueueStats"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/filesystem/browse": {
             "get": {
                 "description": "Browse directories for library path selection",
@@ -46,7 +910,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_domain_library.BrowseResult"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_domain_library.BrowseResult"
                         }
                     },
                     "400": {
@@ -72,7 +936,7 @@ const docTemplate = `{
         },
         "/api/images/batch": {
             "post": {
-                "description": "Returns images for multiple media items in a single request to reduce N+1 queries",
+                "description": "Returns images for multiple media items (movies, episodes) or entities (TV shows, artists) in a single request to reduce N+1 queries",
                 "consumes": [
                     "application/json"
                 ],
@@ -82,21 +946,30 @@ const docTemplate = `{
                 "tags": [
                     "images"
                 ],
-                "summary": "Get images for multiple media items",
+                "summary": "Get images for multiple media items or entities",
                 "parameters": [
                     {
-                        "description": "Media IDs",
+                        "description": "Batch request with either media_ids or (entity_ids + media_type)",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
                             "type": "object",
                             "properties": {
+                                "entity_ids": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "integer"
+                                    }
+                                },
                                 "media_ids": {
                                     "type": "array",
                                     "items": {
                                         "type": "integer"
                                     }
+                                },
+                                "media_type": {
+                                    "type": "string"
                                 }
                             }
                         }
@@ -106,7 +979,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.BatchImagesResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_images.BatchImagesResponse"
                         }
                     },
                     "400": {
@@ -147,7 +1020,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ImageResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_images.ImageResponse"
                         }
                     },
                     "404": {
@@ -226,7 +1099,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.ListLibrariesResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_library.ListLibrariesResponse"
                         }
                     },
                     "500": {
@@ -256,7 +1129,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.CreateLibraryRequest"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_library.CreateLibraryRequest"
                         }
                     }
                 ],
@@ -264,7 +1137,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.LibraryResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_library.LibraryResponse"
                         }
                     },
                     "400": {
@@ -305,7 +1178,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.GetLibraryResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_library.GetLibraryResponse"
                         }
                     },
                     "400": {
@@ -354,7 +1227,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.UpdateLibraryRequest"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_library.UpdateLibraryRequest"
                         }
                     }
                 ],
@@ -362,7 +1235,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.LibraryResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_library.LibraryResponse"
                         }
                     },
                     "400": {
@@ -428,6 +1301,126 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/libraries/{id}/enrichment/progress": {
+            "get": {
+                "description": "Returns enrichment progress for a specific library",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "enrichment"
+                ],
+                "summary": "Get library enrichment progress",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.LibraryEnrichmentProgressResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/libraries/{id}/enrichment/stream": {
+            "get": {
+                "description": "Streams enrichment events for a specific library in real-time via SSE",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "enrichment"
+                ],
+                "summary": "Stream library enrichment progress",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/libraries/{id}/issues": {
+            "get": {
+                "description": "Returns all files with warnings or errors from scan_state (persistent across scans)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "scans"
+                ],
+                "summary": "Get library warnings and errors",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Library issues",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ScanErrorsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid library ID",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/libraries/{id}/scan": {
             "post": {
                 "description": "Scans a library for media files",
@@ -451,7 +1444,7 @@ const docTemplate = `{
                     "202": {
                         "description": "Accepted",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.StartScanResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_library.StartScanResponse"
                         }
                     },
                     "400": {
@@ -632,6 +1625,234 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/libraries/{id}/scan/{jobId}/errors": {
+            "get": {
+                "description": "Returns all files that failed during scanning, grouped by error category",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "scans"
+                ],
+                "summary": "Get scan errors",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Scan Job ID",
+                        "name": "jobId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Scan errors",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ScanErrorsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid library ID or job ID",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/libraries/{id}/scan/{jobId}/pause": {
+            "post": {
+                "description": "Pauses an active scan job, allowing it to be resumed later",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "scans"
+                ],
+                "summary": "Pause scan",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Scan Job ID",
+                        "name": "jobId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Scan paused successfully",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.PauseScanResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid library ID or job ID",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Scan job not found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Scan is not running",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/libraries/{id}/scan/{jobId}/resume": {
+            "post": {
+                "description": "Resumes a paused scan job, continuing from where it left off",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "scans"
+                ],
+                "summary": "Resume scan",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Scan Job ID",
+                        "name": "jobId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Scan resumed successfully",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ResumeScanResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid library ID or job ID",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Scan job not found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Scan is not paused",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/libraries/{id}/scan/{jobId}/retry-failed": {
+            "post": {
+                "description": "Resets all failed file processing attempts to pending status for retry",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "scans"
+                ],
+                "summary": "Retry failed files",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Scan Job ID",
+                        "name": "jobId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Retry result",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.RetryFailedResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid library ID or job ID",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/media": {
             "get": {
                 "description": "Returns a list of media items with optional filtering",
@@ -674,7 +1895,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_media.ListMediaResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_media.ListMediaResponse"
                         }
                     },
                     "400": {
@@ -715,7 +1936,404 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_media.GetMediaResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_media.GetMediaResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{id}/stream-info": {
+            "get": {
+                "description": "Returns detailed technical information about video and audio streams for the stats panel.\nThe strategy field indicates how the video will be processed (direct, remux, transcode).\nInclude X-Supported-Video-Codecs header for accurate strategy detection.\nPass quality query param to get accurate strategy for the selected quality level.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "media"
+                ],
+                "summary": "Get detailed stream information for a media item",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Selected quality level (e.g., 'original', '1080p-10m', '480p')",
+                        "name": "quality",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_media.StreamInfoResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{id}/subtitles/pgs/{index}": {
+            "get": {
+                "description": "Extracts all PGS subtitle frames and returns them as a JSON array with base64-encoded WebP images",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subtitles"
+                ],
+                "summary": "Get all PGS subtitle frames as JSON array",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Stream Index (relative, 0-based among bitmap subtitle streams)",
+                        "name": "index",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of PGS frames",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_mantonx_viewra_internal_infrastructure_subtitles.PGSFrame"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{id}/subtitles/pgs/{index}/stream": {
+            "get": {
+                "description": "Extracts PGS subtitle frames and returns them as JSON lines with base64-encoded WebP images. Use start/end params to request frames in time windows for efficient playback.",
+                "produces": [
+                    "application/x-ndjson"
+                ],
+                "tags": [
+                    "subtitles"
+                ],
+                "summary": "Stream PGS subtitle frames as WebP images",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Stream Index (relative, 0-based among bitmap subtitle streams)",
+                        "name": "index",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Start time in milliseconds (default: 0)",
+                        "name": "start",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "End time in milliseconds (default: 5 minutes from start). Use 0 for unlimited (not recommended for large files).",
+                        "name": "end",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "JSON lines of PGS frames",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_infrastructure_subtitles.PGSFrame"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{id}/subtitles/stream/{index}": {
+            "get": {
+                "description": "Extracts and converts an embedded subtitle stream to WebVTT format",
+                "produces": [
+                    "text/vtt"
+                ],
+                "tags": [
+                    "subtitles"
+                ],
+                "summary": "Get embedded subtitle by stream index as WebVTT",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Stream Index",
+                        "name": "index",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "WebVTT content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{id}/subtitles/text/{index}/stream": {
+            "get": {
+                "description": "Streams the embedded subtitle stream, converting to WebVTT. Supports time-windowed extraction for faster initial load.",
+                "produces": [
+                    "text/vtt"
+                ],
+                "tags": [
+                    "subtitles"
+                ],
+                "summary": "Stream embedded text subtitle as WebVTT",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Stream Index (relative, 0-based among subtitle streams)",
+                        "name": "index",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Start time in milliseconds (default: 0, extracts full file)",
+                        "name": "start",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "End time in milliseconds (default: 0, extracts full file)",
+                        "name": "end",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "WebVTT content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{id}/subtitles/{trackId}": {
+            "get": {
+                "description": "Returns subtitle content converted to WebVTT format for HLS playback",
+                "produces": [
+                    "text/vtt"
+                ],
+                "tags": [
+                    "subtitles"
+                ],
+                "summary": "Get subtitle track as WebVTT",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Subtitle Track ID",
+                        "name": "trackId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "WebVTT content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{id}/tracks": {
+            "get": {
+                "description": "Returns all audio and subtitle tracks (both embedded and external) for a specific media item",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "media"
+                ],
+                "summary": "Get audio and subtitle tracks for a media item",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_media.GetTracksResponse"
                         }
                     },
                     "400": {
@@ -762,7 +2380,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_images.ListImagesResponse"
                         }
                     },
                     "400": {
@@ -780,9 +2398,279 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/media/{media_id}/hls/{quality}/playlist.m3u8": {
+        "/api/media/{media_id}/ffmpeg-logs": {
             "get": {
-                "description": "Serves the HLS playlist (.m3u8) file for adaptive streaming. If playlist doesn't exist, analyzes video\nand either redirects to direct stream or creates a transcode job.",
+                "description": "Lists all available FFmpeg transcode logs for a specific media item",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ffmpeg-logs"
+                ],
+                "summary": "List FFmpeg logs for media",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.LogListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{media_id}/ffmpeg-logs/{session_id}": {
+            "get": {
+                "description": "Retrieves the content of a specific FFmpeg transcode log",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ffmpeg-logs"
+                ],
+                "summary": "Get FFmpeg log content",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Session ID",
+                        "name": "session_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Only return last N lines",
+                        "name": "tail",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.LogContentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deletes a specific FFmpeg transcode log (cannot delete active logs)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ffmpeg-logs"
+                ],
+                "summary": "Delete FFmpeg log",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Session ID",
+                        "name": "session_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Cannot delete active log",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{media_id}/ffmpeg-logs/{session_id}/info": {
+            "get": {
+                "description": "Retrieves metadata about a specific FFmpeg log (size, line count, error count)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ffmpeg-logs"
+                ],
+                "summary": "Get FFmpeg log info",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Session ID",
+                        "name": "session_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_infrastructure_transcoding_logging.LogInfo"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{media_id}/ffmpeg-logs/{session_id}/stream": {
+            "get": {
+                "description": "Streams FFmpeg log output in real-time using Server-Sent Events (SSE).\nFor active sessions, new log lines are pushed as they appear.\nFor completed sessions, returns existing content then closes.",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "ffmpeg-logs"
+                ],
+                "summary": "Stream FFmpeg log in real-time",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Session ID",
+                        "name": "session_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream of log lines",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{media_id}/hls/master.m3u8": {
+            "get": {
+                "description": "Serves an HLS master playlist (.m3u8) with the optimal quality based on client capabilities.\nUses screen size, bandwidth, and codec support to recommend the best quality.\nIf the video is compatible for direct play (right codec, audio, container), returns 302 redirect.",
                 "produces": [
                     "application/vnd.apple.mpegurl",
                     "application/json"
@@ -790,7 +2678,154 @@ const docTemplate = `{
                 "tags": [
                     "transcode"
                 ],
-                "summary": "Serve HLS playlist (with on-demand transcoding)",
+                "summary": "Serve HLS master playlist",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "number",
+                        "description": "Start position in seconds for seeking",
+                        "name": "start",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Client screen width in pixels",
+                        "name": "screenWidth",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Client screen height in pixels",
+                        "name": "screenHeight",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Estimated bandwidth in bits per second",
+                        "name": "bandwidth",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of supported codecs (h264,h265,vp9,av1)",
+                        "name": "codecs",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Override: force specific quality (e.g., 4k-25m, 1080p-10m)",
+                        "name": "quality",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HLS master playlist with recommended quality",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "302": {
+                        "description": "Redirect to direct stream (for compatible files)"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{media_id}/hls/subtitle/{trackIndex}/subtitles.vtt": {
+            "get": {
+                "description": "Streams a text subtitle as WebVTT for HLS playback (fast demux, no full file scan)",
+                "produces": [
+                    "text/vtt"
+                ],
+                "tags": [
+                    "transcode"
+                ],
+                "summary": "Serve subtitle WebVTT file",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Subtitle track index (0-based, among text subtitles only)",
+                        "name": "trackIndex",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "number",
+                        "description": "Start position in seconds (for seeking)",
+                        "name": "start",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "WebVTT subtitle file",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{media_id}/hls/{quality}/playlist.m3u8": {
+            "get": {
+                "description": "Serves the HLS playlist (.m3u8) file for adaptive streaming. Generates complete manifest instantly\nfrom segment 0. Segments are created on-demand as the player requests them. Compatible videos redirect to direct stream.",
+                "produces": [
+                    "application/vnd.apple.mpegurl",
+                    "application/json"
+                ],
+                "tags": [
+                    "transcode"
+                ],
+                "summary": "Serve HLS playlist (instant manifest generation)",
                 "parameters": [
                     {
                         "type": "integer",
@@ -809,15 +2844,9 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "HLS playlist file (if exists)",
+                        "description": "HLS playlist file - segments generated on-demand",
                         "schema": {
                             "type": "file"
-                        }
-                    },
-                    "202": {
-                        "description": "Job created (for files needing processing)",
-                        "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.OnDemandResponse"
                         }
                     },
                     "302": {
@@ -846,7 +2875,7 @@ const docTemplate = `{
         },
         "/api/media/{media_id}/hls/{quality}/{filename}": {
             "get": {
-                "description": "Serves HLS segment files (.ts) for adaptive streaming",
+                "description": "Serves HLS segment files (.ts) from progressive transcoding sessions",
                 "produces": [
                     "video/mp2t"
                 ],
@@ -871,7 +2900,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Segment filename",
+                        "description": "Segment filename (e.g., seg_000123.ts)",
                         "name": "filename",
                         "in": "path",
                         "required": true
@@ -884,8 +2913,20 @@ const docTemplate = `{
                             "type": "file"
                         }
                     },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
                         }
@@ -1073,6 +3114,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "type": "string",
+                        "description": "Search query to filter movies by title",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "Number of items per page (default: 50, max: 200)",
                         "name": "limit",
@@ -1083,13 +3130,78 @@ const docTemplate = `{
                         "description": "Number of items to skip (default: 0)",
                         "name": "offset",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort order: title_asc or title_desc (default: title_asc)",
+                        "name": "sort",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_movies.ListMoviesResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_movies.ListMoviesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/movies/ids": {
+            "get": {
+                "description": "Returns a list of movie IDs only for prefetching images with optional pagination",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "movies"
+                ],
+                "summary": "List movie IDs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID to filter movies",
+                        "name": "library_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of items per page (default: 50, max: 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of items to skip (default: 0)",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort order: title_asc or title_desc (default: title_asc)",
+                        "name": "sort",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_movies.ListIDsResponse"
                         }
                     },
                     "400": {
@@ -1149,7 +3261,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_movies.ListMoviesResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_movies.ListMoviesResponse"
                         }
                     },
                     "400": {
@@ -1190,7 +3302,54 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_movies.MovieResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_movies.MovieResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/movies/{id}/credits": {
+            "get": {
+                "description": "Returns cast, directors, and writers for a specific movie",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "movies"
+                ],
+                "summary": "Get credits for a movie",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Movie ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_people.CreditsResponse"
                         }
                     },
                     "400": {
@@ -1238,7 +3397,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_images.ListImagesResponse"
                         }
                     },
                     "400": {
@@ -1280,7 +3439,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_images.ListImagesResponse"
                         }
                     },
                     "400": {
@@ -1300,7 +3459,7 @@ const docTemplate = `{
         },
         "/api/music/albums/{id}/tracks": {
             "get": {
-                "description": "Returns all tracks for an album identified by a representative track ID",
+                "description": "Returns all tracks for an album identified by album entity ID from music_albums table",
                 "produces": [
                     "application/json"
                 ],
@@ -1311,7 +3470,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "Album representative track ID",
+                        "description": "Album ID (music_albums.id)",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -1321,7 +3480,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_music.ListTracksResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_music.ListTracksResponse"
                         }
                     },
                     "400": {
@@ -1364,6 +3523,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "type": "string",
+                        "description": "Search query to filter artists by name",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "Number of items per page (default: 50, max: 200)",
                         "name": "limit",
@@ -1374,13 +3539,19 @@ const docTemplate = `{
                         "description": "Number of items to skip (default: 0)",
                         "name": "offset",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort order: title_asc or title_desc (default: title_asc)",
+                        "name": "sort",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_music.ListArtistsResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_music.ListArtistsResponse"
                         }
                     },
                     "400": {
@@ -1400,7 +3571,7 @@ const docTemplate = `{
         },
         "/api/music/artists/{id}/albums": {
             "get": {
-                "description": "Returns all albums for an artist identified by a representative track ID",
+                "description": "Returns all albums for an artist identified by artist entity ID from music_artists table",
                 "produces": [
                     "application/json"
                 ],
@@ -1411,7 +3582,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "Artist representative track ID",
+                        "description": "Artist ID (music_artists.id)",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -1421,7 +3592,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_music.ListAlbumsResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_music.ListAlbumsResponse"
                         }
                     },
                     "400": {
@@ -1469,7 +3640,66 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_images.ListImagesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/music/ids": {
+            "get": {
+                "description": "Returns a list of artist representative IDs only for prefetching images with optional pagination",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "music"
+                ],
+                "summary": "List artist IDs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID to filter artists",
+                        "name": "library_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of items per page (default: 50, max: 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of items to skip (default: 0)",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort order: title_asc or title_desc (default: title_asc)",
+                        "name": "sort",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_music.ListIDsResponse"
                         }
                     },
                     "400": {
@@ -1517,7 +3747,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_music.ListTracksResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_music.ListTracksResponse"
                         }
                     },
                     "400": {
@@ -1558,11 +3788,629 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_music.MusicTrackResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_music.MusicTrackResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/people/{id}": {
+            "get": {
+                "description": "Returns details of a specific person (actor, director, etc.)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "people"
+                ],
+                "summary": "Get a person by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Person ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_people.PersonResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/people/{id}/credits": {
+            "get": {
+                "description": "Returns all credits for a specific person",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "people"
+                ],
+                "summary": "Get a person's credits (filmography)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Person ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_people.PersonCreditsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/plugins": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all installed plugins with their status",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "plugins"
+                ],
+                "summary": "List all plugins",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.PluginListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/plugins/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns detailed information about a specific plugin",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "plugins"
+                ],
+                "summary": "Get plugin details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plugin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_plugins.PluginDetail"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/plugins/{id}/disable": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Disables a plugin (admin only). Cannot disable built-in plugins.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "plugins"
+                ],
+                "summary": "Disable plugin",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plugin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Cannot disable built-in plugin",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/plugins/{id}/enable": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Enables a plugin (admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "plugins"
+                ],
+                "summary": "Enable plugin",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plugin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.SuccessResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/plugins/{id}/health": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns detailed health information for a plugin",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "plugins"
+                ],
+                "summary": "Get plugin health",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plugin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_plugins.PluginHealthDetail"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/plugins/{id}/logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns recent log entries for a plugin (admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "plugins"
+                ],
+                "summary": "Get plugin logs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plugin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 100,
+                        "description": "Max entries to return",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by log level (error, warn, info, debug)",
+                        "name": "level",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only entries after this RFC3339 timestamp",
+                        "name": "since",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.PluginLogsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/plugins/{id}/restart": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Restarts a plugin process (admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "plugins"
+                ],
+                "summary": "Restart plugin",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plugin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.SuccessResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/plugins/{id}/settings": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the settings schema and current values for a plugin",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "plugins"
+                ],
+                "summary": "Get plugin settings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plugin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_plugins.PluginSettings"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates the settings for a plugin (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "plugins"
+                ],
+                "summary": "Update plugin settings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plugin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Settings values",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.UpdatePluginSettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
                         }
@@ -1612,7 +4460,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.ListProgressResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_progress.ListProgressResponse"
                         }
                     },
                     "500": {
@@ -1624,7 +4472,7 @@ const docTemplate = `{
                 }
             },
             "put": {
-                "description": "Updates or creates watch progress for a media item. Automatically marks as watched if progress exceeds 90%.",
+                "description": "Updates or creates watch progress for a media item. Automatically marks as watched if progress exceeds 90%. Supports both PUT and POST for browser sendBeacon compatibility.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1642,7 +4490,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.UpdateProgressRequest"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_progress.UpdateProgressRequest"
                         }
                     }
                 ],
@@ -1650,7 +4498,92 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_progress.WatchProgressResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Updates or creates watch progress for a media item. Automatically marks as watched if progress exceeds 90%. Supports both PUT and POST for browser sendBeacon compatibility.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "progress"
+                ],
+                "summary": "Update watch progress",
+                "parameters": [
+                    {
+                        "description": "Update progress request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_progress.UpdateProgressRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_progress.WatchProgressResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/progress/batch": {
+            "get": {
+                "description": "Gets watch progress for multiple media items",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "progress"
+                ],
+                "summary": "Get batch watch progress",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Comma-separated media IDs",
+                        "name": "media_ids",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_progress.BatchProgressResponse"
                         }
                     },
                     "400": {
@@ -1698,7 +4631,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.ListProgressResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_progress.ListProgressResponse"
                         }
                     },
                     "500": {
@@ -1730,7 +4663,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.MarkWatchedRequest"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_progress.MarkWatchedRequest"
                         }
                     }
                 ],
@@ -1738,7 +4671,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_progress.WatchProgressResponse"
                         }
                     },
                     "400": {
@@ -1782,7 +4715,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.MarkWatchedRequest"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_progress.MarkWatchedRequest"
                         }
                     }
                 ],
@@ -1790,7 +4723,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_progress.WatchProgressResponse"
                         }
                     },
                     "400": {
@@ -1838,7 +4771,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.ListProgressResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_progress.ListProgressResponse"
                         }
                     },
                     "500": {
@@ -1873,7 +4806,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_progress.WatchProgressResponse"
                         }
                     },
                     "404": {
@@ -1925,6 +4858,740 @@ const docTemplate = `{
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/settings/ai": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns AI configuration with sensitive values masked",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Get AI settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.AISettingsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates AI configuration",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Update AI settings",
+                "parameters": [
+                    {
+                        "description": "AI settings to update",
+                        "name": "settings",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.AISettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.AISettingsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/settings/ai/models": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns list of models available on the Ollama server",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "List available Ollama models",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.OllamaModelsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Ollama unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Removes a model from the local Ollama installation",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Delete an Ollama model",
+                "parameters": [
+                    {
+                        "description": "Model to delete",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.DeleteOllamaModelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Ollama unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/settings/ai/models/pull": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Initiates download of an Ollama model with SSE progress streaming",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Pull an Ollama model",
+                "parameters": [
+                    {
+                        "description": "Model to pull",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.PullOllamaModelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream of pull progress"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Ollama unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/settings/ai/test/ollama": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Tests connectivity to the Ollama server",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Test Ollama connection",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ConnectionTestResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ConnectionTestResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/settings/ai/test/openai": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Tests connectivity to OpenAI with the configured API key",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Test OpenAI connection",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ConnectionTestResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ConnectionTestResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/settings/schema": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the schema for all settings (for UI generation)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Get settings schema",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.SettingsSchemaResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/settings/system": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all system settings (admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "List system settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.SystemSettingsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/settings/system/effective": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all system settings with their effective values and sources (admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "List effective system settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.EffectiveSettingsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/settings/system/{key}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a system setting by key (admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Get system setting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Setting key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.SystemSettingValueResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates a system setting (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Update system setting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Setting key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Setting value",
+                        "name": "setting",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.SetSystemRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.SystemSettingValueResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/settings/user": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all settings for the current user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "List user settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.UserSettingsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/settings/user/{key}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a user setting by key for the current user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Get user setting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Setting key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.UserSettingValueResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates a user setting for the current user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Update user setting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Setting key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Setting value",
+                        "name": "setting",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.SetUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.UserSettingValueResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Resets a user setting to default for the current user",
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Delete user setting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Setting key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/speedtest/chunk": {
+            "get": {
+                "description": "Returns a chunk of random data for client-side speed testing",
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "adaptive"
+                ],
+                "summary": "Download speed test chunk",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1048576,
+                        "description": "Chunk size in bytes",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
                         }
                     }
                 }
@@ -1984,6 +5651,63 @@ const docTemplate = `{
                         "description": "Range not satisfiable",
                         "schema": {
                             "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/system/info": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns detected system hardware information",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Get system information",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.SystemInfoResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/transcode/active-sessions": {
+            "get": {
+                "description": "Lists all currently active transcode sessions and whether they have logging enabled",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ffmpeg-logs"
+                ],
+                "summary": "List active transcode sessions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ActiveSessionsResponse"
                         }
                     },
                     "500": {
@@ -2081,7 +5805,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_transcode.QueueStats"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_transcode.QueueStats"
                         }
                     },
                     "500": {
@@ -2116,7 +5840,54 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_tv.TVEpisodeResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_tv.TVEpisodeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tv/episodes/{id}/credits": {
+            "get": {
+                "description": "Returns cast and crew for a specific TV episode",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tv"
+                ],
+                "summary": "Get credits for a TV episode",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "TV Episode ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_people.CreditsResponse"
                         }
                     },
                     "400": {
@@ -2164,7 +5935,66 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_images.ListImagesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tv/ids": {
+            "get": {
+                "description": "Returns a list of TV show IDs only for prefetching images with optional pagination",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tv"
+                ],
+                "summary": "List TV show IDs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID to filter shows",
+                        "name": "library_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of items per page (default: 50, max: 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of items to skip (default: 0)",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort order: title_asc or title_desc (default: title_asc)",
+                        "name": "sort",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_tv.ListIDsResponse"
                         }
                     },
                     "400": {
@@ -2212,7 +6042,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_tv.ListTVEpisodesResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_tv.ListTVEpisodesResponse"
                         }
                     },
                     "400": {
@@ -2254,7 +6084,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_images.ListImagesResponse"
                         }
                     },
                     "400": {
@@ -2291,6 +6121,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "type": "string",
+                        "description": "Search query to filter shows by title",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "Number of items per page (default: 50, max: 200)",
                         "name": "limit",
@@ -2307,7 +6143,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_tv.ListTVShowsResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_tv.ListTVShowsResponse"
                         }
                     },
                     "400": {
@@ -2348,7 +6184,54 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_tv.TVShowDetailResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_tv.TVShowDetailResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tv/shows/{id}/credits": {
+            "get": {
+                "description": "Returns cast, creators, and other credits for a specific TV show",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tv"
+                ],
+                "summary": "Get credits for a TV show",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "TV Show ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_people.CreditsResponse"
                         }
                     },
                     "400": {
@@ -2395,7 +6278,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_tv.ListTVEpisodesResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_tv.ListTVEpisodesResponse"
                         }
                     },
                     "400": {
@@ -2443,11 +6326,58 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_images.ListImagesResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tv/shows/{id}/next-episode": {
+            "get": {
+                "description": "Returns the next episode to watch for a show based on watch progress. Returns in-progress episode if exists, otherwise first unwatched episode, or first episode if all watched",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tv"
+                ],
+                "summary": "Get next episode to watch for a show",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Show ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_tv.TVEpisodeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
                         }
@@ -2491,7 +6421,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_tv.ListTVEpisodesResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_tv.ListTVEpisodesResponse"
                         }
                     },
                     "400": {
@@ -2508,6 +6438,348 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a paginated list of all users (admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "List users",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_auth.ListUsersResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new user (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Create user",
+                "parameters": [
+                    {
+                        "description": "User details",
+                        "name": "user",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.CreateUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_auth.UserResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Username exists",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a user by ID (admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Get user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_auth.UserResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates a user (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Update user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "User updates",
+                        "name": "user",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.UpdateUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_auth.UserResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes a user (admin only)",
+                "tags": [
+                    "users"
+                ],
+                "summary": "Delete user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users/{id}/reset-password": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Resets a user's password (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Reset user password",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New password",
+                        "name": "password",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ResetPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
                         }
@@ -2543,7 +6815,84 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "github_com_viewra_viewra_internal_application_images.BatchImagesResponse": {
+        "github_com_mantonx_viewra_internal_application_auth.ListUsersResponse": {
+            "type": "object",
+            "properties": {
+                "total": {
+                    "type": "integer"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_auth.UserResponse"
+                    }
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_auth.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "accessToken": {
+                    "type": "string"
+                },
+                "expiresIn": {
+                    "description": "seconds until access token expires",
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "refreshToken": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_auth.UserResponse"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_auth.SessionResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "description": "Public ID for API",
+                    "type": "string"
+                },
+                "ip_address": {
+                    "type": "string"
+                },
+                "is_current": {
+                    "type": "boolean"
+                },
+                "last_used_at": {
+                    "type": "string"
+                },
+                "user_agent": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_auth.UserResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_admin": {
+                    "type": "boolean"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_images.BatchImagesResponse": {
             "type": "object",
             "properties": {
                 "media_images": {
@@ -2552,13 +6901,13 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ImageResponse"
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_images.ImageResponse"
                         }
                     }
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_images.ImageResponse": {
+        "github_com_mantonx_viewra_internal_application_images.ImageResponse": {
             "type": "object",
             "properties": {
                 "aspect_ratio": {
@@ -2620,13 +6969,13 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_images.ListImagesResponse": {
+        "github_com_mantonx_viewra_internal_application_images.ListImagesResponse": {
             "type": "object",
             "properties": {
                 "images": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ImageResponse"
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_images.ImageResponse"
                     }
                 },
                 "total": {
@@ -2634,7 +6983,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_library.CreateLibraryRequest": {
+        "github_com_mantonx_viewra_internal_application_library.CreateLibraryRequest": {
             "type": "object",
             "required": [
                 "name",
@@ -2660,15 +7009,15 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_library.GetLibraryResponse": {
+        "github_com_mantonx_viewra_internal_application_library.GetLibraryResponse": {
             "type": "object",
             "properties": {
                 "library": {
-                    "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.LibraryResponse"
+                    "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_library.LibraryResponse"
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_library.LibraryResponse": {
+        "github_com_mantonx_viewra_internal_application_library.LibraryResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -2691,13 +7040,13 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_library.ListLibrariesResponse": {
+        "github_com_mantonx_viewra_internal_application_library.ListLibrariesResponse": {
             "type": "object",
             "properties": {
                 "libraries": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.LibraryResponse"
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_library.LibraryResponse"
                     }
                 },
                 "total": {
@@ -2705,7 +7054,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_library.StartScanResponse": {
+        "github_com_mantonx_viewra_internal_application_library.StartScanResponse": {
             "type": "object",
             "properties": {
                 "job_id": {
@@ -2722,7 +7071,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_library.UpdateLibraryRequest": {
+        "github_com_mantonx_viewra_internal_application_library.UpdateLibraryRequest": {
             "type": "object",
             "required": [
                 "id"
@@ -2749,21 +7098,121 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_media.GetMediaResponse": {
+        "github_com_mantonx_viewra_internal_application_media.AudioTrackInfo": {
             "type": "object",
             "properties": {
-                "media": {
-                    "$ref": "#/definitions/github_com_viewra_viewra_internal_application_media.MediaResponse"
+                "bitrate": {
+                    "type": "integer"
+                },
+                "channel_label": {
+                    "description": "\"stereo\", \"5.1\", \"7.1\", etc.",
+                    "type": "string"
+                },
+                "channels": {
+                    "type": "integer"
+                },
+                "codec": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "is_commentary": {
+                    "type": "boolean"
+                },
+                "is_default": {
+                    "type": "boolean"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_media.ListMediaResponse": {
+        "github_com_mantonx_viewra_internal_application_media.AudioTrackResponse": {
+            "type": "object",
+            "properties": {
+                "bit_rate": {
+                    "type": "integer"
+                },
+                "channel_layout": {
+                    "type": "string"
+                },
+                "channels": {
+                    "type": "integer"
+                },
+                "codec": {
+                    "type": "string"
+                },
+                "codec_profile": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_commentary": {
+                    "type": "boolean"
+                },
+                "is_default": {
+                    "type": "boolean"
+                },
+                "is_descriptive": {
+                    "type": "boolean"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "media_id": {
+                    "type": "integer"
+                },
+                "sample_rate": {
+                    "type": "integer"
+                },
+                "stream_index": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_media.GetMediaResponse": {
+            "type": "object",
+            "properties": {
+                "media": {
+                    "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_media.MediaResponse"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_media.GetTracksResponse": {
+            "type": "object",
+            "properties": {
+                "audio_tracks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_media.AudioTrackResponse"
+                    }
+                },
+                "subtitle_tracks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_media.SubtitleTrackResponse"
+                    }
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_media.ListMediaResponse": {
             "type": "object",
             "properties": {
                 "media": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_media.MediaResponse"
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_media.MediaResponse"
                     }
                 },
                 "total": {
@@ -2771,7 +7220,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_media.MediaResponse": {
+        "github_com_mantonx_viewra_internal_application_media.MediaResponse": {
             "type": "object",
             "properties": {
                 "audio_codec": {
@@ -2836,24 +7285,213 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_movies.ListMoviesResponse": {
+        "github_com_mantonx_viewra_internal_application_media.StreamInfoResponse": {
             "type": "object",
             "properties": {
-                "movies": {
+                "audio_tracks": {
+                    "description": "Audio tracks (all available)",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_movies.MovieResponse"
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_media.AudioTrackInfo"
+                    }
+                },
+                "bitrate": {
+                    "type": "integer"
+                },
+                "container": {
+                    "description": "Source file info",
+                    "type": "string"
+                },
+                "duration": {
+                    "type": "integer"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "selected_audio_index": {
+                    "type": "integer"
+                },
+                "strategy": {
+                    "description": "Streaming strategy (what type of processing will be used)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_media.StreamingStrategy"
+                        }
+                    ]
+                },
+                "tone_mapping": {
+                    "description": "Tone mapping information (for HDR content)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_media.ToneMappingInfo"
+                        }
+                    ]
+                },
+                "video": {
+                    "description": "Video stream info",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_media.VideoStreamInfo"
+                        }
+                    ]
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_media.StreamingStrategy": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "description": "\"direct\", \"remux\", \"remux_audio\", \"remux_hevc\", \"transcode\"",
+                    "type": "string"
+                },
+                "reason": {
+                    "description": "Human-readable explanation",
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_media.SubtitleTrackResponse": {
+            "type": "object",
+            "properties": {
+                "codec": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_bitmap": {
+                    "type": "boolean"
+                },
+                "is_commentary": {
+                    "type": "boolean"
+                },
+                "is_default": {
+                    "type": "boolean"
+                },
+                "is_forced": {
+                    "type": "boolean"
+                },
+                "is_sdh": {
+                    "type": "boolean"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "media_id": {
+                    "type": "integer"
+                },
+                "source_type": {
+                    "description": "\"embedded\" or \"external\"",
+                    "type": "string"
+                },
+                "stream_index": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_media.ToneMappingInfo": {
+            "type": "object",
+            "properties": {
+                "algorithm": {
+                    "description": "Algorithm being used (bt.2390, hable, mobius, etc.)",
+                    "type": "string"
+                },
+                "backend": {
+                    "description": "Backend being used (libplacebo, opencl, vaapi, cpu)",
+                    "type": "string"
+                },
+                "enabled": {
+                    "description": "Whether tone mapping is active for this stream",
+                    "type": "boolean"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_media.VideoStreamInfo": {
+            "type": "object",
+            "properties": {
+                "bit_depth": {
+                    "type": "integer"
+                },
+                "bitrate": {
+                    "type": "integer"
+                },
+                "codec": {
+                    "type": "string"
+                },
+                "color_primaries": {
+                    "type": "string"
+                },
+                "color_space": {
+                    "type": "string"
+                },
+                "frame_rate": {
+                    "type": "number"
+                },
+                "hdr_format": {
+                    "description": "\"HDR10\", \"HLG\", \"Dolby Vision\", etc.",
+                    "type": "string"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "is_hdr": {
+                    "type": "boolean"
+                },
+                "pixel_format": {
+                    "type": "string"
+                },
+                "profile": {
+                    "type": "string"
+                },
+                "width": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_movies.ListIDsResponse": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
                     }
                 },
                 "pagination": {
-                    "$ref": "#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata"
+                    "$ref": "#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata"
                 },
                 "total": {
                     "type": "integer"
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_movies.MovieResponse": {
+        "github_com_mantonx_viewra_internal_application_movies.ListMoviesResponse": {
+            "type": "object",
+            "properties": {
+                "movies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_movies.MovieResponse"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_movies.MovieResponse": {
             "type": "object",
             "required": [
                 "file_path",
@@ -2985,7 +7623,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_music.AlbumSummary": {
+        "github_com_mantonx_viewra_internal_application_music.AlbumSummary": {
             "type": "object",
             "properties": {
                 "album": {
@@ -3006,7 +7644,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_music.ArtistSummary": {
+        "github_com_mantonx_viewra_internal_application_music.ArtistSummary": {
             "type": "object",
             "required": [
                 "id",
@@ -3028,45 +7666,62 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_music.ListAlbumsResponse": {
+        "github_com_mantonx_viewra_internal_application_music.ListAlbumsResponse": {
             "type": "object",
             "properties": {
                 "albums": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_music.AlbumSummary"
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_music.AlbumSummary"
                     }
                 },
                 "pagination": {
-                    "$ref": "#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata"
+                    "$ref": "#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata"
                 },
                 "total": {
                     "type": "integer"
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_music.ListArtistsResponse": {
+        "github_com_mantonx_viewra_internal_application_music.ListArtistsResponse": {
             "type": "object",
             "properties": {
                 "artists": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_music.ArtistSummary"
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_music.ArtistSummary"
                     }
                 },
                 "pagination": {
-                    "$ref": "#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata"
+                    "$ref": "#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata"
                 },
                 "total": {
                     "type": "integer"
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_music.ListTracksResponse": {
+        "github_com_mantonx_viewra_internal_application_music.ListIDsResponse": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_music.ListTracksResponse": {
             "type": "object",
             "properties": {
                 "pagination": {
-                    "$ref": "#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata"
+                    "$ref": "#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata"
                 },
                 "total": {
                     "type": "integer"
@@ -3074,12 +7729,12 @@ const docTemplate = `{
                 "tracks": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_music.MusicTrackResponse"
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_music.MusicTrackResponse"
                     }
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_music.MusicTrackResponse": {
+        "github_com_mantonx_viewra_internal_application_music.MusicTrackResponse": {
             "type": "object",
             "properties": {
                 "album": {
@@ -3168,13 +7823,316 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_progress.ListProgressResponse": {
+        "github_com_mantonx_viewra_internal_application_people.CreditResponse": {
+            "type": "object",
+            "properties": {
+                "billing_order": {
+                    "type": "integer"
+                },
+                "character_name": {
+                    "type": "string"
+                },
+                "credit_type": {
+                    "type": "string"
+                },
+                "department": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "job": {
+                    "type": "string"
+                },
+                "person": {
+                    "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_people.PersonResponse"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_people.CreditsResponse": {
+            "type": "object",
+            "properties": {
+                "cast": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_people.CreditResponse"
+                    }
+                },
+                "creators": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_people.CreditResponse"
+                    }
+                },
+                "directors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_people.CreditResponse"
+                    }
+                },
+                "writers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_people.CreditResponse"
+                    }
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_people.PersonCreditsResponse": {
+            "type": "object",
+            "properties": {
+                "credits": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_people.CreditResponse"
+                    }
+                },
+                "person": {
+                    "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_people.PersonResponse"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_people.PersonResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "imdb_id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "photo_path": {
+                    "type": "string"
+                },
+                "photo_url": {
+                    "type": "string"
+                },
+                "sort_name": {
+                    "type": "string"
+                },
+                "tmdb_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_plugins.EnricherCapabilities": {
+            "type": "object",
+            "properties": {
+                "is_local": {
+                    "type": "boolean"
+                },
+                "media_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "provides": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "rate_limit": {
+                    "type": "integer"
+                },
+                "requires": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_plugins.LogEntry": {
+            "type": "object",
+            "properties": {
+                "fields": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "level": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_plugins.PluginDetail": {
+            "type": "object",
+            "properties": {
+                "author": {
+                    "type": "string"
+                },
+                "capabilities": {
+                    "description": "Enricher-specific capabilities (nil for non-enrichers)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_plugins.EnricherCapabilities"
+                        }
+                    ]
+                },
+                "categories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "health": {
+                    "description": "\"healthy\", \"degraded\", \"unhealthy\", \"unknown\"",
+                    "type": "string"
+                },
+                "health_message": {
+                    "type": "string"
+                },
+                "homepage": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "installed_at": {
+                    "type": "string"
+                },
+                "is_builtin": {
+                    "type": "boolean"
+                },
+                "last_heartbeat": {
+                    "type": "string"
+                },
+                "license": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "restart_count": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_plugins.PluginHealthDetail": {
+            "type": "object",
+            "properties": {
+                "avg_latency_ms": {
+                    "type": "integer"
+                },
+                "error_rate": {
+                    "type": "number"
+                },
+                "last_heartbeat": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "restarts": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "uptime_seconds": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_plugins.PluginSettings": {
+            "type": "object",
+            "properties": {
+                "plugin_id": {
+                    "type": "string"
+                },
+                "schema": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_plugins.PluginSummary": {
+            "type": "object",
+            "properties": {
+                "author": {
+                    "type": "string"
+                },
+                "categories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "health": {
+                    "description": "\"healthy\", \"degraded\", \"unhealthy\", \"unknown\"",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_builtin": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_progress.BatchProgressResponse": {
+            "type": "object",
+            "properties": {
+                "progress": {
+                    "description": "map[media_id]progress",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_progress.WatchProgressResponse"
+                    }
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_progress.ListProgressResponse": {
             "type": "object",
             "properties": {
                 "progress": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse"
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_progress.WatchProgressResponse"
                     }
                 },
                 "total": {
@@ -3182,7 +8140,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_progress.MarkWatchedRequest": {
+        "github_com_mantonx_viewra_internal_application_progress.MarkWatchedRequest": {
             "type": "object",
             "properties": {
                 "media_id": {
@@ -3193,16 +8151,26 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_progress.UpdateProgressRequest": {
+        "github_com_mantonx_viewra_internal_application_progress.UpdateProgressRequest": {
             "type": "object",
             "properties": {
                 "duration_seconds": {
-                    "type": "integer"
+                    "type": "number"
                 },
                 "media_id": {
                     "type": "integer"
                 },
                 "progress_seconds": {
+                    "type": "number"
+                },
+                "selected_audio_track": {
+                    "type": "integer"
+                },
+                "selected_quality": {
+                    "description": "Playback preferences (omitted or null means don't update)",
+                    "type": "string"
+                },
+                "selected_subtitle_track": {
                     "type": "integer"
                 },
                 "user_id": {
@@ -3210,14 +8178,14 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_progress.WatchProgressResponse": {
+        "github_com_mantonx_viewra_internal_application_progress.WatchProgressResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
                     "type": "string"
                 },
                 "duration_seconds": {
-                    "type": "integer"
+                    "type": "number"
                 },
                 "id": {
                     "type": "integer"
@@ -3235,6 +8203,16 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "progress_seconds": {
+                    "type": "number"
+                },
+                "selected_audio_track": {
+                    "type": "integer"
+                },
+                "selected_quality": {
+                    "description": "Playback preferences (null means no saved preference / use defaults)\nNote: No omitempty - we need to distinguish \"never set\" from \"explicitly null\"",
+                    "type": "string"
+                },
+                "selected_subtitle_track": {
                     "type": "integer"
                 },
                 "updated_at": {
@@ -3245,7 +8223,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_transcode.QueueStats": {
+        "github_com_mantonx_viewra_internal_application_transcode.QueueStats": {
             "type": "object",
             "properties": {
                 "completedJobs": {
@@ -3269,33 +8247,50 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_tv.ListTVEpisodesResponse": {
+        "github_com_mantonx_viewra_internal_application_tv.ListIDsResponse": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_application_tv.ListTVEpisodesResponse": {
             "type": "object",
             "properties": {
                 "episodes": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_tv.TVEpisodeResponse"
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_tv.TVEpisodeResponse"
                     }
                 },
                 "pagination": {
-                    "$ref": "#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata"
+                    "$ref": "#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata"
                 },
                 "total": {
                     "type": "integer"
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_tv.ListTVShowsResponse": {
+        "github_com_mantonx_viewra_internal_application_tv.ListTVShowsResponse": {
             "type": "object",
             "properties": {
                 "pagination": {
-                    "$ref": "#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata"
+                    "$ref": "#/definitions/github_com_mantonx_viewra_internal_domain_common.PaginationMetadata"
                 },
                 "shows": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_tv.TVShowSummary"
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_tv.TVShowSummary"
                     }
                 },
                 "total": {
@@ -3303,9 +8298,13 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_tv.TVEpisodeResponse": {
+        "github_com_mantonx_viewra_internal_application_tv.TVEpisodeResponse": {
             "type": "object",
             "properties": {
+                "absolute_number": {
+                    "description": "Alternative ordering (for anime/DVD releases)",
+                    "type": "integer"
+                },
                 "air_date": {
                     "type": "string"
                 },
@@ -3318,6 +8317,9 @@ const docTemplate = `{
                 "container_format": {
                     "type": "string"
                 },
+                "content_rating": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -3326,6 +8328,12 @@ const docTemplate = `{
                 },
                 "duration": {
                     "description": "in seconds",
+                    "type": "integer"
+                },
+                "dvd_episode": {
+                    "type": "integer"
+                },
+                "dvd_season": {
                     "type": "integer"
                 },
                 "episode": {
@@ -3360,6 +8368,23 @@ const docTemplate = `{
                 "library_id": {
                     "type": "integer"
                 },
+                "maturity_rating": {
+                    "type": "integer"
+                },
+                "original_title": {
+                    "description": "Additional metadata",
+                    "type": "string"
+                },
+                "rating": {
+                    "type": "number"
+                },
+                "rating_votes": {
+                    "type": "integer"
+                },
+                "runtime_minutes": {
+                    "description": "Ratings",
+                    "type": "integer"
+                },
                 "season": {
                     "type": "integer"
                 },
@@ -3373,6 +8398,9 @@ const docTemplate = `{
                 "title": {
                     "description": "filename",
                     "type": "string"
+                },
+                "tmdb_id": {
+                    "type": "integer"
                 },
                 "tvdb_id": {
                     "type": "integer"
@@ -3389,27 +8417,48 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_tv.TVShowDetailResponse": {
+        "github_com_mantonx_viewra_internal_application_tv.TVShowDetailResponse": {
             "type": "object",
             "properties": {
+                "content_rating": {
+                    "type": "string"
+                },
                 "episode_count": {
                     "type": "integer"
+                },
+                "genre": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "id": {
                     "type": "integer"
                 },
+                "imdb_id": {
+                    "type": "string"
+                },
                 "library_id": {
                     "type": "integer"
+                },
+                "plot": {
+                    "type": "string"
                 },
                 "season_count": {
                     "type": "integer"
                 },
                 "title": {
                     "type": "string"
+                },
+                "tmdb_id": {
+                    "type": "integer"
+                },
+                "year": {
+                    "type": "integer"
                 }
             }
         },
-        "github_com_viewra_viewra_internal_application_tv.TVShowSummary": {
+        "github_com_mantonx_viewra_internal_application_tv.TVShowSummary": {
             "type": "object",
             "required": [
                 "id",
@@ -3417,24 +8466,71 @@ const docTemplate = `{
                 "title"
             ],
             "properties": {
+                "content_rating": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
                 "episode_count": {
                     "type": "integer"
+                },
+                "genre": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "id": {
                     "type": "integer"
                 },
+                "imdb_id": {
+                    "type": "string"
+                },
                 "library_id": {
                     "type": "integer"
+                },
+                "plot": {
+                    "type": "string"
                 },
                 "season_count": {
                     "type": "integer"
                 },
                 "title": {
                     "type": "string"
+                },
+                "tmdb_id": {
+                    "type": "integer"
+                },
+                "year": {
+                    "type": "integer"
                 }
             }
         },
-        "github_com_viewra_viewra_internal_domain_common.PaginationMetadata": {
+        "github_com_mantonx_viewra_internal_domain_ai.ModelInfo": {
+            "type": "object",
+            "properties": {
+                "contextSize": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "isChat": {
+                    "type": "boolean"
+                },
+                "isEmbedding": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_domain_common.PaginationMetadata": {
             "type": "object",
             "properties": {
                 "hasMore": {
@@ -3455,7 +8551,39 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_domain_library.BrowseResult": {
+        "github_com_mantonx_viewra_internal_domain_enrichment.QueueStats": {
+            "type": "object",
+            "properties": {
+                "completedCount": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "failedCount": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "pendingCount": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "processingCount": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "skippedCount": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "stage": {
+                    "type": "string"
+                },
+                "totalCount": {
+                    "type": "integer",
+                    "format": "int64"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_domain_library.BrowseResult": {
             "type": "object",
             "properties": {
                 "current_path": {
@@ -3464,7 +8592,7 @@ const docTemplate = `{
                 "directories": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_viewra_viewra_internal_domain_library.Directory"
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_domain_library.Directory"
                     }
                 },
                 "is_root": {
@@ -3476,7 +8604,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_viewra_viewra_internal_domain_library.Directory": {
+        "github_com_mantonx_viewra_internal_domain_library.Directory": {
             "type": "object",
             "properties": {
                 "modified_at": {
@@ -3493,6 +8621,235 @@ const docTemplate = `{
                 },
                 "writable": {
                     "type": "boolean"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_infrastructure_subtitles.PGSFrame": {
+            "type": "object",
+            "properties": {
+                "canvas_height": {
+                    "description": "PGS authoring resolution height (e.g., 1080 for 1080p subs on 4K video)",
+                    "type": "integer"
+                },
+                "canvas_width": {
+                    "description": "PGS authoring resolution width (e.g., 1920 for 1080p subs on 4K video)",
+                    "type": "integer"
+                },
+                "end_ms": {
+                    "type": "integer"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "image_base64": {
+                    "type": "string"
+                },
+                "start_ms": {
+                    "type": "integer"
+                },
+                "width": {
+                    "type": "integer"
+                },
+                "x": {
+                    "type": "integer"
+                },
+                "y": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_mantonx_viewra_internal_infrastructure_transcoding_logging.LogInfo": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "error_count": {
+                    "type": "integer"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "has_errors": {
+                    "type": "boolean"
+                },
+                "is_active": {
+                    "description": "True if still being written",
+                    "type": "boolean"
+                },
+                "line_count": {
+                    "type": "integer"
+                },
+                "media_id": {
+                    "type": "integer"
+                },
+                "modified_at": {
+                    "type": "string"
+                },
+                "quality": {
+                    "type": "string"
+                },
+                "session_id": {
+                    "type": "string"
+                },
+                "size_bytes": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api_handlers.AISettingsRequest": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "maxResults": {
+                    "type": "integer"
+                },
+                "ollamaModel": {
+                    "type": "string"
+                },
+                "ollamaUrl": {
+                    "type": "string"
+                },
+                "openaiApiKey": {
+                    "type": "string"
+                },
+                "openaiModel": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "similarityThreshold": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.AISettingsResponse": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "maxResults": {
+                    "type": "integer"
+                },
+                "ollamaAvailable": {
+                    "type": "boolean"
+                },
+                "ollamaModel": {
+                    "type": "string"
+                },
+                "ollamaUrl": {
+                    "type": "string"
+                },
+                "openaiApiKey": {
+                    "description": "Masked for display",
+                    "type": "string"
+                },
+                "openaiModel": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "similarityThreshold": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.ActiveSessionInfo": {
+            "type": "object",
+            "properties": {
+                "has_log": {
+                    "type": "boolean"
+                },
+                "media_id": {
+                    "type": "integer"
+                },
+                "quality": {
+                    "type": "string"
+                },
+                "session_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.ActiveSessionsResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "sessions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api_handlers.ActiveSessionInfo"
+                    }
+                }
+            }
+        },
+        "internal_api_handlers.AdaptiveLadderResponse": {
+            "type": "object",
+            "properties": {
+                "profiles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api_handlers.QualityProfile"
+                    }
+                }
+            }
+        },
+        "internal_api_handlers.AdminStatusEvent": {
+            "type": "object",
+            "properties": {
+                "pending_settings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "restart_pending": {
+                    "type": "boolean"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.CPUInfoResponse": {
+            "type": "object",
+            "properties": {
+                "logicalCpus": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "physicalCpus": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api_handlers.ChangePasswordRequest": {
+            "type": "object",
+            "required": [
+                "current_password",
+                "new_password"
+            ],
+            "properties": {
+                "current_password": {
+                    "type": "string"
+                },
+                "new_password": {
+                    "type": "string"
                 }
             }
         },
@@ -3557,13 +8914,85 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_api_handlers.ConnectionTestResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
         "internal_api_handlers.CreateTranscodeJobRequest": {
             "type": "object",
             "required": [
                 "quality"
             ],
             "properties": {
+                "codec": {
+                    "description": "Optional: h264, h265, vp9, av1 (defaults to h264)",
+                    "type": "string"
+                },
                 "quality": {
+                    "type": "string"
+                },
+                "start_position": {
+                    "description": "Optional: start position in seconds for seek-based transcoding",
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api_handlers.CreateUserRequest": {
+            "type": "object",
+            "required": [
+                "display_name",
+                "password",
+                "username"
+            ],
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "is_admin": {
+                    "type": "boolean"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.CurrentItemResponse": {
+            "type": "object",
+            "properties": {
+                "media_id": {
+                    "type": "integer"
+                },
+                "media_type": {
+                    "type": "string"
+                },
+                "stage": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.DeleteOllamaModelRequest": {
+            "type": "object",
+            "required": [
+                "model"
+            ],
+            "properties": {
+                "model": {
                     "type": "string"
                 }
             }
@@ -3600,6 +9029,100 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_api_handlers.EffectiveSettingResponse": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "description": "Setting category",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "Setting description",
+                    "type": "string"
+                },
+                "envVar": {
+                    "description": "Env var name if source is env_var",
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "label": {
+                    "description": "Human-readable label",
+                    "type": "string"
+                },
+                "locked": {
+                    "description": "True if cannot be changed via UI",
+                    "type": "boolean"
+                },
+                "readOnly": {
+                    "description": "True for display-only values",
+                    "type": "boolean"
+                },
+                "source": {
+                    "description": "default, database, env_var, detected",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Value type",
+                    "type": "string"
+                },
+                "value": {}
+            }
+        },
+        "internal_api_handlers.EffectiveSettingsResponse": {
+            "type": "object",
+            "properties": {
+                "settings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api_handlers.EffectiveSettingResponse"
+                    }
+                }
+            }
+        },
+        "internal_api_handlers.EnqueueMediaRequest": {
+            "type": "object",
+            "required": [
+                "library_id",
+                "media_id",
+                "media_type",
+                "stage"
+            ],
+            "properties": {
+                "library_id": {
+                    "description": "Library containing the media",
+                    "type": "integer"
+                },
+                "media_id": {
+                    "type": "integer"
+                },
+                "media_type": {
+                    "description": "movie, tv, tv_show, music",
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "stage": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.EnqueueMediaResponse": {
+            "type": "object",
+            "properties": {
+                "media_id": {
+                    "type": "integer"
+                },
+                "stage": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_api_handlers.ErrorResponse": {
             "type": "object",
             "properties": {
@@ -3607,6 +9130,38 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.GPUInfoResponse": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "boolean"
+                },
+                "deviceCount": {
+                    "type": "integer"
+                },
+                "deviceNames": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "hasOpenCL": {
+                    "type": "boolean"
+                },
+                "hasVaapi": {
+                    "type": "boolean"
+                },
+                "hasVulkan": {
+                    "type": "boolean"
+                },
+                "hwAccelType": {
+                    "type": "string"
+                },
+                "type": {
                     "type": "string"
                 }
             }
@@ -3638,32 +9193,644 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api_handlers.OnDemandResponse": {
+        "internal_api_handlers.LibraryEnrichmentProgressResponse": {
             "type": "object",
             "properties": {
-                "estimated_time": {
-                    "description": "Estimated completion time",
+                "current_item": {
+                    "$ref": "#/definitions/internal_api_handlers.CurrentItemResponse"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "library_id": {
+                    "type": "integer"
+                },
+                "overall_progress": {
+                    "$ref": "#/definitions/internal_api_handlers.OverallProgressResponse"
+                },
+                "stage_progress": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_domain_enrichment.QueueStats"
+                    }
+                },
+                "total_completed": {
+                    "type": "integer"
+                },
+                "total_failed": {
+                    "type": "integer"
+                },
+                "total_pending": {
+                    "type": "integer"
+                },
+                "total_processing": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api_handlers.ListSessionsResponse": {
+            "type": "object",
+            "properties": {
+                "sessions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api_handlers.PlaybackSessionResponse"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api_handlers.LogContentResponse": {
+            "type": "object",
+            "properties": {
+                "content": {
                     "type": "string"
                 },
-                "job_id": {
-                    "description": "For processing strategies",
+                "is_active": {
+                    "type": "boolean"
+                },
+                "media_id": {
                     "type": "integer"
                 },
-                "progress": {
-                    "description": "Job progress (0-100)",
+                "session_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.LogListResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
                     "type": "integer"
+                },
+                "logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_infrastructure_transcoding_logging.LogInfo"
+                    }
+                },
+                "media_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api_handlers.LoginRequest": {
+            "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.LogoutRequest": {
+            "type": "object",
+            "required": [
+                "refresh_token"
+            ],
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.MemoryInfoResponse": {
+            "type": "object",
+            "properties": {
+                "availableBytes": {
+                    "type": "integer"
+                },
+                "totalBytes": {
+                    "type": "integer"
+                },
+                "totalFormatted": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.OllamaModelsResponse": {
+            "type": "object",
+            "properties": {
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_domain_ai.ModelInfo"
+                    }
+                }
+            }
+        },
+        "internal_api_handlers.OverallProgressResponse": {
+            "type": "object",
+            "properties": {
+                "completed_items": {
+                    "type": "integer"
+                },
+                "percentage": {
+                    "type": "number"
+                },
+                "remaining_items": {
+                    "type": "integer"
+                },
+                "total_items": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api_handlers.PauseScanResponse": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.PlaybackAnalyticsRequest": {
+            "type": "object",
+            "properties": {
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api_handlers.QualitySwitchEventRequest"
+                    }
+                },
+                "session": {
+                    "$ref": "#/definitions/internal_api_handlers.PlaybackSessionRequest"
+                }
+            }
+        },
+        "internal_api_handlers.PlaybackSessionRequest": {
+            "type": "object",
+            "properties": {
+                "averageQuality": {
+                    "type": "string"
+                },
+                "connectionType": {
+                    "type": "string"
+                },
+                "deviceType": {
+                    "type": "string"
+                },
+                "endTime": {
+                    "type": "integer"
+                },
+                "mediaId": {
+                    "type": "integer"
+                },
+                "qualitySwitchCount": {
+                    "type": "integer"
+                },
+                "sessionId": {
+                    "type": "string"
+                },
+                "stallCount": {
+                    "type": "integer"
+                },
+                "startTime": {
+                    "type": "integer"
+                },
+                "startupTimeMs": {
+                    "type": "integer"
+                },
+                "totalBufferTime": {
+                    "type": "integer"
+                },
+                "totalPlayTime": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api_handlers.PlaybackSessionResponse": {
+            "type": "object",
+            "properties": {
+                "averageQuality": {
+                    "type": "string"
+                },
+                "backendStartupMs": {
+                    "type": "integer"
+                },
+                "connectionType": {
+                    "type": "string"
+                },
+                "deviceType": {
+                    "type": "string"
+                },
+                "endTime": {
+                    "type": "integer"
+                },
+                "firstFrameMs": {
+                    "type": "integer"
+                },
+                "firstSegmentMs": {
+                    "type": "integer"
+                },
+                "hwAccel": {
+                    "type": "string"
+                },
+                "mediaId": {
+                    "type": "integer"
+                },
+                "qualityProfile": {
+                    "description": "Transcode metrics (from backend, joined via session_id)",
+                    "type": "string"
+                },
+                "qualitySwitchCount": {
+                    "type": "integer"
+                },
+                "segmentsCreated": {
+                    "type": "integer"
+                },
+                "sessionId": {
+                    "type": "string"
+                },
+                "stallCount": {
+                    "type": "integer"
+                },
+                "startTime": {
+                    "type": "integer"
+                },
+                "startupTimeMs": {
+                    "type": "integer"
+                },
+                "totalBufferTimeMs": {
+                    "type": "integer"
+                },
+                "totalPlayTimeMs": {
+                    "type": "integer"
+                },
+                "transcodeStatus": {
+                    "type": "string"
+                },
+                "transcodeStrategy": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.PlaybackSummaryResponse": {
+            "type": "object",
+            "properties": {
+                "avgBufferTimeMs": {
+                    "type": "number"
+                },
+                "avgPlayTimeMs": {
+                    "type": "number"
+                },
+                "avgStallsPerSession": {
+                    "type": "number"
+                },
+                "avgStartupTimeMs": {
+                    "type": "number"
+                },
+                "maxStartupTimeMs": {
+                    "type": "integer"
+                },
+                "minStartupTimeMs": {
+                    "type": "integer"
+                },
+                "totalSessions": {
+                    "type": "integer"
+                },
+                "totalStalls": {
+                    "type": "integer"
+                },
+                "uniqueMedia": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api_handlers.PluginListResponse": {
+            "type": "object",
+            "properties": {
+                "plugins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_plugins.PluginSummary"
+                    }
+                }
+            }
+        },
+        "internal_api_handlers.PluginLogsResponse": {
+            "type": "object",
+            "properties": {
+                "logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_mantonx_viewra_internal_application_plugins.LogEntry"
+                    }
+                },
+                "plugin_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.PullOllamaModelRequest": {
+            "type": "object",
+            "required": [
+                "model"
+            ],
+            "properties": {
+                "model": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.QualityProfile": {
+            "type": "object",
+            "properties": {
+                "displayName": {
+                    "type": "string"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "minNetworkMbps": {
+                    "type": "number"
+                },
+                "preferredCodec": {
+                    "type": "string"
+                },
+                "videoBitrate": {
+                    "type": "integer"
+                },
+                "width": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api_handlers.QualityRecommendationResponse": {
+            "type": "object",
+            "properties": {
+                "audioBitrate": {
+                    "type": "integer"
+                },
+                "dataUsageMBPerHour": {
+                    "type": "integer"
+                },
+                "displayName": {
+                    "type": "string"
+                },
+                "fallbackCodecs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "preferredCodec": {
+                    "type": "string"
+                },
+                "profileId": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "number"
+                },
+                "videoBitrate": {
+                    "type": "integer"
+                },
+                "width": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api_handlers.QualitySwitchEventRequest": {
+            "type": "object",
+            "properties": {
+                "bufferSeconds": {
+                    "type": "number"
+                },
+                "causedStall": {
+                    "type": "boolean"
+                },
+                "connectionType": {
+                    "type": "string"
+                },
+                "deviceType": {
+                    "type": "string"
+                },
+                "fromQuality": {
+                    "type": "string"
+                },
+                "mediaId": {
+                    "type": "integer"
+                },
+                "networkSpeedMbps": {
+                    "type": "number"
+                },
+                "positionSeconds": {
+                    "type": "number"
+                },
+                "sessionId": {
+                    "type": "string"
+                },
+                "switchReason": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "integer"
+                },
+                "toQuality": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.RecommendQualityRequest": {
+            "type": "object",
+            "required": [
+                "deviceType",
+                "networkSpeedMbps",
+                "screenHeight",
+                "screenWidth"
+            ],
+            "properties": {
+                "batteryLevel": {
+                    "type": "number"
+                },
+                "connectionType": {
+                    "type": "string"
+                },
+                "cpuCores": {
+                    "description": "Performance",
+                    "type": "integer"
+                },
+                "deviceType": {
+                    "description": "Device",
+                    "type": "string"
+                },
+                "hardwareAcceleration": {
+                    "type": "boolean"
+                },
+                "isCharging": {
+                    "type": "boolean"
+                },
+                "isMetered": {
+                    "type": "boolean"
+                },
+                "lowPowerMode": {
+                    "type": "boolean"
+                },
+                "maxDecodingProfile": {
+                    "type": "string"
+                },
+                "memoryGB": {
+                    "type": "number"
+                },
+                "networkSpeedMbps": {
+                    "description": "Network",
+                    "type": "number",
+                    "minimum": 0
+                },
+                "pixelRatio": {
+                    "type": "number"
+                },
+                "screenHeight": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "screenWidth": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "supportedCodecs": {
+                    "description": "Media capabilities",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "internal_api_handlers.RefreshRequest": {
+            "type": "object",
+            "required": [
+                "refresh_token"
+            ],
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.ResetPasswordRequest": {
+            "type": "object",
+            "required": [
+                "new_password"
+            ],
+            "properties": {
+                "new_password": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.RestartRequest": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.RestartResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "pending": {
+                    "type": "boolean"
+                },
+                "pending_settings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "requested_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.ResumeScanResponse": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.RetryFailedResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.ScanErrorDetail": {
+            "type": "object",
+            "properties": {
+                "error_category": {
+                    "type": "string"
+                },
+                "error_message": {
+                    "type": "string"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "processed_at": {
+                    "type": "string"
                 },
                 "status": {
-                    "description": "Job status",
+                    "description": "\"failed\" or \"warning\"",
                     "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.ScanErrorsResponse": {
+            "type": "object",
+            "properties": {
+                "by_category": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/definitions/internal_api_handlers.ScanErrorDetail"
+                        }
+                    }
                 },
-                "strategy": {
-                    "description": "direct_play, remux, remux_audio, or transcode",
-                    "type": "string"
-                },
-                "url": {
-                    "description": "For direct_play",
-                    "type": "string"
+                "total_errors": {
+                    "type": "integer"
                 }
             }
         },
@@ -3703,6 +9870,9 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                },
+                "warning_count": {
+                    "type": "integer"
                 }
             }
         },
@@ -3728,6 +9898,26 @@ const docTemplate = `{
                     "description": "ISO 8601 timestamp",
                     "type": "string"
                 },
+                "dirs_scanned": {
+                    "description": "Directories successfully scanned",
+                    "type": "integer"
+                },
+                "dirs_skipped": {
+                    "description": "Directories that couldn't be read",
+                    "type": "integer"
+                },
+                "discovery_done": {
+                    "description": "Whether file discovery is complete",
+                    "type": "boolean"
+                },
+                "discovery_errors": {
+                    "description": "Discovery health metrics (added in v0.18)",
+                    "type": "integer"
+                },
+                "discovery_warnings": {
+                    "description": "Warnings during discovery",
+                    "type": "integer"
+                },
                 "error_count": {
                     "description": "Number of errors encountered",
                     "type": "integer"
@@ -3736,6 +9926,18 @@ const docTemplate = `{
                     "description": "Error message if failed",
                     "type": "string"
                 },
+                "errors_job_id": {
+                    "description": "Job ID where errors/warnings are from (if different from JobID)",
+                    "type": "integer"
+                },
+                "estimated_total": {
+                    "description": "Estimated total files from previous scan",
+                    "type": "integer"
+                },
+                "eta_seconds": {
+                    "description": "Estimated seconds remaining (nil if unknown)",
+                    "type": "integer"
+                },
                 "files_found": {
                     "description": "Total files discovered",
                     "type": "integer"
@@ -3743,6 +9945,18 @@ const docTemplate = `{
                 "files_processed": {
                     "description": "Files processed so far",
                     "type": "integer"
+                },
+                "files_skipped": {
+                    "description": "Files that couldn't be stat'd",
+                    "type": "integer"
+                },
+                "job_id": {
+                    "description": "Scan job ID",
+                    "type": "integer"
+                },
+                "phase": {
+                    "description": "Current scan phase (discovering/processing/completed)",
+                    "type": "string"
                 },
                 "progress": {
                     "description": "0-100",
@@ -3755,6 +9969,170 @@ const docTemplate = `{
                 "status": {
                     "description": "pending, running, paused, completed, failed",
                     "type": "string"
+                },
+                "warning_count": {
+                    "description": "Number of warnings encountered",
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api_handlers.SetSystemRequest": {
+            "type": "object",
+            "required": [
+                "value"
+            ],
+            "properties": {
+                "value": {}
+            }
+        },
+        "internal_api_handlers.SetUserRequest": {
+            "type": "object",
+            "required": [
+                "value"
+            ],
+            "properties": {
+                "value": {}
+            }
+        },
+        "internal_api_handlers.SettingDefinitionResponse": {
+            "type": "object",
+            "properties": {
+                "adminOnly": {
+                    "type": "boolean"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "default": {},
+                "description": {
+                    "type": "string"
+                },
+                "envVar": {
+                    "description": "Associated env var name",
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api_handlers.SettingOptionResponse"
+                    }
+                },
+                "readOnly": {
+                    "description": "True for display-only values",
+                    "type": "boolean"
+                },
+                "restartable": {
+                    "type": "boolean"
+                },
+                "sensitive": {
+                    "description": "True if value is encrypted (API keys)",
+                    "type": "boolean"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "validation": {
+                    "$ref": "#/definitions/internal_api_handlers.SettingValidationResponse"
+                }
+            }
+        },
+        "internal_api_handlers.SettingOptionResponse": {
+            "type": "object",
+            "properties": {
+                "label": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.SettingValidationResponse": {
+            "type": "object",
+            "properties": {
+                "max": {
+                    "type": "integer"
+                },
+                "min": {
+                    "type": "integer"
+                },
+                "pattern": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_api_handlers.SettingsSchemaResponse": {
+            "type": "object",
+            "properties": {
+                "system": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api_handlers.SettingDefinitionResponse"
+                    }
+                },
+                "user": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api_handlers.SettingDefinitionResponse"
+                    }
+                }
+            }
+        },
+        "internal_api_handlers.SetupRequest": {
+            "type": "object",
+            "required": [
+                "display_name",
+                "password",
+                "username"
+            ],
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.SetupStatusResponse": {
+            "type": "object",
+            "properties": {
+                "needs_setup": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_api_handlers.StorageInfoResponse": {
+            "type": "object",
+            "properties": {
+                "detectedPath": {
+                    "type": "string"
+                },
+                "isRemote": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.SuccessResponse": {
+            "type": "object",
+            "properties": {
+                "success": {
+                    "type": "boolean"
                 }
             }
         },
@@ -3772,9 +10150,76 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_api_handlers.SystemInfoResponse": {
+            "type": "object",
+            "properties": {
+                "cpu": {
+                    "$ref": "#/definitions/internal_api_handlers.CPUInfoResponse"
+                },
+                "gpu": {
+                    "$ref": "#/definitions/internal_api_handlers.GPUInfoResponse"
+                },
+                "memory": {
+                    "$ref": "#/definitions/internal_api_handlers.MemoryInfoResponse"
+                },
+                "storage": {
+                    "$ref": "#/definitions/internal_api_handlers.StorageInfoResponse"
+                }
+            }
+        },
+        "internal_api_handlers.SystemSettingResponse": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                },
+                "value_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.SystemSettingValueResponse": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "value": {}
+            }
+        },
+        "internal_api_handlers.SystemSettingsResponse": {
+            "type": "object",
+            "properties": {
+                "settings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api_handlers.SystemSettingResponse"
+                    }
+                }
+            }
+        },
         "internal_api_handlers.TranscodeJobResponse": {
             "type": "object",
             "properties": {
+                "codec": {
+                    "description": "Video codec: h264, h265, vp9, av1",
+                    "type": "string"
+                },
                 "completed_at": {
                     "type": "string"
                 },
@@ -3807,18 +10252,80 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "internal_api_handlers.UpdatePluginSettingsRequest": {
+            "type": "object",
+            "required": [
+                "values"
+            ],
+            "properties": {
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "internal_api_handlers.UpdateUserRequest": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "is_admin": {
+                    "type": "boolean"
+                },
+                "is_disabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_api_handlers.UserSettingResponse": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.UserSettingValueResponse": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "value": {}
+            }
+        },
+        "internal_api_handlers.UserSettingsResponse": {
+            "type": "object",
+            "properties": {
+                "settings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api_handlers.UserSettingResponse"
+                    }
+                }
+            }
         }
     }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "0.0.1",
-	Host:             "localhost:8080",
-	BasePath:         "/",
-	Schemes:          []string{"http", "https"},
-	Title:            "ViewRA Media Server API",
-	Description:      "Self-hosted media server for movies, TV shows, and music",
+	Version:          "",
+	Host:             "",
+	BasePath:         "",
+	Schemes:          []string{},
+	Title:            "",
+	Description:      "",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

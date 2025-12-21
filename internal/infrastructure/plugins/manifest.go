@@ -31,6 +31,10 @@ type Manifest struct {
 	// Enricher-specific capabilities
 	Capabilities *ManifestCapabilities `yaml:"capabilities,omitempty"`
 
+	// Service capabilities this plugin provides (for capability aliasing)
+	// e.g., ["semantic_search", "similar_items"] creates /api/search and /api/similar aliases
+	ServiceCapabilities []string `yaml:"service_capabilities,omitempty"`
+
 	// Required permissions
 	Permissions []string `yaml:"permissions"`
 }

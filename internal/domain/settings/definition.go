@@ -12,6 +12,7 @@ type Definition struct {
 	Validation  *Validation `json:"validation,omitempty"`
 	AdminOnly   bool        `json:"adminOnly"`
 	Restartable bool        `json:"restartable"` // Requires server restart to take effect
+	Sensitive   bool        `json:"sensitive"`   // True if value should be encrypted at rest (API keys, secrets)
 
 	// Environment variable awareness
 	EnvVar   string `json:"envVar,omitempty"` // Associated env var name (if any)
@@ -287,6 +288,107 @@ var SystemSettingDefinitions = []Definition{
 		Default:     30,
 		EnvVar:      "SCAN_JOB_RETENTION_MINUTES",
 		Validation:  &Validation{Min: intPtr(5), Max: intPtr(1440)},
+		AdminOnly:   true,
+		Restartable: false,
+	},
+
+	// ============================================================
+	// AI / LLM SETTINGS
+	// ============================================================
+	{
+		Key:         "ai.enabled",
+		Type:        TypeBool,
+		Category:    CategoryAI,
+		Label:       "Enable AI Features",
+		Description: "Enable AI-powered search and recommendations",
+		Default:     false,
+		EnvVar:      "AI_ENABLED",
+		AdminOnly:   true,
+		Restartable: true,
+	},
+	{
+		Key:         "ai.provider",
+		Type:        TypeString,
+		Category:    CategoryAI,
+		Label:       "AI Provider",
+		Description: "Select which AI provider to use for embeddings and search",
+		Default:     "ollama",
+		EnvVar:      "AI_PROVIDER",
+		Options: []Option{
+			{Value: "ollama", Label: "Ollama (Local)"},
+			{Value: "openai", Label: "OpenAI"},
+		},
+		AdminOnly:   true,
+		Restartable: true,
+	},
+	{
+		Key:         "ai.ollama_url",
+		Type:        TypeString,
+		Category:    CategoryAI,
+		Label:       "Ollama Server URL",
+		Description: "URL of the Ollama server (e.g., http://localhost:11434)",
+		Default:     "http://localhost:11434",
+		EnvVar:      "OLLAMA_HOST",
+		AdminOnly:   true,
+		Restartable: true,
+	},
+	{
+		Key:         "ai.ollama_model",
+		Type:        TypeString,
+		Category:    CategoryAI,
+		Label:       "Ollama Model",
+		Description: "Model to use for embeddings and search (recommend nomic-embed-text)",
+		Default:     "nomic-embed-text",
+		EnvVar:      "AI_MODEL",
+		AdminOnly:   true,
+		Restartable: true,
+	},
+	{
+		Key:         "ai.openai_api_key",
+		Type:        TypeString,
+		Category:    CategoryAI,
+		Label:       "OpenAI API Key",
+		Description: "API key for OpenAI (required if using OpenAI provider)",
+		Default:     "",
+		EnvVar:      "OPENAI_API_KEY",
+		AdminOnly:   true,
+		Sensitive:   true,
+		Restartable: true,
+	},
+	{
+		Key:         "ai.openai_model",
+		Type:        TypeString,
+		Category:    CategoryAI,
+		Label:       "OpenAI Model",
+		Description: "OpenAI model to use for embeddings",
+		Default:     "text-embedding-3-small",
+		EnvVar:      "OPENAI_MODEL",
+		Options: []Option{
+			{Value: "text-embedding-3-small", Label: "text-embedding-3-small (fast, cheap)"},
+			{Value: "text-embedding-3-large", Label: "text-embedding-3-large (best quality)"},
+			{Value: "text-embedding-ada-002", Label: "text-embedding-ada-002 (legacy)"},
+		},
+		AdminOnly:   true,
+		Restartable: true,
+	},
+	{
+		Key:         "ai.max_results",
+		Type:        TypeInt,
+		Category:    CategoryAI,
+		Label:       "Maximum Search Results",
+		Description: "Maximum number of results to return from AI search",
+		Default:     20,
+		Validation:  &Validation{Min: intPtr(5), Max: intPtr(100)},
+		AdminOnly:   true,
+		Restartable: false,
+	},
+	{
+		Key:         "ai.similarity_threshold",
+		Type:        TypeString,
+		Category:    CategoryAI,
+		Label:       "Similarity Threshold",
+		Description: "Minimum similarity score for search results (0.0-1.0)",
+		Default:     "0.5",
 		AdminOnly:   true,
 		Restartable: false,
 	},

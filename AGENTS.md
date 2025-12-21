@@ -1,12 +1,16 @@
 # Agent Guidelines
 
 ## Commands
+**ALWAYS use make commands when available.** Run `make help` to see all targets.
+
 ```bash
 make test                              # Run all tests
 go test -v -run TestName ./path/to/pkg # Run single test
 golangci-lint run                      # Go lint
 cd web && npm run lint                 # Frontend lint
 make sqlc-gen                          # Generate DB code after SQL changes
+make swagger-gen                       # Generate Swagger docs (after API changes)
+make api-client-gen                    # Generate TypeScript API client (runs swagger-gen first)
 ```
 
 ## Architecture

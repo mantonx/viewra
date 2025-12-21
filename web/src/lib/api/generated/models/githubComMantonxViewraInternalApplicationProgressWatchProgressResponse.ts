@@ -16,7 +16,8 @@ export interface GithubComMantonxViewraInternalApplicationProgressWatchProgressR
   progress_percentage?: number
   progress_seconds?: number
   selected_audio_track?: number
-  /** Playback preferences (null means no saved preference) */
+  /** Playback preferences (null means no saved preference / use defaults)
+Note: No omitempty - we need to distinguish "never set" from "explicitly null" */
   selected_quality?: string
   selected_subtitle_track?: number
   updated_at?: string

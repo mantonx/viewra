@@ -26,6 +26,7 @@ const (
 	CategoryPlayback    Category = "playback"
 	CategoryUI          Category = "ui"
 	CategorySystem      Category = "system" // Read-only system info
+	CategoryAI          Category = "ai"     // AI/LLM provider settings
 )
 
 // SettingSource indicates where a setting value comes from.
@@ -42,9 +43,9 @@ const (
 type EffectiveValue struct {
 	Value    any           `json:"value"`
 	Source   SettingSource `json:"source"`
-	EnvVar   string        `json:"envVar,omitempty"`   // Env var name if Source is env_var
-	Locked   bool          `json:"locked"`             // True if cannot be changed via UI
-	ReadOnly bool          `json:"readOnly"`           // True for display-only values
+	EnvVar   string        `json:"envVar,omitempty"` // Env var name if Source is env_var
+	Locked   bool          `json:"locked"`           // True if cannot be changed via UI
+	ReadOnly bool          `json:"readOnly"`         // True for display-only values
 }
 
 // SystemSetting represents a system-wide configuration setting.

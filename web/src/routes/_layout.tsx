@@ -4,7 +4,7 @@ import { AudioPlayerProvider, useAudioPlayer } from '@/lib/contexts/AudioPlayerC
 import { AudioPlayer } from '@/components/music'
 import { ErrorBoundary } from '@/components/common'
 import { useAuth } from '@/contexts'
-import { Home, Library, Film, Tv, Music, Clock, Eye, LogOut, User, Users, KeyRound, Settings2, SlidersHorizontal } from 'lucide-react'
+import { Home, Library, Film, Tv, Music, Clock, Eye, LogOut, User, Users, KeyRound, Settings2, SlidersHorizontal, Bot } from 'lucide-react'
 
 // Component that listens to route changes and notifies the audio player
 const RouteChangeListener = () => {
@@ -156,6 +156,14 @@ const Layout = () => {
                   >
                     <Users className="w-5 h-5" />
                     <span>Users</span>
+                  </Link>
+                  <Link
+                    to="/settings/ai"
+                    className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors"
+                    activeProps={{ className: 'bg-neutral-100 dark:bg-white/10' }}
+                  >
+                    <Bot className="w-5 h-5" />
+                    <span>AI</span>
                   </Link>
                   <Link
                     to="/settings/system"

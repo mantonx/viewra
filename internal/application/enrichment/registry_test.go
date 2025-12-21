@@ -51,7 +51,7 @@ func TestRegistry_PrintTable(t *testing.T) {
 	})
 
 	var buf bytes.Buffer
-	registry.PrintTable(&buf)
+	registry.PrintTable(&buf, "Plugins (4 loaded)")
 
 	output := buf.String()
 	t.Logf("Table output:\n%s", output)

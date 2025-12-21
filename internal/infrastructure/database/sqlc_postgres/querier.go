@@ -121,6 +121,7 @@ type Querier interface {
 	DeleteMetadataSource(ctx context.Context, arg DeleteMetadataSourceParams) error
 	DeleteMetadataSourcesByMedia(ctx context.Context, mediaID int32) error
 	DeleteMetadataSourcesByPlugin(ctx context.Context, pluginID string) error
+	DeleteMoodTagsByMediaID(ctx context.Context, mediaID int32) error
 	DeleteMovie(ctx context.Context, mediaID int32) error
 	DeleteMusicTrack(ctx context.Context, mediaID int32) error
 	DeleteOldPlaybackSessions(ctx context.Context, startTime int64) error
@@ -210,6 +211,8 @@ type Querier interface {
 	GetEnrichmentStatusByStage(ctx context.Context, arg GetEnrichmentStatusByStageParams) ([]EnrichmentStatus, error)
 	// Returns full entity info for external ID lookup
 	GetEntityByExternalID(ctx context.Context, arg GetEntityByExternalIDParams) (GetEntityByExternalIDRow, error)
+	// Returns episode details with the parent show's title for AI indexing
+	GetEpisodeWithShowTitle(ctx context.Context, mediaID int32) (GetEpisodeWithShowTitleRow, error)
 	GetExternalID(ctx context.Context, arg GetExternalIDParams) (MediaExternalID, error)
 	// Gets external IDs by media_type and entity_id (polymorphic)
 	GetExternalIDsByMedia(ctx context.Context, arg GetExternalIDsByMediaParams) ([]MediaExternalID, error)
@@ -243,6 +246,7 @@ type Querier interface {
 	GetMetadataSource(ctx context.Context, arg GetMetadataSourceParams) (MediaMetadataSource, error)
 	GetMetadataSourcesByField(ctx context.Context, arg GetMetadataSourcesByFieldParams) ([]MediaMetadataSource, error)
 	GetMetadataSourcesByMedia(ctx context.Context, mediaID int32) ([]MediaMetadataSource, error)
+	GetMoodTagsByMediaID(ctx context.Context, mediaID int32) ([]GetMoodTagsByMediaIDRow, error)
 	GetMovieByMediaID(ctx context.Context, mediaID int32) (GetMovieByMediaIDRow, error)
 	GetMusicTrackByMediaID(ctx context.Context, mediaID int32) (GetMusicTrackByMediaIDRow, error)
 	GetNextPipelinePosition(ctx context.Context, mediaType string) (int32, error)
@@ -330,6 +334,7 @@ type Querier interface {
 	IncrementSeasonEpisodeCount(ctx context.Context, id int32) error
 	// Audio and subtitle track queries for multi-language support
 	InsertAudioTrack(ctx context.Context, arg InsertAudioTrackParams) (InsertAudioTrackRow, error)
+	InsertMoodTag(ctx context.Context, arg InsertMoodTagParams) error
 	InsertSubtitleTrack(ctx context.Context, arg InsertSubtitleTrackParams) (InsertSubtitleTrackRow, error)
 	LibraryExistsByID(ctx context.Context, id int32) (bool, error)
 	LibraryExistsByPath(ctx context.Context, path string) (bool, error)

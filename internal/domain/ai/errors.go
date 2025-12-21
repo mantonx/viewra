@@ -38,4 +38,7 @@ var (
 
 	// ErrNoEmbeddingsFound is returned when no embeddings exist for semantic search.
 	ErrNoEmbeddingsFound = errors.New("no embeddings found, please run indexing first")
+
+	// ErrUnsupportedEntityType is returned when the entity type is not supported.
+	ErrUnsupportedEntityType = errors.New("unsupported entity type")
 )

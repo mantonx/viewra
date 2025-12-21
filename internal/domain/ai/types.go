@@ -169,3 +169,14 @@ const (
 // changes frequently. If cost tracking is needed, implement a separate
 // pricing service that fetches current rates from OpenRouter's API or
 // uses user-configured rates stored in ai_settings.
+
+// PullProgress represents progress during a model pull operation.
+type PullProgress struct {
+	Status    string  `json:"status"`              // "pulling manifest", "downloading", "verifying", etc.
+	Digest    string  `json:"digest,omitempty"`    // Layer digest being pulled
+	Total     int64   `json:"total,omitempty"`     // Total bytes to download
+	Completed int64   `json:"completed,omitempty"` // Bytes downloaded so far
+	Percent   float64 `json:"percent,omitempty"`   // Completion percentage (0-100)
+	Done      bool    `json:"done"`                // True when pull is complete
+	Error     string  `json:"error,omitempty"`     // Error message if failed
+}
