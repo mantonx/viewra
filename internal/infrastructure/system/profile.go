@@ -6,7 +6,7 @@ import "time"
 type StorageType string
 
 const (
-	StorageTypeUnknown StorageType = "unknown"
+	StorageTypeUnknown  StorageType = "unknown"
 	StorageTypeLocalSSD StorageType = "local-ssd"
 	StorageTypeLocalHDD StorageType = "local-hdd"
 	StorageTypeNetwork  StorageType = "network" // CIFS, NFS, SMB
@@ -54,40 +54,41 @@ type StorageProfile struct {
 
 // GPUProfile contains GPU hardware acceleration information
 type GPUProfile struct {
-	Type         GPUType  // Detected GPU type
-	Available    bool     // True if hardware acceleration is available
-	DeviceCount  int      // Number of GPU devices detected
-	DeviceNames  []string // Names of detected GPU devices
+	Type        GPUType  // Detected GPU type
+	Available   bool     // True if hardware acceleration is available
+	DeviceCount int      // Number of GPU devices detected
+	DeviceNames []string // Names of detected GPU devices
+	VRAMBytes   uint64   // Total VRAM in bytes (0 if unknown)
 
 	// Transcoding capabilities
-	HasVAAPI     bool // Intel/AMD Video Acceleration API (Linux)
-	HasOpenCL    bool // OpenCL compute support
-	HasVulkan    bool // Vulkan compute support
+	HasVAAPI  bool // Intel/AMD Video Acceleration API (Linux)
+	HasOpenCL bool // OpenCL compute support
+	HasVulkan bool // Vulkan compute support
 }
 
 // RecommendedSettings contains optimized settings based on system profile
 type RecommendedSettings struct {
 	// Scanner settings
-	ScanWalkers          int // Number of concurrent directory walkers (0 = sequential)
-	HashWorkers          int // Number of concurrent file hash workers
-	ProcessingWorkers    int // Number of concurrent metadata processing workers
-	CheckpointBatchSize  int // Batch size for checkpoint inserts
-	ChannelBufferSize    int // Buffer size for channels
+	ScanWalkers         int // Number of concurrent directory walkers (0 = sequential)
+	HashWorkers         int // Number of concurrent file hash workers
+	ProcessingWorkers   int // Number of concurrent metadata processing workers
+	CheckpointBatchSize int // Batch size for checkpoint inserts
+	ChannelBufferSize   int // Buffer size for channels
 
 	// Transcode settings
-	TranscodeWorkers     int    // Number of concurrent transcode workers
-	HardwareAccel        string // Hardware acceleration type for transcoding
+	TranscodeWorkers int    // Number of concurrent transcode workers
+	HardwareAccel    string // Hardware acceleration type for transcoding
 
 	// Memory settings
-	EnableLargeBuffers   bool // Enable larger buffers if sufficient memory
-	ImageCacheSizeMB     int  // Size of image cache in MB
+	EnableLargeBuffers bool // Enable larger buffers if sufficient memory
+	ImageCacheSizeMB   int  // Size of image cache in MB
 }
 
 // Calculate returns recommended settings based on the system profile
 func (p *Profile) Calculate() RecommendedSettings {
 	settings := RecommendedSettings{
-		CheckpointBatchSize: 10,  // Good default for immediate availability
-		ChannelBufferSize:   50,  // Reduced to lower memory usage for concurrent scans
+		CheckpointBatchSize: 10, // Good default for immediate availability
+		ChannelBufferSize:   50, // Reduced to lower memory usage for concurrent scans
 	}
 
 	// Calculate scan walkers based on storage type

@@ -2,25 +2,16 @@
 package internal
 
 // Config holds the AI Search plugin configuration.
+// Provider settings (embedding/chat) are configured in ViewRA's AI settings.
 type Config struct {
-	Embedding EmbeddingConfig `yaml:"embedding" json:"embedding"`
-	Indexing  IndexingConfig  `yaml:"indexing" json:"indexing"`
-	Search    SearchConfig    `yaml:"search" json:"search"`
-	MoodTags  MoodTagConfig   `yaml:"mood_tags" json:"mood_tags"`
+	Indexing IndexingConfig `yaml:"indexing" json:"indexing"`
+	Search   SearchConfig   `yaml:"search" json:"search"`
+	MoodTags MoodTagConfig  `yaml:"mood_tags" json:"mood_tags"`
 }
 
 // MoodTagConfig configures mood tag generation.
 type MoodTagConfig struct {
-	Provider string `yaml:"provider" json:"provider"` // LLM provider for chat completions
-	Model    string `yaml:"model" json:"model"`       // LLM model (e.g., "llama3.1:8b", "gpt-4o-mini")
-	Enabled  bool   `yaml:"enabled" json:"enabled"`   // Whether mood tag generation is enabled
-}
-
-// EmbeddingConfig configures embedding generation.
-type EmbeddingConfig struct {
-	Provider         string `yaml:"provider" json:"provider"`
-	Model            string `yaml:"model" json:"model"`
-	TargetDimensions int    `yaml:"target_dimensions" json:"target_dimensions"`
+	Enabled bool `yaml:"enabled" json:"enabled"` // Whether mood tag generation is enabled
 }
 
 // IndexingConfig configures media indexing behavior.

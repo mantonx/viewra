@@ -12,6 +12,7 @@ const (
 	ProviderOpenRouter ProviderType = "openrouter"
 	ProviderOpenAI     ProviderType = "openai"
 	ProviderAnthropic  ProviderType = "anthropic"
+	ProviderVoyage     ProviderType = "voyage"
 )
 
 // String returns the string representation of the provider type.
@@ -21,6 +22,26 @@ func (p ProviderType) String() string {
 
 // IsValid checks if the provider type is valid.
 func (p ProviderType) IsValid() bool {
+	switch p {
+	case ProviderOllama, ProviderOpenRouter, ProviderOpenAI, ProviderAnthropic, ProviderVoyage:
+		return true
+	default:
+		return false
+	}
+}
+
+// SupportsEmbeddings returns true if the provider supports embedding generation.
+func (p ProviderType) SupportsEmbeddings() bool {
+	switch p {
+	case ProviderOllama, ProviderOpenAI, ProviderVoyage:
+		return true
+	default:
+		return false
+	}
+}
+
+// SupportsChat returns true if the provider supports chat completion.
+func (p ProviderType) SupportsChat() bool {
 	switch p {
 	case ProviderOllama, ProviderOpenRouter, ProviderOpenAI, ProviderAnthropic:
 		return true

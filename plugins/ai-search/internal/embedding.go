@@ -10,39 +10,33 @@ import (
 )
 
 // EmbeddingService handles embedding generation via the host's LLM service.
+// Provider and model selection is handled by the host based on AI settings.
 type EmbeddingService struct {
 	llmClient        pluginv1.HostLLMClient
-	provider         string
-	model            string
 	targetDimensions int
 	logger           *slog.Logger
 }
 
 // NewEmbeddingService creates a new embedding service.
-func NewEmbeddingService(llmClient pluginv1.HostLLMClient, config EmbeddingConfig, logger *slog.Logger) *EmbeddingService {
-	targetDim := config.TargetDimensions
-	if targetDim <= 0 {
-		targetDim = 768 // Default
-	}
+// The host determines which embedding provider/model to use based on AI settings.
+func NewEmbeddingService(llmClient pluginv1.HostLLMClient, logger *slog.Logger) *EmbeddingService {
 	return &EmbeddingService{
 		llmClient:        llmClient,
-		provider:         config.Provider,
-		model:            config.Model,
-		targetDimensions: targetDim,
+		targetDimensions: 768, // Standard dimension for most embedding models
 		logger:           logger,
 	}
 }
 
 // EmbedSingle generates an embedding for a single text.
+// Uses the embedding provider configured in the host's AI settings.
 func (s *EmbeddingService) EmbedSingle(ctx context.Context, text string) ([]float32, error) {
 	if s.llmClient == nil {
 		return nil, fmt.Errorf("LLM client not available")
 	}
 
+	// Empty provider/model uses host defaults from AI settings
 	resp, err := s.llmClient.GenerateEmbedding(ctx, &pluginv1.EmbeddingRequest{
-		Text:     text,
-		Provider: s.provider,
-		Model:    s.model,
+		Text: text,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("generate embedding: %w", err)
@@ -57,15 +51,15 @@ func (s *EmbeddingService) EmbedSingle(ctx context.Context, text string) ([]floa
 }
 
 // EmbedBatch generates embeddings for multiple texts.
+// Uses the embedding provider configured in the host's AI settings.
 func (s *EmbeddingService) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
 	if s.llmClient == nil {
 		return nil, fmt.Errorf("LLM client not available")
 	}
 
+	// Empty provider/model uses host defaults from AI settings
 	resp, err := s.llmClient.GenerateEmbeddingBatch(ctx, &pluginv1.EmbeddingBatchRequest{
-		Texts:    texts,
-		Provider: s.provider,
-		Model:    s.model,
+		Texts: texts,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("generate embeddings: %w", err)

@@ -271,9 +271,10 @@ type Querier interface {
 	GetPipelineStageByPlugin(ctx context.Context, arg GetPipelineStageByPluginParams) (EnrichmentPipeline, error)
 	GetPlaybackSessionByID(ctx context.Context, sessionID string) (PlaybackSession, error)
 	GetPlaybackSummaryByMediaID(ctx context.Context, mediaID int64) (GetPlaybackSummaryByMediaIDRow, error)
-	GetPlugin(ctx context.Context, id string) (Plugin, error)
+	GetPlugin(ctx context.Context, id string) (GetPluginRow, error)
 	GetPluginAPIKey(ctx context.Context, id string) (PluginApiKey, error)
 	GetPluginAPIKeyByHash(ctx context.Context, keyHash string) (PluginApiKey, error)
+	GetPluginSettings(ctx context.Context, id string) (sql.NullString, error)
 	GetPluginUserMetadata(ctx context.Context, arg GetPluginUserMetadataParams) (GetPluginUserMetadataRow, error)
 	GetQualitySwitchStats(ctx context.Context, mediaID int64) (GetQualitySwitchStatsRow, error)
 	GetRetryableEnrichmentJobs(ctx context.Context, arg GetRetryableEnrichmentJobsParams) ([]EnrichmentQueue, error)
@@ -350,7 +351,7 @@ type Querier interface {
 	ListArtistIDsByLibraryPaginated(ctx context.Context, arg ListArtistIDsByLibraryPaginatedParams) ([]int64, error)
 	ListArtistIDsByLibraryPaginatedDesc(ctx context.Context, arg ListArtistIDsByLibraryPaginatedDescParams) ([]int64, error)
 	ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]MusicArtist, error)
-	ListEnabledPlugins(ctx context.Context) ([]Plugin, error)
+	ListEnabledPlugins(ctx context.Context) ([]ListEnabledPluginsRow, error)
 	ListFailedScanCheckpoints(ctx context.Context, arg ListFailedScanCheckpointsParams) ([]ScanCheckpoint, error)
 	ListImagesByEntity(ctx context.Context, arg ListImagesByEntityParams) ([]MediaImage, error)
 	ListImagesByMediaID(ctx context.Context, mediaID sql.NullInt64) ([]MediaImage, error)
@@ -381,8 +382,8 @@ type Querier interface {
 	ListPlaybackSessionsByMediaID(ctx context.Context, arg ListPlaybackSessionsByMediaIDParams) ([]PlaybackSession, error)
 	ListPluginAPIKeys(ctx context.Context, pluginID string) ([]PluginApiKey, error)
 	ListPluginUserMetadataKeys(ctx context.Context, arg ListPluginUserMetadataKeysParams) ([]string, error)
-	ListPlugins(ctx context.Context) ([]Plugin, error)
-	ListPluginsByCategory(ctx context.Context, dollar_1 sql.NullString) ([]Plugin, error)
+	ListPlugins(ctx context.Context) ([]ListPluginsRow, error)
+	ListPluginsByCategory(ctx context.Context, dollar_1 sql.NullString) ([]ListPluginsByCategoryRow, error)
 	ListProcessingTranscodeJobs(ctx context.Context) ([]TranscodeJob, error)
 	ListQualitySwitchEventsBySessionID(ctx context.Context, sessionID string) ([]QualitySwitchEvent, error)
 	ListQueuedTranscodeJobs(ctx context.Context, limit int64) ([]TranscodeJob, error)
@@ -457,6 +458,8 @@ type Querier interface {
 	UpdatePipelineStagePosition(ctx context.Context, arg UpdatePipelineStagePositionParams) error
 	UpdatePlugin(ctx context.Context, arg UpdatePluginParams) error
 	UpdatePluginHealth(ctx context.Context, arg UpdatePluginHealthParams) error
+	UpdatePluginSettings(ctx context.Context, arg UpdatePluginSettingsParams) error
+	UpdatePluginSettingsSchema(ctx context.Context, arg UpdatePluginSettingsSchemaParams) error
 	UpdateScanCheckpointRetryCount(ctx context.Context, arg UpdateScanCheckpointRetryCountParams) error
 	UpdateScanCheckpointStatus(ctx context.Context, arg UpdateScanCheckpointStatusParams) error
 	UpdateScanJobProgress(ctx context.Context, arg UpdateScanJobProgressParams) error

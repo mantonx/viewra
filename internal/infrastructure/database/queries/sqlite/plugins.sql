@@ -2,6 +2,7 @@
 SELECT id, name, version, description, author, license, homepage,
        categories, is_builtin, enabled, path,
        health_status, last_heartbeat, restart_count,
+       settings, settings_schema,
        installed_at, updated_at
 FROM plugins
 WHERE id = ?;
@@ -10,6 +11,7 @@ WHERE id = ?;
 SELECT id, name, version, description, author, license, homepage,
        categories, is_builtin, enabled, path,
        health_status, last_heartbeat, restart_count,
+       settings, settings_schema,
        installed_at, updated_at
 FROM plugins
 ORDER BY is_builtin DESC, name;
@@ -18,6 +20,7 @@ ORDER BY is_builtin DESC, name;
 SELECT id, name, version, description, author, license, homepage,
        categories, is_builtin, enabled, path,
        health_status, last_heartbeat, restart_count,
+       settings, settings_schema,
        installed_at, updated_at
 FROM plugins
 WHERE enabled = 1
@@ -27,6 +30,7 @@ ORDER BY is_builtin DESC, name;
 SELECT id, name, version, description, author, license, homepage,
        categories, is_builtin, enabled, path,
        health_status, last_heartbeat, restart_count,
+       settings, settings_schema,
        installed_at, updated_at
 FROM plugins
 WHERE categories LIKE '%' || ? || '%'
@@ -101,3 +105,18 @@ ON CONFLICT(id) DO UPDATE SET
     categories = excluded.categories,
     path = excluded.path,
     updated_at = datetime('now');
+
+-- name: GetPluginSettings :one
+SELECT settings FROM plugins WHERE id = ?;
+
+-- name: UpdatePluginSettings :exec
+UPDATE plugins SET
+    settings = ?,
+    updated_at = datetime('now')
+WHERE id = ?;
+
+-- name: UpdatePluginSettingsSchema :exec
+UPDATE plugins SET
+    settings_schema = ?,
+    updated_at = datetime('now')
+WHERE id = ?;

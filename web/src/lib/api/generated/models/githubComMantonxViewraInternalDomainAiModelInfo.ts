@@ -5,12 +5,18 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
+import type { GithubComMantonxViewraInternalDomainAiCostTier } from './githubComMantonxViewraInternalDomainAiCostTier'
 
 export interface GithubComMantonxViewraInternalDomainAiModelInfo {
+  /** For chat models */
   contextSize?: number
+  costTier?: GithubComMantonxViewraInternalDomainAiCostTier
   description?: string
+  /** For embedding models */
+  dimensions?: number
   id?: string
   isChat?: boolean
   isEmbedding?: boolean
   name?: string
+  recommended?: boolean
 }

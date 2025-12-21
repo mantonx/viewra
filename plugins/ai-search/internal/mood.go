@@ -14,11 +14,10 @@ import (
 )
 
 // MoodTagService generates mood/vibe tags for media using LLM.
+// Uses the chat provider configured in the host's AI settings.
 type MoodTagService struct {
 	llmClient  pluginv1.HostLLMClient
 	dataClient pluginv1.HostDataClient
-	provider   string
-	model      string
 	logger     *slog.Logger
 
 	// Generation state
@@ -48,17 +47,15 @@ type MoodTags struct {
 }
 
 // NewMoodTagService creates a new mood tag service.
+// The host determines which chat provider/model to use based on AI settings.
 func NewMoodTagService(
 	llmClient pluginv1.HostLLMClient,
 	dataClient pluginv1.HostDataClient,
-	provider, model string,
 	logger *slog.Logger,
 ) *MoodTagService {
 	return &MoodTagService{
 		llmClient:  llmClient,
 		dataClient: dataClient,
-		provider:   provider,
-		model:      model,
 		logger:     logger,
 	}
 }
@@ -77,6 +74,7 @@ func (s *MoodTagService) GenerateForMedia(
 		return nil, fmt.Errorf("insufficient metadata for mood tag generation")
 	}
 
+	// Empty provider/model uses host defaults from AI settings
 	resp, err := s.llmClient.Chat(ctx, &pluginv1.ChatRequest{
 		Messages: []*pluginv1.ChatMessage{
 			{
@@ -88,8 +86,6 @@ func (s *MoodTagService) GenerateForMedia(
 				Content: prompt,
 			},
 		},
-		Provider:    s.provider,
-		Model:       s.model,
 		Temperature: 0.3, // Low temperature for consistent results
 		MaxTokens:   100, // Tags should be short
 	})

@@ -87,14 +87,36 @@ const getPlugin = `-- name: GetPlugin :one
 SELECT id, name, version, description, author, license, homepage,
        categories, is_builtin, enabled, path,
        health_status, last_heartbeat, restart_count,
+       settings, settings_schema,
        installed_at, updated_at
 FROM plugins
 WHERE id = ?
 `
 
-func (q *Queries) GetPlugin(ctx context.Context, id string) (Plugin, error) {
+type GetPluginRow struct {
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Version        string         `json:"version"`
+	Description    sql.NullString `json:"description"`
+	Author         sql.NullString `json:"author"`
+	License        sql.NullString `json:"license"`
+	Homepage       sql.NullString `json:"homepage"`
+	Categories     string         `json:"categories"`
+	IsBuiltin      sql.NullInt64  `json:"is_builtin"`
+	Enabled        sql.NullInt64  `json:"enabled"`
+	Path           sql.NullString `json:"path"`
+	HealthStatus   sql.NullString `json:"health_status"`
+	LastHeartbeat  sql.NullString `json:"last_heartbeat"`
+	RestartCount   sql.NullInt64  `json:"restart_count"`
+	Settings       sql.NullString `json:"settings"`
+	SettingsSchema sql.NullString `json:"settings_schema"`
+	InstalledAt    string         `json:"installed_at"`
+	UpdatedAt      string         `json:"updated_at"`
+}
+
+func (q *Queries) GetPlugin(ctx context.Context, id string) (GetPluginRow, error) {
 	row := q.db.QueryRowContext(ctx, getPlugin, id)
-	var i Plugin
+	var i GetPluginRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -110,10 +132,23 @@ func (q *Queries) GetPlugin(ctx context.Context, id string) (Plugin, error) {
 		&i.HealthStatus,
 		&i.LastHeartbeat,
 		&i.RestartCount,
+		&i.Settings,
+		&i.SettingsSchema,
 		&i.InstalledAt,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getPluginSettings = `-- name: GetPluginSettings :one
+SELECT settings FROM plugins WHERE id = ?
+`
+
+func (q *Queries) GetPluginSettings(ctx context.Context, id string) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getPluginSettings, id)
+	var settings sql.NullString
+	err := row.Scan(&settings)
+	return settings, err
 }
 
 const incrementPluginRestartCount = `-- name: IncrementPluginRestartCount :exec
@@ -132,21 +167,43 @@ const listEnabledPlugins = `-- name: ListEnabledPlugins :many
 SELECT id, name, version, description, author, license, homepage,
        categories, is_builtin, enabled, path,
        health_status, last_heartbeat, restart_count,
+       settings, settings_schema,
        installed_at, updated_at
 FROM plugins
 WHERE enabled = 1
 ORDER BY is_builtin DESC, name
 `
 
-func (q *Queries) ListEnabledPlugins(ctx context.Context) ([]Plugin, error) {
+type ListEnabledPluginsRow struct {
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Version        string         `json:"version"`
+	Description    sql.NullString `json:"description"`
+	Author         sql.NullString `json:"author"`
+	License        sql.NullString `json:"license"`
+	Homepage       sql.NullString `json:"homepage"`
+	Categories     string         `json:"categories"`
+	IsBuiltin      sql.NullInt64  `json:"is_builtin"`
+	Enabled        sql.NullInt64  `json:"enabled"`
+	Path           sql.NullString `json:"path"`
+	HealthStatus   sql.NullString `json:"health_status"`
+	LastHeartbeat  sql.NullString `json:"last_heartbeat"`
+	RestartCount   sql.NullInt64  `json:"restart_count"`
+	Settings       sql.NullString `json:"settings"`
+	SettingsSchema sql.NullString `json:"settings_schema"`
+	InstalledAt    string         `json:"installed_at"`
+	UpdatedAt      string         `json:"updated_at"`
+}
+
+func (q *Queries) ListEnabledPlugins(ctx context.Context) ([]ListEnabledPluginsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listEnabledPlugins)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Plugin{}
+	items := []ListEnabledPluginsRow{}
 	for rows.Next() {
-		var i Plugin
+		var i ListEnabledPluginsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -162,6 +219,8 @@ func (q *Queries) ListEnabledPlugins(ctx context.Context) ([]Plugin, error) {
 			&i.HealthStatus,
 			&i.LastHeartbeat,
 			&i.RestartCount,
+			&i.Settings,
+			&i.SettingsSchema,
 			&i.InstalledAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -182,20 +241,42 @@ const listPlugins = `-- name: ListPlugins :many
 SELECT id, name, version, description, author, license, homepage,
        categories, is_builtin, enabled, path,
        health_status, last_heartbeat, restart_count,
+       settings, settings_schema,
        installed_at, updated_at
 FROM plugins
 ORDER BY is_builtin DESC, name
 `
 
-func (q *Queries) ListPlugins(ctx context.Context) ([]Plugin, error) {
+type ListPluginsRow struct {
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Version        string         `json:"version"`
+	Description    sql.NullString `json:"description"`
+	Author         sql.NullString `json:"author"`
+	License        sql.NullString `json:"license"`
+	Homepage       sql.NullString `json:"homepage"`
+	Categories     string         `json:"categories"`
+	IsBuiltin      sql.NullInt64  `json:"is_builtin"`
+	Enabled        sql.NullInt64  `json:"enabled"`
+	Path           sql.NullString `json:"path"`
+	HealthStatus   sql.NullString `json:"health_status"`
+	LastHeartbeat  sql.NullString `json:"last_heartbeat"`
+	RestartCount   sql.NullInt64  `json:"restart_count"`
+	Settings       sql.NullString `json:"settings"`
+	SettingsSchema sql.NullString `json:"settings_schema"`
+	InstalledAt    string         `json:"installed_at"`
+	UpdatedAt      string         `json:"updated_at"`
+}
+
+func (q *Queries) ListPlugins(ctx context.Context) ([]ListPluginsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listPlugins)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Plugin{}
+	items := []ListPluginsRow{}
 	for rows.Next() {
-		var i Plugin
+		var i ListPluginsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -211,6 +292,8 @@ func (q *Queries) ListPlugins(ctx context.Context) ([]Plugin, error) {
 			&i.HealthStatus,
 			&i.LastHeartbeat,
 			&i.RestartCount,
+			&i.Settings,
+			&i.SettingsSchema,
 			&i.InstalledAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -231,21 +314,43 @@ const listPluginsByCategory = `-- name: ListPluginsByCategory :many
 SELECT id, name, version, description, author, license, homepage,
        categories, is_builtin, enabled, path,
        health_status, last_heartbeat, restart_count,
+       settings, settings_schema,
        installed_at, updated_at
 FROM plugins
 WHERE categories LIKE '%' || ? || '%'
 ORDER BY is_builtin DESC, name
 `
 
-func (q *Queries) ListPluginsByCategory(ctx context.Context, dollar_1 sql.NullString) ([]Plugin, error) {
+type ListPluginsByCategoryRow struct {
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Version        string         `json:"version"`
+	Description    sql.NullString `json:"description"`
+	Author         sql.NullString `json:"author"`
+	License        sql.NullString `json:"license"`
+	Homepage       sql.NullString `json:"homepage"`
+	Categories     string         `json:"categories"`
+	IsBuiltin      sql.NullInt64  `json:"is_builtin"`
+	Enabled        sql.NullInt64  `json:"enabled"`
+	Path           sql.NullString `json:"path"`
+	HealthStatus   sql.NullString `json:"health_status"`
+	LastHeartbeat  sql.NullString `json:"last_heartbeat"`
+	RestartCount   sql.NullInt64  `json:"restart_count"`
+	Settings       sql.NullString `json:"settings"`
+	SettingsSchema sql.NullString `json:"settings_schema"`
+	InstalledAt    string         `json:"installed_at"`
+	UpdatedAt      string         `json:"updated_at"`
+}
+
+func (q *Queries) ListPluginsByCategory(ctx context.Context, dollar_1 sql.NullString) ([]ListPluginsByCategoryRow, error) {
 	rows, err := q.db.QueryContext(ctx, listPluginsByCategory, dollar_1)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Plugin{}
+	items := []ListPluginsByCategoryRow{}
 	for rows.Next() {
-		var i Plugin
+		var i ListPluginsByCategoryRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -261,6 +366,8 @@ func (q *Queries) ListPluginsByCategory(ctx context.Context, dollar_1 sql.NullSt
 			&i.HealthStatus,
 			&i.LastHeartbeat,
 			&i.RestartCount,
+			&i.Settings,
+			&i.SettingsSchema,
 			&i.InstalledAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -356,6 +463,40 @@ type UpdatePluginHealthParams struct {
 
 func (q *Queries) UpdatePluginHealth(ctx context.Context, arg UpdatePluginHealthParams) error {
 	_, err := q.db.ExecContext(ctx, updatePluginHealth, arg.HealthStatus, arg.ID)
+	return err
+}
+
+const updatePluginSettings = `-- name: UpdatePluginSettings :exec
+UPDATE plugins SET
+    settings = ?,
+    updated_at = datetime('now')
+WHERE id = ?
+`
+
+type UpdatePluginSettingsParams struct {
+	Settings sql.NullString `json:"settings"`
+	ID       string         `json:"id"`
+}
+
+func (q *Queries) UpdatePluginSettings(ctx context.Context, arg UpdatePluginSettingsParams) error {
+	_, err := q.db.ExecContext(ctx, updatePluginSettings, arg.Settings, arg.ID)
+	return err
+}
+
+const updatePluginSettingsSchema = `-- name: UpdatePluginSettingsSchema :exec
+UPDATE plugins SET
+    settings_schema = ?,
+    updated_at = datetime('now')
+WHERE id = ?
+`
+
+type UpdatePluginSettingsSchemaParams struct {
+	SettingsSchema sql.NullString `json:"settings_schema"`
+	ID             string         `json:"id"`
+}
+
+func (q *Queries) UpdatePluginSettingsSchema(ctx context.Context, arg UpdatePluginSettingsSchemaParams) error {
+	_, err := q.db.ExecContext(ctx, updatePluginSettingsSchema, arg.SettingsSchema, arg.ID)
 	return err
 }
 

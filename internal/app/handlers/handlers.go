@@ -148,6 +148,14 @@ func BuildHandlers(
 	if svcs.Settings != nil {
 		settingsHandler = handlers.NewSettingsHandler(svcs.Settings)
 		aiSettingsHandler = handlers.NewAISettingsHandler(svcs.Settings, svcs.EventBus)
+		// Provide system info for AI model recommendations
+		aiSettingsHandler.SetSystemInfoProvider(func() (ramBytes, vramBytes uint64) {
+			profile := svcs.Settings.GetSystemProfile()
+			if profile == nil {
+				return 0, 0
+			}
+			return profile.Memory.TotalBytes, profile.GPU.VRAMBytes
+		})
 	}
 
 	// Enrichment handler

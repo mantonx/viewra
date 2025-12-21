@@ -9,13 +9,6 @@ import (
 	"time"
 )
 
-type AiSetting struct {
-	ID        int64        `json:"id"`
-	Key       string       `json:"key"`
-	Value     string       `json:"value"`
-	UpdatedAt sql.NullTime `json:"updated_at"`
-}
-
 type AiUsage struct {
 	ID               int64         `json:"id"`
 	UserID           string        `json:"user_id"`
@@ -372,22 +365,24 @@ type PlaybackSession struct {
 }
 
 type Plugin struct {
-	ID            string         `json:"id"`
-	Name          string         `json:"name"`
-	Version       string         `json:"version"`
-	Description   sql.NullString `json:"description"`
-	Author        sql.NullString `json:"author"`
-	License       sql.NullString `json:"license"`
-	Homepage      sql.NullString `json:"homepage"`
-	Categories    string         `json:"categories"`
-	IsBuiltin     sql.NullInt64  `json:"is_builtin"`
-	Enabled       sql.NullInt64  `json:"enabled"`
-	Path          sql.NullString `json:"path"`
-	HealthStatus  sql.NullString `json:"health_status"`
-	LastHeartbeat sql.NullString `json:"last_heartbeat"`
-	RestartCount  sql.NullInt64  `json:"restart_count"`
-	InstalledAt   string         `json:"installed_at"`
-	UpdatedAt     string         `json:"updated_at"`
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Version        string         `json:"version"`
+	Description    sql.NullString `json:"description"`
+	Author         sql.NullString `json:"author"`
+	License        sql.NullString `json:"license"`
+	Homepage       sql.NullString `json:"homepage"`
+	Categories     string         `json:"categories"`
+	IsBuiltin      sql.NullInt64  `json:"is_builtin"`
+	Enabled        sql.NullInt64  `json:"enabled"`
+	Path           sql.NullString `json:"path"`
+	HealthStatus   sql.NullString `json:"health_status"`
+	LastHeartbeat  sql.NullString `json:"last_heartbeat"`
+	RestartCount   sql.NullInt64  `json:"restart_count"`
+	InstalledAt    string         `json:"installed_at"`
+	UpdatedAt      string         `json:"updated_at"`
+	Settings       sql.NullString `json:"settings"`
+	SettingsSchema sql.NullString `json:"settings_schema"`
 }
 
 type PluginApiKey struct {

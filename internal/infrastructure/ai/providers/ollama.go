@@ -2,13 +2,15 @@
 package providers
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
+
+	"github.com/ollama/ollama/api"
 
 	"github.com/mantonx/viewra/internal/domain/ai"
 )
@@ -18,24 +20,36 @@ const (
 	ollamaTimeout        = 120 * time.Second
 )
 
-// OllamaProvider implements LLMProvider and EmbeddingProvider for Ollama.
+// OllamaProvider implements LLMProvider and EmbeddingProvider using the official Ollama SDK.
 type OllamaProvider struct {
-	baseURL    string
-	model      string
-	httpClient *http.Client
+	client  *api.Client
+	model   string
+	baseURL string
 }
 
-// NewOllamaProvider creates a new Ollama provider.
+// NewOllamaProvider creates a new Ollama provider using the official SDK.
 func NewOllamaProvider(baseURL, model string) *OllamaProvider {
 	if baseURL == "" {
 		baseURL = defaultOllamaBaseURL
 	}
+
+	// Parse the base URL for the SDK client
+	parsedURL, err := url.Parse(baseURL)
+	if err != nil {
+		parsedURL, _ = url.Parse(defaultOllamaBaseURL)
+	}
+
+	// Create HTTP client with timeout
+	httpClient := &http.Client{
+		Timeout: ollamaTimeout,
+	}
+
+	client := api.NewClient(parsedURL, httpClient)
+
 	return &OllamaProvider{
-		baseURL: baseURL,
+		client:  client,
 		model:   model,
-		httpClient: &http.Client{
-			Timeout: ollamaTimeout,
-		},
+		baseURL: baseURL,
 	}
 }
 
@@ -49,137 +63,87 @@ func (p *OllamaProvider) Model() string {
 	return p.model
 }
 
-// Chat sends a chat completion request.
+// Chat sends a chat completion request using the Ollama SDK.
 func (p *OllamaProvider) Chat(ctx context.Context, req ai.ChatRequest) (*ai.ChatResponse, error) {
-	ollamaReq := ollamaChatRequest{
-		Model:    p.model,
-		Messages: make([]ollamaMessage, len(req.Messages)),
-		Stream:   false,
-		Options: ollamaOptions{
-			Temperature: req.Temperature,
-			NumPredict:  req.MaxTokens,
-		},
-	}
-
+	messages := make([]api.Message, len(req.Messages))
 	for i, msg := range req.Messages {
-		ollamaReq.Messages[i] = ollamaMessage{
+		messages[i] = api.Message{
 			Role:    string(msg.Role),
 			Content: msg.Content,
 		}
 	}
 
-	body, err := json.Marshal(ollamaReq)
+	ollamaReq := &api.ChatRequest{
+		Model:    p.model,
+		Messages: messages,
+		Stream:   boolPtr(false),
+		Options: map[string]any{
+			"temperature": req.Temperature,
+			"num_predict": req.MaxTokens,
+		},
+	}
+
+	var response api.ChatResponse
+	err := p.client.Chat(ctx, ollamaReq, func(resp api.ChatResponse) error {
+		response = resp
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/api/chat", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := p.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ai.ErrProviderUnavailable, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("ollama error (status %d): %s", resp.StatusCode, string(respBody))
-	}
-
-	var ollamaResp ollamaChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&ollamaResp); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, p.mapError(err)
 	}
 
 	return &ai.ChatResponse{
-		Content:      ollamaResp.Message.Content,
-		FinishReason: ollamaResp.DoneReason,
+		Content:      response.Message.Content,
+		FinishReason: response.DoneReason,
 		Usage: ai.TokenUsage{
-			PromptTokens:     ollamaResp.PromptEvalCount,
-			CompletionTokens: ollamaResp.EvalCount,
-			TotalTokens:      ollamaResp.PromptEvalCount + ollamaResp.EvalCount,
+			PromptTokens:     response.PromptEvalCount,
+			CompletionTokens: response.EvalCount,
+			TotalTokens:      response.PromptEvalCount + response.EvalCount,
 		},
 	}, nil
 }
 
-// ChatStream sends a streaming chat completion request.
+// ChatStream sends a streaming chat completion request using the Ollama SDK.
 func (p *OllamaProvider) ChatStream(ctx context.Context, req ai.ChatRequest) (<-chan ai.ChatStreamEvent, error) {
-	ollamaReq := ollamaChatRequest{
-		Model:    p.model,
-		Messages: make([]ollamaMessage, len(req.Messages)),
-		Stream:   true,
-		Options: ollamaOptions{
-			Temperature: req.Temperature,
-			NumPredict:  req.MaxTokens,
-		},
-	}
-
+	messages := make([]api.Message, len(req.Messages))
 	for i, msg := range req.Messages {
-		ollamaReq.Messages[i] = ollamaMessage{
+		messages[i] = api.Message{
 			Role:    string(msg.Role),
 			Content: msg.Content,
 		}
 	}
 
-	body, err := json.Marshal(ollamaReq)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/api/chat", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := p.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ai.ErrProviderUnavailable, err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		return nil, fmt.Errorf("ollama error (status %d): %s", resp.StatusCode, string(respBody))
+	ollamaReq := &api.ChatRequest{
+		Model:    p.model,
+		Messages: messages,
+		Stream:   boolPtr(true),
+		Options: map[string]any{
+			"temperature": req.Temperature,
+			"num_predict": req.MaxTokens,
+		},
 	}
 
 	events := make(chan ai.ChatStreamEvent)
+
 	go func() {
-		defer resp.Body.Close()
 		defer close(events)
 
-		decoder := json.NewDecoder(resp.Body)
-		for {
-			var chunk ollamaChatResponse
-			if err := decoder.Decode(&chunk); err != nil {
-				if err == io.EOF {
-					return
-				}
-				select {
-				case events <- ai.ChatStreamEvent{Error: err}:
-				case <-ctx.Done():
-				}
-				return
-			}
-
-			event := ai.ChatStreamEvent{
-				Content:      chunk.Message.Content,
-				Done:         chunk.Done,
-				FinishReason: chunk.DoneReason,
-			}
-
+		err := p.client.Chat(ctx, ollamaReq, func(resp api.ChatResponse) error {
 			select {
-			case events <- event:
 			case <-ctx.Done():
-				return
+				return ctx.Err()
+			case events <- ai.ChatStreamEvent{
+				Content:      resp.Message.Content,
+				Done:         resp.Done,
+				FinishReason: resp.DoneReason,
+			}:
+				return nil
 			}
-
-			if chunk.Done {
-				return
+		})
+		if err != nil && !errors.Is(err, context.Canceled) {
+			select {
+			case events <- ai.ChatStreamEvent{Error: p.mapError(err)}:
+			case <-ctx.Done():
 			}
 		}
 	}()
@@ -187,68 +151,23 @@ func (p *OllamaProvider) ChatStream(ctx context.Context, req ai.ChatRequest) (<-
 	return events, nil
 }
 
-// HealthCheck verifies Ollama is accessible.
-func (p *OllamaProvider) HealthCheck(ctx context.Context) error {
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/api/tags", nil)
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-
-	resp, err := p.httpClient.Do(httpReq)
-	if err != nil {
-		return fmt.Errorf("%w: %v", ai.ErrProviderUnavailable, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%w: status %d", ai.ErrProviderUnavailable, resp.StatusCode)
-	}
-
-	return nil
-}
-
-// Embed generates embeddings using Ollama.
+// Embed generates embeddings using the Ollama SDK.
 func (p *OllamaProvider) Embed(ctx context.Context, req ai.EmbeddingRequest) (*ai.EmbeddingResponse, error) {
-	embeddings := make([][]float32, len(req.Texts))
+	ollamaReq := &api.EmbedRequest{
+		Model: p.model,
+		Input: req.Texts,
+	}
 
-	for i, text := range req.Texts {
-		ollamaReq := ollamaEmbedRequest{
-			Model:  p.model,
-			Prompt: text,
-		}
+	resp, err := p.client.Embed(ctx, ollamaReq)
+	if err != nil {
+		return nil, p.mapError(err)
+	}
 
-		body, err := json.Marshal(ollamaReq)
-		if err != nil {
-			return nil, fmt.Errorf("marshal request: %w", err)
-		}
-
-		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/api/embeddings", bytes.NewReader(body))
-		if err != nil {
-			return nil, fmt.Errorf("create request: %w", err)
-		}
-		httpReq.Header.Set("Content-Type", "application/json")
-
-		resp, err := p.httpClient.Do(httpReq)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %v", ai.ErrProviderUnavailable, err)
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			respBody, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			return nil, fmt.Errorf("ollama embedding error (status %d): %s", resp.StatusCode, string(respBody))
-		}
-
-		var ollamaResp ollamaEmbedResponse
-		if err := json.NewDecoder(resp.Body).Decode(&ollamaResp); err != nil {
-			resp.Body.Close()
-			return nil, fmt.Errorf("decode response: %w", err)
-		}
-		resp.Body.Close()
-
-		// Convert float64 to float32
-		embedding := make([]float32, len(ollamaResp.Embedding))
-		for j, v := range ollamaResp.Embedding {
+	// Convert [][]float64 to [][]float32
+	embeddings := make([][]float32, len(resp.Embeddings))
+	for i, emb := range resp.Embeddings {
+		embedding := make([]float32, len(emb))
+		for j, v := range emb {
 			embedding[j] = float32(v)
 		}
 		embeddings[i] = embedding
@@ -263,194 +182,89 @@ func (p *OllamaProvider) Embed(ctx context.Context, req ai.EmbeddingRequest) (*a
 // Dimensions returns the embedding dimensions for the current model.
 func (p *OllamaProvider) Dimensions() int {
 	// Common embedding model dimensions
-	switch p.model {
-	case "nomic-embed-text":
+	switch {
+	case strings.HasPrefix(p.model, "nomic-embed"):
 		return 768
-	case "all-minilm", "all-minilm:latest":
+	case strings.HasPrefix(p.model, "all-minilm"):
 		return 384
-	case "mxbai-embed-large":
+	case strings.HasPrefix(p.model, "mxbai-embed-large"):
 		return 1024
-	case "bge-base", "bge-base-en-v1.5":
+	case strings.HasPrefix(p.model, "bge-base"):
 		return 768
-	case "bge-large", "bge-large-en-v1.5":
+	case strings.HasPrefix(p.model, "bge-large"):
 		return 1024
 	default:
 		return 768 // Default assumption
 	}
 }
 
-// Ollama API types
-
-type ollamaChatRequest struct {
-	Model    string          `json:"model"`
-	Messages []ollamaMessage `json:"messages"`
-	Stream   bool            `json:"stream"`
-	Options  ollamaOptions   `json:"options,omitempty"`
+// HealthCheck verifies Ollama is accessible using the SDK.
+func (p *OllamaProvider) HealthCheck(ctx context.Context) error {
+	_, err := p.client.List(ctx)
+	if err != nil {
+		return p.mapError(err)
+	}
+	return nil
 }
 
-type ollamaMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type ollamaOptions struct {
-	Temperature float64 `json:"temperature,omitempty"`
-	NumPredict  int     `json:"num_predict,omitempty"`
-}
-
-type ollamaChatResponse struct {
-	Model           string        `json:"model"`
-	Message         ollamaMessage `json:"message"`
-	Done            bool          `json:"done"`
-	DoneReason      string        `json:"done_reason,omitempty"`
-	PromptEvalCount int           `json:"prompt_eval_count,omitempty"`
-	EvalCount       int           `json:"eval_count,omitempty"`
-}
-
-type ollamaEmbedRequest struct {
-	Model  string `json:"model"`
-	Prompt string `json:"prompt"`
-}
-
-type ollamaEmbedResponse struct {
-	Embedding []float64 `json:"embedding"`
-}
-
-// ListModels returns available models from Ollama.
+// ListModels returns available models from Ollama using the SDK.
 func (p *OllamaProvider) ListModels(ctx context.Context) ([]ai.ModelInfo, error) {
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/api/tags", nil)
+	resp, err := p.client.List(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, p.mapError(err)
 	}
 
-	resp, err := p.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ai.ErrProviderUnavailable, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ollama error: status %d", resp.StatusCode)
-	}
-
-	var tagsResp struct {
-		Models []struct {
-			Name string `json:"name"`
-		} `json:"models"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&tagsResp); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
-	}
-
-	models := make([]ai.ModelInfo, len(tagsResp.Models))
-	for i, m := range tagsResp.Models {
+	models := make([]ai.ModelInfo, len(resp.Models))
+	for i, m := range resp.Models {
+		isEmbedding := isEmbeddingModel(m.Name)
 		models[i] = ai.ModelInfo{
 			ID:          m.Name,
 			Name:        m.Name,
-			IsChat:      true,
-			IsEmbedding: isEmbeddingModel(m.Name),
+			IsChat:      !isEmbedding, // Embedding models are not chat models
+			IsEmbedding: isEmbedding,
+			CostTier:    ai.CostTierFree, // Ollama is always free (local)
 		}
 	}
 
 	return models, nil
 }
 
-// isEmbeddingModel checks if a model name indicates an embedding model.
-func isEmbeddingModel(name string) bool {
-	embeddingModels := []string{
-		"nomic-embed",
-		"all-minilm",
-		"mxbai-embed",
-		"bge-",
-		"e5-",
-		"embed",
-	}
-	for _, prefix := range embeddingModels {
-		if len(name) >= len(prefix) && name[:len(prefix)] == prefix {
-			return true
-		}
-	}
-	return false
-}
-
 // Pull downloads a model from the Ollama registry with progress streaming.
-// The progress channel receives updates during the download.
-// The channel is closed when the pull is complete or on error.
 func (p *OllamaProvider) Pull(ctx context.Context, modelName string) (<-chan ai.PullProgress, error) {
-	pullReq := ollamaPullRequest{
-		Name:   modelName,
-		Stream: true,
-	}
-
-	body, err := json.Marshal(pullReq)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
-	}
-
-	// Use a longer timeout for model pulls (can take many minutes)
-	client := &http.Client{
-		Timeout: 0, // No timeout for streaming
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/api/pull", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ai.ErrProviderUnavailable, err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		return nil, fmt.Errorf("ollama pull error (status %d): %s", resp.StatusCode, string(respBody))
-	}
-
 	progress := make(chan ai.PullProgress)
+
 	go func() {
-		defer resp.Body.Close()
 		defer close(progress)
 
-		decoder := json.NewDecoder(resp.Body)
-		for {
-			var pullResp ollamaPullResponse
-			if err := decoder.Decode(&pullResp); err != nil {
-				if err == io.EOF {
-					return
-				}
-				select {
-				case progress <- ai.PullProgress{Error: err.Error(), Done: true}:
-				case <-ctx.Done():
-				}
-				return
-			}
+		req := &api.PullRequest{
+			Model:  modelName,
+			Stream: boolPtr(true),
+		}
 
-			// Calculate percentage if we have total/completed
+		err := p.client.Pull(ctx, req, func(resp api.ProgressResponse) error {
 			var percent float64
-			if pullResp.Total > 0 {
-				percent = float64(pullResp.Completed) / float64(pullResp.Total) * 100
-			}
-
-			event := ai.PullProgress{
-				Status:    pullResp.Status,
-				Digest:    pullResp.Digest,
-				Total:     pullResp.Total,
-				Completed: pullResp.Completed,
-				Percent:   percent,
-				Done:      pullResp.Status == "success",
+			if resp.Total > 0 {
+				percent = float64(resp.Completed) / float64(resp.Total) * 100
 			}
 
 			select {
-			case progress <- event:
 			case <-ctx.Done():
-				return
+				return ctx.Err()
+			case progress <- ai.PullProgress{
+				Status:    resp.Status,
+				Digest:    resp.Digest,
+				Total:     resp.Total,
+				Completed: resp.Completed,
+				Percent:   percent,
+				Done:      resp.Status == "success",
+			}:
+				return nil
 			}
-
-			if pullResp.Status == "success" {
-				return
+		})
+		if err != nil && !errors.Is(err, context.Canceled) {
+			select {
+			case progress <- ai.PullProgress{Error: err.Error(), Done: true}:
+			case <-ctx.Done():
 			}
 		}
 	}()
@@ -460,49 +274,70 @@ func (p *OllamaProvider) Pull(ctx context.Context, modelName string) (<-chan ai.
 
 // DeleteModel removes a model from the local Ollama installation.
 func (p *OllamaProvider) DeleteModel(ctx context.Context, modelName string) error {
-	deleteReq := ollamaDeleteRequest{
-		Name: modelName,
+	req := &api.DeleteRequest{
+		Model: modelName,
 	}
 
-	body, err := json.Marshal(deleteReq)
+	err := p.client.Delete(ctx, req)
 	if err != nil {
-		return fmt.Errorf("marshal request: %w", err)
+		return p.mapError(err)
 	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodDelete, p.baseURL+"/api/delete", bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := p.httpClient.Do(httpReq)
-	if err != nil {
-		return fmt.Errorf("%w: %v", ai.ErrProviderUnavailable, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("ollama delete error (status %d): %s", resp.StatusCode, string(respBody))
-	}
-
 	return nil
 }
 
-// Ollama pull/delete API types
+// mapError converts Ollama SDK errors to domain errors with rich details.
+func (p *OllamaProvider) mapError(err error) error {
+	if err == nil {
+		return nil
+	}
 
-type ollamaPullRequest struct {
-	Name   string `json:"name"`
-	Stream bool   `json:"stream"`
+	errMsg := err.Error()
+
+	// Check for specific error patterns
+	switch {
+	case strings.Contains(errMsg, "connection refused"),
+		strings.Contains(errMsg, "no such host"),
+		strings.Contains(errMsg, "network is unreachable"):
+		return ai.NewProviderError("ollama", "provider_unavailable",
+			fmt.Sprintf("Cannot connect to Ollama at %s. Is Ollama running?", p.baseURL),
+			503, err)
+
+	case strings.Contains(errMsg, "model") && strings.Contains(errMsg, "not found"):
+		return ai.NewProviderError("ollama", "model_not_found",
+			fmt.Sprintf("Model '%s' not found. Try pulling it first with 'ollama pull %s'", p.model, p.model),
+			404, err)
+
+	case strings.Contains(errMsg, "context deadline exceeded"),
+		strings.Contains(errMsg, "timeout"):
+		return ai.NewProviderError("ollama", "timeout",
+			"Request timed out. The model may be loading or the server is overloaded.",
+			408, err)
+
+	default:
+		return ai.NewProviderError("ollama", "unknown_error", errMsg, 500, err)
+	}
 }
 
-type ollamaPullResponse struct {
-	Status    string `json:"status"`
-	Digest    string `json:"digest,omitempty"`
-	Total     int64  `json:"total,omitempty"`
-	Completed int64  `json:"completed,omitempty"`
+// isEmbeddingModel checks if a model name indicates an embedding model.
+func isEmbeddingModel(name string) bool {
+	embeddingPrefixes := []string{
+		"nomic-embed",
+		"all-minilm",
+		"mxbai-embed",
+		"bge-",
+		"e5-",
+		"embed",
+	}
+	nameLower := strings.ToLower(name)
+	for _, prefix := range embeddingPrefixes {
+		if strings.Contains(nameLower, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
-type ollamaDeleteRequest struct {
-	Name string `json:"name"`
+// boolPtr returns a pointer to a bool value.
+func boolPtr(b bool) *bool {
+	return &b
 }

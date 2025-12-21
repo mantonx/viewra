@@ -6,15 +6,10 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export interface InternalApiHandlersGPUInfoResponse {
-  available?: boolean
-  deviceCount?: number
-  deviceNames?: string[]
-  hasOpenCL?: boolean
-  hasVaapi?: boolean
-  hasVulkan?: boolean
-  hwAccelType?: string
-  type?: string
+export interface GithubComMantonxViewraInternalApplicationSettingsSystemInfo {
+  hasGpu?: boolean
+  ramBytes?: number
+  ramFormatted?: string
   vramBytes?: number
   vramFormatted?: string
 }

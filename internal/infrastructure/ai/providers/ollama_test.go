@@ -167,9 +167,26 @@ func sqrt(x float64) float64 {
 // Unit tests with mock server (no real Ollama required)
 // ============================================================================
 
+// Test types for mock server responses (mirrors SDK types)
+type testPullResponse struct {
+	Status    string `json:"status"`
+	Digest    string `json:"digest,omitempty"`
+	Total     int64  `json:"total,omitempty"`
+	Completed int64  `json:"completed,omitempty"`
+}
+
+type testPullRequest struct {
+	Model  string `json:"model"`
+	Stream *bool  `json:"stream,omitempty"`
+}
+
+type testDeleteRequest struct {
+	Model string `json:"model"`
+}
+
 func TestOllamaProvider_Pull_Success(t *testing.T) {
 	// Create mock Ollama server that simulates a model pull
-	pullEvents := []ollamaPullResponse{
+	pullEvents := []testPullResponse{
 		{Status: "pulling manifest"},
 		{Status: "downloading", Digest: "sha256:abc123", Total: 1000, Completed: 250},
 		{Status: "downloading", Digest: "sha256:abc123", Total: 1000, Completed: 500},
@@ -194,14 +211,14 @@ func TestOllamaProvider_Pull_Success(t *testing.T) {
 		}
 
 		// Parse request
-		var req ollamaPullRequest
+		var req testPullRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		if req.Name != "nomic-embed-text" {
-			t.Errorf("Expected model name 'nomic-embed-text', got %s", req.Name)
+		if req.Model != "nomic-embed-text" {
+			t.Errorf("Expected model name 'nomic-embed-text', got %s", req.Model)
 		}
 
 		// Stream responses
@@ -280,7 +297,7 @@ func TestOllamaProvider_Pull_Cancellation(t *testing.T) {
 
 		// Send many progress events, client should cancel midway
 		for i := 0; i < 100; i++ {
-			event := ollamaPullResponse{
+			event := testPullResponse{
 				Status:    "downloading",
 				Digest:    "sha256:abc123",
 				Total:     10000,
@@ -345,9 +362,22 @@ func TestOllamaProvider_Pull_ServerError(t *testing.T) {
 	provider := NewOllamaProvider(server.URL, "nonexistent-model")
 
 	ctx := context.Background()
-	_, err := provider.Pull(ctx, "nonexistent-model")
-	if err == nil {
-		t.Error("Expected error for non-existent model")
+	progressCh, err := provider.Pull(ctx, "nonexistent-model")
+	if err != nil {
+		t.Fatalf("Pull returned unexpected error: %v", err)
+	}
+
+	// Errors are sent through the progress channel, not returned directly
+	var foundError bool
+	for p := range progressCh {
+		if p.Error != "" {
+			foundError = true
+			break
+		}
+	}
+
+	if !foundError {
+		t.Error("Expected error for non-existent model in progress channel")
 	}
 }
 
@@ -365,13 +395,13 @@ func TestOllamaProvider_DeleteModel(t *testing.T) {
 			return
 		}
 
-		var req ollamaDeleteRequest
+		var req testDeleteRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		deletedModel = req.Name
+		deletedModel = req.Model
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()

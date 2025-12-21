@@ -25,6 +25,11 @@
         "/home/fictional/Projects/viewra2"
       ],
       "enabled": true
+    },
+    "figma": {
+      "type": "local",
+      "command": ["npx", "figma-developer-mcp", "--figma-api-key", "${FIGMA_API_KEY}"],
+      "enabled": true
     }
   }
 }

@@ -400,14 +400,16 @@ func (h *SettingsHandler) GetSystemInfo(c *gin.Context) {
 			AvailableBytes: profile.Memory.AvailableBytes,
 		},
 		GPU: GPUInfoResponse{
-			Available:   profile.GPU.Available,
-			Type:        string(profile.GPU.Type),
-			DeviceCount: profile.GPU.DeviceCount,
-			DeviceNames: profile.GPU.DeviceNames,
-			HWAccelType: profile.GetHardwareAccelType(),
-			HasVAAPI:    profile.GPU.HasVAAPI,
-			HasOpenCL:   profile.GPU.HasOpenCL,
-			HasVulkan:   profile.GPU.HasVulkan,
+			Available:     profile.GPU.Available,
+			Type:          string(profile.GPU.Type),
+			DeviceCount:   profile.GPU.DeviceCount,
+			DeviceNames:   profile.GPU.DeviceNames,
+			VRAMBytes:     profile.GPU.VRAMBytes,
+			VRAMFormatted: formatMemory(profile.GPU.VRAMBytes),
+			HWAccelType:   profile.GetHardwareAccelType(),
+			HasVAAPI:      profile.GPU.HasVAAPI,
+			HasOpenCL:     profile.GPU.HasOpenCL,
+			HasVulkan:     profile.GPU.HasVulkan,
 		},
 	}
 
@@ -607,14 +609,16 @@ type MemoryInfoResponse struct {
 
 // GPUInfoResponse represents GPU information.
 type GPUInfoResponse struct {
-	Available   bool     `json:"available"`
-	Type        string   `json:"type"`
-	DeviceCount int      `json:"deviceCount"`
-	DeviceNames []string `json:"deviceNames"`
-	HWAccelType string   `json:"hwAccelType"`
-	HasVAAPI    bool     `json:"hasVaapi"`
-	HasOpenCL   bool     `json:"hasOpenCL"`
-	HasVulkan   bool     `json:"hasVulkan"`
+	Available     bool     `json:"available"`
+	Type          string   `json:"type"`
+	DeviceCount   int      `json:"deviceCount"`
+	DeviceNames   []string `json:"deviceNames"`
+	VRAMBytes     uint64   `json:"vramBytes,omitempty"`
+	VRAMFormatted string   `json:"vramFormatted,omitempty"`
+	HWAccelType   string   `json:"hwAccelType"`
+	HasVAAPI      bool     `json:"hasVaapi"`
+	HasOpenCL     bool     `json:"hasOpenCL"`
+	HasVulkan     bool     `json:"hasVulkan"`
 }
 
 // StorageInfoResponse represents storage information.

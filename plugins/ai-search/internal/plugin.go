@@ -82,13 +82,8 @@ func (p *AISearchPlugin) Initialize(ctx context.Context, req *pluginv1.InitReque
 
 	// Parse config from YAML
 	if len(req.Config) == 0 {
-		// Use defaults
+		// Use defaults - provider settings come from host AI settings
 		p.config = Config{
-			Embedding: EmbeddingConfig{
-				Provider:         "ollama",
-				Model:            "nomic-embed-text",
-				TargetDimensions: 768,
-			},
 			Indexing: IndexingConfig{
 				BatchSize:     50,
 				AutoIndex:     true,
@@ -100,9 +95,7 @@ func (p *AISearchPlugin) Initialize(ctx context.Context, req *pluginv1.InitReque
 				MinSimilarity: 0.3,
 			},
 			MoodTags: MoodTagConfig{
-				Provider: "ollama",
-				Model:    "llama3.1:8b",
-				Enabled:  false, // Disabled by default
+				Enabled: false, // Disabled by default
 			},
 		}
 	} else {
@@ -118,18 +111,17 @@ func (p *AISearchPlugin) Initialize(ctx context.Context, req *pluginv1.InitReque
 	p.initializeServices()
 
 	p.logger.Info("AI Search plugin initialized",
-		"embedding_provider", p.config.Embedding.Provider,
-		"embedding_model", p.config.Embedding.Model,
 		"auto_index", p.config.Indexing.AutoIndex,
+		"mood_tags_enabled", p.config.MoodTags.Enabled,
 	)
 
 	return &pluginv1.InitResponse{Success: true}, nil
 }
 
 func (p *AISearchPlugin) initializeServices() {
-	// Create embedding service
+	// Create embedding service - uses host's configured embedding provider
 	if p.llmClient != nil {
-		p.embeddingService = NewEmbeddingService(p.llmClient, p.config.Embedding, p.logger)
+		p.embeddingService = NewEmbeddingService(p.llmClient, p.logger)
 	}
 
 	// Create search service
@@ -153,22 +145,11 @@ func (p *AISearchPlugin) initializeServices() {
 		)
 	}
 
-	// Create mood tag service (if enabled)
+	// Create mood tag service (if enabled) - uses host's configured chat provider
 	if p.config.MoodTags.Enabled && p.llmClient != nil && p.dataClient != nil {
-		provider := p.config.MoodTags.Provider
-		model := p.config.MoodTags.Model
-		// Fall back to embedding provider if not specified
-		if provider == "" {
-			provider = p.config.Embedding.Provider
-		}
-		if model == "" {
-			model = "llama3.1:8b" // Default chat model
-		}
 		p.moodTagService = NewMoodTagService(
 			p.llmClient,
 			p.dataClient,
-			provider,
-			model,
 			p.logger,
 		)
 	}
@@ -215,15 +196,134 @@ func (p *AISearchPlugin) HealthCheck(ctx context.Context, req *pluginv1.Empty) (
 }
 
 func (p *AISearchPlugin) GetSettingsSchema(ctx context.Context, req *pluginv1.Empty) (*pluginv1.SettingsSchema, error) {
-	// Configuration is via config.yml file
-	return &pluginv1.SettingsSchema{JsonSchema: []byte("{}")}, nil
+	// JSON Schema for plugin-specific settings
+	// Provider settings come from the host AI settings
+	schema := `{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "indexing": {
+      "type": "object",
+      "title": "Indexing",
+      "properties": {
+        "batch_size": {
+          "type": "integer",
+          "title": "Batch Size",
+          "description": "Number of items to process in each batch",
+          "default": 50,
+          "minimum": 1,
+          "maximum": 500
+        },
+        "auto_index": {
+          "type": "boolean",
+          "title": "Auto Index",
+          "description": "Automatically index new media in enrichment pipeline",
+          "default": true
+        }
+      }
+    },
+    "search": {
+      "type": "object",
+      "title": "Search",
+      "properties": {
+        "default_limit": {
+          "type": "integer",
+          "title": "Default Results Limit",
+          "description": "Default number of search results to return",
+          "default": 20,
+          "minimum": 1,
+          "maximum": 100
+        },
+        "min_similarity": {
+          "type": "number",
+          "title": "Minimum Similarity",
+          "description": "Minimum similarity score (0.0-1.0) for results",
+          "default": 0.3,
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "mood_tags": {
+      "type": "object",
+      "title": "Mood Tags",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "title": "Enable Mood Tags",
+          "description": "Generate mood/vibe tags for media using LLM",
+          "default": false
+        }
+      }
+    }
+  }
+}`
+	return &pluginv1.SettingsSchema{JsonSchema: []byte(schema)}, nil
 }
 
 func (p *AISearchPlugin) Configure(ctx context.Context, req *pluginv1.Settings) (*pluginv1.ConfigureResponse, error) {
-	return &pluginv1.ConfigureResponse{
-		Success: false,
-		Error:   "runtime configuration not supported; edit config.yml and restart the plugin",
-	}, nil
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if len(req.Json) == 0 {
+		return &pluginv1.ConfigureResponse{Success: true}, nil
+	}
+
+	// Parse settings JSON into a partial config structure
+	var settings struct {
+		Indexing *struct {
+			BatchSize *int  `json:"batch_size"`
+			AutoIndex *bool `json:"auto_index"`
+		} `json:"indexing"`
+		Search *struct {
+			DefaultLimit  *int     `json:"default_limit"`
+			MinSimilarity *float32 `json:"min_similarity"`
+		} `json:"search"`
+		MoodTags *struct {
+			Enabled *bool `json:"enabled"`
+		} `json:"mood_tags"`
+	}
+
+	if err := json.Unmarshal(req.Json, &settings); err != nil {
+		return &pluginv1.ConfigureResponse{
+			Success: false,
+			Error:   fmt.Sprintf("invalid settings JSON: %v", err),
+		}, nil
+	}
+
+	// Apply settings
+	if settings.Indexing != nil {
+		if settings.Indexing.BatchSize != nil {
+			p.config.Indexing.BatchSize = *settings.Indexing.BatchSize
+		}
+		if settings.Indexing.AutoIndex != nil {
+			p.config.Indexing.AutoIndex = *settings.Indexing.AutoIndex
+		}
+	}
+	if settings.Search != nil {
+		if settings.Search.DefaultLimit != nil {
+			p.config.Search.DefaultLimit = *settings.Search.DefaultLimit
+		}
+		if settings.Search.MinSimilarity != nil {
+			p.config.Search.MinSimilarity = *settings.Search.MinSimilarity
+		}
+	}
+	if settings.MoodTags != nil {
+		if settings.MoodTags.Enabled != nil {
+			p.config.MoodTags.Enabled = *settings.MoodTags.Enabled
+		}
+	}
+
+	// Reinitialize services with new config
+	p.initializeServices()
+
+	p.logger.Info("AI Search plugin reconfigured",
+		"batch_size", p.config.Indexing.BatchSize,
+		"auto_index", p.config.Indexing.AutoIndex,
+		"mood_tags_enabled", p.config.MoodTags.Enabled,
+	)
+
+	return &pluginv1.ConfigureResponse{Success: true}, nil
 }
 
 func (p *AISearchPlugin) GetSubscriptions(ctx context.Context, req *pluginv1.Empty) (*pluginv1.EventSubscriptions, error) {
@@ -721,7 +821,6 @@ func (p *AISearchPlugin) handleEstimate(ctx context.Context, req *pluginv1.Plugi
 
 	p.mu.RLock()
 	dataClient := p.dataClient
-	config := p.config
 	p.mu.RUnlock()
 
 	if dataClient == nil {
@@ -769,20 +868,10 @@ func (p *AISearchPlugin) handleEstimate(ctx context.Context, req *pluginv1.Plugi
 	tokensPerItem := estimateTokensPerItem(library.MediaType)
 	estimatedTokens := totalItems * int64(tokensPerItem)
 
-	// Check if using local provider (Ollama)
-	isLocal := config.Embedding.Provider == "ollama"
-
-	// Cost estimation (simplified - actual costs vary by provider/model)
-	var estimatedCostUSD float64
-	var disclaimer string
-	if isLocal {
-		estimatedCostUSD = 0
-		disclaimer = "Free - using local processing"
-	} else {
-		// Approximate: $0.02 per 1M tokens for text-embedding-3-small
-		estimatedCostUSD = float64(estimatedTokens) * 0.02 / 1_000_000
-		disclaimer = "Approximate estimate based on OpenAI text-embedding-3-small pricing. Actual costs may vary."
-	}
+	// Cost estimation - we don't know the provider here, so provide a generic estimate
+	// Approximate: $0.02 per 1M tokens for cloud providers
+	// Local providers (Ollama) are free but we can't determine that here
+	estimatedCostUSD := float64(estimatedTokens) * 0.02 / 1_000_000
 
 	response := map[string]any{
 		"library_id":   libraryID,
@@ -795,11 +884,10 @@ func (p *AISearchPlugin) handleEstimate(ctx context.Context, req *pluginv1.Plugi
 		"estimated_cost": map[string]any{
 			"embeddings_usd": estimatedCostUSD,
 			"total_usd":      estimatedCostUSD,
-			"disclaimer":     disclaimer,
+			"disclaimer":     "Approximate estimate. Actual costs depend on provider configured in Settings > AI. Local providers (Ollama) are free.",
 		},
 		"provider": map[string]any{
-			"embedding": fmt.Sprintf("%s/%s", config.Embedding.Provider, config.Embedding.Model),
-			"is_local":  isLocal,
+			"note": "Provider is configured in ViewRA Settings > AI",
 		},
 	}
 

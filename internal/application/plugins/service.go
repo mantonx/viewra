@@ -22,27 +22,32 @@ type PluginQueries interface {
 	EnablePlugin(ctx context.Context, id string) error
 	DisablePlugin(ctx context.Context, id string) error
 	UpsertPlugin(ctx context.Context, p Plugin) error
+	GetPluginSettings(ctx context.Context, id string) (string, error)
+	UpdatePluginSettings(ctx context.Context, id string, settings string) error
+	UpdatePluginSettingsSchema(ctx context.Context, id string, schema string) error
 }
 
 // Plugin represents a plugin record from the database.
 // Uses native Go types - the repository handles conversion from sql.Null* types.
 type Plugin struct {
-	ID            string
-	Name          string
-	Version       string
-	Description   string
-	Author        string
-	License       string
-	Homepage      string
-	Categories    string
-	IsBuiltin     bool
-	Enabled       bool
-	Path          string
-	HealthStatus  string
-	LastHeartbeat time.Time
-	RestartCount  int
-	InstalledAt   time.Time
-	UpdatedAt     time.Time
+	ID             string
+	Name           string
+	Version        string
+	Description    string
+	Author         string
+	License        string
+	Homepage       string
+	Categories     string
+	IsBuiltin      bool
+	Enabled        bool
+	Path           string
+	HealthStatus   string
+	LastHeartbeat  time.Time
+	RestartCount   int
+	Settings       string // JSON string of plugin settings
+	SettingsSchema string // JSON Schema for plugin settings
+	InstalledAt    time.Time
+	UpdatedAt      time.Time
 }
 
 // Service provides plugin management operations.
@@ -102,8 +107,8 @@ func (s *Service) Get(ctx context.Context, id string) (*PluginDetail, error) {
 
 // GetSettings returns the settings schema and current values for a plugin.
 func (s *Service) GetSettings(ctx context.Context, id string) (*PluginSettings, error) {
-	// Verify plugin exists
-	_, err := s.queries.GetPlugin(ctx, id)
+	// Verify plugin exists and get plugin data
+	plugin, err := s.queries.GetPlugin(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrPluginNotFound{PluginID: id}
@@ -111,30 +116,38 @@ func (s *Service) GetSettings(ctx context.Context, id string) (*PluginSettings, 
 		return nil, err
 	}
 
-	instance, ok := s.manager.GetPlugin(id)
-	if !ok {
-		// Plugin exists in DB but not loaded - return empty settings
-		return &PluginSettings{
-			PluginID: id,
-			Schema:   json.RawMessage("{}"),
-			Values:   json.RawMessage("{}"),
-		}, nil
+	// Get settings values from database
+	settingsJSON, err := s.queries.GetPluginSettings(ctx, id)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	values := json.RawMessage(settingsJSON)
+	if len(values) == 0 {
+		values = json.RawMessage("{}")
 	}
 
-	// Get settings schema via gRPC
-	schema := json.RawMessage("{}")
-	if instance.CoreClient != nil {
+	// Get settings schema - prefer from running plugin, fall back to DB
+	var schema json.RawMessage
+	if instance, ok := s.manager.GetPlugin(id); ok && instance.CoreClient != nil {
 		schemaResp, err := instance.CoreClient.GetSettingsSchema(ctx, &pluginv1.Empty{})
 		if err != nil {
-			s.logger.Warn("failed to get settings schema", "plugin", id, "error", err)
-		} else if schemaResp != nil {
+			s.logger.Warn("failed to get settings schema from plugin", "plugin", id, "error", err)
+		} else if schemaResp != nil && len(schemaResp.JsonSchema) > 0 {
 			schema = schemaResp.JsonSchema
+			// Cache schema in DB for when plugin isn't running
+			if err := s.queries.UpdatePluginSettingsSchema(ctx, id, string(schema)); err != nil {
+				s.logger.Warn("failed to cache settings schema", "plugin", id, "error", err)
+			}
 		}
 	}
 
-	// Settings values would come from the plugin's config
-	// For now, return empty - this can be enhanced when we add settings storage
-	values := json.RawMessage("{}")
+	// Fall back to cached schema from DB
+	if len(schema) == 0 && plugin.SettingsSchema != "" {
+		schema = json.RawMessage(plugin.SettingsSchema)
+	}
+	if len(schema) == 0 {
+		schema = json.RawMessage("{}")
+	}
 
 	return &PluginSettings{
 		PluginID: id,
@@ -154,24 +167,22 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, values json.Raw
 		return err
 	}
 
-	instance, ok := s.manager.GetPlugin(id)
-	if !ok {
-		return ErrPluginNotFound{PluginID: id}
+	// If plugin is running, configure it first
+	if instance, ok := s.manager.GetPlugin(id); ok && instance.CoreClient != nil {
+		resp, err := instance.CoreClient.Configure(ctx, &pluginv1.Settings{
+			Json: values,
+		})
+		if err != nil {
+			return err
+		}
+		if !resp.Success {
+			return &ConfigureError{Message: resp.Error}
+		}
 	}
 
-	if instance.CoreClient == nil {
-		return ErrPluginNotFound{PluginID: id}
-	}
-
-	// Send settings to plugin via gRPC
-	resp, err := instance.CoreClient.Configure(ctx, &pluginv1.Settings{
-		Json: values,
-	})
-	if err != nil {
+	// Persist settings to database (so they survive restarts)
+	if err := s.queries.UpdatePluginSettings(ctx, id, string(values)); err != nil {
 		return err
-	}
-	if !resp.Success {
-		return &ConfigureError{Message: resp.Error}
 	}
 
 	return nil

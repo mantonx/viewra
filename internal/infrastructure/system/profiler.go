@@ -248,20 +248,22 @@ func profileGPU(profile *Profile) error {
 	}
 
 	// Check for NVIDIA GPUs via nvidia-smi
-	if devices := detectNVIDIAGPUs(); len(devices) > 0 {
+	if devices, vram := detectNVIDIAGPUsWithVRAM(); len(devices) > 0 {
 		profile.GPU.Type = GPUTypeNVIDIA
 		profile.GPU.Available = true
 		profile.GPU.DeviceCount = len(devices)
 		profile.GPU.DeviceNames = devices
+		profile.GPU.VRAMBytes = vram
 	}
 
 	// Check for AMD GPUs via rocm-smi or lspci
 	if profile.GPU.Type == GPUTypeNone {
-		if devices := detectAMDGPUs(); len(devices) > 0 {
+		if devices, vram := detectAMDGPUsWithVRAM(); len(devices) > 0 {
 			profile.GPU.Type = GPUTypeAMD
 			profile.GPU.Available = true
 			profile.GPU.DeviceCount = len(devices)
 			profile.GPU.DeviceNames = devices
+			profile.GPU.VRAMBytes = vram
 		}
 	}
 
@@ -272,6 +274,7 @@ func profileGPU(profile *Profile) error {
 			profile.GPU.Available = true
 			profile.GPU.DeviceCount = len(devices)
 			profile.GPU.DeviceNames = devices
+			// Intel integrated GPUs share system RAM, no dedicated VRAM
 		}
 	}
 
@@ -283,12 +286,12 @@ func profileGPU(profile *Profile) error {
 	return nil
 }
 
-// detectNVIDIAGPUs attempts to detect NVIDIA GPUs using nvidia-smi
-func detectNVIDIAGPUs() []string {
+// detectNVIDIAGPUsWithVRAM attempts to detect NVIDIA GPUs and their VRAM
+func detectNVIDIAGPUsWithVRAM() ([]string, uint64) {
 	// Try nvidia-smi to get GPU names
 	file, err := os.Open("/proc/driver/nvidia/gpus")
 	if err != nil {
-		return nil
+		return nil, 0
 	}
 	defer file.Close()
 
@@ -296,10 +299,12 @@ func detectNVIDIAGPUs() []string {
 	// Read GPU directories
 	entries, err := os.ReadDir("/proc/driver/nvidia/gpus")
 	if err != nil || len(entries) == 0 {
-		return nil
+		return nil, 0
 	}
 
 	devices := make([]string, 0, len(entries))
+	var totalVRAM uint64
+
 	for _, entry := range entries {
 		if entry.IsDir() {
 			// Try to read the GPU info
@@ -324,24 +329,85 @@ func detectNVIDIAGPUs() []string {
 		}
 	}
 
-	return devices
+	// Try to get VRAM from nvidia-smi
+	// nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits returns memory in MiB
+	totalVRAM = detectNVIDIAVRAM()
+
+	return devices, totalVRAM
 }
 
-// detectAMDGPUs attempts to detect AMD GPUs
-func detectAMDGPUs() []string {
-	// Check for AMD GPUs via lspci
+// detectNVIDIAVRAM uses nvidia-smi to get total VRAM in bytes
+func detectNVIDIAVRAM() uint64 {
+	// Read from /proc if available (faster than exec)
+	// Try nvidia-smi via /proc/driver/nvidia
+	data, err := os.ReadFile("/proc/driver/nvidia/gpus/0000:01:00.0/information")
+	if err != nil {
+		// Try common alternative paths
+		entries, err := os.ReadDir("/proc/driver/nvidia/gpus")
+		if err != nil || len(entries) == 0 {
+			return 0
+		}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				data, err = os.ReadFile("/proc/driver/nvidia/gpus/" + entry.Name() + "/information")
+				if err == nil {
+					break
+				}
+			}
+		}
+	}
+
+	if len(data) == 0 {
+		return 0
+	}
+
+	// Parse Video Memory line: "Video Memory:     8192 MiB"
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "Video Memory:") || strings.Contains(line, "Memory:") {
+			// Extract number
+			parts := strings.Fields(line)
+			for i, part := range parts {
+				if part == "MiB" || part == "MB" {
+					if i > 0 {
+						var mib uint64
+						if _, err := fmt.Sscanf(parts[i-1], "%d", &mib); err == nil {
+							return mib * 1024 * 1024 // Convert MiB to bytes
+						}
+					}
+				}
+				if part == "GiB" || part == "GB" {
+					if i > 0 {
+						var gib uint64
+						if _, err := fmt.Sscanf(parts[i-1], "%d", &gib); err == nil {
+							return gib * 1024 * 1024 * 1024 // Convert GiB to bytes
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return 0
+}
+
+// detectAMDGPUsWithVRAM attempts to detect AMD GPUs and their VRAM
+func detectAMDGPUsWithVRAM() ([]string, uint64) {
+	// Check for AMD GPUs via /sys/class/drm
 	file, err := os.Open("/sys/class/drm")
 	if err != nil {
-		return nil
+		return nil, 0
 	}
 	defer file.Close()
 
 	entries, err := os.ReadDir("/sys/class/drm")
 	if err != nil {
-		return nil
+		return nil, 0
 	}
 
 	devices := []string{}
+	var totalVRAM uint64
+
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), "card") && !strings.Contains(entry.Name(), "-") {
 			// Check if it's an AMD GPU
@@ -350,11 +416,20 @@ func detectAMDGPUs() []string {
 			if err == nil && strings.TrimSpace(string(vendor)) == "0x1002" {
 				// AMD vendor ID is 0x1002
 				devices = append(devices, "AMD GPU")
+
+				// Try to read VRAM from mem_info_vram_total (in bytes)
+				vramPath := "/sys/class/drm/" + entry.Name() + "/device/mem_info_vram_total"
+				if vramData, err := os.ReadFile(vramPath); err == nil {
+					var vram uint64
+					if _, err := fmt.Sscanf(strings.TrimSpace(string(vramData)), "%d", &vram); err == nil {
+						totalVRAM += vram
+					}
+				}
 			}
 		}
 	}
 
-	return devices
+	return devices, totalVRAM
 }
 
 // detectIntelGPUs attempts to detect Intel GPUs with Quick Sync

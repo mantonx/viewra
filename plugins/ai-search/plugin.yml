@@ -11,6 +11,9 @@ homepage: https://github.com/mantonx/viewra
 # Minimum ViewRA version required
 min_host_version: "0.1.0"
 
+# Uses core AI settings for provider configuration
+settings_category: ai
+
 # Plugin capabilities
 categories:
   - ai

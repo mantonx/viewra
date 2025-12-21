@@ -23,13 +23,15 @@ import type {
 
 import type {
   DeleteApiSettingsAiModels200,
+  GithubComMantonxViewraInternalApplicationSettingsModelRecommendations,
   InternalApiHandlersAISettingsRequest,
   InternalApiHandlersAISettingsResponse,
   InternalApiHandlersConnectionTestResponse,
   InternalApiHandlersDeleteOllamaModelRequest,
   InternalApiHandlersEffectiveSettingsResponse,
   InternalApiHandlersErrorResponse,
-  InternalApiHandlersOllamaModelsResponse,
+  InternalApiHandlersModelsResponse,
+  InternalApiHandlersProvidersResponse,
   InternalApiHandlersPullOllamaModelRequest,
   InternalApiHandlersSetSystemRequest,
   InternalApiHandlersSetUserRequest,
@@ -315,7 +317,7 @@ export const usePutApiSettingsAi = <TError = InternalApiHandlersErrorResponse, T
  * @summary List available Ollama models
  */
 export type getApiSettingsAiModelsResponse200 = {
-  data: InternalApiHandlersOllamaModelsResponse
+  data: InternalApiHandlersModelsResponse
   status: 200
 }
 
@@ -712,6 +714,784 @@ export const usePostApiSettingsAiModelsPull = <
   TContext
 > => {
   const mutationOptions = getPostApiSettingsAiModelsPullMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Returns model recommendations based on system RAM/VRAM
+ * @summary Get recommended Ollama models
+ */
+export type getApiSettingsAiModelsRecommendedResponse200 = {
+  data: GithubComMantonxViewraInternalApplicationSettingsModelRecommendations
+  status: 200
+}
+
+export type getApiSettingsAiModelsRecommendedResponseSuccess =
+  getApiSettingsAiModelsRecommendedResponse200 & {
+    headers: Headers
+  }
+export type getApiSettingsAiModelsRecommendedResponse =
+  getApiSettingsAiModelsRecommendedResponseSuccess
+
+export const getGetApiSettingsAiModelsRecommendedUrl = () => {
+  return `/api/settings/ai/models/recommended`
+}
+
+export const getApiSettingsAiModelsRecommended = async (
+  options?: RequestInit
+): Promise<getApiSettingsAiModelsRecommendedResponse> => {
+  return customInstance<getApiSettingsAiModelsRecommendedResponse>(
+    getGetApiSettingsAiModelsRecommendedUrl(),
+    {
+      ...options,
+      method: 'GET',
+    }
+  )
+}
+
+export const getGetApiSettingsAiModelsRecommendedQueryKey = () => {
+  return [`/api/settings/ai/models/recommended`] as const
+}
+
+export const getGetApiSettingsAiModelsRecommendedQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiSettingsAiModelsRecommended>>,
+  TError = unknown,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAiModelsRecommended>>, TError, TData>
+  >
+  request?: SecondParameter<typeof customInstance>
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiSettingsAiModelsRecommendedQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiSettingsAiModelsRecommended>>> = ({
+    signal,
+  }) => getApiSettingsAiModelsRecommended({ signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiSettingsAiModelsRecommended>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiSettingsAiModelsRecommendedQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiSettingsAiModelsRecommended>>
+>
+export type GetApiSettingsAiModelsRecommendedQueryError = unknown
+
+export function useGetApiSettingsAiModelsRecommended<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiModelsRecommended>>,
+  TError = unknown,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAiModelsRecommended>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiSettingsAiModelsRecommended>>,
+          TError,
+          Awaited<ReturnType<typeof getApiSettingsAiModelsRecommended>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiSettingsAiModelsRecommended<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiModelsRecommended>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAiModelsRecommended>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiSettingsAiModelsRecommended>>,
+          TError,
+          Awaited<ReturnType<typeof getApiSettingsAiModelsRecommended>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiSettingsAiModelsRecommended<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiModelsRecommended>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAiModelsRecommended>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get recommended Ollama models
+ */
+
+export function useGetApiSettingsAiModelsRecommended<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiModelsRecommended>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAiModelsRecommended>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiSettingsAiModelsRecommendedQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Returns chat model recommendations based on system RAM/VRAM
+ * @summary Get recommended Ollama chat models
+ */
+export type getApiSettingsAiModelsRecommendedChatResponse200 = {
+  data: GithubComMantonxViewraInternalApplicationSettingsModelRecommendations
+  status: 200
+}
+
+export type getApiSettingsAiModelsRecommendedChatResponseSuccess =
+  getApiSettingsAiModelsRecommendedChatResponse200 & {
+    headers: Headers
+  }
+export type getApiSettingsAiModelsRecommendedChatResponse =
+  getApiSettingsAiModelsRecommendedChatResponseSuccess
+
+export const getGetApiSettingsAiModelsRecommendedChatUrl = () => {
+  return `/api/settings/ai/models/recommended/chat`
+}
+
+export const getApiSettingsAiModelsRecommendedChat = async (
+  options?: RequestInit
+): Promise<getApiSettingsAiModelsRecommendedChatResponse> => {
+  return customInstance<getApiSettingsAiModelsRecommendedChatResponse>(
+    getGetApiSettingsAiModelsRecommendedChatUrl(),
+    {
+      ...options,
+      method: 'GET',
+    }
+  )
+}
+
+export const getGetApiSettingsAiModelsRecommendedChatQueryKey = () => {
+  return [`/api/settings/ai/models/recommended/chat`] as const
+}
+
+export const getGetApiSettingsAiModelsRecommendedChatQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiSettingsAiModelsRecommendedChat>>,
+  TError = unknown,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getApiSettingsAiModelsRecommendedChat>>,
+      TError,
+      TData
+    >
+  >
+  request?: SecondParameter<typeof customInstance>
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiSettingsAiModelsRecommendedChatQueryKey()
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getApiSettingsAiModelsRecommendedChat>>
+  > = ({ signal }) => getApiSettingsAiModelsRecommendedChat({ signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiSettingsAiModelsRecommendedChat>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiSettingsAiModelsRecommendedChatQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiSettingsAiModelsRecommendedChat>>
+>
+export type GetApiSettingsAiModelsRecommendedChatQueryError = unknown
+
+export function useGetApiSettingsAiModelsRecommendedChat<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiModelsRecommendedChat>>,
+  TError = unknown,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiSettingsAiModelsRecommendedChat>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiSettingsAiModelsRecommendedChat>>,
+          TError,
+          Awaited<ReturnType<typeof getApiSettingsAiModelsRecommendedChat>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiSettingsAiModelsRecommendedChat<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiModelsRecommendedChat>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiSettingsAiModelsRecommendedChat>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiSettingsAiModelsRecommendedChat>>,
+          TError,
+          Awaited<ReturnType<typeof getApiSettingsAiModelsRecommendedChat>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiSettingsAiModelsRecommendedChat<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiModelsRecommendedChat>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiSettingsAiModelsRecommendedChat>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get recommended Ollama chat models
+ */
+
+export function useGetApiSettingsAiModelsRecommendedChat<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiModelsRecommendedChat>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiSettingsAiModelsRecommendedChat>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiSettingsAiModelsRecommendedChatQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Returns information about all available AI providers and their capabilities
+ * @summary Get available AI providers
+ */
+export type getApiSettingsAiProvidersResponse200 = {
+  data: InternalApiHandlersProvidersResponse
+  status: 200
+}
+
+export type getApiSettingsAiProvidersResponse401 = {
+  data: InternalApiHandlersErrorResponse
+  status: 401
+}
+
+export type getApiSettingsAiProvidersResponseSuccess = getApiSettingsAiProvidersResponse200 & {
+  headers: Headers
+}
+export type getApiSettingsAiProvidersResponseError = getApiSettingsAiProvidersResponse401 & {
+  headers: Headers
+}
+
+export type getApiSettingsAiProvidersResponse =
+  | getApiSettingsAiProvidersResponseSuccess
+  | getApiSettingsAiProvidersResponseError
+
+export const getGetApiSettingsAiProvidersUrl = () => {
+  return `/api/settings/ai/providers`
+}
+
+export const getApiSettingsAiProviders = async (
+  options?: RequestInit
+): Promise<getApiSettingsAiProvidersResponse> => {
+  return customInstance<getApiSettingsAiProvidersResponse>(getGetApiSettingsAiProvidersUrl(), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiSettingsAiProvidersQueryKey = () => {
+  return [`/api/settings/ai/providers`] as const
+}
+
+export const getGetApiSettingsAiProvidersQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiSettingsAiProviders>>,
+  TError = InternalApiHandlersErrorResponse,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAiProviders>>, TError, TData>
+  >
+  request?: SecondParameter<typeof customInstance>
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiSettingsAiProvidersQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiSettingsAiProviders>>> = ({
+    signal,
+  }) => getApiSettingsAiProviders({ signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiSettingsAiProviders>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiSettingsAiProvidersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiSettingsAiProviders>>
+>
+export type GetApiSettingsAiProvidersQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiSettingsAiProviders<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiProviders>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAiProviders>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiSettingsAiProviders>>,
+          TError,
+          Awaited<ReturnType<typeof getApiSettingsAiProviders>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiSettingsAiProviders<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiProviders>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAiProviders>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiSettingsAiProviders>>,
+          TError,
+          Awaited<ReturnType<typeof getApiSettingsAiProviders>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiSettingsAiProviders<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiProviders>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAiProviders>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get available AI providers
+ */
+
+export function useGetApiSettingsAiProviders<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiProviders>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAiProviders>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiSettingsAiProvidersQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Returns list of models available for the specified provider
+ * @summary List available models for a provider
+ */
+export type getApiSettingsAiProvidersProviderModelsResponse200 = {
+  data: InternalApiHandlersModelsResponse
+  status: 200
+}
+
+export type getApiSettingsAiProvidersProviderModelsResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type getApiSettingsAiProvidersProviderModelsResponse401 = {
+  data: InternalApiHandlersErrorResponse
+  status: 401
+}
+
+export type getApiSettingsAiProvidersProviderModelsResponse503 = {
+  data: InternalApiHandlersErrorResponse
+  status: 503
+}
+
+export type getApiSettingsAiProvidersProviderModelsResponseSuccess =
+  getApiSettingsAiProvidersProviderModelsResponse200 & {
+    headers: Headers
+  }
+export type getApiSettingsAiProvidersProviderModelsResponseError = (
+  | getApiSettingsAiProvidersProviderModelsResponse400
+  | getApiSettingsAiProvidersProviderModelsResponse401
+  | getApiSettingsAiProvidersProviderModelsResponse503
+) & {
+  headers: Headers
+}
+
+export type getApiSettingsAiProvidersProviderModelsResponse =
+  | getApiSettingsAiProvidersProviderModelsResponseSuccess
+  | getApiSettingsAiProvidersProviderModelsResponseError
+
+export const getGetApiSettingsAiProvidersProviderModelsUrl = (provider: string) => {
+  return `/api/settings/ai/providers/${provider}/models`
+}
+
+export const getApiSettingsAiProvidersProviderModels = async (
+  provider: string,
+  options?: RequestInit
+): Promise<getApiSettingsAiProvidersProviderModelsResponse> => {
+  return customInstance<getApiSettingsAiProvidersProviderModelsResponse>(
+    getGetApiSettingsAiProvidersProviderModelsUrl(provider),
+    {
+      ...options,
+      method: 'GET',
+    }
+  )
+}
+
+export const getGetApiSettingsAiProvidersProviderModelsQueryKey = (provider?: string) => {
+  return [`/api/settings/ai/providers/${provider}/models`] as const
+}
+
+export const getGetApiSettingsAiProvidersProviderModelsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiSettingsAiProvidersProviderModels>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  provider: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiSettingsAiProvidersProviderModels>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetApiSettingsAiProvidersProviderModelsQueryKey(provider)
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getApiSettingsAiProvidersProviderModels>>
+  > = ({ signal }) =>
+    getApiSettingsAiProvidersProviderModels(provider, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!provider, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiSettingsAiProvidersProviderModels>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiSettingsAiProvidersProviderModelsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiSettingsAiProvidersProviderModels>>
+>
+export type GetApiSettingsAiProvidersProviderModelsQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiSettingsAiProvidersProviderModels<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiProvidersProviderModels>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  provider: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiSettingsAiProvidersProviderModels>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiSettingsAiProvidersProviderModels>>,
+          TError,
+          Awaited<ReturnType<typeof getApiSettingsAiProvidersProviderModels>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiSettingsAiProvidersProviderModels<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiProvidersProviderModels>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  provider: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiSettingsAiProvidersProviderModels>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiSettingsAiProvidersProviderModels>>,
+          TError,
+          Awaited<ReturnType<typeof getApiSettingsAiProvidersProviderModels>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiSettingsAiProvidersProviderModels<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiProvidersProviderModels>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  provider: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiSettingsAiProvidersProviderModels>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List available models for a provider
+ */
+
+export function useGetApiSettingsAiProvidersProviderModels<
+  TData = Awaited<ReturnType<typeof getApiSettingsAiProvidersProviderModels>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  provider: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiSettingsAiProvidersProviderModels>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiSettingsAiProvidersProviderModelsQueryOptions(provider, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Tests connectivity to the specified provider
+ * @summary Test provider connection
+ */
+export type postApiSettingsAiProvidersProviderTestResponse200 = {
+  data: InternalApiHandlersConnectionTestResponse
+  status: 200
+}
+
+export type postApiSettingsAiProvidersProviderTestResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type postApiSettingsAiProvidersProviderTestResponse503 = {
+  data: InternalApiHandlersConnectionTestResponse
+  status: 503
+}
+
+export type postApiSettingsAiProvidersProviderTestResponseSuccess =
+  postApiSettingsAiProvidersProviderTestResponse200 & {
+    headers: Headers
+  }
+export type postApiSettingsAiProvidersProviderTestResponseError = (
+  | postApiSettingsAiProvidersProviderTestResponse400
+  | postApiSettingsAiProvidersProviderTestResponse503
+) & {
+  headers: Headers
+}
+
+export type postApiSettingsAiProvidersProviderTestResponse =
+  | postApiSettingsAiProvidersProviderTestResponseSuccess
+  | postApiSettingsAiProvidersProviderTestResponseError
+
+export const getPostApiSettingsAiProvidersProviderTestUrl = (provider: string) => {
+  return `/api/settings/ai/providers/${provider}/test`
+}
+
+export const postApiSettingsAiProvidersProviderTest = async (
+  provider: string,
+  options?: RequestInit
+): Promise<postApiSettingsAiProvidersProviderTestResponse> => {
+  return customInstance<postApiSettingsAiProvidersProviderTestResponse>(
+    getPostApiSettingsAiProvidersProviderTestUrl(provider),
+    {
+      ...options,
+      method: 'POST',
+    }
+  )
+}
+
+export const getPostApiSettingsAiProvidersProviderTestMutationOptions = <
+  TError = InternalApiHandlersErrorResponse | InternalApiHandlersConnectionTestResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiSettingsAiProvidersProviderTest>>,
+    TError,
+    { provider: string },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiSettingsAiProvidersProviderTest>>,
+  TError,
+  { provider: string },
+  TContext
+> => {
+  const mutationKey = ['postApiSettingsAiProvidersProviderTest']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiSettingsAiProvidersProviderTest>>,
+    { provider: string }
+  > = (props) => {
+    const { provider } = props ?? {}
+
+    return postApiSettingsAiProvidersProviderTest(provider, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiSettingsAiProvidersProviderTestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiSettingsAiProvidersProviderTest>>
+>
+
+export type PostApiSettingsAiProvidersProviderTestMutationError =
+  | InternalApiHandlersErrorResponse
+  | InternalApiHandlersConnectionTestResponse
+
+/**
+ * @summary Test provider connection
+ */
+export const usePostApiSettingsAiProvidersProviderTest = <
+  TError = InternalApiHandlersErrorResponse | InternalApiHandlersConnectionTestResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiSettingsAiProvidersProviderTest>>,
+      TError,
+      { provider: string },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiSettingsAiProvidersProviderTest>>,
+  TError,
+  { provider: string },
+  TContext
+> => {
+  const mutationOptions = getPostApiSettingsAiProvidersProviderTestMutationOptions(options)
 
   return useMutation(mutationOptions, queryClient)
 }

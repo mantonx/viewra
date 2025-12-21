@@ -7,6 +7,6 @@
  */
 import type { GithubComMantonxViewraInternalDomainAiModelInfo } from './githubComMantonxViewraInternalDomainAiModelInfo'
 
-export interface InternalApiHandlersOllamaModelsResponse {
+export interface InternalApiHandlersModelsResponse {
   models?: GithubComMantonxViewraInternalDomainAiModelInfo[]
 }

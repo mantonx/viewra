@@ -1,56 +1,46 @@
 package providers
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
-	"time"
+
+	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/option"
 
 	"github.com/mantonx/viewra/internal/domain/ai"
 )
 
-const (
-	defaultOpenAIBaseURL     = "https://api.openai.com/v1"
-	defaultOpenRouterBaseURL = "https://openrouter.ai/api/v1"
-	openAITimeout            = 120 * time.Second
-)
-
-// OpenAIProvider implements LLMProvider and EmbeddingProvider for OpenAI and compatible APIs.
+// OpenAIProvider implements LLMProvider and EmbeddingProvider using the official OpenAI SDK.
 type OpenAIProvider struct {
-	baseURL      string
-	apiKey       string
+	client       openai.Client
 	model        string
 	providerType ai.ProviderType
-	httpClient   *http.Client
 }
 
-// NewOpenAIProvider creates a new OpenAI provider.
+// NewOpenAIProvider creates a new OpenAI provider using the official SDK.
 func NewOpenAIProvider(apiKey, model string) *OpenAIProvider {
+	client := openai.NewClient(option.WithAPIKey(apiKey))
 	return &OpenAIProvider{
-		baseURL:      defaultOpenAIBaseURL,
-		apiKey:       apiKey,
+		client:       client,
 		model:        model,
 		providerType: ai.ProviderOpenAI,
-		httpClient: &http.Client{
-			Timeout: openAITimeout,
-		},
 	}
 }
 
 // NewOpenRouterProvider creates a new OpenRouter provider (OpenAI-compatible).
 func NewOpenRouterProvider(apiKey, model string) *OpenAIProvider {
+	client := openai.NewClient(
+		option.WithAPIKey(apiKey),
+		option.WithBaseURL("https://openrouter.ai/api/v1"),
+		option.WithHeader("HTTP-Referer", "https://viewra.app"),
+		option.WithHeader("X-Title", "Viewra"),
+	)
 	return &OpenAIProvider{
-		baseURL:      defaultOpenRouterBaseURL,
-		apiKey:       apiKey,
+		client:       client,
 		model:        model,
 		providerType: ai.ProviderOpenRouter,
-		httpClient: &http.Client{
-			Timeout: openAITimeout,
-		},
 	}
 }
 
@@ -67,160 +57,115 @@ func (p *OpenAIProvider) Model() string {
 	return p.model
 }
 
-// Chat sends a chat completion request.
+// Chat sends a chat completion request using the OpenAI SDK.
 func (p *OpenAIProvider) Chat(ctx context.Context, req ai.ChatRequest) (*ai.ChatResponse, error) {
-	openAIReq := openAIChatRequest{
-		Model:       p.model,
-		Messages:    make([]openAIMessage, len(req.Messages)),
-		MaxTokens:   req.MaxTokens,
-		Temperature: req.Temperature,
-		Stream:      false,
-	}
-
+	messages := make([]openai.ChatCompletionMessageParamUnion, len(req.Messages))
 	for i, msg := range req.Messages {
-		openAIReq.Messages[i] = openAIMessage{
-			Role:    string(msg.Role),
-			Content: msg.Content,
+		switch msg.Role {
+		case ai.RoleSystem:
+			messages[i] = openai.SystemMessage(msg.Content)
+		case ai.RoleUser:
+			messages[i] = openai.UserMessage(msg.Content)
+		case ai.RoleAssistant:
+			messages[i] = openai.AssistantMessage(msg.Content)
+		default:
+			messages[i] = openai.UserMessage(msg.Content)
 		}
 	}
 
-	body, err := json.Marshal(openAIReq)
+	params := openai.ChatCompletionNewParams{
+		Model:    openai.ChatModel(p.model),
+		Messages: messages,
+	}
+
+	if req.MaxTokens > 0 {
+		params.MaxTokens = openai.Int(int64(req.MaxTokens))
+	}
+	if req.Temperature > 0 {
+		params.Temperature = openai.Float(req.Temperature)
+	}
+
+	resp, err := p.client.Chat.Completions.New(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
+		return nil, p.mapError(err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/chat/completions", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	p.setHeaders(httpReq)
-
-	resp, err := p.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ai.ErrProviderUnavailable, err)
-	}
-	defer resp.Body.Close()
-
-	if err := p.handleErrorResponse(resp); err != nil {
-		return nil, err
-	}
-
-	var openAIResp openAIChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&openAIResp); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
-	}
-
-	if len(openAIResp.Choices) == 0 {
-		return nil, fmt.Errorf("no choices in response")
+	if len(resp.Choices) == 0 {
+		return nil, ai.NewProviderError(p.Name(), "no_choices",
+			"No completion choices returned", 500, nil)
 	}
 
 	return &ai.ChatResponse{
-		Content:      openAIResp.Choices[0].Message.Content,
-		FinishReason: openAIResp.Choices[0].FinishReason,
+		Content:      resp.Choices[0].Message.Content,
+		FinishReason: string(resp.Choices[0].FinishReason),
 		Usage: ai.TokenUsage{
-			PromptTokens:     openAIResp.Usage.PromptTokens,
-			CompletionTokens: openAIResp.Usage.CompletionTokens,
-			TotalTokens:      openAIResp.Usage.TotalTokens,
+			PromptTokens:     int(resp.Usage.PromptTokens),
+			CompletionTokens: int(resp.Usage.CompletionTokens),
+			TotalTokens:      int(resp.Usage.TotalTokens),
 		},
 	}, nil
 }
 
-// ChatStream sends a streaming chat completion request.
+// ChatStream sends a streaming chat completion request using the OpenAI SDK.
 func (p *OpenAIProvider) ChatStream(ctx context.Context, req ai.ChatRequest) (<-chan ai.ChatStreamEvent, error) {
-	openAIReq := openAIChatRequest{
-		Model:       p.model,
-		Messages:    make([]openAIMessage, len(req.Messages)),
-		MaxTokens:   req.MaxTokens,
-		Temperature: req.Temperature,
-		Stream:      true,
-	}
-
+	messages := make([]openai.ChatCompletionMessageParamUnion, len(req.Messages))
 	for i, msg := range req.Messages {
-		openAIReq.Messages[i] = openAIMessage{
-			Role:    string(msg.Role),
-			Content: msg.Content,
+		switch msg.Role {
+		case ai.RoleSystem:
+			messages[i] = openai.SystemMessage(msg.Content)
+		case ai.RoleUser:
+			messages[i] = openai.UserMessage(msg.Content)
+		case ai.RoleAssistant:
+			messages[i] = openai.AssistantMessage(msg.Content)
+		default:
+			messages[i] = openai.UserMessage(msg.Content)
 		}
 	}
 
-	body, err := json.Marshal(openAIReq)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
+	params := openai.ChatCompletionNewParams{
+		Model:    openai.ChatModel(p.model),
+		Messages: messages,
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/chat/completions", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+	if req.MaxTokens > 0 {
+		params.MaxTokens = openai.Int(int64(req.MaxTokens))
 	}
-	p.setHeaders(httpReq)
-
-	resp, err := p.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ai.ErrProviderUnavailable, err)
+	if req.Temperature > 0 {
+		params.Temperature = openai.Float(req.Temperature)
 	}
 
-	if err := p.handleErrorResponse(resp); err != nil {
-		resp.Body.Close()
-		return nil, err
-	}
+	stream := p.client.Chat.Completions.NewStreaming(ctx, params)
 
 	events := make(chan ai.ChatStreamEvent)
+
 	go func() {
-		defer resp.Body.Close()
 		defer close(events)
 
-		reader := resp.Body
-		buf := make([]byte, 4096)
-		var partial string
+		for stream.Next() {
+			chunk := stream.Current()
 
-		for {
-			n, err := reader.Read(buf)
-			if err != nil {
-				if err != io.EOF {
-					select {
-					case events <- ai.ChatStreamEvent{Error: err}:
-					case <-ctx.Done():
-					}
-				}
-				return
+			if len(chunk.Choices) == 0 {
+				continue
 			}
 
-			partial += string(buf[:n])
-			lines := strings.Split(partial, "\n")
+			choice := chunk.Choices[0]
+			event := ai.ChatStreamEvent{
+				Content:      choice.Delta.Content,
+				Done:         choice.FinishReason != "",
+				FinishReason: string(choice.FinishReason),
+			}
 
-			// Keep the last incomplete line
-			partial = lines[len(lines)-1]
-			lines = lines[:len(lines)-1]
+			select {
+			case events <- event:
+			case <-ctx.Done():
+				return
+			}
+		}
 
-			for _, line := range lines {
-				line = strings.TrimSpace(line)
-				if line == "" || line == "data: [DONE]" {
-					continue
-				}
-				if !strings.HasPrefix(line, "data: ") {
-					continue
-				}
-
-				data := strings.TrimPrefix(line, "data: ")
-				var chunk openAIStreamChunk
-				if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-					continue
-				}
-
-				if len(chunk.Choices) == 0 {
-					continue
-				}
-
-				event := ai.ChatStreamEvent{
-					Content:      chunk.Choices[0].Delta.Content,
-					Done:         chunk.Choices[0].FinishReason != "",
-					FinishReason: chunk.Choices[0].FinishReason,
-				}
-
-				select {
-				case events <- event:
-				case <-ctx.Done():
-					return
-				}
+		if err := stream.Err(); err != nil && !errors.Is(err, context.Canceled) {
+			select {
+			case events <- ai.ChatStreamEvent{Error: p.mapError(err)}:
+			case <-ctx.Done():
 			}
 		}
 	}()
@@ -228,70 +173,28 @@ func (p *OpenAIProvider) ChatStream(ctx context.Context, req ai.ChatRequest) (<-
 	return events, nil
 }
 
-// HealthCheck verifies the API is accessible.
-func (p *OpenAIProvider) HealthCheck(ctx context.Context) error {
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/models", nil)
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-	p.setHeaders(httpReq)
-
-	resp, err := p.httpClient.Do(httpReq)
-	if err != nil {
-		return fmt.Errorf("%w: %v", ai.ErrProviderUnavailable, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusUnauthorized {
-		return ai.ErrInvalidAPIKey
-	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%w: status %d", ai.ErrProviderUnavailable, resp.StatusCode)
-	}
-
-	return nil
-}
-
-// Embed generates embeddings using OpenAI.
+// Embed generates embeddings using the OpenAI SDK.
 func (p *OpenAIProvider) Embed(ctx context.Context, req ai.EmbeddingRequest) (*ai.EmbeddingResponse, error) {
 	embeddingModel := p.model
 	if !strings.Contains(embeddingModel, "embed") {
 		embeddingModel = "text-embedding-3-small" // Default embedding model
 	}
 
-	openAIReq := openAIEmbedRequest{
-		Model: embeddingModel,
-		Input: req.Texts,
+	params := openai.EmbeddingNewParams{
+		Model: openai.EmbeddingModel(embeddingModel),
+		Input: openai.EmbeddingNewParamsInputUnion{
+			OfArrayOfStrings: req.Texts,
+		},
 	}
 
-	body, err := json.Marshal(openAIReq)
+	resp, err := p.client.Embeddings.New(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
+		return nil, p.mapError(err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/embeddings", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	p.setHeaders(httpReq)
-
-	resp, err := p.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ai.ErrProviderUnavailable, err)
-	}
-	defer resp.Body.Close()
-
-	if err := p.handleErrorResponse(resp); err != nil {
-		return nil, err
-	}
-
-	var openAIResp openAIEmbedResponse
-	if err := json.NewDecoder(resp.Body).Decode(&openAIResp); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
-	}
-
-	embeddings := make([][]float32, len(openAIResp.Data))
-	for i, data := range openAIResp.Data {
+	// Convert []float64 to [][]float32
+	embeddings := make([][]float32, len(resp.Data))
+	for i, data := range resp.Data {
 		embedding := make([]float32, len(data.Embedding))
 		for j, v := range data.Embedding {
 			embedding[j] = float32(v)
@@ -302,8 +205,8 @@ func (p *OpenAIProvider) Embed(ctx context.Context, req ai.EmbeddingRequest) (*a
 	return &ai.EmbeddingResponse{
 		Embeddings: embeddings,
 		Usage: ai.TokenUsage{
-			PromptTokens: openAIResp.Usage.PromptTokens,
-			TotalTokens:  openAIResp.Usage.TotalTokens,
+			PromptTokens: int(resp.Usage.PromptTokens),
+			TotalTokens:  int(resp.Usage.TotalTokens),
 		},
 	}, nil
 }
@@ -322,73 +225,44 @@ func (p *OpenAIProvider) Dimensions() int {
 	}
 }
 
-func (p *OpenAIProvider) setHeaders(req *http.Request) {
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+p.apiKey)
-	if p.providerType == ai.ProviderOpenRouter {
-		req.Header.Set("HTTP-Referer", "https://viewra.app")
-		req.Header.Set("X-Title", "Viewra")
+// HealthCheck verifies the API is accessible using the SDK.
+func (p *OpenAIProvider) HealthCheck(ctx context.Context) error {
+	// List models to verify API access
+	_, err := p.client.Models.List(ctx)
+	if err != nil {
+		return p.mapError(err)
 	}
+	return nil
 }
 
-func (p *OpenAIProvider) handleErrorResponse(resp *http.Response) error {
-	if resp.StatusCode == http.StatusOK {
-		return nil
-	}
-
-	body, _ := io.ReadAll(resp.Body)
-
-	switch resp.StatusCode {
-	case http.StatusUnauthorized:
-		return ai.ErrInvalidAPIKey
-	case http.StatusTooManyRequests:
-		return ai.ErrRateLimitExceeded
-	default:
-		return fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
-	}
-}
-
-// ListModels fetches available models from the API.
+// ListModels fetches available models from the API using the SDK.
 func (p *OpenAIProvider) ListModels(ctx context.Context) ([]ai.ModelInfo, error) {
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/models", nil)
+	resp, err := p.client.Models.List(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	p.setHeaders(httpReq)
-
-	resp, err := p.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ai.ErrProviderUnavailable, err)
-	}
-	defer resp.Body.Close()
-
-	if err := p.handleErrorResponse(resp); err != nil {
-		return nil, err
+		return nil, p.mapError(err)
 	}
 
-	var modelsResp struct {
-		Data []struct {
-			ID      string `json:"id"`
-			Object  string `json:"object"`
-			OwnedBy string `json:"owned_by"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&modelsResp); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
-	}
-
-	models := make([]ai.ModelInfo, 0, len(modelsResp.Data))
-	for _, m := range modelsResp.Data {
+	var models []ai.ModelInfo
+	for _, model := range resp.Data {
 		// Filter to relevant models
-		isChat := strings.Contains(m.ID, "gpt") || strings.Contains(m.ID, "chat")
-		isEmbedding := strings.Contains(m.ID, "embed")
+		isChat := strings.Contains(model.ID, "gpt") || strings.Contains(model.ID, "chat") ||
+			strings.Contains(model.ID, "o1") || strings.Contains(model.ID, "o3")
+		isEmbedding := strings.Contains(model.ID, "embed")
 
 		if isChat || isEmbedding {
+			costTier := ai.CostTierMedium
+			if strings.Contains(model.ID, "mini") || strings.Contains(model.ID, "small") {
+				costTier = ai.CostTierLow
+			} else if strings.Contains(model.ID, "o1") || strings.Contains(model.ID, "o3") {
+				costTier = ai.CostTierHigh
+			}
+
 			models = append(models, ai.ModelInfo{
-				ID:          m.ID,
-				Name:        m.ID,
+				ID:          model.ID,
+				Name:        model.ID,
 				IsChat:      isChat,
 				IsEmbedding: isEmbedding,
+				CostTier:    costTier,
 			})
 		}
 	}
@@ -396,55 +270,59 @@ func (p *OpenAIProvider) ListModels(ctx context.Context) ([]ai.ModelInfo, error)
 	return models, nil
 }
 
-// OpenAI API types
+// mapError converts OpenAI SDK errors to domain errors with rich details.
+func (p *OpenAIProvider) mapError(err error) error {
+	if err == nil {
+		return nil
+	}
 
-type openAIChatRequest struct {
-	Model       string          `json:"model"`
-	Messages    []openAIMessage `json:"messages"`
-	MaxTokens   int             `json:"max_tokens,omitempty"`
-	Temperature float64         `json:"temperature,omitempty"`
-	Stream      bool            `json:"stream"`
-}
+	errMsg := err.Error()
 
-type openAIMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
+	// The OpenAI SDK wraps errors, try to extract useful info
+	switch {
+	case strings.Contains(errMsg, "401"),
+		strings.Contains(errMsg, "invalid_api_key"),
+		strings.Contains(errMsg, "Incorrect API key"):
+		return ai.NewProviderError(p.Name(), "invalid_api_key",
+			"Invalid API key. Please check your API key in settings.",
+			401, err)
 
-type openAIChatResponse struct {
-	ID      string `json:"id"`
-	Choices []struct {
-		Message      openAIMessage `json:"message"`
-		FinishReason string        `json:"finish_reason"`
-	} `json:"choices"`
-	Usage struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
-		TotalTokens      int `json:"total_tokens"`
-	} `json:"usage"`
-}
+	case strings.Contains(errMsg, "429"),
+		strings.Contains(errMsg, "rate_limit"):
+		pe := ai.NewProviderError(p.Name(), "rate_limit_exceeded",
+			"Rate limit exceeded. Please wait and try again.",
+			429, err)
+		// Try to extract retry-after if present
+		if strings.Contains(errMsg, "Please retry after") {
+			// Extract the retry time if we can parse it
+			pe.RetryAfter = "60s" // Default fallback
+		}
+		return pe
 
-type openAIStreamChunk struct {
-	Choices []struct {
-		Delta struct {
-			Content string `json:"content"`
-		} `json:"delta"`
-		FinishReason string `json:"finish_reason"`
-	} `json:"choices"`
-}
+	case strings.Contains(errMsg, "404"),
+		strings.Contains(errMsg, "model_not_found"):
+		return ai.NewProviderError(p.Name(), "model_not_found",
+			fmt.Sprintf("Model '%s' not found or not accessible with your API key.", p.model),
+			404, err)
 
-type openAIEmbedRequest struct {
-	Model string   `json:"model"`
-	Input []string `json:"input"`
-}
+	case strings.Contains(errMsg, "context_length_exceeded"):
+		return ai.NewProviderError(p.Name(), "context_length_exceeded",
+			"Input too long for this model. Try reducing your message length.",
+			400, err)
 
-type openAIEmbedResponse struct {
-	Data []struct {
-		Embedding []float64 `json:"embedding"`
-		Index     int       `json:"index"`
-	} `json:"data"`
-	Usage struct {
-		PromptTokens int `json:"prompt_tokens"`
-		TotalTokens  int `json:"total_tokens"`
-	} `json:"usage"`
+	case strings.Contains(errMsg, "insufficient_quota"):
+		return ai.NewProviderError(p.Name(), "insufficient_quota",
+			"Insufficient API quota. Please check your billing settings.",
+			402, err)
+
+	case strings.Contains(errMsg, "connection refused"),
+		strings.Contains(errMsg, "no such host"),
+		strings.Contains(errMsg, "network"):
+		return ai.NewProviderError(p.Name(), "provider_unavailable",
+			"Cannot connect to OpenAI. Please check your network connection.",
+			503, err)
+
+	default:
+		return ai.NewProviderError(p.Name(), "unknown_error", errMsg, 500, err)
+	}
 }
