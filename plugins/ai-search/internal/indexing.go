@@ -257,6 +257,7 @@ func (s *IndexingService) buildTextFromDetails(details *pluginv1.MediaDetails) s
 
 // buildMovieText builds text for movies.
 // Format: Title (Year). Tagline. Plot. Directed by X. Starring A, B, C. Genres: X, Y. Mood: X, Y.
+// Also includes language and country of origin for better international content discovery.
 func (s *IndexingService) buildMovieText(m *pluginv1.MediaDetails) string {
 	var b strings.Builder
 
@@ -270,6 +271,23 @@ func (s *IndexingService) buildMovieText(m *pluginv1.MediaDetails) string {
 	// Genres
 	if len(m.Genres) > 0 {
 		b.WriteString(fmt.Sprintf("Genre: %s\n", strings.Join(m.Genres, ", ")))
+	}
+
+	// Language and country (important for international content discovery)
+	if m.GetOriginalLanguage() != "" {
+		langName := getLanguageName(m.GetOriginalLanguage())
+		b.WriteString(fmt.Sprintf("Language: %s\n", langName))
+	}
+	if m.GetCountryOfOrigin() != "" {
+		b.WriteString(fmt.Sprintf("Country: %s\n", m.GetCountryOfOrigin()))
+	}
+
+	// Era context (helps with decade-based searches like "80s action movies")
+	if m.Year > 0 {
+		era := getEraLabel(m.Year)
+		if era != "" {
+			b.WriteString(fmt.Sprintf("Era: %s\n", era))
+		}
 	}
 
 	// Tagline
@@ -314,6 +332,7 @@ func (s *IndexingService) buildMovieText(m *pluginv1.MediaDetails) string {
 
 // buildTVShowText builds text for TV shows.
 // Format: Title (Year). Tagline. Plot. Network: X. Genres: X, Y. Mood: X, Y.
+// Includes language and country for K-drama, J-drama discovery etc.
 func (s *IndexingService) buildTVShowText(m *pluginv1.MediaDetails) string {
 	var b strings.Builder
 
@@ -327,6 +346,28 @@ func (s *IndexingService) buildTVShowText(m *pluginv1.MediaDetails) string {
 	// Genres
 	if len(m.Genres) > 0 {
 		b.WriteString(fmt.Sprintf("Genre: %s\n", strings.Join(m.Genres, ", ")))
+	}
+
+	// Language and country (important for K-drama, J-drama, etc.)
+	if m.GetOriginalLanguage() != "" {
+		langName := getLanguageName(m.GetOriginalLanguage())
+		b.WriteString(fmt.Sprintf("Language: %s\n", langName))
+		// Add regional drama type hints
+		switch m.GetOriginalLanguage() {
+		case "ko":
+			b.WriteString("Type: K-drama Korean drama\n")
+		case "ja":
+			b.WriteString("Type: J-drama Japanese drama\n")
+		case "zh":
+			b.WriteString("Type: C-drama Chinese drama\n")
+		case "th":
+			b.WriteString("Type: Thai drama lakorn\n")
+		case "tr":
+			b.WriteString("Type: Turkish drama dizi\n")
+		}
+	}
+	if m.GetCountryOfOrigin() != "" {
+		b.WriteString(fmt.Sprintf("Country: %s\n", m.GetCountryOfOrigin()))
 	}
 
 	// Tagline
@@ -503,4 +544,77 @@ func truncateText(text string, maxLen int) string {
 		return text
 	}
 	return text[:maxLen] + "..."
+}
+
+// getLanguageName converts an ISO 639-1 language code to a human-readable name.
+// This helps with semantic search by including full language names in embeddings.
+func getLanguageName(code string) string {
+	languageNames := map[string]string{
+		"en": "English",
+		"es": "Spanish",
+		"fr": "French",
+		"de": "German",
+		"it": "Italian",
+		"pt": "Portuguese",
+		"ru": "Russian",
+		"ja": "Japanese",
+		"ko": "Korean",
+		"zh": "Chinese",
+		"hi": "Hindi",
+		"ar": "Arabic",
+		"th": "Thai",
+		"vi": "Vietnamese",
+		"tr": "Turkish",
+		"pl": "Polish",
+		"nl": "Dutch",
+		"sv": "Swedish",
+		"da": "Danish",
+		"no": "Norwegian",
+		"fi": "Finnish",
+		"el": "Greek",
+		"he": "Hebrew",
+		"id": "Indonesian",
+		"ms": "Malay",
+		"tl": "Filipino",
+		"cs": "Czech",
+		"hu": "Hungarian",
+		"ro": "Romanian",
+		"uk": "Ukrainian",
+	}
+
+	if name, ok := languageNames[strings.ToLower(code)]; ok {
+		return name
+	}
+	return code // Return the code if no mapping found
+}
+
+// getEraLabel returns a decade/era label for better search matching.
+// Users often search for "80s movies" or "90s action".
+func getEraLabel(year int32) string {
+	switch {
+	case year >= 2020:
+		return "2020s contemporary modern"
+	case year >= 2010:
+		return "2010s"
+	case year >= 2000:
+		return "2000s"
+	case year >= 1990:
+		return "90s nineties"
+	case year >= 1980:
+		return "80s eighties"
+	case year >= 1970:
+		return "70s seventies"
+	case year >= 1960:
+		return "60s sixties"
+	case year >= 1950:
+		return "50s fifties classic"
+	case year >= 1940:
+		return "40s forties classic"
+	case year >= 1930:
+		return "30s thirties classic golden age"
+	case year < 1930 && year > 0:
+		return "silent era classic vintage"
+	default:
+		return ""
+	}
 }

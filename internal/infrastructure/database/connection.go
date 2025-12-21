@@ -7,9 +7,16 @@ import (
 	"os"
 	"path/filepath"
 
+	sqlite_vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
 	_ "github.com/lib/pq"           // PostgreSQL driver
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
 )
+
+func init() {
+	// Register sqlite-vec extension with the SQLite driver.
+	// This enables vec0 virtual tables for fast KNN vector search.
+	sqlite_vec.Auto()
+}
 
 // Config holds database configuration
 type Config struct {

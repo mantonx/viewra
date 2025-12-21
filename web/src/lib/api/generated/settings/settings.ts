@@ -30,6 +30,7 @@ import type {
   InternalApiHandlersDeleteOllamaModelRequest,
   InternalApiHandlersEffectiveSettingsResponse,
   InternalApiHandlersErrorResponse,
+  InternalApiHandlersLocationPreferencesResponse,
   InternalApiHandlersModelsResponse,
   InternalApiHandlersProvidersResponse,
   InternalApiHandlersPullOllamaModelRequest,
@@ -38,6 +39,7 @@ import type {
   InternalApiHandlersSettingsSchemaResponse,
   InternalApiHandlersSystemSettingValueResponse,
   InternalApiHandlersSystemSettingsResponse,
+  InternalApiHandlersUpdateLocationPreferencesRequest,
   InternalApiHandlersUserSettingValueResponse,
   InternalApiHandlersUserSettingsResponse,
 } from '.././models'
@@ -1702,6 +1704,273 @@ export const usePostApiSettingsAiTestOpenai = <
   TContext
 > => {
   const mutationOptions = getPostApiSettingsAiTestOpenaiMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Returns the current user's location preferences
+ * @summary Get location preferences
+ */
+export type getApiSettingsLocationResponse200 = {
+  data: InternalApiHandlersLocationPreferencesResponse
+  status: 200
+}
+
+export type getApiSettingsLocationResponse401 = {
+  data: InternalApiHandlersErrorResponse
+  status: 401
+}
+
+export type getApiSettingsLocationResponseSuccess = getApiSettingsLocationResponse200 & {
+  headers: Headers
+}
+export type getApiSettingsLocationResponseError = getApiSettingsLocationResponse401 & {
+  headers: Headers
+}
+
+export type getApiSettingsLocationResponse =
+  | getApiSettingsLocationResponseSuccess
+  | getApiSettingsLocationResponseError
+
+export const getGetApiSettingsLocationUrl = () => {
+  return `/api/settings/location`
+}
+
+export const getApiSettingsLocation = async (
+  options?: RequestInit
+): Promise<getApiSettingsLocationResponse> => {
+  return customInstance<getApiSettingsLocationResponse>(getGetApiSettingsLocationUrl(), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiSettingsLocationQueryKey = () => {
+  return [`/api/settings/location`] as const
+}
+
+export const getGetApiSettingsLocationQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiSettingsLocation>>,
+  TError = InternalApiHandlersErrorResponse,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsLocation>>, TError, TData>
+  >
+  request?: SecondParameter<typeof customInstance>
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiSettingsLocationQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiSettingsLocation>>> = ({ signal }) =>
+    getApiSettingsLocation({ signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiSettingsLocation>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiSettingsLocationQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiSettingsLocation>>
+>
+export type GetApiSettingsLocationQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiSettingsLocation<
+  TData = Awaited<ReturnType<typeof getApiSettingsLocation>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsLocation>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiSettingsLocation>>,
+          TError,
+          Awaited<ReturnType<typeof getApiSettingsLocation>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiSettingsLocation<
+  TData = Awaited<ReturnType<typeof getApiSettingsLocation>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsLocation>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiSettingsLocation>>,
+          TError,
+          Awaited<ReturnType<typeof getApiSettingsLocation>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiSettingsLocation<
+  TData = Awaited<ReturnType<typeof getApiSettingsLocation>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsLocation>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get location preferences
+ */
+
+export function useGetApiSettingsLocation<
+  TData = Awaited<ReturnType<typeof getApiSettingsLocation>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsLocation>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiSettingsLocationQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Updates the current user's location preferences
+ * @summary Update location preferences
+ */
+export type putApiSettingsLocationResponse200 = {
+  data: InternalApiHandlersLocationPreferencesResponse
+  status: 200
+}
+
+export type putApiSettingsLocationResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type putApiSettingsLocationResponse401 = {
+  data: InternalApiHandlersErrorResponse
+  status: 401
+}
+
+export type putApiSettingsLocationResponseSuccess = putApiSettingsLocationResponse200 & {
+  headers: Headers
+}
+export type putApiSettingsLocationResponseError = (
+  | putApiSettingsLocationResponse400
+  | putApiSettingsLocationResponse401
+) & {
+  headers: Headers
+}
+
+export type putApiSettingsLocationResponse =
+  | putApiSettingsLocationResponseSuccess
+  | putApiSettingsLocationResponseError
+
+export const getPutApiSettingsLocationUrl = () => {
+  return `/api/settings/location`
+}
+
+export const putApiSettingsLocation = async (
+  internalApiHandlersUpdateLocationPreferencesRequest: InternalApiHandlersUpdateLocationPreferencesRequest,
+  options?: RequestInit
+): Promise<putApiSettingsLocationResponse> => {
+  return customInstance<putApiSettingsLocationResponse>(getPutApiSettingsLocationUrl(), {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(internalApiHandlersUpdateLocationPreferencesRequest),
+  })
+}
+
+export const getPutApiSettingsLocationMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putApiSettingsLocation>>,
+    TError,
+    { data: InternalApiHandlersUpdateLocationPreferencesRequest },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof putApiSettingsLocation>>,
+  TError,
+  { data: InternalApiHandlersUpdateLocationPreferencesRequest },
+  TContext
+> => {
+  const mutationKey = ['putApiSettingsLocation']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof putApiSettingsLocation>>,
+    { data: InternalApiHandlersUpdateLocationPreferencesRequest }
+  > = (props) => {
+    const { data } = props ?? {}
+
+    return putApiSettingsLocation(data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PutApiSettingsLocationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putApiSettingsLocation>>
+>
+export type PutApiSettingsLocationMutationBody = InternalApiHandlersUpdateLocationPreferencesRequest
+export type PutApiSettingsLocationMutationError = InternalApiHandlersErrorResponse
+
+/**
+ * @summary Update location preferences
+ */
+export const usePutApiSettingsLocation = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof putApiSettingsLocation>>,
+      TError,
+      { data: InternalApiHandlersUpdateLocationPreferencesRequest },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof putApiSettingsLocation>>,
+  TError,
+  { data: InternalApiHandlersUpdateLocationPreferencesRequest },
+  TContext
+> => {
+  const mutationOptions = getPutApiSettingsLocationMutationOptions(options)
 
   return useMutation(mutationOptions, queryClient)
 }

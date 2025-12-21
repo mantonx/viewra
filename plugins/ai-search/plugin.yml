@@ -53,3 +53,4 @@ permissions:
   - data:embeddings:write # Store embeddings
   - ai:llm               # Use LLM providers for embeddings
   - enrichment:register  # Register as enrichment stage
+  - weather:read         # Read weather context for query enrichment

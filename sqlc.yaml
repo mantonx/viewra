@@ -2,7 +2,8 @@ version: "2"
 sql:
   - engine: "sqlite"
     queries: "internal/infrastructure/database/queries/sqlite"
-    schema: "migrations"
+    schema:
+      - "migrations/000*.sql"  # Only parse numbered migrations, exclude sqlite/ and postgres/ subdirs
     gen:
       go:
         package: "sqlc_sqlite"

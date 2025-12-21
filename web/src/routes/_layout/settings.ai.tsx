@@ -604,7 +604,7 @@ const AISettings = () => {
     try {
       const response = await testProvider.mutateAsync({ provider })
       const success = response.status === 200 && response.data.success
-      setProviderStatus((prev) => ({ ...prev, [provider]: success }))
+      setProviderStatus((prev) => ({ ...prev, [provider]: success ?? false }))
       if (success) {
         toast.success(`${providerMeta[provider]?.name || provider} connection successful`)
         if (provider === 'ollama') {

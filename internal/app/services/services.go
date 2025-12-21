@@ -22,12 +22,14 @@ import (
 	"github.com/mantonx/viewra/internal/infrastructure/events"
 	infraimages "github.com/mantonx/viewra/internal/infrastructure/images"
 	"github.com/mantonx/viewra/internal/infrastructure/pathbrowser"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/location"
 	"github.com/mantonx/viewra/internal/infrastructure/plugins"
 	"github.com/mantonx/viewra/internal/infrastructure/subtitles"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
 	transcodeconfig "github.com/mantonx/viewra/internal/infrastructure/transcoding/config"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/logging"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/session"
+	"github.com/mantonx/viewra/internal/infrastructure/weather"
 	"github.com/mantonx/viewra/internal/version"
 )
 
@@ -74,6 +76,10 @@ type Services struct {
 
 	// Plugin manager for external plugins
 	PluginManager *plugins.Manager
+
+	// Location services for weather context
+	LocationRepo   *location.Repository
+	WeatherService *weather.Service
 }
 
 // BuildServices creates and initializes all infrastructure services.
@@ -397,6 +403,10 @@ func BuildServices(
 		}
 	}
 
+	// Initialize location repository and weather service for AI context enrichment
+	locationRepo := location.NewRepository(db, dbDriver)
+	weatherService := weather.NewService(logger.With("component", "weather"))
+
 	// Create AI services
 	// Embedding provider is nil initially - configured later via settings UI
 	return &Services{
@@ -416,6 +426,8 @@ func BuildServices(
 		PipelineManager:   pipelineManager,
 		EnricherRegistry:  enricherRegistry,
 		PluginManager:     pluginManager,
+		LocationRepo:      locationRepo,
+		WeatherService:    weatherService,
 	}, nil
 }
 

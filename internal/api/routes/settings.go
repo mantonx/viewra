@@ -13,6 +13,16 @@ func RegisterSettingsRoutes(
 	handler *handlers.SettingsHandler,
 	authValidator middleware.AuthValidator,
 ) {
+	RegisterSettingsRoutesWithLocation(protected, handler, nil, authValidator)
+}
+
+// RegisterSettingsRoutesWithLocation registers all settings-related routes including location.
+func RegisterSettingsRoutesWithLocation(
+	protected *gin.RouterGroup,
+	handler *handlers.SettingsHandler,
+	locationHandler *handlers.LocationSettingsHandler,
+	authValidator middleware.AuthValidator,
+) {
 	if handler == nil {
 		return
 	}
@@ -45,4 +55,14 @@ func RegisterSettingsRoutes(
 		systemInfo.Use(middleware.RequireAdmin(authValidator))
 	}
 	systemInfo.GET("/info", handler.GetSystemInfo)
+
+	// Location settings (authenticated users)
+	if locationHandler != nil {
+		location := settings.Group("/location")
+		location.GET("", locationHandler.GetLocationPreferences)
+		location.PUT("", locationHandler.UpdateLocationPreferences)
+
+		// Weather context endpoint
+		protected.GET("/context/weather", locationHandler.GetWeatherContext)
+	}
 }

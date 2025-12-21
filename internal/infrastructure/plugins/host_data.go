@@ -82,15 +82,17 @@ type MediaDetailsInfo struct {
 	ExternalIDs map[string]string
 
 	// Rich metadata
-	Plot           string
-	Tagline        string
-	Genres         []string
-	Directors      []string
-	Writers        []string
-	Cast           []CastMemberInfo
-	Studios        []string
-	ContentRating  string
-	RuntimeMinutes int
+	Plot             string
+	Tagline          string
+	Genres           []string
+	Directors        []string
+	Writers          []string
+	Cast             []CastMemberInfo
+	Studios          []string
+	ContentRating    string
+	RuntimeMinutes   int
+	OriginalLanguage string
+	CountryOfOrigin  string
 
 	// TV-specific
 	ShowTitle     string
@@ -396,30 +398,32 @@ func mediaDetailsToProto(d *MediaDetailsInfo) *pluginv1.MediaDetails {
 	}
 
 	return &pluginv1.MediaDetails{
-		Id:             d.ID,
-		MediaType:      d.MediaType,
-		Title:          d.Title,
-		Year:           int32(d.Year),
-		LibraryId:      d.LibraryID,
-		ExternalIds:    d.ExternalIDs,
-		Plot:           d.Plot,
-		Tagline:        d.Tagline,
-		Genres:         d.Genres,
-		Directors:      d.Directors,
-		Writers:        d.Writers,
-		Cast:           cast,
-		Studios:        d.Studios,
-		ContentRating:  d.ContentRating,
-		RuntimeMinutes: int32(d.RuntimeMinutes),
-		ShowTitle:      d.ShowTitle,
-		SeasonNumber:   int32(d.SeasonNumber),
-		EpisodeNumber:  int32(d.EpisodeNumber),
-		ArtistName:     d.ArtistName,
-		AlbumTitle:     d.AlbumTitle,
-		Biography:      d.Biography,
-		Country:        d.Country,
-		ReleaseType:    d.ReleaseType,
-		MoodTags:       d.MoodTags,
+		Id:               d.ID,
+		MediaType:        d.MediaType,
+		Title:            d.Title,
+		Year:             int32(d.Year),
+		LibraryId:        d.LibraryID,
+		ExternalIds:      d.ExternalIDs,
+		Plot:             d.Plot,
+		Tagline:          d.Tagline,
+		Genres:           d.Genres,
+		Directors:        d.Directors,
+		Writers:          d.Writers,
+		Cast:             cast,
+		Studios:          d.Studios,
+		ContentRating:    d.ContentRating,
+		RuntimeMinutes:   int32(d.RuntimeMinutes),
+		OriginalLanguage: d.OriginalLanguage,
+		CountryOfOrigin:  d.CountryOfOrigin,
+		ShowTitle:        d.ShowTitle,
+		SeasonNumber:     int32(d.SeasonNumber),
+		EpisodeNumber:    int32(d.EpisodeNumber),
+		ArtistName:       d.ArtistName,
+		AlbumTitle:       d.AlbumTitle,
+		Biography:        d.Biography,
+		Country:          d.Country,
+		ReleaseType:      d.ReleaseType,
+		MoodTags:         d.MoodTags,
 	}
 }
 

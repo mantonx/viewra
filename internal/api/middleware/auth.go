@@ -14,6 +14,16 @@ func devModeEnabled() bool {
 	return os.Getenv("VIEWRA_DEV_MODE") == "1"
 }
 
+// devModeClaims returns mock claims for dev mode
+func devModeClaims() *auth.AccessClaims {
+	claims := &auth.AccessClaims{
+		UserID:  1,
+		IsAdmin: true,
+	}
+	claims.Subject = "dev-user"
+	return claims
+}
+
 // Context keys for user information
 const (
 	ContextKeyUserID  = "user_id"
@@ -36,6 +46,7 @@ func RequireAuth(validator AuthValidator) gin.HandlerFunc {
 		if devModeEnabled() {
 			c.Set(ContextKeyUserID, int64(1))
 			c.Set(ContextKeyIsAdmin, true)
+			c.Set(ContextKeyClaims, devModeClaims())
 			c.Next()
 			return
 		}
@@ -76,6 +87,7 @@ func RequireAdmin(validator AuthValidator) gin.HandlerFunc {
 		if devModeEnabled() {
 			c.Set(ContextKeyUserID, int64(1))
 			c.Set(ContextKeyIsAdmin, true)
+			c.Set(ContextKeyClaims, devModeClaims())
 			c.Next()
 			return
 		}
@@ -188,4 +200,15 @@ func GetClaims(c *gin.Context) *auth.AccessClaims {
 		return claims.(*auth.AccessClaims)
 	}
 	return nil
+}
+
+// GetUserPublicID returns the public user ID (UUID) from the context.
+// This is the external-facing user ID stored in the JWT Subject claim.
+// Returns empty string if not authenticated.
+func GetUserPublicID(c *gin.Context) string {
+	claims := GetClaims(c)
+	if claims == nil {
+		return ""
+	}
+	return claims.Subject
 }

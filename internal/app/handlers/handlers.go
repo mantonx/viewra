@@ -145,6 +145,7 @@ func BuildHandlers(
 	// Settings handler
 	var settingsHandler *handlers.SettingsHandler
 	var aiSettingsHandler *handlers.AISettingsHandler
+	var locationSettingsHandler *handlers.LocationSettingsHandler
 	if svcs.Settings != nil {
 		settingsHandler = handlers.NewSettingsHandler(svcs.Settings)
 		aiSettingsHandler = handlers.NewAISettingsHandler(svcs.Settings, svcs.EventBus)
@@ -156,6 +157,11 @@ func BuildHandlers(
 			}
 			return profile.Memory.TotalBytes, profile.GPU.VRAMBytes
 		})
+	}
+
+	// Location settings handler (for weather context)
+	if svcs.LocationRepo != nil && svcs.WeatherService != nil {
+		locationSettingsHandler = handlers.NewLocationSettingsHandler(svcs.LocationRepo, svcs.WeatherService)
 	}
 
 	// Enrichment handler
@@ -195,31 +201,32 @@ func BuildHandlers(
 	}
 
 	return &api.Handlers{
-		Health:        healthHandler,
-		Browser:       browserHandler,
-		Scheduler:     schedulerHandler,
-		Analytics:     analyticsHandler,
-		Library:       libraryHandler,
-		ScanJob:       scanJobHandler,
-		Media:         mediaHandler,
-		Stream:        streamHandler,
-		Progress:      progressHandler,
-		Subtitle:      subtitleHandler,
-		Images:        imagesHandler,
-		Transcode:     transcodeHandler,
-		FFmpegLogs:    ffmpegLogsHandler,
-		Movies:        moviesHandler,
-		TV:            tvHandler,
-		Music:         musicHandler,
-		People:        peopleHandler,
-		Auth:          authHandler,
-		Users:         usersHandler,
-		Settings:      settingsHandler,
-		AISettings:    aiSettingsHandler,
-		Enrichment:    enrichmentHandler,
-		Plugins:       pluginHandler,
-		System:        systemHandler,
-		PluginProxy:   pluginProxy,
-		AuthValidator: authService,
+		Health:           healthHandler,
+		Browser:          browserHandler,
+		Scheduler:        schedulerHandler,
+		Analytics:        analyticsHandler,
+		Library:          libraryHandler,
+		ScanJob:          scanJobHandler,
+		Media:            mediaHandler,
+		Stream:           streamHandler,
+		Progress:         progressHandler,
+		Subtitle:         subtitleHandler,
+		Images:           imagesHandler,
+		Transcode:        transcodeHandler,
+		FFmpegLogs:       ffmpegLogsHandler,
+		Movies:           moviesHandler,
+		TV:               tvHandler,
+		Music:            musicHandler,
+		People:           peopleHandler,
+		Auth:             authHandler,
+		Users:            usersHandler,
+		Settings:         settingsHandler,
+		LocationSettings: locationSettingsHandler,
+		AISettings:       aiSettingsHandler,
+		Enrichment:       enrichmentHandler,
+		Plugins:          pluginHandler,
+		System:           systemHandler,
+		PluginProxy:      pluginProxy,
+		AuthValidator:    authService,
 	}
 }

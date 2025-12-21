@@ -810,6 +810,12 @@ func (q *DBMediaQuerier) movieRowToDetails(result any, externalIDs map[string]st
 		if row.RuntimeMinutes.Valid {
 			info.RuntimeMinutes = int(row.RuntimeMinutes.Int32)
 		}
+		if row.OriginalLanguage.Valid {
+			info.OriginalLanguage = row.OriginalLanguage.String
+		}
+		if row.CountryOfOrigin.Valid {
+			info.CountryOfOrigin = row.CountryOfOrigin.String
+		}
 	} else {
 		row := result.(sqlc_sqlite.GetMovieByMediaIDRow)
 		info.ID = row.MediaID
@@ -838,6 +844,12 @@ func (q *DBMediaQuerier) movieRowToDetails(result any, externalIDs map[string]st
 		}
 		if row.RuntimeMinutes.Valid {
 			info.RuntimeMinutes = int(row.RuntimeMinutes.Int64)
+		}
+		if row.OriginalLanguage.Valid {
+			info.OriginalLanguage = row.OriginalLanguage.String
+		}
+		if row.CountryOfOrigin.Valid {
+			info.CountryOfOrigin = row.CountryOfOrigin.String
 		}
 	}
 
@@ -890,6 +902,12 @@ func (q *DBMediaQuerier) tvShowRowToDetails(result any, externalIDs map[string]s
 		if row.ContentRating.Valid {
 			info.ContentRating = row.ContentRating.String
 		}
+		if row.OriginalLanguage.Valid {
+			info.OriginalLanguage = row.OriginalLanguage.String
+		}
+		if row.CountryOfOrigin.Valid {
+			info.CountryOfOrigin = row.CountryOfOrigin.String
+		}
 	} else {
 		row := result.(sqlc_sqlite.TvShow)
 		info.ID = row.ID
@@ -906,6 +924,12 @@ func (q *DBMediaQuerier) tvShowRowToDetails(result any, externalIDs map[string]s
 		}
 		if row.ContentRating.Valid {
 			info.ContentRating = row.ContentRating.String
+		}
+		if row.OriginalLanguage.Valid {
+			info.OriginalLanguage = row.OriginalLanguage.String
+		}
+		if row.CountryOfOrigin.Valid {
+			info.CountryOfOrigin = row.CountryOfOrigin.String
 		}
 	}
 
@@ -1065,6 +1089,12 @@ func (q *DBMediaQuerier) moviePaginatedRowsToDetails(results any) []*MediaDetail
 			if row.RuntimeMinutes.Valid {
 				info.RuntimeMinutes = int(row.RuntimeMinutes.Int32)
 			}
+			if row.OriginalLanguage.Valid {
+				info.OriginalLanguage = row.OriginalLanguage.String
+			}
+			if row.CountryOfOrigin.Valid {
+				info.CountryOfOrigin = row.CountryOfOrigin.String
+			}
 			infos = append(infos, info)
 		}
 	} else {
@@ -1098,6 +1128,12 @@ func (q *DBMediaQuerier) moviePaginatedRowsToDetails(results any) []*MediaDetail
 			}
 			if row.RuntimeMinutes.Valid {
 				info.RuntimeMinutes = int(row.RuntimeMinutes.Int64)
+			}
+			if row.OriginalLanguage.Valid {
+				info.OriginalLanguage = row.OriginalLanguage.String
+			}
+			if row.CountryOfOrigin.Valid {
+				info.CountryOfOrigin = row.CountryOfOrigin.String
 			}
 			infos = append(infos, info)
 		}
@@ -1166,6 +1202,12 @@ func (q *DBMediaQuerier) tvShowPaginatedRowsToDetails(results any) []*MediaDetai
 			if row.ContentRating.Valid {
 				info.ContentRating = row.ContentRating.String
 			}
+			if row.OriginalLanguage.Valid {
+				info.OriginalLanguage = row.OriginalLanguage.String
+			}
+			if row.CountryOfOrigin.Valid {
+				info.CountryOfOrigin = row.CountryOfOrigin.String
+			}
 			infos = append(infos, info)
 		}
 	} else {
@@ -1187,6 +1229,12 @@ func (q *DBMediaQuerier) tvShowPaginatedRowsToDetails(results any) []*MediaDetai
 			}
 			if row.ContentRating.Valid {
 				info.ContentRating = row.ContentRating.String
+			}
+			if row.OriginalLanguage.Valid {
+				info.OriginalLanguage = row.OriginalLanguage.String
+			}
+			if row.CountryOfOrigin.Valid {
+				info.CountryOfOrigin = row.CountryOfOrigin.String
 			}
 			infos = append(infos, info)
 		}

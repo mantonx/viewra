@@ -1219,3 +1219,115 @@ var HostFileParser_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "api/proto/plugin/host_services.proto",
 }
+
+const (
+	HostWeather_GetCurrentWeather_FullMethodName = "/viewra.plugin.v1.HostWeather/GetCurrentWeather"
+)
+
+// HostWeatherClient is the client API for HostWeather service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// HostWeather provides weather and time context for query enrichment.
+// Plugins need weather:read permission to use this service.
+type HostWeatherClient interface {
+	// GetCurrentWeather returns current weather for a user's location.
+	// Returns available=false if the user hasn't enabled location.
+	GetCurrentWeather(ctx context.Context, in *WeatherRequest, opts ...grpc.CallOption) (*WeatherResponse, error)
+}
+
+type hostWeatherClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewHostWeatherClient(cc grpc.ClientConnInterface) HostWeatherClient {
+	return &hostWeatherClient{cc}
+}
+
+func (c *hostWeatherClient) GetCurrentWeather(ctx context.Context, in *WeatherRequest, opts ...grpc.CallOption) (*WeatherResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WeatherResponse)
+	err := c.cc.Invoke(ctx, HostWeather_GetCurrentWeather_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// HostWeatherServer is the server API for HostWeather service.
+// All implementations must embed UnimplementedHostWeatherServer
+// for forward compatibility.
+//
+// HostWeather provides weather and time context for query enrichment.
+// Plugins need weather:read permission to use this service.
+type HostWeatherServer interface {
+	// GetCurrentWeather returns current weather for a user's location.
+	// Returns available=false if the user hasn't enabled location.
+	GetCurrentWeather(context.Context, *WeatherRequest) (*WeatherResponse, error)
+	mustEmbedUnimplementedHostWeatherServer()
+}
+
+// UnimplementedHostWeatherServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedHostWeatherServer struct{}
+
+func (UnimplementedHostWeatherServer) GetCurrentWeather(context.Context, *WeatherRequest) (*WeatherResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCurrentWeather not implemented")
+}
+func (UnimplementedHostWeatherServer) mustEmbedUnimplementedHostWeatherServer() {}
+func (UnimplementedHostWeatherServer) testEmbeddedByValue()                     {}
+
+// UnsafeHostWeatherServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to HostWeatherServer will
+// result in compilation errors.
+type UnsafeHostWeatherServer interface {
+	mustEmbedUnimplementedHostWeatherServer()
+}
+
+func RegisterHostWeatherServer(s grpc.ServiceRegistrar, srv HostWeatherServer) {
+	// If the following call pancis, it indicates UnimplementedHostWeatherServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&HostWeather_ServiceDesc, srv)
+}
+
+func _HostWeather_GetCurrentWeather_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WeatherRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostWeatherServer).GetCurrentWeather(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostWeather_GetCurrentWeather_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostWeatherServer).GetCurrentWeather(ctx, req.(*WeatherRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// HostWeather_ServiceDesc is the grpc.ServiceDesc for HostWeather service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var HostWeather_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "viewra.plugin.v1.HostWeather",
+	HandlerType: (*HostWeatherServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetCurrentWeather",
+			Handler:    _HostWeather_GetCurrentWeather_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/proto/plugin/host_services.proto",
+}

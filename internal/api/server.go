@@ -71,30 +71,31 @@ func DefaultServerConfig() ServerConfig {
 // Handlers holds all HTTP handlers. This type alias allows the api package
 // to accept handlers without importing the app/handlers package.
 type Handlers struct {
-	Health     *handlers.HealthHandler
-	Browser    *handlers.BrowserHandler
-	Scheduler  *handlers.SchedulerHandler
-	Analytics  *handlers.AnalyticsHandler
-	Library    *handlers.LibraryHandler
-	ScanJob    *handlers.ScanJobHandler
-	Media      *handlers.MediaHandler
-	Stream     *handlers.StreamHandler
-	Progress   *handlers.ProgressHandler
-	Images     *handlers.ImagesHandler
-	Transcode  *handlers.TranscodeHandler
-	FFmpegLogs *handlers.FFmpegLogsHandler
-	Subtitle   *handlers.SubtitleHandler
-	Movies     *handlers.MoviesHandler
-	TV         *handlers.TVHandler
-	Music      *handlers.MusicHandler
-	People     *handlers.PeopleHandler
-	Auth       *handlers.AuthHandler
-	Users      *handlers.UsersHandler
-	Settings   *handlers.SettingsHandler
-	Enrichment *handlers.EnrichmentHandler
-	Plugins    *handlers.PluginHandler
-	System     *handlers.SystemHandler
-	AISettings *handlers.AISettingsHandler
+	Health           *handlers.HealthHandler
+	Browser          *handlers.BrowserHandler
+	Scheduler        *handlers.SchedulerHandler
+	Analytics        *handlers.AnalyticsHandler
+	Library          *handlers.LibraryHandler
+	ScanJob          *handlers.ScanJobHandler
+	Media            *handlers.MediaHandler
+	Stream           *handlers.StreamHandler
+	Progress         *handlers.ProgressHandler
+	Images           *handlers.ImagesHandler
+	Transcode        *handlers.TranscodeHandler
+	FFmpegLogs       *handlers.FFmpegLogsHandler
+	Subtitle         *handlers.SubtitleHandler
+	Movies           *handlers.MoviesHandler
+	TV               *handlers.TVHandler
+	Music            *handlers.MusicHandler
+	People           *handlers.PeopleHandler
+	Auth             *handlers.AuthHandler
+	Users            *handlers.UsersHandler
+	Settings         *handlers.SettingsHandler
+	LocationSettings *handlers.LocationSettingsHandler
+	Enrichment       *handlers.EnrichmentHandler
+	Plugins          *handlers.PluginHandler
+	System           *handlers.SystemHandler
+	AISettings       *handlers.AISettingsHandler
 
 	// PluginProxy proxies HTTP requests to plugin-defined routes.
 	// This replaces the hardcoded AISearchHandler.
@@ -199,7 +200,7 @@ func (s *Server) setupRoutes() {
 	routes.RegisterAnalyticsRoutes(protected, h.Analytics)
 
 	// Register settings routes (protected, with admin requirement for system settings)
-	routes.RegisterSettingsRoutes(protected, h.Settings, h.AuthValidator)
+	routes.RegisterSettingsRoutesWithLocation(protected, h.Settings, h.LocationSettings, h.AuthValidator)
 
 	// Register AI settings routes (protected, admin only)
 	routes.RegisterAISettingsRoutes(protected, h.AISettings, h.AuthValidator)

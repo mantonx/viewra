@@ -49,3 +49,20 @@ SELECT COUNT(*) FROM users;
 
 -- name: ExistsAnyUser :one
 SELECT EXISTS(SELECT 1 FROM users);
+
+-- Location Preferences (stored in users table)
+
+-- name: GetUserLocation :one
+SELECT id, location_latitude, location_longitude, location_timezone, location_enabled, location_name
+FROM users
+WHERE id = $1;
+
+-- name: UpdateUserLocation :exec
+UPDATE users
+SET location_latitude = $1,
+    location_longitude = $2,
+    location_timezone = $3,
+    location_enabled = $4,
+    location_name = $5,
+    updated_at = $6
+WHERE id = $7;

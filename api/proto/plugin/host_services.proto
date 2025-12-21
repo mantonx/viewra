@@ -92,6 +92,14 @@ service HostFileParser {
   rpc ExtractEmbeddedImages(ExtractImagesRequest) returns (ExtractImagesResponse);
 }
 
+// HostWeather provides weather and time context for query enrichment.
+// Plugins need weather:read permission to use this service.
+service HostWeather {
+  // GetCurrentWeather returns current weather for a user's location.
+  // Returns available=false if the user hasn't enabled location.
+  rpc GetCurrentWeather(WeatherRequest) returns (WeatherResponse);
+}
+
 // HostData messages
 
 message MediaQuery {
@@ -170,6 +178,8 @@ message MediaDetails {
   repeated string studios = 13;
   string content_rating = 14;
   int32 runtime_minutes = 15;
+  string original_language = 16;  // ISO 639-1 code, e.g., "en", "ko", "ja"
+  string country_of_origin = 17;  // e.g., "United States", "South Korea"
 
   // TV-specific
   string show_title = 20;       // For episodes: the parent show title
@@ -333,3 +343,21 @@ message SetMoodTagsRequest {
   string media_type = 3;  // "movie", "tv_show", "tv_episode", "music_artist", "music_album", "music_track"
 }
 
+// HostWeather messages
+
+message WeatherRequest {
+  string user_id = 1;  // User ID to look up location preferences
+}
+
+message WeatherResponse {
+  bool available = 1;           // False if user hasn't enabled location
+  float temperature = 2;        // Celsius
+  int32 humidity = 3;           // Percentage (0-100)
+  bool is_day = 4;              // True if daylight
+  float precipitation = 5;      // mm
+  int32 cloud_cover = 6;        // Percentage (0-100)
+  int32 weather_code = 7;       // WMO weather interpretation code
+  string condition = 8;         // Simplified: sunny, cloudy, rainy, snowy, stormy, foggy
+  string time_of_day = 9;       // morning, afternoon, evening, night
+  string season = 10;           // spring, summer, fall, winter
+}

@@ -639,15 +639,20 @@ type TvShow struct {
 }
 
 type User struct {
-	ID           int64  `json:"id"`
-	PublicID     string `json:"public_id"`
-	Username     string `json:"username"`
-	DisplayName  string `json:"display_name"`
-	PasswordHash string `json:"password_hash"`
-	IsAdmin      int64  `json:"is_admin"`
-	IsDisabled   int64  `json:"is_disabled"`
-	CreatedAt    string `json:"created_at"`
-	UpdatedAt    string `json:"updated_at"`
+	ID                int64           `json:"id"`
+	PublicID          string          `json:"public_id"`
+	Username          string          `json:"username"`
+	DisplayName       string          `json:"display_name"`
+	PasswordHash      string          `json:"password_hash"`
+	IsAdmin           int64           `json:"is_admin"`
+	IsDisabled        int64           `json:"is_disabled"`
+	CreatedAt         string          `json:"created_at"`
+	UpdatedAt         string          `json:"updated_at"`
+	LocationLatitude  sql.NullFloat64 `json:"location_latitude"`
+	LocationLongitude sql.NullFloat64 `json:"location_longitude"`
+	LocationTimezone  sql.NullString  `json:"location_timezone"`
+	LocationEnabled   sql.NullInt64   `json:"location_enabled"`
+	LocationName      sql.NullString  `json:"location_name"`
 }
 
 type UserSetting struct {

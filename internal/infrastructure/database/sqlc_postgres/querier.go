@@ -330,6 +330,8 @@ type Querier interface {
 	GetUserByID(ctx context.Context, id int32) (User, error)
 	GetUserByPublicID(ctx context.Context, publicID string) (User, error)
 	GetUserByUsername(ctx context.Context, lower string) (User, error)
+	// Location Preferences (stored in users table)
+	GetUserLocation(ctx context.Context, id int32) (GetUserLocationRow, error)
 	GetUserSetting(ctx context.Context, arg GetUserSettingParams) (UserSetting, error)
 	GetWatchProgressByID(ctx context.Context, id int32) (WatchProgress, error)
 	GetWatchProgressByMediaID(ctx context.Context, mediaID int32) (WatchProgress, error)
@@ -478,6 +480,7 @@ type Querier interface {
 	UpdateTranscodeManifestReady(ctx context.Context, arg UpdateTranscodeManifestReadyParams) error
 	UpdateTranscodeSegmentCount(ctx context.Context, arg UpdateTranscodeSegmentCountParams) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
+	UpdateUserLocation(ctx context.Context, arg UpdateUserLocationParams) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	UpdateWatchProgress(ctx context.Context, arg UpdateWatchProgressParams) (WatchProgress, error)
 	UpsertEnrichmentStatus(ctx context.Context, arg UpsertEnrichmentStatusParams) error

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	sqlite_vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
 	"github.com/mantonx/viewra/internal/domain/ai"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
@@ -252,10 +253,136 @@ func (r *EmbeddingRepository) searchPostgres(ctx context.Context, req ai.Semanti
 }
 
 func (r *EmbeddingRepository) searchSQLite(ctx context.Context, req ai.SemanticSearchRequest, queryVector []float32, limit int) (*ai.SemanticSearchResponse, error) {
-	// SQLite doesn't have native vector search, so we load all embeddings and compute similarity in Go
-	// This is less efficient but works for smaller datasets
-	// For larger datasets, consider using sqlite-vss extension
+	// Use sqlite-vec's vec0 virtual table for fast KNN search
+	// Falls back to brute-force if vec0 table doesn't exist
 
+	// Serialize query vector to sqlite-vec format
+	queryBytes, err := sqlite_vec.SerializeFloat32(queryVector)
+	if err != nil {
+		return nil, fmt.Errorf("serialize query vector: %w", err)
+	}
+
+	// Check if vec_embeddings table exists (migration may not have run yet)
+	var tableExists int
+	err = r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='vec_embeddings'`).Scan(&tableExists)
+	if err != nil || tableExists == 0 {
+		// Fall back to brute-force search
+		return r.searchSQLiteBruteForce(ctx, req, queryVector, limit)
+	}
+
+	// Build KNN query with vec0
+	// Request more results than needed to account for offset
+	kValue := limit + req.Offset
+	if kValue < 10 {
+		kValue = 10 // Minimum k for reasonable results
+	}
+
+	var query string
+	var args []interface{}
+
+	if len(req.Types) > 0 {
+		// Filter by entity type using vec0's metadata column
+		placeholders := make([]string, len(req.Types))
+		for i, t := range req.Types {
+			placeholders[i] = "?"
+			args = append(args, string(t))
+		}
+		args = append(args, queryBytes, kValue)
+
+		query = fmt.Sprintf(`
+			SELECT v.embedding_id, v.entity_type, v.distance, e.entity_id, e.text
+			FROM vec_embeddings v
+			JOIN embeddings e ON e.id = v.embedding_id
+			WHERE v.entity_type IN (%s)
+			  AND v.contents_embedding MATCH ?
+			  AND k = ?
+			ORDER BY v.distance
+		`, strings.Join(placeholders, ","))
+	} else {
+		args = []interface{}{queryBytes, kValue}
+		query = `
+			SELECT v.embedding_id, v.entity_type, v.distance, e.entity_id, e.text
+			FROM vec_embeddings v
+			JOIN embeddings e ON e.id = v.embedding_id
+			WHERE v.contents_embedding MATCH ?
+			  AND k = ?
+			ORDER BY v.distance
+		`
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		// If vec0 query fails, fall back to brute-force
+		return r.searchSQLiteBruteForce(ctx, req, queryVector, limit)
+	}
+	defer rows.Close()
+
+	var results []ai.SemanticSearchResult
+	resultCount := 0
+
+	for rows.Next() {
+		var embeddingID int64
+		var entityType ai.EntityType
+		var distance float32
+		var entityID int64
+		var text sql.NullString
+
+		if err := rows.Scan(&embeddingID, &entityType, &distance, &entityID, &text); err != nil {
+			return nil, fmt.Errorf("scan result: %w", err)
+		}
+
+		resultCount++
+
+		// Skip results before offset
+		if resultCount <= req.Offset {
+			continue
+		}
+
+		// Stop after limit
+		if len(results) >= limit {
+			continue // Keep counting for total
+		}
+
+		// Convert distance to similarity score (cosine distance to similarity)
+		// sqlite-vec uses cosine distance (0 = identical, 2 = opposite)
+		similarity := 1.0 - (distance / 2.0)
+
+		results = append(results, ai.SemanticSearchResult{
+			EntityType: entityType,
+			EntityID:   entityID,
+			Score:      similarity,
+			Text:       text.String,
+		})
+	}
+
+	// Get total count for pagination
+	totalCount := resultCount
+	if resultCount >= kValue {
+		// We hit the k limit, so there may be more results
+		// Get actual count from embeddings table
+		countQuery := `SELECT COUNT(*) FROM embeddings`
+		countArgs := []interface{}{}
+		if len(req.Types) > 0 {
+			placeholders := make([]string, len(req.Types))
+			for i, t := range req.Types {
+				placeholders[i] = "?"
+				countArgs = append(countArgs, string(t))
+			}
+			countQuery += fmt.Sprintf(" WHERE entity_type IN (%s)", strings.Join(placeholders, ","))
+		}
+		r.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&totalCount)
+	}
+
+	return &ai.SemanticSearchResponse{
+		Results:    results,
+		TotalCount: totalCount,
+		Query:      req.Query,
+	}, nil
+}
+
+// searchSQLiteBruteForce is the fallback method when vec0 is not available.
+// It loads all embeddings and computes similarity in Go.
+func (r *EmbeddingRepository) searchSQLiteBruteForce(ctx context.Context, req ai.SemanticSearchRequest, queryVector []float32, limit int) (*ai.SemanticSearchResponse, error) {
 	query := `SELECT id, entity_type, entity_id, vector, text FROM embeddings`
 	args := []interface{}{}
 

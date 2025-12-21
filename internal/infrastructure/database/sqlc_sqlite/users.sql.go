@@ -7,6 +7,7 @@ package sqlc_sqlite
 
 import (
 	"context"
+	"database/sql"
 )
 
 const countUsers = `-- name: CountUsers :one
@@ -24,7 +25,7 @@ const createUser = `-- name: CreateUser :one
 
 INSERT INTO users (public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at
+RETURNING id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, location_latitude, location_longitude, location_timezone, location_enabled, location_name
 `
 
 type CreateUserParams struct {
@@ -61,6 +62,11 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.IsDisabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LocationLatitude,
+		&i.LocationLongitude,
+		&i.LocationTimezone,
+		&i.LocationEnabled,
+		&i.LocationName,
 	)
 	return i, err
 }
@@ -87,7 +93,7 @@ func (q *Queries) ExistsAnyUser(ctx context.Context) (int64, error) {
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at FROM users
+SELECT id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, location_latitude, location_longitude, location_timezone, location_enabled, location_name FROM users
 WHERE id = ?
 LIMIT 1
 `
@@ -105,12 +111,17 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 		&i.IsDisabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LocationLatitude,
+		&i.LocationLongitude,
+		&i.LocationTimezone,
+		&i.LocationEnabled,
+		&i.LocationName,
 	)
 	return i, err
 }
 
 const getUserByPublicID = `-- name: GetUserByPublicID :one
-SELECT id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at FROM users
+SELECT id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, location_latitude, location_longitude, location_timezone, location_enabled, location_name FROM users
 WHERE public_id = ?
 LIMIT 1
 `
@@ -128,12 +139,17 @@ func (q *Queries) GetUserByPublicID(ctx context.Context, publicID string) (User,
 		&i.IsDisabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LocationLatitude,
+		&i.LocationLongitude,
+		&i.LocationTimezone,
+		&i.LocationEnabled,
+		&i.LocationName,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at FROM users
+SELECT id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, location_latitude, location_longitude, location_timezone, location_enabled, location_name FROM users
 WHERE LOWER(username) = LOWER(?)
 LIMIT 1
 `
@@ -151,12 +167,48 @@ func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (User, er
 		&i.IsDisabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LocationLatitude,
+		&i.LocationLongitude,
+		&i.LocationTimezone,
+		&i.LocationEnabled,
+		&i.LocationName,
+	)
+	return i, err
+}
+
+const getUserLocation = `-- name: GetUserLocation :one
+
+SELECT id, location_latitude, location_longitude, location_timezone, location_enabled, location_name
+FROM users
+WHERE id = ?
+`
+
+type GetUserLocationRow struct {
+	ID                int64           `json:"id"`
+	LocationLatitude  sql.NullFloat64 `json:"location_latitude"`
+	LocationLongitude sql.NullFloat64 `json:"location_longitude"`
+	LocationTimezone  sql.NullString  `json:"location_timezone"`
+	LocationEnabled   sql.NullInt64   `json:"location_enabled"`
+	LocationName      sql.NullString  `json:"location_name"`
+}
+
+// Location Preferences (stored in users table)
+func (q *Queries) GetUserLocation(ctx context.Context, id int64) (GetUserLocationRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserLocation, id)
+	var i GetUserLocationRow
+	err := row.Scan(
+		&i.ID,
+		&i.LocationLatitude,
+		&i.LocationLongitude,
+		&i.LocationTimezone,
+		&i.LocationEnabled,
+		&i.LocationName,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at FROM users
+SELECT id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, location_latitude, location_longitude, location_timezone, location_enabled, location_name FROM users
 ORDER BY username
 LIMIT ? OFFSET ?
 `
@@ -185,6 +237,11 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.IsDisabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LocationLatitude,
+			&i.LocationLongitude,
+			&i.LocationTimezone,
+			&i.LocationEnabled,
+			&i.LocationName,
 		); err != nil {
 			return nil, err
 		}
@@ -206,7 +263,7 @@ SET display_name = ?,
     is_disabled = ?,
     updated_at = ?
 WHERE id = ?
-RETURNING id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at
+RETURNING id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, location_latitude, location_longitude, location_timezone, location_enabled, location_name
 `
 
 type UpdateUserParams struct {
@@ -236,8 +293,47 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.IsDisabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LocationLatitude,
+		&i.LocationLongitude,
+		&i.LocationTimezone,
+		&i.LocationEnabled,
+		&i.LocationName,
 	)
 	return i, err
+}
+
+const updateUserLocation = `-- name: UpdateUserLocation :exec
+UPDATE users
+SET location_latitude = ?,
+    location_longitude = ?,
+    location_timezone = ?,
+    location_enabled = ?,
+    location_name = ?,
+    updated_at = ?
+WHERE id = ?
+`
+
+type UpdateUserLocationParams struct {
+	LocationLatitude  sql.NullFloat64 `json:"location_latitude"`
+	LocationLongitude sql.NullFloat64 `json:"location_longitude"`
+	LocationTimezone  sql.NullString  `json:"location_timezone"`
+	LocationEnabled   sql.NullInt64   `json:"location_enabled"`
+	LocationName      sql.NullString  `json:"location_name"`
+	UpdatedAt         string          `json:"updated_at"`
+	ID                int64           `json:"id"`
+}
+
+func (q *Queries) UpdateUserLocation(ctx context.Context, arg UpdateUserLocationParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserLocation,
+		arg.LocationLatitude,
+		arg.LocationLongitude,
+		arg.LocationTimezone,
+		arg.LocationEnabled,
+		arg.LocationName,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	return err
 }
 
 const updateUserPassword = `-- name: UpdateUserPassword :exec

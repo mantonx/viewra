@@ -600,15 +600,17 @@ type MediaDetails struct {
 	LibraryId   int64                  `protobuf:"varint,5,opt,name=library_id,json=libraryId,proto3" json:"library_id,omitempty"`
 	ExternalIds map[string]string      `protobuf:"bytes,6,rep,name=external_ids,json=externalIds,proto3" json:"external_ids,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Rich metadata for embedding generation
-	Plot           string             `protobuf:"bytes,7,opt,name=plot,proto3" json:"plot,omitempty"`
-	Tagline        string             `protobuf:"bytes,8,opt,name=tagline,proto3" json:"tagline,omitempty"`
-	Genres         []string           `protobuf:"bytes,9,rep,name=genres,proto3" json:"genres,omitempty"`
-	Directors      []string           `protobuf:"bytes,10,rep,name=directors,proto3" json:"directors,omitempty"`
-	Writers        []string           `protobuf:"bytes,11,rep,name=writers,proto3" json:"writers,omitempty"`
-	Cast           []*MediaCastMember `protobuf:"bytes,12,rep,name=cast,proto3" json:"cast,omitempty"`
-	Studios        []string           `protobuf:"bytes,13,rep,name=studios,proto3" json:"studios,omitempty"`
-	ContentRating  string             `protobuf:"bytes,14,opt,name=content_rating,json=contentRating,proto3" json:"content_rating,omitempty"`
-	RuntimeMinutes int32              `protobuf:"varint,15,opt,name=runtime_minutes,json=runtimeMinutes,proto3" json:"runtime_minutes,omitempty"`
+	Plot             string             `protobuf:"bytes,7,opt,name=plot,proto3" json:"plot,omitempty"`
+	Tagline          string             `protobuf:"bytes,8,opt,name=tagline,proto3" json:"tagline,omitempty"`
+	Genres           []string           `protobuf:"bytes,9,rep,name=genres,proto3" json:"genres,omitempty"`
+	Directors        []string           `protobuf:"bytes,10,rep,name=directors,proto3" json:"directors,omitempty"`
+	Writers          []string           `protobuf:"bytes,11,rep,name=writers,proto3" json:"writers,omitempty"`
+	Cast             []*MediaCastMember `protobuf:"bytes,12,rep,name=cast,proto3" json:"cast,omitempty"`
+	Studios          []string           `protobuf:"bytes,13,rep,name=studios,proto3" json:"studios,omitempty"`
+	ContentRating    string             `protobuf:"bytes,14,opt,name=content_rating,json=contentRating,proto3" json:"content_rating,omitempty"`
+	RuntimeMinutes   int32              `protobuf:"varint,15,opt,name=runtime_minutes,json=runtimeMinutes,proto3" json:"runtime_minutes,omitempty"`
+	OriginalLanguage string             `protobuf:"bytes,16,opt,name=original_language,json=originalLanguage,proto3" json:"original_language,omitempty"` // ISO 639-1 code, e.g., "en", "ko", "ja"
+	CountryOfOrigin  string             `protobuf:"bytes,17,opt,name=country_of_origin,json=countryOfOrigin,proto3" json:"country_of_origin,omitempty"`  // e.g., "United States", "South Korea"
 	// TV-specific
 	ShowTitle     string `protobuf:"bytes,20,opt,name=show_title,json=showTitle,proto3" json:"show_title,omitempty"` // For episodes: the parent show title
 	SeasonNumber  int32  `protobuf:"varint,21,opt,name=season_number,json=seasonNumber,proto3" json:"season_number,omitempty"`
@@ -758,6 +760,20 @@ func (x *MediaDetails) GetRuntimeMinutes() int32 {
 		return x.RuntimeMinutes
 	}
 	return 0
+}
+
+func (x *MediaDetails) GetOriginalLanguage() string {
+	if x != nil {
+		return x.OriginalLanguage
+	}
+	return ""
+}
+
+func (x *MediaDetails) GetCountryOfOrigin() string {
+	if x != nil {
+		return x.CountryOfOrigin
+	}
+	return ""
 }
 
 func (x *MediaDetails) GetShowTitle() string {
@@ -2194,6 +2210,166 @@ func (x *SetMoodTagsRequest) GetMediaType() string {
 	return ""
 }
 
+type WeatherRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // User ID to look up location preferences
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WeatherRequest) Reset() {
+	*x = WeatherRequest{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WeatherRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WeatherRequest) ProtoMessage() {}
+
+func (x *WeatherRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WeatherRequest.ProtoReflect.Descriptor instead.
+func (*WeatherRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *WeatherRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type WeatherResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Available     bool                   `protobuf:"varint,1,opt,name=available,proto3" json:"available,omitempty"`                        // False if user hasn't enabled location
+	Temperature   float32                `protobuf:"fixed32,2,opt,name=temperature,proto3" json:"temperature,omitempty"`                   // Celsius
+	Humidity      int32                  `protobuf:"varint,3,opt,name=humidity,proto3" json:"humidity,omitempty"`                          // Percentage (0-100)
+	IsDay         bool                   `protobuf:"varint,4,opt,name=is_day,json=isDay,proto3" json:"is_day,omitempty"`                   // True if daylight
+	Precipitation float32                `protobuf:"fixed32,5,opt,name=precipitation,proto3" json:"precipitation,omitempty"`               // mm
+	CloudCover    int32                  `protobuf:"varint,6,opt,name=cloud_cover,json=cloudCover,proto3" json:"cloud_cover,omitempty"`    // Percentage (0-100)
+	WeatherCode   int32                  `protobuf:"varint,7,opt,name=weather_code,json=weatherCode,proto3" json:"weather_code,omitempty"` // WMO weather interpretation code
+	Condition     string                 `protobuf:"bytes,8,opt,name=condition,proto3" json:"condition,omitempty"`                         // Simplified: sunny, cloudy, rainy, snowy, stormy, foggy
+	TimeOfDay     string                 `protobuf:"bytes,9,opt,name=time_of_day,json=timeOfDay,proto3" json:"time_of_day,omitempty"`      // morning, afternoon, evening, night
+	Season        string                 `protobuf:"bytes,10,opt,name=season,proto3" json:"season,omitempty"`                              // spring, summer, fall, winter
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WeatherResponse) Reset() {
+	*x = WeatherResponse{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WeatherResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WeatherResponse) ProtoMessage() {}
+
+func (x *WeatherResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WeatherResponse.ProtoReflect.Descriptor instead.
+func (*WeatherResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *WeatherResponse) GetAvailable() bool {
+	if x != nil {
+		return x.Available
+	}
+	return false
+}
+
+func (x *WeatherResponse) GetTemperature() float32 {
+	if x != nil {
+		return x.Temperature
+	}
+	return 0
+}
+
+func (x *WeatherResponse) GetHumidity() int32 {
+	if x != nil {
+		return x.Humidity
+	}
+	return 0
+}
+
+func (x *WeatherResponse) GetIsDay() bool {
+	if x != nil {
+		return x.IsDay
+	}
+	return false
+}
+
+func (x *WeatherResponse) GetPrecipitation() float32 {
+	if x != nil {
+		return x.Precipitation
+	}
+	return 0
+}
+
+func (x *WeatherResponse) GetCloudCover() int32 {
+	if x != nil {
+		return x.CloudCover
+	}
+	return 0
+}
+
+func (x *WeatherResponse) GetWeatherCode() int32 {
+	if x != nil {
+		return x.WeatherCode
+	}
+	return 0
+}
+
+func (x *WeatherResponse) GetCondition() string {
+	if x != nil {
+		return x.Condition
+	}
+	return ""
+}
+
+func (x *WeatherResponse) GetTimeOfDay() string {
+	if x != nil {
+		return x.TimeOfDay
+	}
+	return ""
+}
+
+func (x *WeatherResponse) GetSeason() string {
+	if x != nil {
+		return x.Season
+	}
+	return ""
+}
+
 var File_api_proto_plugin_host_services_proto protoreflect.FileDescriptor
 
 const file_api_proto_plugin_host_services_proto_rawDesc = "" +
@@ -2245,7 +2421,7 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\n" +
 	"library_id\x18\x01 \x01(\x03R\tlibraryId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\x05R\x06offset\"\xde\x06\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\"\xb7\a\n" +
 	"\fMediaDetails\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1d\n" +
 	"\n" +
@@ -2264,7 +2440,9 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\x04cast\x18\f \x03(\v2!.viewra.plugin.v1.MediaCastMemberR\x04cast\x12\x18\n" +
 	"\astudios\x18\r \x03(\tR\astudios\x12%\n" +
 	"\x0econtent_rating\x18\x0e \x01(\tR\rcontentRating\x12'\n" +
-	"\x0fruntime_minutes\x18\x0f \x01(\x05R\x0eruntimeMinutes\x12\x1d\n" +
+	"\x0fruntime_minutes\x18\x0f \x01(\x05R\x0eruntimeMinutes\x12+\n" +
+	"\x11original_language\x18\x10 \x01(\tR\x10originalLanguage\x12*\n" +
+	"\x11country_of_origin\x18\x11 \x01(\tR\x0fcountryOfOrigin\x12\x1d\n" +
 	"\n" +
 	"show_title\x18\x14 \x01(\tR\tshowTitle\x12#\n" +
 	"\rseason_number\x18\x15 \x01(\x05R\fseasonNumber\x12%\n" +
@@ -2377,7 +2555,22 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\bmedia_id\x18\x01 \x01(\x03R\amediaId\x12-\n" +
 	"\x04tags\x18\x02 \x03(\v2\x19.viewra.plugin.v1.MoodTagR\x04tags\x12\x1d\n" +
 	"\n" +
-	"media_type\x18\x03 \x01(\tR\tmediaType2\x8a\x06\n" +
+	"media_type\x18\x03 \x01(\tR\tmediaType\")\n" +
+	"\x0eWeatherRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"\xc4\x02\n" +
+	"\x0fWeatherResponse\x12\x1c\n" +
+	"\tavailable\x18\x01 \x01(\bR\tavailable\x12 \n" +
+	"\vtemperature\x18\x02 \x01(\x02R\vtemperature\x12\x1a\n" +
+	"\bhumidity\x18\x03 \x01(\x05R\bhumidity\x12\x15\n" +
+	"\x06is_day\x18\x04 \x01(\bR\x05isDay\x12$\n" +
+	"\rprecipitation\x18\x05 \x01(\x02R\rprecipitation\x12\x1f\n" +
+	"\vcloud_cover\x18\x06 \x01(\x05R\n" +
+	"cloudCover\x12!\n" +
+	"\fweather_code\x18\a \x01(\x05R\vweatherCode\x12\x1c\n" +
+	"\tcondition\x18\b \x01(\tR\tcondition\x12\x1e\n" +
+	"\vtime_of_day\x18\t \x01(\tR\ttimeOfDay\x12\x16\n" +
+	"\x06season\x18\n" +
+	" \x01(\tR\x06season2\x8a\x06\n" +
 	"\bHostData\x12A\n" +
 	"\bGetMedia\x12\x1c.viewra.plugin.v1.MediaQuery\x1a\x17.viewra.plugin.v1.Media\x12O\n" +
 	"\x0fGetMediaDetails\x12\x1c.viewra.plugin.v1.MediaQuery\x1a\x1e.viewra.plugin.v1.MediaDetails\x12R\n" +
@@ -2405,7 +2598,9 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\bListKeys\x12\x18.viewra.plugin.v1.UserId\x1a%.viewra.plugin.v1.UserMetadataKeyList2\xc8\x01\n" +
 	"\x0eHostFileParser\x12L\n" +
 	"\bParseNFO\x12!.viewra.plugin.v1.ParseNFORequest\x1a\x1d.viewra.plugin.v1.NFOMetadata\x12h\n" +
-	"\x15ExtractEmbeddedImages\x12&.viewra.plugin.v1.ExtractImagesRequest\x1a'.viewra.plugin.v1.ExtractImagesResponseB8Z6github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1b\x06proto3"
+	"\x15ExtractEmbeddedImages\x12&.viewra.plugin.v1.ExtractImagesRequest\x1a'.viewra.plugin.v1.ExtractImagesResponse2g\n" +
+	"\vHostWeather\x12X\n" +
+	"\x11GetCurrentWeather\x12 .viewra.plugin.v1.WeatherRequest\x1a!.viewra.plugin.v1.WeatherResponseB8Z6github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1b\x06proto3"
 
 var (
 	file_api_proto_plugin_host_services_proto_rawDescOnce sync.Once
@@ -2419,7 +2614,7 @@ func file_api_proto_plugin_host_services_proto_rawDescGZIP() []byte {
 	return file_api_proto_plugin_host_services_proto_rawDescData
 }
 
-var file_api_proto_plugin_host_services_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
+var file_api_proto_plugin_host_services_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
 var file_api_proto_plugin_host_services_proto_goTypes = []any{
 	(*MediaQuery)(nil),            // 0: viewra.plugin.v1.MediaQuery
 	(*MediaId)(nil),               // 1: viewra.plugin.v1.MediaId
@@ -2456,18 +2651,20 @@ var file_api_proto_plugin_host_services_proto_goTypes = []any{
 	(*MoodTag)(nil),               // 32: viewra.plugin.v1.MoodTag
 	(*MoodTagList)(nil),           // 33: viewra.plugin.v1.MoodTagList
 	(*SetMoodTagsRequest)(nil),    // 34: viewra.plugin.v1.SetMoodTagsRequest
-	nil,                           // 35: viewra.plugin.v1.Media.ExternalIdsEntry
-	nil,                           // 36: viewra.plugin.v1.MediaDetails.ExternalIdsEntry
-	nil,                           // 37: viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
-	(*Empty)(nil),                 // 38: viewra.plugin.v1.Empty
+	(*WeatherRequest)(nil),        // 35: viewra.plugin.v1.WeatherRequest
+	(*WeatherResponse)(nil),       // 36: viewra.plugin.v1.WeatherResponse
+	nil,                           // 37: viewra.plugin.v1.Media.ExternalIdsEntry
+	nil,                           // 38: viewra.plugin.v1.MediaDetails.ExternalIdsEntry
+	nil,                           // 39: viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
+	(*Empty)(nil),                 // 40: viewra.plugin.v1.Empty
 }
 var file_api_proto_plugin_host_services_proto_depIdxs = []int32{
-	35, // 0: viewra.plugin.v1.Media.external_ids:type_name -> viewra.plugin.v1.Media.ExternalIdsEntry
+	37, // 0: viewra.plugin.v1.Media.external_ids:type_name -> viewra.plugin.v1.Media.ExternalIdsEntry
 	4,  // 1: viewra.plugin.v1.MediaList.items:type_name -> viewra.plugin.v1.Media
-	36, // 2: viewra.plugin.v1.MediaDetails.external_ids:type_name -> viewra.plugin.v1.MediaDetails.ExternalIdsEntry
+	38, // 2: viewra.plugin.v1.MediaDetails.external_ids:type_name -> viewra.plugin.v1.MediaDetails.ExternalIdsEntry
 	11, // 3: viewra.plugin.v1.MediaDetails.cast:type_name -> viewra.plugin.v1.MediaCastMember
 	10, // 4: viewra.plugin.v1.MediaDetailsList.items:type_name -> viewra.plugin.v1.MediaDetails
-	37, // 5: viewra.plugin.v1.NFOMetadata.external_ids:type_name -> viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
+	39, // 5: viewra.plugin.v1.NFOMetadata.external_ids:type_name -> viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
 	28, // 6: viewra.plugin.v1.NFOMetadata.actors:type_name -> viewra.plugin.v1.NFOActor
 	31, // 7: viewra.plugin.v1.ExtractImagesResponse.images:type_name -> viewra.plugin.v1.ExtractedImage
 	32, // 8: viewra.plugin.v1.MoodTagList.tags:type_name -> viewra.plugin.v1.MoodTag
@@ -2486,40 +2683,42 @@ var file_api_proto_plugin_host_services_proto_depIdxs = []int32{
 	15, // 21: viewra.plugin.v1.HostStorage.KVSet:input_type -> viewra.plugin.v1.KVEntry
 	13, // 22: viewra.plugin.v1.HostStorage.KVDelete:input_type -> viewra.plugin.v1.KVKey
 	16, // 23: viewra.plugin.v1.HostStorage.KVList:input_type -> viewra.plugin.v1.KVListRequest
-	38, // 24: viewra.plugin.v1.HostStorage.GetDatabasePath:input_type -> viewra.plugin.v1.Empty
+	40, // 24: viewra.plugin.v1.HostStorage.GetDatabasePath:input_type -> viewra.plugin.v1.Empty
 	19, // 25: viewra.plugin.v1.HostStorage.RegisterSchema:input_type -> viewra.plugin.v1.SchemaVersion
-	38, // 26: viewra.plugin.v1.HostStorage.GetDatabaseStats:input_type -> viewra.plugin.v1.Empty
+	40, // 26: viewra.plugin.v1.HostStorage.GetDatabaseStats:input_type -> viewra.plugin.v1.Empty
 	22, // 27: viewra.plugin.v1.HostUserMetadata.Get:input_type -> viewra.plugin.v1.UserMetadataKey
 	24, // 28: viewra.plugin.v1.HostUserMetadata.Set:input_type -> viewra.plugin.v1.UserMetadataEntry
 	22, // 29: viewra.plugin.v1.HostUserMetadata.Delete:input_type -> viewra.plugin.v1.UserMetadataKey
 	21, // 30: viewra.plugin.v1.HostUserMetadata.ListKeys:input_type -> viewra.plugin.v1.UserId
 	26, // 31: viewra.plugin.v1.HostFileParser.ParseNFO:input_type -> viewra.plugin.v1.ParseNFORequest
 	29, // 32: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:input_type -> viewra.plugin.v1.ExtractImagesRequest
-	4,  // 33: viewra.plugin.v1.HostData.GetMedia:output_type -> viewra.plugin.v1.Media
-	10, // 34: viewra.plugin.v1.HostData.GetMediaDetails:output_type -> viewra.plugin.v1.MediaDetails
-	4,  // 35: viewra.plugin.v1.HostData.GetMediaByExternalId:output_type -> viewra.plugin.v1.Media
-	5,  // 36: viewra.plugin.v1.HostData.SearchMedia:output_type -> viewra.plugin.v1.MediaList
-	12, // 37: viewra.plugin.v1.HostData.ListMediaByLibrary:output_type -> viewra.plugin.v1.MediaDetailsList
-	7,  // 38: viewra.plugin.v1.HostData.GetLibrary:output_type -> viewra.plugin.v1.Library
-	8,  // 39: viewra.plugin.v1.HostData.GetFilePath:output_type -> viewra.plugin.v1.FilePath
-	33, // 40: viewra.plugin.v1.HostData.GetMoodTags:output_type -> viewra.plugin.v1.MoodTagList
-	38, // 41: viewra.plugin.v1.HostData.SetMoodTags:output_type -> viewra.plugin.v1.Empty
-	38, // 42: viewra.plugin.v1.HostData.DeleteMoodTags:output_type -> viewra.plugin.v1.Empty
-	14, // 43: viewra.plugin.v1.HostStorage.KVGet:output_type -> viewra.plugin.v1.KVValue
-	38, // 44: viewra.plugin.v1.HostStorage.KVSet:output_type -> viewra.plugin.v1.Empty
-	38, // 45: viewra.plugin.v1.HostStorage.KVDelete:output_type -> viewra.plugin.v1.Empty
-	17, // 46: viewra.plugin.v1.HostStorage.KVList:output_type -> viewra.plugin.v1.KVKeyList
-	18, // 47: viewra.plugin.v1.HostStorage.GetDatabasePath:output_type -> viewra.plugin.v1.DatabasePath
-	38, // 48: viewra.plugin.v1.HostStorage.RegisterSchema:output_type -> viewra.plugin.v1.Empty
-	20, // 49: viewra.plugin.v1.HostStorage.GetDatabaseStats:output_type -> viewra.plugin.v1.DatabaseStats
-	23, // 50: viewra.plugin.v1.HostUserMetadata.Get:output_type -> viewra.plugin.v1.UserMetadataValue
-	38, // 51: viewra.plugin.v1.HostUserMetadata.Set:output_type -> viewra.plugin.v1.Empty
-	38, // 52: viewra.plugin.v1.HostUserMetadata.Delete:output_type -> viewra.plugin.v1.Empty
-	25, // 53: viewra.plugin.v1.HostUserMetadata.ListKeys:output_type -> viewra.plugin.v1.UserMetadataKeyList
-	27, // 54: viewra.plugin.v1.HostFileParser.ParseNFO:output_type -> viewra.plugin.v1.NFOMetadata
-	30, // 55: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:output_type -> viewra.plugin.v1.ExtractImagesResponse
-	33, // [33:56] is the sub-list for method output_type
-	10, // [10:33] is the sub-list for method input_type
+	35, // 33: viewra.plugin.v1.HostWeather.GetCurrentWeather:input_type -> viewra.plugin.v1.WeatherRequest
+	4,  // 34: viewra.plugin.v1.HostData.GetMedia:output_type -> viewra.plugin.v1.Media
+	10, // 35: viewra.plugin.v1.HostData.GetMediaDetails:output_type -> viewra.plugin.v1.MediaDetails
+	4,  // 36: viewra.plugin.v1.HostData.GetMediaByExternalId:output_type -> viewra.plugin.v1.Media
+	5,  // 37: viewra.plugin.v1.HostData.SearchMedia:output_type -> viewra.plugin.v1.MediaList
+	12, // 38: viewra.plugin.v1.HostData.ListMediaByLibrary:output_type -> viewra.plugin.v1.MediaDetailsList
+	7,  // 39: viewra.plugin.v1.HostData.GetLibrary:output_type -> viewra.plugin.v1.Library
+	8,  // 40: viewra.plugin.v1.HostData.GetFilePath:output_type -> viewra.plugin.v1.FilePath
+	33, // 41: viewra.plugin.v1.HostData.GetMoodTags:output_type -> viewra.plugin.v1.MoodTagList
+	40, // 42: viewra.plugin.v1.HostData.SetMoodTags:output_type -> viewra.plugin.v1.Empty
+	40, // 43: viewra.plugin.v1.HostData.DeleteMoodTags:output_type -> viewra.plugin.v1.Empty
+	14, // 44: viewra.plugin.v1.HostStorage.KVGet:output_type -> viewra.plugin.v1.KVValue
+	40, // 45: viewra.plugin.v1.HostStorage.KVSet:output_type -> viewra.plugin.v1.Empty
+	40, // 46: viewra.plugin.v1.HostStorage.KVDelete:output_type -> viewra.plugin.v1.Empty
+	17, // 47: viewra.plugin.v1.HostStorage.KVList:output_type -> viewra.plugin.v1.KVKeyList
+	18, // 48: viewra.plugin.v1.HostStorage.GetDatabasePath:output_type -> viewra.plugin.v1.DatabasePath
+	40, // 49: viewra.plugin.v1.HostStorage.RegisterSchema:output_type -> viewra.plugin.v1.Empty
+	20, // 50: viewra.plugin.v1.HostStorage.GetDatabaseStats:output_type -> viewra.plugin.v1.DatabaseStats
+	23, // 51: viewra.plugin.v1.HostUserMetadata.Get:output_type -> viewra.plugin.v1.UserMetadataValue
+	40, // 52: viewra.plugin.v1.HostUserMetadata.Set:output_type -> viewra.plugin.v1.Empty
+	40, // 53: viewra.plugin.v1.HostUserMetadata.Delete:output_type -> viewra.plugin.v1.Empty
+	25, // 54: viewra.plugin.v1.HostUserMetadata.ListKeys:output_type -> viewra.plugin.v1.UserMetadataKeyList
+	27, // 55: viewra.plugin.v1.HostFileParser.ParseNFO:output_type -> viewra.plugin.v1.NFOMetadata
+	30, // 56: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:output_type -> viewra.plugin.v1.ExtractImagesResponse
+	36, // 57: viewra.plugin.v1.HostWeather.GetCurrentWeather:output_type -> viewra.plugin.v1.WeatherResponse
+	34, // [34:58] is the sub-list for method output_type
+	10, // [10:34] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
 	10, // [10:10] is the sub-list for extension extendee
 	0,  // [0:10] is the sub-list for field type_name
@@ -2537,9 +2736,9 @@ func file_api_proto_plugin_host_services_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_plugin_host_services_proto_rawDesc), len(file_api_proto_plugin_host_services_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   38,
+			NumMessages:   40,
 			NumExtensions: 0,
-			NumServices:   4,
+			NumServices:   5,
 		},
 		GoTypes:           file_api_proto_plugin_host_services_proto_goTypes,
 		DependencyIndexes: file_api_proto_plugin_host_services_proto_depIdxs,
