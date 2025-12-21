@@ -47,6 +47,9 @@ vendor/
 .env.local
 .env.*.local
 
+# OpenCode config (contains API keys)
+opencode.json
+
 # Database files
 *.db
 *.db-shm
