@@ -94,7 +94,7 @@ func (a *MetadataApplier) applyMovieMetadata(ctx context.Context, mediaID int64,
 		movie.OriginalTitle = *metadata.OriginalTitle
 		updated = true
 	}
-	if metadata.SortTitle != nil {
+	if metadata.SortTitle != nil && *metadata.SortTitle != "" {
 		movie.SortTitle = *metadata.SortTitle
 		updated = true
 	}
@@ -266,7 +266,7 @@ func (a *MetadataApplier) applyTVShowMetadata(ctx context.Context, mediaID int64
 		show.OriginalTitle = *metadata.OriginalTitle
 		updated = true
 	}
-	if metadata.SortTitle != nil {
+	if metadata.SortTitle != nil && *metadata.SortTitle != "" {
 		show.SortTitle = *metadata.SortTitle
 		updated = true
 	}

@@ -97,7 +97,7 @@ FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
   AND med.is_extra = false
-ORDER BY m.sort_title, med.title;
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title);
 
 -- name: UpdateMovie :exec
 UPDATE movies
@@ -168,7 +168,7 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
   AND med.is_extra = false
   AND (med.title ILIKE $2 OR m.original_title ILIKE $3)
-ORDER BY m.sort_title, med.title;
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title);
 
 -- name: ListMoviesByGenre :many
 SELECT
@@ -213,7 +213,7 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
   AND med.is_extra = false
   AND m.genre ILIKE $2
-ORDER BY m.sort_title, med.title;
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title);
 
 -- name: ListMoviesByYear :many
 SELECT
@@ -258,7 +258,7 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
   AND med.is_extra = false
   AND m.year = $2
-ORDER BY m.sort_title, med.title;
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title);
 
 -- name: DeleteMovie :exec
 DELETE FROM movies
@@ -306,7 +306,7 @@ FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
   AND med.is_extra = false
-ORDER BY COALESCE(m.sort_title, med.title) ASC
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
 LIMIT $2 OFFSET $3;
 
 -- name: ListMoviesByLibraryPaginatedDesc :many
@@ -351,7 +351,7 @@ FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
   AND med.is_extra = false
-ORDER BY COALESCE(m.sort_title, med.title) DESC
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) DESC
 LIMIT $2 OFFSET $3;
 
 -- name: CountMoviesByLibrary :one
@@ -412,7 +412,7 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
   AND med.is_extra = false
   AND (med.title ILIKE $2 OR m.original_title ILIKE $3)
-ORDER BY COALESCE(m.sort_title, med.title) ASC
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
 LIMIT $4 OFFSET $5;
 
 -- name: ListMovieIDsByLibraryPaginated :many
@@ -421,7 +421,7 @@ FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
   AND med.is_extra = false
-ORDER BY COALESCE(m.sort_title, med.title) ASC
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
 LIMIT $2 OFFSET $3;
 
 -- name: ListMovieIDsByLibraryPaginatedDesc :many
@@ -430,7 +430,7 @@ FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
   AND med.is_extra = false
-ORDER BY COALESCE(m.sort_title, med.title) DESC
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) DESC
 LIMIT $2 OFFSET $3;
 
 -- name: SearchMoviesGlobal :many

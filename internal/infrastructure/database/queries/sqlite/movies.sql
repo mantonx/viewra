@@ -97,7 +97,7 @@ FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
-ORDER BY m.sort_title, med.title;
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE;
 
 -- name: UpdateMovie :exec
 UPDATE movies
@@ -168,7 +168,7 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
   AND (med.title LIKE ? OR m.original_title LIKE ?)
-ORDER BY m.sort_title, med.title;
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE;
 
 -- name: ListMoviesByGenre :many
 SELECT
@@ -213,7 +213,7 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
   AND m.genre LIKE ?
-ORDER BY m.sort_title, med.title;
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE;
 
 -- name: ListMoviesByYear :many
 SELECT
@@ -258,7 +258,7 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
   AND m.year = ?
-ORDER BY m.sort_title, med.title;
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE;
 
 -- name: ListMoviesByLibraryPaginated :many
 SELECT
@@ -302,7 +302,7 @@ FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
-ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE ASC
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE ASC
 LIMIT ? OFFSET ?;
 
 -- name: ListMoviesByLibraryPaginatedDesc :many
@@ -347,7 +347,7 @@ FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
-ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE DESC
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE DESC
 LIMIT ? OFFSET ?;
 
 -- name: CountMoviesByLibrary :one
@@ -408,7 +408,7 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
   AND (med.title LIKE ? OR m.original_title LIKE ?)
-ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE ASC
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE ASC
 LIMIT ? OFFSET ?;
 
 -- name: DeleteMovie :exec
@@ -421,7 +421,7 @@ FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
-ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE ASC
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE ASC
 LIMIT ? OFFSET ?;
 
 -- name: ListMovieIDsByLibraryPaginatedDesc :many
@@ -430,7 +430,7 @@ FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
-ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE DESC
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE DESC
 LIMIT ? OFFSET ?;
 
 -- name: SearchMoviesGlobal :many

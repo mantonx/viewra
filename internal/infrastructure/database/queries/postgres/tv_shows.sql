@@ -52,7 +52,7 @@ LIMIT 1;
 -- name: ListTVShowsByLibrary :many
 SELECT * FROM tv_shows
 WHERE library_id = $1
-ORDER BY sort_title, title;
+ORDER BY COALESCE(NULLIF(sort_title, ''), title);
 
 -- name: UpdateTVShow :exec
 UPDATE tv_shows
@@ -88,7 +88,7 @@ WHERE id = $1;
 SELECT * FROM tv_shows
 WHERE library_id = $1
   AND (title ILIKE $2 OR original_title ILIKE $3)
-ORDER BY sort_title, title;
+ORDER BY COALESCE(NULLIF(sort_title, ''), title);
 
 -- ============================================================================
 -- TV Seasons
@@ -457,7 +457,7 @@ JOIN tv_shows s ON e.show_id = s.id
 WHERE med.library_id = $1
   AND med.is_extra = false
   AND (e.episode_title ILIKE $2 OR s.title ILIKE $3)
-ORDER BY s.sort_title, e.season_number, e.episode_number;
+ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title), e.season_number, e.episode_number;
 
 -- ============================================================================
 -- Aggregation Queries for API
@@ -482,7 +482,7 @@ LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = $1
   AND (med.is_extra = false OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id
-ORDER BY s.sort_title, s.title;
+ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title);
 
 -- ============================================================================
 -- Pagination Support Queries
@@ -496,13 +496,13 @@ WHERE library_id = $1;
 -- name: ListTVShowsByLibraryPaginated :many
 SELECT * FROM tv_shows
 WHERE library_id = $1
-ORDER BY COALESCE(sort_title, title) ASC
+ORDER BY COALESCE(NULLIF(sort_title, ''), title) ASC
 LIMIT $2 OFFSET $3;
 
 -- name: ListTVShowsByLibraryPaginatedDesc :many
 SELECT * FROM tv_shows
 WHERE library_id = $1
-ORDER BY COALESCE(sort_title, title) DESC
+ORDER BY COALESCE(NULLIF(sort_title, ''), title) DESC
 LIMIT $2 OFFSET $3;
 
 -- name: GetTVShowsWithCountsByLibraryPaginated :many
@@ -525,7 +525,7 @@ LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = $1
   AND (med.is_extra = false OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
-ORDER BY COALESCE(s.sort_title, s.title) ASC
+ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) ASC
 LIMIT $2 OFFSET $3;
 
 -- name: GetTVShowsWithCountsByLibraryPaginatedDesc :many
@@ -548,7 +548,7 @@ LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = $1
   AND (med.is_extra = false OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
-ORDER BY COALESCE(s.sort_title, s.title) DESC
+ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) DESC
 LIMIT $2 OFFSET $3;
 
 -- name: CountSearchTVShowsByTitle :one
@@ -561,7 +561,7 @@ WHERE library_id = $1
 SELECT * FROM tv_shows
 WHERE library_id = $1
   AND (title ILIKE $2 OR original_title ILIKE $3)
-ORDER BY sort_title, title
+ORDER BY COALESCE(NULLIF(sort_title, ''), title)
 LIMIT $4 OFFSET $5;
 
 -- name: SearchTVShowsWithCountsByTitlePaginated :many
@@ -585,21 +585,21 @@ WHERE s.library_id = $1
   AND (s.title ILIKE $2 OR s.original_title ILIKE $3)
   AND (med.is_extra = false OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
-ORDER BY COALESCE(s.sort_title, s.title) ASC
+ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) ASC
 LIMIT $4 OFFSET $5;
 
 -- name: ListTVShowIDsByLibraryPaginated :many
 SELECT id
 FROM tv_shows
 WHERE library_id = $1
-ORDER BY COALESCE(sort_title, title) ASC
+ORDER BY COALESCE(NULLIF(sort_title, ''), title) ASC
 LIMIT $2 OFFSET $3;
 
 -- name: ListTVShowIDsByLibraryPaginatedDesc :many
 SELECT id
 FROM tv_shows
 WHERE library_id = $1
-ORDER BY COALESCE(sort_title, title) DESC
+ORDER BY COALESCE(NULLIF(sort_title, ''), title) DESC
 LIMIT $2 OFFSET $3;
 
 -- name: SearchTVShowsGlobal :many
@@ -612,5 +612,5 @@ SELECT
     original_title
 FROM tv_shows
 WHERE (title ILIKE $1 OR original_title ILIKE $2)
-ORDER BY sort_title, title
+ORDER BY COALESCE(NULLIF(sort_title, ''), title)
 LIMIT $3;

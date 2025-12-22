@@ -873,7 +873,7 @@ LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = $1
   AND (med.is_extra = false OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id
-ORDER BY s.sort_title, s.title
+ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title)
 `
 
 type GetTVShowsWithCountsByLibraryRow struct {
@@ -948,7 +948,7 @@ LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = $1
   AND (med.is_extra = false OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
-ORDER BY COALESCE(s.sort_title, s.title) ASC
+ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) ASC
 LIMIT $2 OFFSET $3
 `
 
@@ -1029,7 +1029,7 @@ LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = $1
   AND (med.is_extra = false OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
-ORDER BY COALESCE(s.sort_title, s.title) DESC
+ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) DESC
 LIMIT $2 OFFSET $3
 `
 
@@ -1692,7 +1692,7 @@ const listTVShowIDsByLibraryPaginated = `-- name: ListTVShowIDsByLibraryPaginate
 SELECT id
 FROM tv_shows
 WHERE library_id = $1
-ORDER BY COALESCE(sort_title, title) ASC
+ORDER BY COALESCE(NULLIF(sort_title, ''), title) ASC
 LIMIT $2 OFFSET $3
 `
 
@@ -1729,7 +1729,7 @@ const listTVShowIDsByLibraryPaginatedDesc = `-- name: ListTVShowIDsByLibraryPagi
 SELECT id
 FROM tv_shows
 WHERE library_id = $1
-ORDER BY COALESCE(sort_title, title) DESC
+ORDER BY COALESCE(NULLIF(sort_title, ''), title) DESC
 LIMIT $2 OFFSET $3
 `
 
@@ -1765,7 +1765,7 @@ func (q *Queries) ListTVShowIDsByLibraryPaginatedDesc(ctx context.Context, arg L
 const listTVShowsByLibrary = `-- name: ListTVShowsByLibrary :many
 SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
 WHERE library_id = $1
-ORDER BY sort_title, title
+ORDER BY COALESCE(NULLIF(sort_title, ''), title)
 `
 
 func (q *Queries) ListTVShowsByLibrary(ctx context.Context, libraryID int32) ([]TvShow, error) {
@@ -1820,7 +1820,7 @@ func (q *Queries) ListTVShowsByLibrary(ctx context.Context, libraryID int32) ([]
 const listTVShowsByLibraryPaginated = `-- name: ListTVShowsByLibraryPaginated :many
 SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
 WHERE library_id = $1
-ORDER BY COALESCE(sort_title, title) ASC
+ORDER BY COALESCE(NULLIF(sort_title, ''), title) ASC
 LIMIT $2 OFFSET $3
 `
 
@@ -1882,7 +1882,7 @@ func (q *Queries) ListTVShowsByLibraryPaginated(ctx context.Context, arg ListTVS
 const listTVShowsByLibraryPaginatedDesc = `-- name: ListTVShowsByLibraryPaginatedDesc :many
 SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
 WHERE library_id = $1
-ORDER BY COALESCE(sort_title, title) DESC
+ORDER BY COALESCE(NULLIF(sort_title, ''), title) DESC
 LIMIT $2 OFFSET $3
 `
 
@@ -1985,7 +1985,7 @@ JOIN tv_shows s ON e.show_id = s.id
 WHERE med.library_id = $1
   AND med.is_extra = false
   AND (e.episode_title ILIKE $2 OR s.title ILIKE $3)
-ORDER BY s.sort_title, e.season_number, e.episode_number
+ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title), e.season_number, e.episode_number
 `
 
 type SearchTVEpisodesByTitleParams struct {
@@ -2135,7 +2135,7 @@ const searchTVShowsByTitle = `-- name: SearchTVShowsByTitle :many
 SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
 WHERE library_id = $1
   AND (title ILIKE $2 OR original_title ILIKE $3)
-ORDER BY sort_title, title
+ORDER BY COALESCE(NULLIF(sort_title, ''), title)
 `
 
 type SearchTVShowsByTitleParams struct {
@@ -2197,7 +2197,7 @@ const searchTVShowsByTitlePaginated = `-- name: SearchTVShowsByTitlePaginated :m
 SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
 WHERE library_id = $1
   AND (title ILIKE $2 OR original_title ILIKE $3)
-ORDER BY sort_title, title
+ORDER BY COALESCE(NULLIF(sort_title, ''), title)
 LIMIT $4 OFFSET $5
 `
 
@@ -2273,7 +2273,7 @@ SELECT
     original_title
 FROM tv_shows
 WHERE (title ILIKE $1 OR original_title ILIKE $2)
-ORDER BY sort_title, title
+ORDER BY COALESCE(NULLIF(sort_title, ''), title)
 LIMIT $3
 `
 
@@ -2342,7 +2342,7 @@ WHERE s.library_id = $1
   AND (s.title ILIKE $2 OR s.original_title ILIKE $3)
   AND (med.is_extra = false OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
-ORDER BY COALESCE(s.sort_title, s.title) ASC
+ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) ASC
 LIMIT $4 OFFSET $5
 `
 

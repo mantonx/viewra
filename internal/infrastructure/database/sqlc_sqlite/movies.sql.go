@@ -304,7 +304,7 @@ FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
-ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE ASC
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE ASC
 LIMIT ? OFFSET ?
 `
 
@@ -343,7 +343,7 @@ FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
-ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE DESC
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE DESC
 LIMIT ? OFFSET ?
 `
 
@@ -419,7 +419,7 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
   AND m.genre LIKE ?
-ORDER BY m.sort_title, med.title
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE
 `
 
 type ListMoviesByGenreParams struct {
@@ -612,7 +612,7 @@ FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
-ORDER BY m.sort_title, med.title
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE
 `
 
 type ListMoviesByLibraryRow struct {
@@ -800,7 +800,7 @@ FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
-ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE ASC
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE ASC
 LIMIT ? OFFSET ?
 `
 
@@ -995,7 +995,7 @@ FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
-ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE DESC
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE DESC
 LIMIT ? OFFSET ?
 `
 
@@ -1191,7 +1191,7 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
   AND m.year = ?
-ORDER BY m.sort_title, med.title
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE
 `
 
 type ListMoviesByYearParams struct {
@@ -1385,7 +1385,7 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
   AND (med.title LIKE ? OR m.original_title LIKE ?)
-ORDER BY m.sort_title, med.title
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE
 `
 
 type SearchMoviesByTitleParams struct {
@@ -1580,7 +1580,7 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
   AND med.is_extra = 0
   AND (med.title LIKE ? OR m.original_title LIKE ?)
-ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE ASC
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE ASC
 LIMIT ? OFFSET ?
 `
 
