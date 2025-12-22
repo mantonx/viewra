@@ -225,27 +225,37 @@ func (p *TMDbPlugin) buildMovieResponse(movie *MovieDetails) *pluginv1.EnrichRes
 
 	// Credits
 	if movie.Credits != nil {
-		// Directors and writers from crew
+		// Directors, writers, and producers from crew
 		for _, crew := range movie.Credits.Crew {
 			switch crew.Job {
 			case "Director":
 				metadata.Directors = append(metadata.Directors, crew.Name)
 			case "Writer", "Screenplay":
 				metadata.Writers = append(metadata.Writers, crew.Name)
+			case "Producer", "Executive Producer":
+				metadata.Producers = append(metadata.Producers, crew.Name)
 			}
 		}
 
-		// Cast (top 20)
-		for i, cast := range movie.Credits.Cast {
-			if i >= 20 {
-				break
-			}
+		// Cast (all members for accurate search)
+		for _, cast := range movie.Credits.Cast {
 			metadata.Cast = append(metadata.Cast, &pluginv1.CastMember{
 				Name:   cast.Name,
 				Role:   cast.Character,
 				Thumb:  ImageURL(cast.ProfilePath, "w185"),
 				Order:  int32(cast.Order),
 				TmdbId: int32(cast.ID),
+			})
+		}
+	}
+
+	// Keywords (for location-based and thematic search)
+	if movie.Keywords != nil {
+		for _, kw := range movie.Keywords.Keywords {
+			metadata.Keywords = append(metadata.Keywords, &pluginv1.Keyword{
+				Id:         int32(kw.ID),
+				Name:       kw.Name,
+				IsLocation: isLocationKeyword(kw.Name),
 			})
 		}
 	}
@@ -361,17 +371,34 @@ func (p *TMDbPlugin) buildTVResponse(tv *TVDetails) *pluginv1.EnrichResponse {
 
 	// Credits
 	if tv.Credits != nil {
-		// Cast (top 20)
-		for i, cast := range tv.Credits.Cast {
-			if i >= 20 {
-				break
+		// Extract producers from crew
+		for _, crew := range tv.Credits.Crew {
+			switch crew.Job {
+			case "Producer", "Executive Producer":
+				metadata.Producers = append(metadata.Producers, crew.Name)
 			}
+		}
+
+		// Cast (all members for accurate search)
+		for _, cast := range tv.Credits.Cast {
 			metadata.Cast = append(metadata.Cast, &pluginv1.CastMember{
 				Name:   cast.Name,
 				Role:   cast.Character,
 				Thumb:  ImageURL(cast.ProfilePath, "w185"),
 				Order:  int32(cast.Order),
 				TmdbId: int32(cast.ID),
+			})
+		}
+	}
+
+	// Keywords (for location-based and thematic search)
+	// Note: TV shows use "results" instead of "keywords" in the TMDB response
+	if tv.Keywords != nil {
+		for _, kw := range tv.Keywords.Results {
+			metadata.Keywords = append(metadata.Keywords, &pluginv1.Keyword{
+				Id:         int32(kw.ID),
+				Name:       kw.Name,
+				IsLocation: isLocationKeyword(kw.Name),
 			})
 		}
 	}
@@ -435,4 +462,83 @@ func float32Ptr(f float32) *float32 {
 		return nil
 	}
 	return &f
+}
+
+// isLocationKeyword checks if a keyword represents a location/setting.
+// Uses a curated list of location patterns and known location keywords.
+func isLocationKeyword(keyword string) bool {
+	kw := strings.ToLower(keyword)
+
+	// Major world cities
+	cities := []string{
+		"new york", "los angeles", "chicago", "san francisco", "boston", "miami", "las vegas",
+		"seattle", "washington", "philadelphia", "detroit", "atlanta", "houston", "dallas",
+		"london", "paris", "berlin", "rome", "madrid", "barcelona", "amsterdam", "vienna",
+		"tokyo", "hong kong", "shanghai", "beijing", "seoul", "singapore", "bangkok", "mumbai",
+		"sydney", "melbourne", "toronto", "montreal", "vancouver", "mexico city", "rio de janeiro",
+		"buenos aires", "moscow", "st. petersburg", "cairo", "dubai", "istanbul",
+		"manhattan", "brooklyn", "queens", "bronx", "hollywood", "beverly hills",
+	}
+	for _, city := range cities {
+		if strings.Contains(kw, city) {
+			return true
+		}
+	}
+
+	// Countries
+	countries := []string{
+		"united states", "america", "usa", "uk", "england", "britain", "france", "germany",
+		"italy", "spain", "japan", "china", "korea", "india", "australia", "canada", "mexico",
+		"brazil", "russia", "ireland", "scotland", "wales", "greece", "egypt", "israel",
+		"thailand", "vietnam", "indonesia", "philippines", "south africa", "nigeria",
+	}
+	for _, country := range countries {
+		if strings.Contains(kw, country) {
+			return true
+		}
+	}
+
+	// US States and regions
+	states := []string{
+		"california", "texas", "florida", "new york state", "illinois", "pennsylvania",
+		"ohio", "georgia", "north carolina", "michigan", "new jersey", "virginia",
+		"washington state", "arizona", "massachusetts", "tennessee", "indiana",
+		"missouri", "maryland", "wisconsin", "colorado", "minnesota", "oregon",
+		"louisiana", "alabama", "kentucky", "connecticut", "oklahoma", "iowa",
+		"mississippi", "arkansas", "kansas", "utah", "nevada", "new mexico",
+		"west virginia", "nebraska", "maine", "new hampshire", "hawaii", "alaska",
+		"montana", "idaho", "wyoming", "vermont", "south dakota", "north dakota",
+	}
+	for _, state := range states {
+		if strings.Contains(kw, state) {
+			return true
+		}
+	}
+
+	// Geographic region patterns (must be specific to avoid false positives)
+	regionPatterns := []string{
+		"suburb", "countryside", "rural area", "urban setting",
+		"small town", "big city", "outback", "bayou", "appalachia", "midwest",
+		"deep south", "new england", "pacific northwest", "southwest", "heartland",
+		"caribbean", "mediterranean", "latin america", "south america", "central america", "oceania",
+	}
+	for _, pattern := range regionPatterns {
+		if strings.Contains(kw, pattern) {
+			return true
+		}
+	}
+
+	// Exact matches for ambiguous terms that could be themes or locations
+	// Only match if the keyword IS the location, not contains it
+	exactLocationMatches := []string{
+		"beach", "island", "mountain", "desert", "forest", "jungle",
+		"arctic", "antarctic", "europe", "asia", "africa", "middle east",
+	}
+	for _, exact := range exactLocationMatches {
+		if kw == exact {
+			return true
+		}
+	}
+
+	return false
 }

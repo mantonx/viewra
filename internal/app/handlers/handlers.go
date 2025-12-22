@@ -174,6 +174,10 @@ func BuildHandlers(
 			svcs.EventBus,
 			logger.With("handler", "enrichment"),
 		)
+		// Wire up media repository for bulk enqueue functionality
+		if infra.Repos.Media != nil {
+			enrichmentHandler.SetMediaListByType(infra.Repos.Media.ListByType)
+		}
 	}
 
 	// Plugin handler

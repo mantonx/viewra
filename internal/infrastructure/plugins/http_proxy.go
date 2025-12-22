@@ -2,12 +2,17 @@ package plugins
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 )
@@ -199,6 +204,29 @@ func (p *HTTPProxy) handleSimpleRequest(c *gin.Context, instance *PluginInstance
 
 	resp, err := instance.CoreClient.HandleHTTP(ctx, req)
 	if err != nil {
+		// Check if this is a connection error (plugin died/restarted)
+		if isConnectionError(err) {
+			p.logger.Warn("plugin connection failed, attempting restart",
+				"plugin", instance.ID,
+				"error", err)
+
+			// Try to restart the plugin
+			if restartErr := p.manager.RestartPlugin(ctx, instance.ID); restartErr != nil {
+				p.logger.Error("failed to restart plugin",
+					"plugin", instance.ID,
+					"error", restartErr)
+			} else {
+				// Get refreshed instance and retry once
+				if newInstance, ok := p.manager.GetPlugin(instance.ID); ok {
+					resp, err = newInstance.CoreClient.HandleHTTP(ctx, req)
+					if err == nil {
+						// Success after restart - continue to response handling
+						goto handleResponse
+					}
+				}
+			}
+		}
+
 		p.logger.Error("plugin HandleHTTP failed",
 			"plugin", instance.ID,
 			"path", req.Path,
@@ -209,6 +237,8 @@ func (p *HTTPProxy) handleSimpleRequest(c *gin.Context, instance *PluginInstance
 		})
 		return
 	}
+
+handleResponse:
 
 	p.logger.Info("plugin returned response",
 		"plugin", instance.ID,
@@ -377,8 +407,13 @@ func (p *HTTPProxy) receiveStreamingResponse(c *gin.Context, stream pluginv1.Plu
 // getUserIDFromContext extracts the user ID from the gin context.
 func getUserIDFromContext(c *gin.Context) string {
 	if userID, exists := c.Get("user_id"); exists {
-		if s, ok := userID.(string); ok {
-			return s
+		switch v := userID.(type) {
+		case string:
+			return v
+		case int64:
+			return strconv.FormatInt(v, 10)
+		case int:
+			return strconv.Itoa(v)
 		}
 	}
 	return ""
@@ -387,6 +422,45 @@ func getUserIDFromContext(c *gin.Context) string {
 // formatRateLimit formats the rate limit for the header.
 func formatRateLimit(rpm int32) string {
 	return string(rune('0' + rpm%10)) // Simple formatting, improve as needed
+}
+
+// isConnectionError checks if the error indicates the plugin connection is broken.
+// This happens when the plugin process dies or is restarted.
+func isConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Check for gRPC unavailable status (server not reachable)
+	if s, ok := status.FromError(err); ok {
+		switch s.Code() {
+		case codes.Unavailable, codes.Internal:
+			return true
+		}
+	}
+
+	// Check for connection refused
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return true
+	}
+
+	// Check error message for common connection errors
+	errStr := err.Error()
+	connectionErrors := []string{
+		"connection refused",
+		"connection reset",
+		"broken pipe",
+		"EOF",
+		"transport is closing",
+		"no connection",
+	}
+	for _, ce := range connectionErrors {
+		if strings.Contains(strings.ToLower(errStr), strings.ToLower(ce)) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Stop cleans up resources.

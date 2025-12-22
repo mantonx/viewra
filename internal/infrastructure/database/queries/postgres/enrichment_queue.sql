@@ -78,6 +78,20 @@ SET
     updated_at = NOW()
 WHERE id = $1;
 
+-- name: RequeueEnrichmentJob :exec
+-- Re-queue a job for retry without incrementing the attempt count.
+-- Used for transient infrastructure errors (plugin restarts, connection issues).
+UPDATE enrichment_queue
+SET
+    status = 'pending',
+    error_message = $1,
+    error_category = $2,
+    next_retry_at = $3,
+    locked_by = NULL,
+    locked_at = NULL,
+    updated_at = NOW()
+WHERE id = $4;
+
 -- name: GetEnrichmentQueueStats :one
 SELECT
     stage,

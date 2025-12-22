@@ -79,16 +79,16 @@ type EpisodeNFO struct {
 	XMLName xml.Name `xml:"episodedetails"`
 
 	// Basic information
-	Title         string `xml:"title"`
-	OriginalTitle string `xml:"originaltitle"`
-	ShowTitle     string `xml:"showtitle"`
-	Season        int    `xml:"season"`
-	Episode       int    `xml:"episode"`
-	DisplaySeason int    `xml:"displayseason"` // For specials
-	DisplayEpisode int   `xml:"displayepisode"` // For specials
-	Aired         string `xml:"aired"`
-	Plot          string `xml:"plot"`
-	Outline       string `xml:"outline"`
+	Title          string `xml:"title"`
+	OriginalTitle  string `xml:"originaltitle"`
+	ShowTitle      string `xml:"showtitle"`
+	Season         int    `xml:"season"`
+	Episode        int    `xml:"episode"`
+	DisplaySeason  int    `xml:"displayseason"`  // For specials
+	DisplayEpisode int    `xml:"displayepisode"` // For specials
+	Aired          string `xml:"aired"`
+	Plot           string `xml:"plot"`
+	Outline        string `xml:"outline"`
 
 	// Ratings
 	Rating     float32 `xml:"rating"`
@@ -109,7 +109,7 @@ type EpisodeNFO struct {
 	UniqueIDs []UniqueID `xml:"uniqueid"`
 
 	// People
-	Director string  `xml:"director"`
+	Director string   `xml:"director"`
 	Credits  []string `xml:"credits"` // Writers
 	Actors   []Actor  `xml:"actor"`
 
@@ -131,7 +131,7 @@ type TVShowMetadata struct {
 	Plot             string
 	Tagline          string
 	Status           string
-	Cast             []string
+	Cast             []CastMemberInfo
 	Genre            []string
 	ContentRating    string
 	MaturityRating   int
@@ -216,8 +216,8 @@ func ParseTVShowNFO(nfoPath string) (*TVShowMetadata, error) {
 		}
 	}
 
-	// Extract cast names using common helper
-	metadata.Cast = extractActorNames(nfo.Actors)
+	// Extract cast with order info
+	metadata.Cast = extractCastMembers(nfo.Actors)
 
 	// Extract genres
 	metadata.Genre = nfo.Genres

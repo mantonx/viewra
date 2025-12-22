@@ -40,6 +40,7 @@ func main() {
 			"host_llm":        &HostLLMGRPCPlugin{},
 			"host_embeddings": &HostEmbeddingsGRPCPlugin{},
 			"host_data":       &HostDataGRPCPlugin{},
+			"host_weather":    &HostWeatherGRPCPlugin{},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 		Logger:     hclogger, // Pass hclog to go-plugin for proper log forwarding
@@ -116,6 +117,18 @@ func (w *pluginCoreWrapper) Initialize(ctx context.Context, req *pluginv1.InitRe
 		}
 	}
 
+	// Connect to host weather service (for location-based context enrichment)
+	if req.HostWeatherBrokerId > 0 {
+		w.logger.Debug("connecting to host weather service", "broker_id", req.HostWeatherBrokerId)
+		conn, err := w.broker.Dial(req.HostWeatherBrokerId)
+		if err != nil {
+			w.logger.Error("failed to dial host weather", "error", err)
+		} else {
+			w.plugin.SetWeatherClient(pluginv1.NewHostWeatherClient(conn))
+			w.logger.Info("connected to host weather service")
+		}
+	}
+
 	return w.PluginCoreServer.Initialize(ctx, req)
 }
 
@@ -186,4 +199,17 @@ func (p *AISearchGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Serve
 
 func (p *AISearchGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (any, error) {
 	return pluginv1.NewAISearchClient(c), nil
+}
+
+// HostWeatherGRPCPlugin implements plugin.GRPCPlugin for HostWeather service.
+type HostWeatherGRPCPlugin struct {
+	plugin.Plugin
+}
+
+func (p *HostWeatherGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
+	return nil // Host serves this
+}
+
+func (p *HostWeatherGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (any, error) {
+	return pluginv1.NewHostWeatherClient(c), nil
 }

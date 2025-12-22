@@ -553,5 +553,77 @@ func cosineSimilarity(a, b []float32) float32 {
 	return float32(dotProduct / (math.Sqrt(normA) * math.Sqrt(normB)))
 }
 
+// SearchText finds embeddings where text contains the query (case-insensitive).
+func (r *EmbeddingRepository) SearchText(ctx context.Context, query string, types []ai.EntityType, limit int) ([]ai.SemanticSearchResult, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+
+	var args []interface{}
+	var whereClause string
+
+	// Build type filter
+	if len(types) > 0 {
+		placeholders := make([]string, len(types))
+		for i, t := range types {
+			if common.IsPostgres(r.dbType) {
+				placeholders[i] = fmt.Sprintf("$%d", i+1)
+			} else {
+				placeholders[i] = "?"
+			}
+			args = append(args, string(t))
+		}
+		whereClause = fmt.Sprintf("entity_type IN (%s) AND ", strings.Join(placeholders, ","))
+	}
+
+	// Add text search - use LIKE for case-insensitive search
+	searchPattern := "%" + query + "%"
+	if common.IsPostgres(r.dbType) {
+		args = append(args, searchPattern, limit)
+		whereClause += fmt.Sprintf("text ILIKE $%d", len(args)-1)
+		sql := fmt.Sprintf(`
+			SELECT entity_type, entity_id, text
+			FROM embeddings
+			WHERE %s
+			ORDER BY updated_at DESC
+			LIMIT $%d
+		`, whereClause, len(args))
+		return r.execTextSearch(ctx, sql, args)
+	}
+
+	// SQLite - use LIKE (case-insensitive by default)
+	args = append(args, searchPattern, limit)
+	sql := fmt.Sprintf(`
+		SELECT entity_type, entity_id, text
+		FROM embeddings
+		WHERE %s text LIKE ?
+		ORDER BY updated_at DESC
+		LIMIT ?
+	`, whereClause)
+	return r.execTextSearch(ctx, sql, args)
+}
+
+func (r *EmbeddingRepository) execTextSearch(ctx context.Context, sql string, args []interface{}) ([]ai.SemanticSearchResult, error) {
+	rows, err := r.db.QueryContext(ctx, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("text search query: %w", err)
+	}
+	defer rows.Close()
+
+	var results []ai.SemanticSearchResult
+	for rows.Next() {
+		var result ai.SemanticSearchResult
+		var entityType string
+		if err := rows.Scan(&entityType, &result.EntityID, &result.Text); err != nil {
+			return nil, fmt.Errorf("scan text search result: %w", err)
+		}
+		result.EntityType = ai.EntityType(entityType)
+		result.Score = 1.0 // Text match = full relevance
+		results = append(results, result)
+	}
+
+	return results, rows.Err()
+}
+
 // Verify interface implementation
 var _ ai.EmbeddingRepository = (*EmbeddingRepository)(nil)

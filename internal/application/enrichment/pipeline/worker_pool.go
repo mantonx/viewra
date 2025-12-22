@@ -39,6 +39,7 @@ func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMed
 	metadataApplier := NewMetadataApplier(typedRepos, logger)
 	creditsApplier := NewCreditsApplier(deps.PeopleRepo, logger)
 	studiosApplier := NewStudiosApplier(deps.StudioRepo, logger)
+	keywordsApplier := NewKeywordsApplier(deps.KeywordRepo, logger)
 
 	// Build ImageProcessor with optional dependencies
 	var imgOpts []ImageProcessorOption
@@ -54,7 +55,7 @@ func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMed
 	imageProcessor := NewImageProcessor(deps.ImageRepo, logger, imgOpts...)
 
 	requestBuilder := NewRequestBuilder(deps, typedRepos, logger)
-	responseApplier := NewResponseApplier(deps, metadataApplier, creditsApplier, studiosApplier, imageProcessor, logger)
+	responseApplier := NewResponseApplier(deps, metadataApplier, creditsApplier, studiosApplier, keywordsApplier, imageProcessor, logger)
 	jobProcessor := NewJobProcessor(deps, enricher, requestBuilder, responseApplier, config, logger)
 
 	return &WorkerPool{

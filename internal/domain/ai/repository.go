@@ -25,6 +25,9 @@ type EmbeddingRepository interface {
 	// Search performs a semantic similarity search.
 	Search(ctx context.Context, req SemanticSearchRequest, queryVector []float32) (*SemanticSearchResponse, error)
 
+	// SearchText finds embeddings where text contains the query (case-insensitive).
+	SearchText(ctx context.Context, query string, types []EntityType, limit int) ([]SemanticSearchResult, error)
+
 	// Count returns the total number of embeddings.
 	Count(ctx context.Context) (int64, error)
 

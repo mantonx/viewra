@@ -114,6 +114,7 @@ type Querier interface {
 	DeleteImagesByEntity(ctx context.Context, arg DeleteImagesByEntityParams) error
 	DeleteImagesByHash(ctx context.Context, fileHash sql.NullString) error
 	DeleteImagesByMediaID(ctx context.Context, mediaID sql.NullInt64) error
+	DeleteKeywordsByEntity(ctx context.Context, arg DeleteKeywordsByEntityParams) error
 	DeleteLibrary(ctx context.Context, id int64) error
 	DeleteMedia(ctx context.Context, id int64) error
 	DeleteMetadataSource(ctx context.Context, arg DeleteMetadataSourceParams) error
@@ -228,6 +229,7 @@ type Querier interface {
 	GetImageByTypeAndEntity(ctx context.Context, arg GetImageByTypeAndEntityParams) (MediaImage, error)
 	GetImageByTypeAndMediaID(ctx context.Context, arg GetImageByTypeAndMediaIDParams) (MediaImage, error)
 	GetImagesByHash(ctx context.Context, fileHash sql.NullString) ([]MediaImage, error)
+	GetKeywordsByEntity(ctx context.Context, arg GetKeywordsByEntityParams) ([]GetKeywordsByEntityRow, error)
 	GetLastTaskExecution(ctx context.Context, taskID string) (TaskExecution, error)
 	GetLatestScanJobByLibrary(ctx context.Context, libraryID int64) (ScanJob, error)
 	GetLibraryByID(ctx context.Context, id int64) (Library, error)
@@ -241,6 +243,7 @@ type Querier interface {
 	GetLibraryIssues(ctx context.Context, libraryID int64) ([]ScanState, error)
 	GetLibraryScanState(ctx context.Context, libraryID int64) ([]ScanState, error)
 	GetLibraryWarnings(ctx context.Context, libraryID int64) ([]ScanState, error)
+	GetLocationKeywordsByEntity(ctx context.Context, arg GetLocationKeywordsByEntityParams) ([]GetLocationKeywordsByEntityRow, error)
 	// Returns entity_id for the given provider/external_id combination
 	GetMediaByExternalID(ctx context.Context, arg GetMediaByExternalIDParams) (int64, error)
 	GetMediaByFilePath(ctx context.Context, arg GetMediaByFilePathParams) (Medium, error)
@@ -324,6 +327,7 @@ type Querier interface {
 	GetTVShowsWithCountsByLibraryPaginatedDesc(ctx context.Context, arg GetTVShowsWithCountsByLibraryPaginatedDescParams) ([]GetTVShowsWithCountsByLibraryPaginatedDescRow, error)
 	GetTaskExecutionHistory(ctx context.Context, arg GetTaskExecutionHistoryParams) ([]TaskExecution, error)
 	GetTaskExecutionStats(ctx context.Context, taskID string) (GetTaskExecutionStatsRow, error)
+	GetThemeKeywordsByEntity(ctx context.Context, arg GetThemeKeywordsByEntityParams) ([]GetThemeKeywordsByEntityRow, error)
 	GetTotalTranscodeSize(ctx context.Context) (interface{}, error)
 	GetTranscodeAnalyticsBySessionID(ctx context.Context, sessionID string) (TranscodeAnalytic, error)
 	GetTranscodeJobByID(ctx context.Context, id int64) (TranscodeJob, error)
@@ -343,6 +347,7 @@ type Querier interface {
 	IncrementSeasonEpisodeCount(ctx context.Context, id int64) error
 	// Audio and subtitle track queries for multi-language support
 	InsertAudioTrack(ctx context.Context, arg InsertAudioTrackParams) (InsertAudioTrackRow, error)
+	InsertKeyword(ctx context.Context, arg InsertKeywordParams) error
 	InsertMoodTag(ctx context.Context, arg InsertMoodTagParams) error
 	InsertSubtitleTrack(ctx context.Context, arg InsertSubtitleTrackParams) (InsertSubtitleTrackRow, error)
 	LibraryExistsByID(ctx context.Context, id int64) (int64, error)
@@ -428,6 +433,9 @@ type Querier interface {
 	PluginKVTotalSize(ctx context.Context, pluginID string) (interface{}, error)
 	ReleaseStuckEnrichmentJobs(ctx context.Context, dollar_1 sql.NullString) error
 	RemoveMediaStudio(ctx context.Context, arg RemoveMediaStudioParams) error
+	// Re-queue a job for retry without incrementing the attempt count.
+	// Used for transient infrastructure errors (plugin restarts, connection issues).
+	RequeueEnrichmentJob(ctx context.Context, arg RequeueEnrichmentJobParams) error
 	ResetEnrichmentJobForRetry(ctx context.Context, id int64) error
 	ResetFailedScanCheckpoints(ctx context.Context, scanJobID int64) error
 	ResetPluginRestartCount(ctx context.Context, id string) error
@@ -436,6 +444,8 @@ type Querier interface {
 	ResetStuckEnrichmentStatus(ctx context.Context) (int64, error)
 	SearchArtistsByName(ctx context.Context, arg SearchArtistsByNameParams) ([]MusicArtist, error)
 	SearchArtistsWithCountsByNamePaginated(ctx context.Context, arg SearchArtistsWithCountsByNamePaginatedParams) ([]SearchArtistsWithCountsByNamePaginatedRow, error)
+	SearchByKeyword(ctx context.Context, keyword string) ([]SearchByKeywordRow, error)
+	SearchByLocationKeyword(ctx context.Context, keyword string) ([]SearchByLocationKeywordRow, error)
 	SearchMoviesByTitle(ctx context.Context, arg SearchMoviesByTitleParams) ([]SearchMoviesByTitleRow, error)
 	SearchMoviesByTitlePaginated(ctx context.Context, arg SearchMoviesByTitlePaginatedParams) ([]SearchMoviesByTitlePaginatedRow, error)
 	// Searches movies across all libraries (for plugin use)

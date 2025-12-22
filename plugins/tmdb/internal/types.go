@@ -48,8 +48,9 @@ type MovieDetails struct {
 	ProductionCountries []ProductionCountry `json:"production_countries"`
 
 	// Appended responses (when using append_to_response)
-	Credits *Credits `json:"credits,omitempty"`
-	Images  *Images  `json:"images,omitempty"`
+	Credits  *Credits  `json:"credits,omitempty"`
+	Images   *Images   `json:"images,omitempty"`
+	Keywords *Keywords `json:"keywords,omitempty"`
 }
 
 // TVSearchResult represents a TV show from TMDb search results.
@@ -103,6 +104,7 @@ type TVDetails struct {
 	ExternalIDs *ExternalIDs `json:"external_ids,omitempty"`
 	Credits     *Credits     `json:"credits,omitempty"`
 	Images      *Images      `json:"images,omitempty"`
+	Keywords    *Keywords    `json:"keywords,omitempty"`
 }
 
 // Genre represents a genre.
@@ -189,6 +191,18 @@ type ExternalIDs struct {
 	FacebookID  string `json:"facebook_id"`
 	InstagramID string `json:"instagram_id"`
 	TwitterID   string `json:"twitter_id"`
+}
+
+// Keywords contains keyword information from TMDb.
+type Keywords struct {
+	Keywords []Keyword `json:"keywords"` // Used for movies
+	Results  []Keyword `json:"results"`  // Used for TV shows
+}
+
+// Keyword represents a single keyword/tag from TMDb.
+type Keyword struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
 }
 
 // FindByExternalIDResponse is the response from TMDb find endpoint.

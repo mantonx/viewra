@@ -200,6 +200,29 @@ func (p *JobProcessor) handleFailure(ctx context.Context, logger *slog.Logger, j
 	// Categorize the error
 	category := categorizeError(err)
 
+	// Check if this is a transient connection error (plugin restart, server restart, etc.)
+	// These should not count against the retry limit - just re-queue immediately
+	isConnError := IsConnectionError(err)
+
+	if isConnError {
+		// Re-queue the job without incrementing attempts
+		// Use longer delay (30s) to avoid log spam during plugin restarts
+		retryTime := time.Now().Add(30 * time.Second)
+		if dbErr := p.deps.QueueRepo.FailWithoutPenalty(ctx, job.ID, err.Error(), category, &retryTime); dbErr != nil {
+			logger.Error("failed to re-queue job", slog.Any("error", dbErr))
+		}
+
+		// Log at Debug level to avoid spam - connection errors during plugin reload are expected
+		logger.Debug("job deferred due to connection error, will retry in 30s",
+			slog.Any("error", err),
+			slog.Duration("duration", duration))
+
+		// Don't update status to failed for transient errors - keep it as processing
+		// so the UI doesn't flash failed/retry states
+
+		return
+	}
+
 	logger.Error("job failed",
 		slog.Any("error", err),
 		slog.String("category", string(category)),

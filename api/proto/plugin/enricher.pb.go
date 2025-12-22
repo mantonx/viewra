@@ -500,6 +500,7 @@ type EnrichedMetadata struct {
 	Directors []string      `protobuf:"bytes,12,rep,name=directors,proto3" json:"directors,omitempty"`
 	Writers   []string      `protobuf:"bytes,13,rep,name=writers,proto3" json:"writers,omitempty"`
 	Cast      []*CastMember `protobuf:"bytes,14,rep,name=cast,proto3" json:"cast,omitempty"`
+	Producers []string      `protobuf:"bytes,37,rep,name=producers,proto3" json:"producers,omitempty"` // Producers and executive producers
 	// TV-specific
 	Network   *string `protobuf:"bytes,15,opt,name=network,proto3,oneof" json:"network,omitempty"`
 	Status    *string `protobuf:"bytes,16,opt,name=status,proto3,oneof" json:"status,omitempty"`       // "Continuing", "Ended"
@@ -530,8 +531,10 @@ type EnrichedMetadata struct {
 	AlbumMetadata *AlbumMetadata `protobuf:"bytes,34,opt,name=album_metadata,json=albumMetadata,proto3" json:"album_metadata,omitempty"`
 	// Artist-specific metadata (for MediaTypeMusicArtist)
 	ArtistMetadata *ArtistMetadata `protobuf:"bytes,35,opt,name=artist_metadata,json=artistMetadata,proto3" json:"artist_metadata,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Keywords/tags from external sources (e.g., TMDB)
+	Keywords      []*Keyword `protobuf:"bytes,36,rep,name=keywords,proto3" json:"keywords,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *EnrichedMetadata) Reset() {
@@ -658,6 +661,13 @@ func (x *EnrichedMetadata) GetWriters() []string {
 func (x *EnrichedMetadata) GetCast() []*CastMember {
 	if x != nil {
 		return x.Cast
+	}
+	return nil
+}
+
+func (x *EnrichedMetadata) GetProducers() []string {
+	if x != nil {
+		return x.Producers
 	}
 	return nil
 }
@@ -809,6 +819,74 @@ func (x *EnrichedMetadata) GetArtistMetadata() *ArtistMetadata {
 	return nil
 }
 
+func (x *EnrichedMetadata) GetKeywords() []*Keyword {
+	if x != nil {
+		return x.Keywords
+	}
+	return nil
+}
+
+// Keyword represents a tag/keyword from external sources like TMDB.
+type Keyword struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int32                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`                                   // External ID (e.g., TMDB keyword ID)
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                // Keyword text
+	IsLocation    bool                   `protobuf:"varint,3,opt,name=is_location,json=isLocation,proto3" json:"is_location,omitempty"` // Whether this keyword represents a location/setting
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Keyword) Reset() {
+	*x = Keyword{}
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Keyword) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Keyword) ProtoMessage() {}
+
+func (x *Keyword) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Keyword.ProtoReflect.Descriptor instead.
+func (*Keyword) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_enricher_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *Keyword) GetId() int32 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *Keyword) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Keyword) GetIsLocation() bool {
+	if x != nil {
+		return x.IsLocation
+	}
+	return false
+}
+
 // AlbumMetadata contains fields specific to music albums.
 type AlbumMetadata struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
@@ -831,7 +909,7 @@ type AlbumMetadata struct {
 
 func (x *AlbumMetadata) Reset() {
 	*x = AlbumMetadata{}
-	mi := &file_api_proto_plugin_enricher_proto_msgTypes[6]
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -843,7 +921,7 @@ func (x *AlbumMetadata) String() string {
 func (*AlbumMetadata) ProtoMessage() {}
 
 func (x *AlbumMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_enricher_proto_msgTypes[6]
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -856,7 +934,7 @@ func (x *AlbumMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlbumMetadata.ProtoReflect.Descriptor instead.
 func (*AlbumMetadata) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_enricher_proto_rawDescGZIP(), []int{6}
+	return file_api_proto_plugin_enricher_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *AlbumMetadata) GetTitle() string {
@@ -966,7 +1044,7 @@ type ArtistMetadata struct {
 
 func (x *ArtistMetadata) Reset() {
 	*x = ArtistMetadata{}
-	mi := &file_api_proto_plugin_enricher_proto_msgTypes[7]
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -978,7 +1056,7 @@ func (x *ArtistMetadata) String() string {
 func (*ArtistMetadata) ProtoMessage() {}
 
 func (x *ArtistMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_enricher_proto_msgTypes[7]
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -991,7 +1069,7 @@ func (x *ArtistMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArtistMetadata.ProtoReflect.Descriptor instead.
 func (*ArtistMetadata) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_enricher_proto_rawDescGZIP(), []int{7}
+	return file_api_proto_plugin_enricher_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ArtistMetadata) GetName() string {
@@ -1056,7 +1134,7 @@ type CastMember struct {
 
 func (x *CastMember) Reset() {
 	*x = CastMember{}
-	mi := &file_api_proto_plugin_enricher_proto_msgTypes[8]
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1068,7 +1146,7 @@ func (x *CastMember) String() string {
 func (*CastMember) ProtoMessage() {}
 
 func (x *CastMember) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_enricher_proto_msgTypes[8]
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1081,7 +1159,7 @@ func (x *CastMember) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CastMember.ProtoReflect.Descriptor instead.
 func (*CastMember) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_enricher_proto_rawDescGZIP(), []int{8}
+	return file_api_proto_plugin_enricher_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *CastMember) GetName() string {
@@ -1143,7 +1221,7 @@ type EnrichedImage struct {
 
 func (x *EnrichedImage) Reset() {
 	*x = EnrichedImage{}
-	mi := &file_api_proto_plugin_enricher_proto_msgTypes[9]
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1155,7 +1233,7 @@ func (x *EnrichedImage) String() string {
 func (*EnrichedImage) ProtoMessage() {}
 
 func (x *EnrichedImage) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_enricher_proto_msgTypes[9]
+	mi := &file_api_proto_plugin_enricher_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1168,7 +1246,7 @@ func (x *EnrichedImage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnrichedImage.ProtoReflect.Descriptor instead.
 func (*EnrichedImage) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_enricher_proto_rawDescGZIP(), []int{9}
+	return file_api_proto_plugin_enricher_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *EnrichedImage) GetType() string {
@@ -1291,7 +1369,7 @@ const file_api_proto_plugin_enricher_proto_rawDesc = "" +
 	"confidence\x1a@\n" +
 	"\x12DiscoveredIdsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbc\r\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x91\x0e\n" +
 	"\x10EnrichedMetadata\x12\x19\n" +
 	"\x05title\x18\x01 \x01(\tH\x00R\x05title\x88\x01\x01\x12*\n" +
 	"\x0eoriginal_title\x18\x02 \x01(\tH\x01R\roriginalTitle\x88\x01\x01\x12\"\n" +
@@ -1308,7 +1386,8 @@ const file_api_proto_plugin_enricher_proto_rawDesc = "" +
 	"\frating_votes\x18\v \x01(\x05H\tR\vratingVotes\x88\x01\x01\x12\x1c\n" +
 	"\tdirectors\x18\f \x03(\tR\tdirectors\x12\x18\n" +
 	"\awriters\x18\r \x03(\tR\awriters\x120\n" +
-	"\x04cast\x18\x0e \x03(\v2\x1c.viewra.plugin.v1.CastMemberR\x04cast\x12\x1d\n" +
+	"\x04cast\x18\x0e \x03(\v2\x1c.viewra.plugin.v1.CastMemberR\x04cast\x12\x1c\n" +
+	"\tproducers\x18% \x03(\tR\tproducers\x12\x1d\n" +
 	"\anetwork\x18\x0f \x01(\tH\n" +
 	"R\anetwork\x88\x01\x01\x12\x1b\n" +
 	"\x06status\x18\x10 \x01(\tH\vR\x06status\x88\x01\x01\x12!\n" +
@@ -1332,7 +1411,8 @@ const file_api_proto_plugin_enricher_proto_rawDesc = "" +
 	"\vtotal_discs\x18! \x01(\x05H\x1aR\n" +
 	"totalDiscs\x88\x01\x01\x12F\n" +
 	"\x0ealbum_metadata\x18\" \x01(\v2\x1f.viewra.plugin.v1.AlbumMetadataR\ralbumMetadata\x12I\n" +
-	"\x0fartist_metadata\x18# \x01(\v2 .viewra.plugin.v1.ArtistMetadataR\x0eartistMetadataB\b\n" +
+	"\x0fartist_metadata\x18# \x01(\v2 .viewra.plugin.v1.ArtistMetadataR\x0eartistMetadata\x125\n" +
+	"\bkeywords\x18$ \x03(\v2\x19.viewra.plugin.v1.KeywordR\bkeywordsB\b\n" +
 	"\x06_titleB\x11\n" +
 	"\x0f_original_titleB\r\n" +
 	"\v_sort_titleB\a\n" +
@@ -1363,7 +1443,12 @@ const file_api_proto_plugin_enricher_proto_rawDesc = "" +
 	"\r_track_numberB\x0e\n" +
 	"\f_disc_numberB\x0f\n" +
 	"\r_total_tracksB\x0e\n" +
-	"\f_total_discs\"\xb0\x05\n" +
+	"\f_total_discs\"N\n" +
+	"\aKeyword\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x05R\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1f\n" +
+	"\vis_location\x18\x03 \x01(\bR\n" +
+	"isLocation\"\xb0\x05\n" +
 	"\rAlbumMetadata\x12\x19\n" +
 	"\x05title\x18\x01 \x01(\tH\x00R\x05title\x88\x01\x01\x12&\n" +
 	"\falbum_artist\x18\x02 \x01(\tH\x01R\valbumArtist\x88\x01\x01\x12\x1b\n" +
@@ -1446,7 +1531,7 @@ func file_api_proto_plugin_enricher_proto_rawDescGZIP() []byte {
 	return file_api_proto_plugin_enricher_proto_rawDescData
 }
 
-var file_api_proto_plugin_enricher_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_api_proto_plugin_enricher_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_api_proto_plugin_enricher_proto_goTypes = []any{
 	(*EnricherCapabilities)(nil), // 0: viewra.plugin.v1.EnricherCapabilities
 	(*EnrichRequest)(nil),        // 1: viewra.plugin.v1.EnrichRequest
@@ -1454,33 +1539,35 @@ var file_api_proto_plugin_enricher_proto_goTypes = []any{
 	(*MusicMetadata)(nil),        // 3: viewra.plugin.v1.MusicMetadata
 	(*EnrichResponse)(nil),       // 4: viewra.plugin.v1.EnrichResponse
 	(*EnrichedMetadata)(nil),     // 5: viewra.plugin.v1.EnrichedMetadata
-	(*AlbumMetadata)(nil),        // 6: viewra.plugin.v1.AlbumMetadata
-	(*ArtistMetadata)(nil),       // 7: viewra.plugin.v1.ArtistMetadata
-	(*CastMember)(nil),           // 8: viewra.plugin.v1.CastMember
-	(*EnrichedImage)(nil),        // 9: viewra.plugin.v1.EnrichedImage
-	nil,                          // 10: viewra.plugin.v1.EnrichRequest.ExistingIdsEntry
-	nil,                          // 11: viewra.plugin.v1.EnrichResponse.DiscoveredIdsEntry
-	(*Empty)(nil),                // 12: viewra.plugin.v1.Empty
+	(*Keyword)(nil),              // 6: viewra.plugin.v1.Keyword
+	(*AlbumMetadata)(nil),        // 7: viewra.plugin.v1.AlbumMetadata
+	(*ArtistMetadata)(nil),       // 8: viewra.plugin.v1.ArtistMetadata
+	(*CastMember)(nil),           // 9: viewra.plugin.v1.CastMember
+	(*EnrichedImage)(nil),        // 10: viewra.plugin.v1.EnrichedImage
+	nil,                          // 11: viewra.plugin.v1.EnrichRequest.ExistingIdsEntry
+	nil,                          // 12: viewra.plugin.v1.EnrichResponse.DiscoveredIdsEntry
+	(*Empty)(nil),                // 13: viewra.plugin.v1.Empty
 }
 var file_api_proto_plugin_enricher_proto_depIdxs = []int32{
-	10, // 0: viewra.plugin.v1.EnrichRequest.existing_ids:type_name -> viewra.plugin.v1.EnrichRequest.ExistingIdsEntry
+	11, // 0: viewra.plugin.v1.EnrichRequest.existing_ids:type_name -> viewra.plugin.v1.EnrichRequest.ExistingIdsEntry
 	2,  // 1: viewra.plugin.v1.EnrichRequest.tv:type_name -> viewra.plugin.v1.TVMetadata
 	3,  // 2: viewra.plugin.v1.EnrichRequest.music:type_name -> viewra.plugin.v1.MusicMetadata
 	5,  // 3: viewra.plugin.v1.EnrichResponse.metadata:type_name -> viewra.plugin.v1.EnrichedMetadata
-	11, // 4: viewra.plugin.v1.EnrichResponse.discovered_ids:type_name -> viewra.plugin.v1.EnrichResponse.DiscoveredIdsEntry
-	9,  // 5: viewra.plugin.v1.EnrichResponse.images:type_name -> viewra.plugin.v1.EnrichedImage
-	8,  // 6: viewra.plugin.v1.EnrichedMetadata.cast:type_name -> viewra.plugin.v1.CastMember
-	6,  // 7: viewra.plugin.v1.EnrichedMetadata.album_metadata:type_name -> viewra.plugin.v1.AlbumMetadata
-	7,  // 8: viewra.plugin.v1.EnrichedMetadata.artist_metadata:type_name -> viewra.plugin.v1.ArtistMetadata
-	12, // 9: viewra.plugin.v1.Enricher.GetCapabilities:input_type -> viewra.plugin.v1.Empty
-	1,  // 10: viewra.plugin.v1.Enricher.Enrich:input_type -> viewra.plugin.v1.EnrichRequest
-	0,  // 11: viewra.plugin.v1.Enricher.GetCapabilities:output_type -> viewra.plugin.v1.EnricherCapabilities
-	4,  // 12: viewra.plugin.v1.Enricher.Enrich:output_type -> viewra.plugin.v1.EnrichResponse
-	11, // [11:13] is the sub-list for method output_type
-	9,  // [9:11] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	12, // 4: viewra.plugin.v1.EnrichResponse.discovered_ids:type_name -> viewra.plugin.v1.EnrichResponse.DiscoveredIdsEntry
+	10, // 5: viewra.plugin.v1.EnrichResponse.images:type_name -> viewra.plugin.v1.EnrichedImage
+	9,  // 6: viewra.plugin.v1.EnrichedMetadata.cast:type_name -> viewra.plugin.v1.CastMember
+	7,  // 7: viewra.plugin.v1.EnrichedMetadata.album_metadata:type_name -> viewra.plugin.v1.AlbumMetadata
+	8,  // 8: viewra.plugin.v1.EnrichedMetadata.artist_metadata:type_name -> viewra.plugin.v1.ArtistMetadata
+	6,  // 9: viewra.plugin.v1.EnrichedMetadata.keywords:type_name -> viewra.plugin.v1.Keyword
+	13, // 10: viewra.plugin.v1.Enricher.GetCapabilities:input_type -> viewra.plugin.v1.Empty
+	1,  // 11: viewra.plugin.v1.Enricher.Enrich:input_type -> viewra.plugin.v1.EnrichRequest
+	0,  // 12: viewra.plugin.v1.Enricher.GetCapabilities:output_type -> viewra.plugin.v1.EnricherCapabilities
+	4,  // 13: viewra.plugin.v1.Enricher.Enrich:output_type -> viewra.plugin.v1.EnrichResponse
+	12, // [12:14] is the sub-list for method output_type
+	10, // [10:12] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_plugin_enricher_proto_init() }
@@ -1490,15 +1577,15 @@ func file_api_proto_plugin_enricher_proto_init() {
 	}
 	file_api_proto_plugin_common_proto_init()
 	file_api_proto_plugin_enricher_proto_msgTypes[5].OneofWrappers = []any{}
-	file_api_proto_plugin_enricher_proto_msgTypes[6].OneofWrappers = []any{}
 	file_api_proto_plugin_enricher_proto_msgTypes[7].OneofWrappers = []any{}
+	file_api_proto_plugin_enricher_proto_msgTypes[8].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_plugin_enricher_proto_rawDesc), len(file_api_proto_plugin_enricher_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

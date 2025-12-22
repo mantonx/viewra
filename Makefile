@@ -1,4 +1,4 @@
-.PHONY: help dev dev-debug dev-clean stop build build-tools build-ffmpeg clean-ffmpeg clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen proto-gen install-tools install-ollama ollama-status setup build-plugins build-plugin clean-plugins new-plugin
+.PHONY: help dev dev-debug dev-clean stop build build-tools build-ffmpeg clean-ffmpeg clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen proto-gen install-tools install-ollama ollama-status setup build-plugins build-plugin reload-plugin reload-plugins clean-plugins new-plugin
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -236,6 +236,33 @@ build-plugin: ## Build a single plugin (usage: make build-plugin NAME=tmdb)
 		cp "plugins/$(NAME)/config.yml" "data/plugins/$(NAME)/"; \
 	fi
 	@echo "✓ $(NAME) built -> data/plugins/$(NAME)/$(NAME)"
+
+reload-plugin: ## Build and reload a plugin in dev server (usage: make reload-plugin NAME=ai-search)
+	@if [ -z "$(NAME)" ]; then echo "Usage: make reload-plugin NAME=plugin_name"; exit 1; fi
+	@$(MAKE) build-plugin NAME=$(NAME)
+	@echo "Reloading plugin in dev server..."
+	@if curl -s -X POST "http://localhost:8080/api/plugins/$(NAME)/restart" | grep -q '"success":true'; then \
+		echo "✓ $(NAME) reloaded successfully"; \
+	else \
+		echo "⚠️  Could not reload plugin (is dev server running?)"; \
+		echo "   Plugin binary was built. Restart will occur on next request."; \
+	fi
+
+reload-plugins: ## Build and reload all plugins in dev server
+	@echo "Building and reloading all plugins..."
+	@$(MAKE) build-plugins
+	@echo "Reloading plugins in dev server..."
+	@for dir in plugins/*/; do \
+		if [ -f "$$dir/main.go" ] || [ -f "$$dir/go.mod" ]; then \
+			name=$$(basename "$$dir"); \
+			if curl -s -X POST "http://localhost:8080/api/plugins/$$name/restart" | grep -q '"success":true'; then \
+				echo "✓ $$name reloaded"; \
+			else \
+				echo "⚠️  $$name: could not reload (will restart on next request)"; \
+			fi; \
+		fi; \
+	done
+	@echo "All plugins processed!"
 
 clean-plugins: ## Remove all built plugin binaries
 	rm -rf data/plugins/

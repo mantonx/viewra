@@ -54,6 +54,9 @@ type Deps struct {
 
 	// StudioRepo stores studios discovered during enrichment.
 	StudioRepo media.StudioRepository
+
+	// KeywordRepo stores keywords/tags discovered during enrichment.
+	KeywordRepo media.KeywordRepository
 }
 
 // MediaRepository is the subset of media repository methods needed by the pipeline.

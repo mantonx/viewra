@@ -114,15 +114,25 @@ func (e *NFOEnricher) enrichMovie(ctx context.Context, req *pluginv1.EnrichReque
 		resp.Metadata.Directors = []string{metadata.Director}
 	}
 	if len(metadata.Cast) > 0 {
-		for i, name := range metadata.Cast {
+		for _, member := range metadata.Cast {
 			resp.Metadata.Cast = append(resp.Metadata.Cast, &pluginv1.CastMember{
-				Name:  name,
-				Order: int32(i),
+				Name:  member.Name,
+				Role:  member.Role,
+				Order: int32(member.Order),
 			})
 		}
 	}
 	if len(metadata.Genre) > 0 {
 		resp.Metadata.Genres = metadata.Genre
+	}
+	if metadata.Studio != "" {
+		resp.Metadata.Studios = []string{metadata.Studio}
+	}
+	if metadata.OriginalLanguage != "" {
+		resp.Metadata.OriginalLanguage = appenrich.Ptr(metadata.OriginalLanguage)
+	}
+	if metadata.CountryOfOrigin != "" {
+		resp.Metadata.CountryOfOrigin = appenrich.Ptr(metadata.CountryOfOrigin)
 	}
 
 	// Store discovered external IDs
@@ -243,10 +253,11 @@ func (e *NFOEnricher) enrichTVShow(ctx context.Context, req *pluginv1.EnrichRequ
 		resp.Metadata.Premiered = appenrich.Ptr(metadata.PremiereDate.Format("2006-01-02"))
 	}
 	if len(metadata.Cast) > 0 {
-		for i, name := range metadata.Cast {
+		for _, member := range metadata.Cast {
 			resp.Metadata.Cast = append(resp.Metadata.Cast, &pluginv1.CastMember{
-				Name:  name,
-				Order: int32(i),
+				Name:  member.Name,
+				Role:  member.Role,
+				Order: int32(member.Order),
 			})
 		}
 	}

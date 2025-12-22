@@ -378,7 +378,7 @@ func buildSQLiteCreateCreditParams(c *media.Credit) sqlc_sqlite.CreateCreditPara
 		CharacterName: common.NullString(c.CharacterName),
 		Department:    common.NullString(c.Department),
 		Job:           common.NullString(c.Job),
-		BillingOrder:  sql.NullInt64{Int64: int64(c.BillingOrder), Valid: c.BillingOrder > 0},
+		BillingOrder:  sql.NullInt64{Int64: int64(c.BillingOrder), Valid: true},
 	}
 }
 
@@ -391,6 +391,6 @@ func buildPostgresCreateCreditParams(c *media.Credit) sqlc_postgres.CreateCredit
 		CharacterName: common.NullString(c.CharacterName),
 		Department:    common.NullString(c.Department),
 		Job:           common.NullString(c.Job),
-		BillingOrder:  sql.NullInt32{Int32: int32(c.BillingOrder), Valid: c.BillingOrder > 0},
+		BillingOrder:  sql.NullInt32{Int32: int32(c.BillingOrder), Valid: true},
 	}
 }

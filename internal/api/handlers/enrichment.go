@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -11,17 +12,22 @@ import (
 	"github.com/mantonx/viewra/internal/api/sse"
 	"github.com/mantonx/viewra/internal/application/enrichment/pipeline"
 	"github.com/mantonx/viewra/internal/domain/enrichment"
+	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/infrastructure/events"
 	enrichmentRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/enrichment"
 )
 
+// MediaListByTypeFunc abstracts listing media by type for bulk enqueueing.
+type MediaListByTypeFunc func(ctx context.Context, libraryID int64, mediaType media.MediaType) ([]*media.Media, error)
+
 // EnrichmentHandler handles enrichment-related HTTP requests.
 type EnrichmentHandler struct {
-	manager    *pipeline.Manager
-	statusRepo *enrichmentRepo.StatusRepository
-	queueRepo  *enrichmentRepo.QueueRepository
-	eventBus   *events.Bus
-	logger     *slog.Logger
+	manager         *pipeline.Manager
+	statusRepo      *enrichmentRepo.StatusRepository
+	queueRepo       *enrichmentRepo.QueueRepository
+	eventBus        *events.Bus
+	logger          *slog.Logger
+	mediaListByType MediaListByTypeFunc
 }
 
 // NewEnrichmentHandler creates a new enrichment handler.
@@ -39,6 +45,11 @@ func NewEnrichmentHandler(
 		eventBus:   eventBus,
 		logger:     logger,
 	}
+}
+
+// SetMediaListByType sets the function to list media by type (for bulk enqueueing).
+func (h *EnrichmentHandler) SetMediaListByType(fn MediaListByTypeFunc) {
+	h.mediaListByType = fn
 }
 
 // GetStats returns enrichment queue statistics.
@@ -325,4 +336,125 @@ func (h *EnrichmentHandler) buildProgressResponse(libraryID int64, progress map[
 		CurrentItem:     currentItemResp,
 		OverallProgress: overallProgressResp,
 	}
+}
+
+// BulkEnqueueRequest represents a request to enqueue all media items of a type for enrichment.
+type BulkEnqueueRequest struct {
+	LibraryID int64  `json:"library_id" binding:"required"`
+	MediaType string `json:"media_type" binding:"required"` // movie, tv_episode, music_track
+	Stage     string `json:"stage" binding:"required"`      // metadata, images, etc.
+	Priority  int    `json:"priority"`
+}
+
+// BulkEnqueueResponse represents the response after bulk enqueueing.
+type BulkEnqueueResponse struct {
+	EnqueuedCount int64  `json:"enqueued_count"`
+	MediaType     string `json:"media_type"`
+	Stage         string `json:"stage"`
+	Status        string `json:"status"`
+}
+
+// BulkEnqueue enqueues all media items of a specific type in a library for enrichment.
+// This is useful for re-processing all items after pipeline changes.
+//
+// @Summary Bulk enqueue media for enrichment
+// @Description Enqueues all media items of a specific type in a library for a specific enrichment stage
+// @Tags enrichment
+// @Accept json
+// @Produce json
+// @Param request body BulkEnqueueRequest true "Bulk enqueue request"
+// @Success 202 {object} BulkEnqueueResponse
+// @Failure 400 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.ErrorResponse
+// @Router /api/enrichment/bulk-enqueue [post]
+func (h *EnrichmentHandler) BulkEnqueue(c *gin.Context) {
+	var req BulkEnqueueRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request body"})
+		return
+	}
+
+	if req.LibraryID <= 0 {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "library_id is required"})
+		return
+	}
+
+	if req.MediaType == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "media_type is required"})
+		return
+	}
+
+	if req.Stage == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "stage is required"})
+		return
+	}
+
+	if h.mediaListByType == nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Bulk enqueue not configured"})
+		return
+	}
+
+	// Map media_type string to domain types
+	var domainMediaType media.MediaType
+	var enrichmentMediaType enrichment.MediaType
+	switch req.MediaType {
+	case "movie":
+		domainMediaType = media.MediaTypeMovie
+		enrichmentMediaType = enrichment.MediaTypeMovie
+	case "tv_episode", "tv":
+		domainMediaType = media.MediaTypeTV
+		enrichmentMediaType = enrichment.MediaTypeTV
+	case "music_track", "music":
+		domainMediaType = media.MediaTypeMusic
+		enrichmentMediaType = enrichment.MediaTypeMusic
+	default:
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media_type. Supported: movie, tv_episode, music_track"})
+		return
+	}
+
+	// Get all media of the specified type in the library
+	mediaItems, err := h.mediaListByType(c.Request.Context(), req.LibraryID, domainMediaType)
+	if err != nil {
+		h.logger.Error("Failed to list media for bulk enqueue",
+			"library_id", req.LibraryID,
+			"media_type", req.MediaType,
+			"error", err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to list media items"})
+		return
+	}
+
+	// Enqueue each item
+	var enqueuedCount int64
+	for _, m := range mediaItems {
+		err := h.manager.EnqueueStage(
+			c.Request.Context(),
+			m.ID,
+			req.LibraryID,
+			enrichmentMediaType,
+			req.Stage,
+			req.Priority,
+		)
+		if err != nil {
+			h.logger.Warn("Failed to enqueue media item",
+				"media_id", m.ID,
+				"stage", req.Stage,
+				"error", err)
+			continue
+		}
+		enqueuedCount++
+	}
+
+	h.logger.Info("Bulk enqueue completed",
+		"library_id", req.LibraryID,
+		"media_type", req.MediaType,
+		"stage", req.Stage,
+		"enqueued_count", enqueuedCount,
+		"total_items", len(mediaItems))
+
+	c.JSON(http.StatusAccepted, BulkEnqueueResponse{
+		EnqueuedCount: enqueuedCount,
+		MediaType:     req.MediaType,
+		Stage:         req.Stage,
+		Status:        "queued",
+	})
 }

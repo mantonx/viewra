@@ -286,3 +286,48 @@ func (p *AISearchGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Serve
 func (p *AISearchGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
 	return pluginv1.NewAISearchClient(c), nil
 }
+
+// HostWeatherGRPCPlugin is the go-plugin implementation for the HostWeather service.
+// On the host side, this starts a gRPC server on a broker ID that the plugin can connect to.
+// This provides weather context for AI search query enrichment.
+type HostWeatherGRPCPlugin struct {
+	plugin.Plugin
+	Impl   pluginv1.HostWeatherServer
+	Logger *slog.Logger
+}
+
+func (p *HostWeatherGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
+	// Plugin side - we don't serve, the host does
+	return nil
+}
+
+func (p *HostWeatherGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+	// Host side - start a server on a broker ID that the plugin can connect to
+	if p.Impl == nil {
+		// No implementation provided - return nil (weather not available)
+		return (*HostWeatherBrokerInfo)(nil), nil
+	}
+
+	// Get a unique broker ID
+	brokerID := broker.NextId()
+
+	// Start the weather server on this broker ID with logging interceptor
+	go broker.AcceptAndServe(brokerID, func(opts []grpc.ServerOption) *grpc.Server {
+		if p.Logger != nil {
+			opts = append(opts,
+				grpc.UnaryInterceptor(LoggingInterceptor(p.Logger)),
+				grpc.StreamInterceptor(LoggingStreamInterceptor(p.Logger)),
+			)
+		}
+		s := grpc.NewServer(opts...)
+		pluginv1.RegisterHostWeatherServer(s, p.Impl)
+		return s
+	})
+
+	return &HostWeatherBrokerInfo{BrokerID: brokerID}, nil
+}
+
+// HostWeatherBrokerInfo contains the broker ID for connecting to the host weather service.
+type HostWeatherBrokerInfo struct {
+	BrokerID uint32
+}

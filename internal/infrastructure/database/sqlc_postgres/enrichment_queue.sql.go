@@ -553,6 +553,38 @@ func (q *Queries) ReleaseStuckEnrichmentJobs(ctx context.Context, dollar_1 sql.N
 	return err
 }
 
+const requeueEnrichmentJob = `-- name: RequeueEnrichmentJob :exec
+UPDATE enrichment_queue
+SET
+    status = 'pending',
+    error_message = $1,
+    error_category = $2,
+    next_retry_at = $3,
+    locked_by = NULL,
+    locked_at = NULL,
+    updated_at = NOW()
+WHERE id = $4
+`
+
+type RequeueEnrichmentJobParams struct {
+	ErrorMessage  sql.NullString `json:"error_message"`
+	ErrorCategory sql.NullString `json:"error_category"`
+	NextRetryAt   sql.NullTime   `json:"next_retry_at"`
+	ID            int32          `json:"id"`
+}
+
+// Re-queue a job for retry without incrementing the attempt count.
+// Used for transient infrastructure errors (plugin restarts, connection issues).
+func (q *Queries) RequeueEnrichmentJob(ctx context.Context, arg RequeueEnrichmentJobParams) error {
+	_, err := q.db.ExecContext(ctx, requeueEnrichmentJob,
+		arg.ErrorMessage,
+		arg.ErrorCategory,
+		arg.NextRetryAt,
+		arg.ID,
+	)
+	return err
+}
+
 const resetEnrichmentJobForRetry = `-- name: ResetEnrichmentJobForRetry :exec
 UPDATE enrichment_queue
 SET

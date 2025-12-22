@@ -312,6 +312,8 @@ func BuildServices(
 			PeopleRepo: repos.People,
 			// Studios dependencies
 			StudioRepo: repos.Studios,
+			// Keywords dependencies
+			KeywordRepo: repos.Keywords,
 		},
 		&pipeline.TypedMediaRepos{
 			Movie: repos.Movie,
@@ -335,6 +337,11 @@ func BuildServices(
 		}
 		pipelineManager.RegisterEnricher(e)
 	}
+
+	// Initialize location repository and weather service
+	// These are used for both location settings API and AI context enrichment
+	locationRepo := location.NewRepository(db, dbDriver)
+	weatherService := weather.NewService(logger.With("component", "weather"))
 
 	// Initialize plugin manager for external plugins
 	var pluginManager *plugins.Manager
@@ -378,6 +385,14 @@ func BuildServices(
 			)
 		}
 
+		// Create HostWeatherServer for location-aware AI context enrichment
+		// This allows plugins to get weather data when users have opted in to location sharing
+		hostWeatherServer := plugins.NewHostWeatherServer(
+			locationRepo,
+			weatherService,
+			logger.With("component", "host-weather"),
+		)
+
 		var err error
 		pluginManager, err = plugins.NewManager(plugins.ManagerConfig{
 			PluginDir:            cfg.Plugins.Dir,
@@ -387,6 +402,7 @@ func BuildServices(
 			HostStorageServer:    hostStorageServer,
 			HostLLMServer:        hostLLMServer,
 			HostEmbeddingsServer: hostEmbeddingsServer,
+			HostWeatherServer:    hostWeatherServer,
 		}, pluginLogger)
 		if err != nil {
 			logger.Warn("Failed to create plugin manager", "error", err)
@@ -402,10 +418,6 @@ func BuildServices(
 			go subscribeToAISettingsChanges(eventBus, hostLLMServer, logger)
 		}
 	}
-
-	// Initialize location repository and weather service for AI context enrichment
-	locationRepo := location.NewRepository(db, dbDriver)
-	weatherService := weather.NewService(logger.With("component", "weather"))
 
 	// Create AI services
 	// Embedding provider is nil initially - configured later via settings UI

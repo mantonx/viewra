@@ -180,6 +180,7 @@ message MediaDetails {
   int32 runtime_minutes = 15;
   string original_language = 16;  // ISO 639-1 code, e.g., "en", "ko", "ja"
   string country_of_origin = 17;  // e.g., "United States", "South Korea"
+  repeated string producers = 18;  // Producers and executive producers
 
   // TV-specific
   string show_title = 20;       // For episodes: the parent show title
@@ -195,6 +196,12 @@ message MediaDetails {
 
   // AI-generated metadata
   repeated string mood_tags = 40;  // e.g., ["dark", "tense", "atmospheric"]
+
+  // Location/setting keywords (from TMDB)
+  repeated string location_keywords = 41;  // e.g., ["new york city", "manhattan", "paris"]
+
+  // Theme/topic keywords (from TMDB) - non-location keywords for thematic search
+  repeated string theme_keywords = 42;  // e.g., ["redemption", "friendship", "prison escape"]
 }
 
 // MediaCastMember represents an actor in a movie/show.

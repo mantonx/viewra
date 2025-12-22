@@ -127,6 +127,7 @@ message EnrichedMetadata {
   repeated string directors = 12;
   repeated string writers = 13;
   repeated CastMember cast = 14;
+  repeated string producers = 37;  // Producers and executive producers
 
   // TV-specific
   optional string network = 15;
@@ -166,6 +167,16 @@ message EnrichedMetadata {
 
   // Artist-specific metadata (for MediaTypeMusicArtist)
   ArtistMetadata artist_metadata = 35;
+
+  // Keywords/tags from external sources (e.g., TMDB)
+  repeated Keyword keywords = 36;
+}
+
+// Keyword represents a tag/keyword from external sources like TMDB.
+message Keyword {
+  int32 id = 1;           // External ID (e.g., TMDB keyword ID)
+  string name = 2;        // Keyword text
+  bool is_location = 3;   // Whether this keyword represents a location/setting
 }
 
 // AlbumMetadata contains fields specific to music albums.

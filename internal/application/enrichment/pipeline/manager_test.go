@@ -88,6 +88,19 @@ func (r *mockQueueRepo) Fail(ctx context.Context, jobID int64, errMsg string, ca
 	return nil
 }
 
+func (r *mockQueueRepo) FailWithoutPenalty(ctx context.Context, jobID int64, errMsg string, category enrichment.ErrorCategory, nextRetryAt *time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if job, ok := r.jobs[jobID]; ok {
+		job.Status = enrichment.JobStatusFailed
+		job.ErrorMessage = errMsg
+		job.ErrorCategory = category
+		job.NextRetryAt = nextRetryAt
+		// Note: Unlike Fail, we don't increment Attempts here
+	}
+	return nil
+}
+
 func (r *mockQueueRepo) Skip(ctx context.Context, jobID int64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -347,13 +360,13 @@ func (r *mockPipelineRepo) Disable(ctx context.Context, stageID int64) error {
 
 // mockEnricher is a configurable mock Enricher.
 type mockEnricher struct {
-	stage        string
-	enrichCalls  int
-	enrichErr    error
-	enrichDelay  time.Duration
-	isLocal      bool
-	mediaTypes   []enrichment.MediaType
-	mu           sync.Mutex
+	stage       string
+	enrichCalls int
+	enrichErr   error
+	enrichDelay time.Duration
+	isLocal     bool
+	mediaTypes  []enrichment.MediaType
+	mu          sync.Mutex
 }
 
 func newMockEnricher(stage string) *mockEnricher {

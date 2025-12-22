@@ -226,15 +226,87 @@ func FindNFOFile(mediaPath string, specificNames ...string) (string, error) {
 	return "", fmt.Errorf("no NFO file found for: %s", mediaPath)
 }
 
-// extractActorNames extracts just the names from a slice of Actor structs
+// extractActorNames extracts just the names from a slice of Actor structs.
+// Actors are sorted by their Order field if specified in the NFO.
 func extractActorNames(actors []Actor) []string {
-	names := make([]string, 0, len(actors))
-	for _, actor := range actors {
+	if len(actors) == 0 {
+		return nil
+	}
+
+	// Sort actors by order (stable sort preserves original order for equal values)
+	sorted := make([]Actor, len(actors))
+	copy(sorted, actors)
+	sortActorsByOrder(sorted)
+
+	names := make([]string, 0, len(sorted))
+	for _, actor := range sorted {
 		if actor.Name != "" {
 			names = append(names, actor.Name)
 		}
 	}
 	return names
+}
+
+// CastMemberInfo holds cast member info extracted from NFO
+type CastMemberInfo struct {
+	Name  string
+	Role  string
+	Order int
+}
+
+// extractCastMembers extracts cast members with order info from a slice of Actor structs.
+// Actors are sorted by their Order field if specified in the NFO.
+func extractCastMembers(actors []Actor) []CastMemberInfo {
+	if len(actors) == 0 {
+		return nil
+	}
+
+	// Sort actors by order (stable sort preserves original order for equal values)
+	sorted := make([]Actor, len(actors))
+	copy(sorted, actors)
+	sortActorsByOrder(sorted)
+
+	cast := make([]CastMemberInfo, 0, len(sorted))
+	for i, actor := range sorted {
+		if actor.Name != "" {
+			order := actor.Order
+			if order == 0 {
+				// If no order specified, use iteration index
+				order = i
+			}
+			cast = append(cast, CastMemberInfo{
+				Name:  actor.Name,
+				Role:  actor.Role,
+				Order: order,
+			})
+		}
+	}
+	return cast
+}
+
+// sortActorsByOrder sorts actors by their Order field.
+// Actors without an order (Order == 0) are placed after those with explicit order.
+func sortActorsByOrder(actors []Actor) {
+	// Use a simple stable sort
+	for i := 1; i < len(actors); i++ {
+		for j := i; j > 0; j-- {
+			// If both have order 0, keep original position
+			if actors[j-1].Order == 0 && actors[j].Order == 0 {
+				break
+			}
+			// If previous has no order but current does, swap
+			if actors[j-1].Order == 0 && actors[j].Order > 0 {
+				actors[j-1], actors[j] = actors[j], actors[j-1]
+				continue
+			}
+			// If both have order, sort by order
+			if actors[j-1].Order > 0 && actors[j].Order > 0 && actors[j-1].Order > actors[j].Order {
+				actors[j-1], actors[j] = actors[j], actors[j-1]
+				continue
+			}
+			break
+		}
+	}
 }
 
 // parseIDFromUniqueIDs extracts a specific ID type from UniqueID array

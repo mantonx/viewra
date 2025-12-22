@@ -14,5 +14,8 @@ func RegisterEnrichmentRoutes(router *gin.RouterGroup, handler *handlers.Enrichm
 
 		// Manual enqueue
 		enrichment.POST("/enqueue", handler.EnqueueMedia)
+
+		// Bulk enqueue all media of a type for re-enrichment
+		enrichment.POST("/bulk-enqueue", handler.BulkEnqueue)
 	}
 }

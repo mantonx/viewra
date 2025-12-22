@@ -26,12 +26,15 @@ type AISearchPlugin struct {
 	llmClient        pluginv1.HostLLMClient
 	embeddingsClient pluginv1.HostEmbeddingsClient
 	dataClient       pluginv1.HostDataClient
+	weatherClient    pluginv1.HostWeatherClient
 
 	// Services
 	embeddingService *EmbeddingService
 	searchService    *SearchService
 	indexingService  *IndexingService
 	moodTagService   *MoodTagService
+	contextEnricher  *ContextEnricher
+	queryRewriter    *QueryRewriter
 
 	mu sync.RWMutex
 
@@ -66,6 +69,13 @@ func (p *AISearchPlugin) SetDataClient(client pluginv1.HostDataClient) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.dataClient = client
+}
+
+// SetWeatherClient sets the host weather client for location-based context enrichment.
+func (p *AISearchPlugin) SetWeatherClient(client pluginv1.HostWeatherClient) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.weatherClient = client
 }
 
 // PluginCore implementation
@@ -153,6 +163,14 @@ func (p *AISearchPlugin) initializeServices() {
 			p.logger,
 		)
 	}
+
+	// Create context enricher for location-aware search (optional)
+	// Works without weatherClient, just won't include weather/location context
+	p.contextEnricher = NewContextEnricher(p.weatherClient, p.logger)
+
+	// Create query rewriter for intent-based query understanding
+	// Uses the LLM to rewrite queries like "feeling sad" -> "uplifting happy"
+	p.queryRewriter = NewQueryRewriter(p.llmClient, p.logger)
 }
 
 func (p *AISearchPlugin) Shutdown(ctx context.Context, req *pluginv1.Empty) (*pluginv1.Empty, error) {
@@ -426,14 +444,60 @@ func (p *AISearchPlugin) GetIndexingService() *IndexingService {
 // AISearch service implementation
 
 // Search performs semantic search across indexed media.
+// If a user ID is provided and the user has enabled location sharing,
+// the query is enriched with contextual information (weather, time of day, season).
 func (p *AISearchPlugin) Search(ctx context.Context, req *pluginv1.SemanticSearchRequest) (*pluginv1.SemanticSearchResponse, error) {
 	p.mu.Lock()
 	p.requestsTotal++
 	searchService := p.searchService
+	contextEnricher := p.contextEnricher
 	p.mu.Unlock()
 
 	if searchService == nil {
 		return nil, fmt.Errorf("search service not initialized")
+	}
+
+	// Start with the original query
+	query := req.Query
+
+	// Use LLM to rewrite query for better intent matching
+	// (e.g., "feeling sad need cheering up" -> "uplifting heartwarming feel-good")
+	p.mu.RLock()
+	queryRewriter := p.queryRewriter
+	p.mu.RUnlock()
+
+	if queryRewriter != nil {
+		rewrittenQuery := queryRewriter.Rewrite(ctx, query)
+		if rewrittenQuery != query {
+			p.logger.Debug("LLM rewrote query",
+				"original", query,
+				"rewritten", rewrittenQuery,
+			)
+			query = rewrittenQuery
+		}
+	}
+
+	// Enrich the query with context if user ID is provided and enricher is available
+	// Privacy: The enricher only adds location-based context if the user has explicitly
+	// opted in to location sharing. Time-based context (time of day, day of week) is
+	// always safe as it uses server time.
+	if contextEnricher != nil && req.UserId != "" {
+		qc, err := contextEnricher.GetContext(ctx, req.UserId)
+		if err != nil {
+			p.logger.Debug("failed to get context for query enrichment", "error", err)
+		} else {
+			enrichedQuery := contextEnricher.EnrichQuery(query, qc)
+			if enrichedQuery != query {
+				p.logger.Debug("enriched search query",
+					"original", query,
+					"enriched", enrichedQuery,
+					"has_weather", qc.Weather != nil && qc.Weather.Available,
+					"season", qc.Season,
+					"time_of_day", qc.TimeOfDay,
+				)
+				query = enrichedQuery
+			}
+		}
 	}
 
 	// Convert entity types
@@ -443,7 +507,7 @@ func (p *AISearchPlugin) Search(ctx context.Context, req *pluginv1.SemanticSearc
 	}
 
 	results, err := searchService.Search(ctx, SearchParams{
-		Query:       req.Query,
+		Query:       query,
 		EntityTypes: entityTypes,
 		Limit:       int(req.Limit),
 	})
@@ -712,11 +776,12 @@ func (p *AISearchPlugin) handleSearch(ctx context.Context, req *pluginv1.PluginH
 		return jsonResponse(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 
-	// Call the search method
+	// Call the search method with user ID for context enrichment
 	resp, err := p.Search(ctx, &pluginv1.SemanticSearchRequest{
 		Query:       searchReq.Query,
 		EntityTypes: searchReq.EntityTypes,
 		Limit:       searchReq.Limit,
+		UserId:      req.UserId, // Pass user ID for location-aware context
 	})
 	if err != nil {
 		return jsonResponse(http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -909,7 +974,7 @@ func (p *AISearchPlugin) handleClearIndex(ctx context.Context, req *pluginv1.Plu
 	}
 
 	// Delete all embeddings for each entity type
-	entityTypes := []string{"movie", "tv_show", "tv_episode", "music_artist", "music_album", "music_track"}
+	entityTypes := []string{"movie", "tv", "tv_show", "tv_episode", "music_artist", "music_album", "music_track"}
 	var totalDeleted int64
 
 	for _, entityType := range entityTypes {
@@ -1050,7 +1115,7 @@ func (p *AISearchPlugin) handleMoodTagsGenerate(
 				EntityType: string(entityType),
 				EntityId:   entityID,
 				Embedding:  embedding,
-				Text:       truncateText(text, 500),
+				Text:       text,
 			})
 			return err
 		}

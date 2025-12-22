@@ -31,6 +31,7 @@ const (
 	CreditTypeDirector = "director"
 	CreditTypeWriter   = "writer"
 	CreditTypeCreator  = "creator"
+	CreditTypeProducer = "producer"
 )
 
 // PeopleRepository defines the interface for people and credits persistence.

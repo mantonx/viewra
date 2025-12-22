@@ -505,6 +505,7 @@ func (q *DBMediaQuerier) getExternalIDsForEntity(ctx context.Context, id int64, 
 }
 
 // getMovieDetailsDirectly fetches movie details directly from the movies table.
+// It also fetches credits from the credits table for proper ordering.
 func (q *DBMediaQuerier) getMovieDetailsDirectly(ctx context.Context, id int64, externalIDs map[string]string) (*MediaDetailsInfo, error) {
 	result, err := q.router.Route(
 		func() (any, error) {
@@ -523,10 +524,53 @@ func (q *DBMediaQuerier) getMovieDetailsDirectly(ctx context.Context, id int64, 
 		}, nil
 	}
 
-	return q.movieRowToDetails(result, externalIDs), nil
+	details := q.movieRowToDetails(result, externalIDs)
+
+	// Fetch credits from the credits table for proper billing order
+	cast, directors, writers, producers := q.getCreditsForEntity(ctx, "movie", id)
+	if len(cast) > 0 {
+		details.Cast = cast
+	}
+	if len(directors) > 0 {
+		details.Directors = directors
+	}
+	if len(writers) > 0 {
+		details.Writers = writers
+	}
+	if len(producers) > 0 {
+		details.Producers = producers
+	}
+
+	// Fetch studios
+	studios := q.getStudiosForEntity(ctx, "movie", id)
+	if len(studios) > 0 {
+		details.Studios = studios
+	}
+
+	// Fallback: if no original_language, try to get from primary audio track
+	if details.OriginalLanguage == "" {
+		if audioLang := q.getPrimaryAudioLanguage(ctx, id); audioLang != "" {
+			details.OriginalLanguage = audioLang
+		}
+	}
+
+	// Fetch location keywords for setting-based searches
+	locationKeywords := q.getLocationKeywordsForEntity(ctx, "movie", id)
+	if len(locationKeywords) > 0 {
+		details.LocationKeywords = locationKeywords
+	}
+
+	// Fetch theme keywords for thematic searches (non-location keywords)
+	themeKeywords := q.getThemeKeywordsForEntity(ctx, "movie", id)
+	if len(themeKeywords) > 0 {
+		details.ThemeKeywords = themeKeywords
+	}
+
+	return details, nil
 }
 
 // getTVShowDetailsDirectly fetches TV show details directly from the tv_shows table.
+// It also fetches credits from the credits table for proper ordering.
 func (q *DBMediaQuerier) getTVShowDetailsDirectly(ctx context.Context, id int64, externalIDs map[string]string) (*MediaDetailsInfo, error) {
 	result, err := q.router.Route(
 		func() (any, error) {
@@ -544,7 +588,40 @@ func (q *DBMediaQuerier) getTVShowDetailsDirectly(ctx context.Context, id int64,
 		}, nil
 	}
 
-	return q.tvShowRowToDetails(result, externalIDs), nil
+	details := q.tvShowRowToDetails(result, externalIDs)
+
+	// Fetch credits from the credits table for proper billing order
+	cast, _, writers, producers := q.getCreditsForEntity(ctx, "tv_show", id)
+	if len(cast) > 0 {
+		details.Cast = cast
+	}
+	// TV shows use "creator" instead of "director", fetch separately if needed
+	if len(writers) > 0 {
+		details.Writers = writers
+	}
+	if len(producers) > 0 {
+		details.Producers = producers
+	}
+
+	// Fetch studios
+	studios := q.getStudiosForEntity(ctx, "tv_show", id)
+	if len(studios) > 0 {
+		details.Studios = studios
+	}
+
+	// Fetch location keywords for setting-based searches
+	locationKeywords := q.getLocationKeywordsForEntity(ctx, "tv_show", id)
+	if len(locationKeywords) > 0 {
+		details.LocationKeywords = locationKeywords
+	}
+
+	// Fetch theme keywords for thematic searches (non-location keywords)
+	themeKeywords := q.getThemeKeywordsForEntity(ctx, "tv_show", id)
+	if len(themeKeywords) > 0 {
+		details.ThemeKeywords = themeKeywords
+	}
+
+	return details, nil
 }
 
 // getTVEpisodeDetailsDirectly fetches TV episode details directly.
@@ -1456,6 +1533,306 @@ func (q *DBMediaQuerier) DeleteMoodTags(ctx context.Context, entityType string, 
 			})
 		},
 	)
+}
+
+// getCreditsForEntity fetches credits from the credits table with proper billing order.
+// Returns cast and crew (directors, writers, producers) separately for embedding generation.
+func (q *DBMediaQuerier) getCreditsForEntity(ctx context.Context, mediaType string, entityID int64) (cast []CastMemberInfo, directors, writers, producers []string) {
+	// Fetch cast
+	if q.router.IsPostgresDB() {
+		castRows, err := q.postgres.GetCreditsForEntityByType(ctx, sqlc_postgres.GetCreditsForEntityByTypeParams{
+			MediaType:  mediaType,
+			EntityID:   int32(entityID),
+			CreditType: "cast",
+		})
+		if err == nil {
+			for _, row := range castRows {
+				cast = append(cast, CastMemberInfo{
+					Name:      row.PersonName,
+					Character: row.CharacterName.String,
+					Order:     int(row.BillingOrder.Int32),
+				})
+			}
+		}
+
+		// Fetch directors
+		directorRows, err := q.postgres.GetCreditsForEntityByType(ctx, sqlc_postgres.GetCreditsForEntityByTypeParams{
+			MediaType:  mediaType,
+			EntityID:   int32(entityID),
+			CreditType: "director",
+		})
+		if err == nil {
+			for _, row := range directorRows {
+				directors = append(directors, row.PersonName)
+			}
+		}
+
+		// Fetch writers
+		writerRows, err := q.postgres.GetCreditsForEntityByType(ctx, sqlc_postgres.GetCreditsForEntityByTypeParams{
+			MediaType:  mediaType,
+			EntityID:   int32(entityID),
+			CreditType: "writer",
+		})
+		if err == nil {
+			for _, row := range writerRows {
+				writers = append(writers, row.PersonName)
+			}
+		}
+
+		// Fetch producers
+		producerRows, err := q.postgres.GetCreditsForEntityByType(ctx, sqlc_postgres.GetCreditsForEntityByTypeParams{
+			MediaType:  mediaType,
+			EntityID:   int32(entityID),
+			CreditType: "producer",
+		})
+		if err == nil {
+			for _, row := range producerRows {
+				producers = append(producers, row.PersonName)
+			}
+		}
+	} else {
+		castRows, err := q.sqlite.GetCreditsForEntityByType(ctx, sqlc_sqlite.GetCreditsForEntityByTypeParams{
+			MediaType:  mediaType,
+			EntityID:   entityID,
+			CreditType: "cast",
+		})
+		if err == nil {
+			for _, row := range castRows {
+				cast = append(cast, CastMemberInfo{
+					Name:      row.PersonName,
+					Character: row.CharacterName.String,
+					Order:     int(row.BillingOrder.Int64),
+				})
+			}
+		}
+
+		// Fetch directors
+		directorRows, err := q.sqlite.GetCreditsForEntityByType(ctx, sqlc_sqlite.GetCreditsForEntityByTypeParams{
+			MediaType:  mediaType,
+			EntityID:   entityID,
+			CreditType: "director",
+		})
+		if err == nil {
+			for _, row := range directorRows {
+				directors = append(directors, row.PersonName)
+			}
+		}
+
+		// Fetch writers
+		writerRows, err := q.sqlite.GetCreditsForEntityByType(ctx, sqlc_sqlite.GetCreditsForEntityByTypeParams{
+			MediaType:  mediaType,
+			EntityID:   entityID,
+			CreditType: "writer",
+		})
+		if err == nil {
+			for _, row := range writerRows {
+				writers = append(writers, row.PersonName)
+			}
+		}
+
+		// Fetch producers
+		producerRows, err := q.sqlite.GetCreditsForEntityByType(ctx, sqlc_sqlite.GetCreditsForEntityByTypeParams{
+			MediaType:  mediaType,
+			EntityID:   entityID,
+			CreditType: "producer",
+		})
+		if err == nil {
+			for _, row := range producerRows {
+				producers = append(producers, row.PersonName)
+			}
+		}
+	}
+
+	return cast, directors, writers, producers
+}
+
+// getPrimaryAudioLanguage fetches the primary audio track language for a media item.
+// This is used as a fallback when original_language is not set in metadata.
+// Returns the normalized ISO 639-1 code (e.g., "ko", "ja", "en") or empty string.
+func (q *DBMediaQuerier) getPrimaryAudioLanguage(ctx context.Context, mediaID int64) string {
+	// Use SQLC-generated query to get all audio tracks, then find primary language
+	if q.router.IsPostgresDB() {
+		tracks, err := q.postgres.GetAudioTracksByMediaID(ctx, int32(mediaID))
+		if err != nil || len(tracks) == 0 {
+			return ""
+		}
+		// Find the default track, or use the first one
+		for _, track := range tracks {
+			if track.IsDefault.Valid && track.IsDefault.Bool && track.Language.Valid && track.Language.String != "" {
+				return normalizeLanguageCode(track.Language.String)
+			}
+		}
+		// Fallback to first track with language
+		for _, track := range tracks {
+			if track.Language.Valid && track.Language.String != "" {
+				return normalizeLanguageCode(track.Language.String)
+			}
+		}
+	} else {
+		tracks, err := q.sqlite.GetAudioTracksByMediaID(ctx, mediaID)
+		if err != nil || len(tracks) == 0 {
+			return ""
+		}
+		// Find the default track, or use the first one
+		for _, track := range tracks {
+			if track.IsDefault.Valid && track.IsDefault.Bool && track.Language.Valid && track.Language.String != "" {
+				return normalizeLanguageCode(track.Language.String)
+			}
+		}
+		// Fallback to first track with language
+		for _, track := range tracks {
+			if track.Language.Valid && track.Language.String != "" {
+				return normalizeLanguageCode(track.Language.String)
+			}
+		}
+	}
+	return ""
+}
+
+// normalizeLanguageCode normalizes various language code formats to ISO 639-1.
+// Handles 3-letter codes (e.g., "kor" -> "ko") and common variations.
+func normalizeLanguageCode(lang string) string {
+	lang = strings.ToLower(strings.TrimSpace(lang))
+	if lang == "" {
+		return ""
+	}
+
+	// Map 3-letter (ISO 639-2) to 2-letter (ISO 639-1)
+	iso3to1 := map[string]string{
+		"kor": "ko", "korean": "ko",
+		"jpn": "ja", "japanese": "ja",
+		"eng": "en", "english": "en",
+		"chi": "zh", "zho": "zh", "cmn": "zh", "chinese": "zh",
+		"spa": "es", "spanish": "es",
+		"fre": "fr", "fra": "fr", "french": "fr",
+		"ger": "de", "deu": "de", "german": "de",
+		"ita": "it", "italian": "it",
+		"por": "pt", "portuguese": "pt",
+		"rus": "ru", "russian": "ru",
+		"hin": "hi", "hindi": "hi",
+		"ara": "ar", "arabic": "ar",
+		"tha": "th", "thai": "th",
+		"vie": "vi", "vietnamese": "vi",
+		"ind": "id", "indonesian": "id",
+		"swe": "sv", "swedish": "sv",
+		"nor": "no", "norwegian": "no",
+		"dan": "da", "danish": "da",
+		"fin": "fi", "finnish": "fi",
+		"dut": "nl", "nld": "nl", "dutch": "nl",
+		"pol": "pl", "polish": "pl",
+		"tur": "tr", "turkish": "tr",
+		"gre": "el", "ell": "el", "greek": "el",
+		"heb": "he", "hebrew": "he",
+		"per": "fa", "fas": "fa", "persian": "fa",
+		"tam": "ta", "tamil": "ta",
+		"tel": "te", "telugu": "te",
+		"mal": "ml", "malayalam": "ml",
+		"kan": "kn", "kannada": "kn",
+		"mar": "mr", "marathi": "mr",
+		"ben": "bn", "bengali": "bn",
+		"pun": "pa", "pan": "pa", "punjabi": "pa",
+		"guj": "gu", "gujarati": "gu",
+	}
+
+	if iso1, ok := iso3to1[lang]; ok {
+		return iso1
+	}
+
+	// If already 2 chars, assume it's ISO 639-1
+	if len(lang) == 2 {
+		return lang
+	}
+
+	return ""
+}
+
+// getStudiosForEntity fetches studio names for a media entity.
+func (q *DBMediaQuerier) getStudiosForEntity(ctx context.Context, mediaType string, entityID int64) []string {
+	var studios []string
+
+	if q.router.IsPostgresDB() {
+		rows, err := q.postgres.GetStudiosForEntity(ctx, sqlc_postgres.GetStudiosForEntityParams{
+			MediaType: mediaType,
+			EntityID:  int32(entityID),
+		})
+		if err == nil {
+			for _, row := range rows {
+				studios = append(studios, row.Name)
+			}
+		}
+	} else {
+		rows, err := q.sqlite.GetStudiosForEntity(ctx, sqlc_sqlite.GetStudiosForEntityParams{
+			MediaType: mediaType,
+			EntityID:  entityID,
+		})
+		if err == nil {
+			for _, row := range rows {
+				studios = append(studios, row.Name)
+			}
+		}
+	}
+
+	return studios
+}
+
+// getLocationKeywordsForEntity fetches location-related keywords for a media entity.
+// These keywords indicate where the story is set (e.g., "new york city", "paris", "tokyo").
+func (q *DBMediaQuerier) getLocationKeywordsForEntity(ctx context.Context, mediaType string, entityID int64) []string {
+	var keywords []string
+
+	if q.router.IsPostgresDB() {
+		rows, err := q.postgres.GetLocationKeywordsByEntity(ctx, sqlc_postgres.GetLocationKeywordsByEntityParams{
+			MediaType: mediaType,
+			EntityID:  int32(entityID),
+		})
+		if err == nil {
+			for _, row := range rows {
+				keywords = append(keywords, row.Keyword)
+			}
+		}
+	} else {
+		rows, err := q.sqlite.GetLocationKeywordsByEntity(ctx, sqlc_sqlite.GetLocationKeywordsByEntityParams{
+			MediaType: mediaType,
+			EntityID:  entityID,
+		})
+		if err == nil {
+			for _, row := range rows {
+				keywords = append(keywords, row.Keyword)
+			}
+		}
+	}
+
+	return keywords
+}
+
+// getThemeKeywordsForEntity fetches non-location keywords for a media entity.
+// These include themes, moods, plot elements, character types, etc.
+func (q *DBMediaQuerier) getThemeKeywordsForEntity(ctx context.Context, mediaType string, entityID int64) []string {
+	var keywords []string
+
+	if q.router.IsPostgresDB() {
+		rows, err := q.postgres.GetThemeKeywordsByEntity(ctx, sqlc_postgres.GetThemeKeywordsByEntityParams{
+			MediaType: mediaType,
+			EntityID:  int32(entityID),
+		})
+		if err == nil {
+			for _, row := range rows {
+				keywords = append(keywords, row.Keyword)
+			}
+		}
+	} else {
+		rows, err := q.sqlite.GetThemeKeywordsByEntity(ctx, sqlc_sqlite.GetThemeKeywordsByEntityParams{
+			MediaType: mediaType,
+			EntityID:  entityID,
+		})
+		if err == nil {
+			for _, row := range rows {
+				keywords = append(keywords, row.Keyword)
+			}
+		}
+	}
+
+	return keywords
 }
 
 // Ensure DBMediaQuerier implements MediaQuerier

@@ -41,7 +41,8 @@ func (a *CreditsApplier) Apply(ctx context.Context, mediaID int64, mediaType enr
 	hasDirectors := len(metadata.Directors) > 0
 	hasWriters := len(metadata.Writers) > 0
 	hasCreators := len(metadata.Creators) > 0
-	if !hasCast && !hasDirectors && !hasWriters && !hasCreators {
+	hasProducers := len(metadata.Producers) > 0
+	if !hasCast && !hasDirectors && !hasWriters && !hasCreators && !hasProducers {
 		return nil
 	}
 
@@ -145,6 +146,28 @@ func (a *CreditsApplier) Apply(ctx context.Context, mediaID int64, mediaType enr
 			CreditType:   media.CreditTypeCreator,
 			Department:   "Production",
 			Job:          "Creator",
+			BillingOrder: i,
+		})
+	}
+
+	// Process producers
+	for i, producerName := range metadata.Producers {
+		person, err := a.findOrCreatePerson(producerName, 0)
+		if err != nil {
+			a.logger.Warn("failed to find/create person for producer",
+				slog.String("name", producerName),
+				slog.Any("error", err))
+			continue
+		}
+
+		credits = append(credits, &media.Credit{
+			PersonID:     person.ID,
+			Person:       person,
+			MediaType:    entityType,
+			EntityID:     mediaID,
+			CreditType:   media.CreditTypeProducer,
+			Department:   "Production",
+			Job:          "Producer",
 			BillingOrder: i,
 		})
 	}

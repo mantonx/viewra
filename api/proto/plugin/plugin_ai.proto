@@ -35,6 +35,10 @@ message SemanticSearchRequest {
 
   // Maximum number of results (default: 20, max: 100)
   int32 limit = 3;
+
+  // User ID for context enrichment (optional)
+  // When provided, enables location-aware recommendations if the user has opted in
+  string user_id = 4;
 }
 
 message SemanticSearchResponse {

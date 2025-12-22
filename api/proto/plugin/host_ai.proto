@@ -49,6 +49,10 @@ service HostEmbeddings {
   // Search finds similar embeddings using cosine similarity.
   rpc Search(EmbeddingSearchRequest) returns (EmbeddingSearchResponse);
 
+  // SearchText finds embeddings where text contains the query keywords.
+  // This is useful for name/title searches where semantic search fails.
+  rpc SearchText(TextSearchRequest) returns (EmbeddingSearchResponse);
+
   // CountByType returns the number of embeddings for an entity type.
   rpc CountByType(EntityTypeQuery) returns (CountResponse);
 
@@ -197,4 +201,10 @@ message DeleteCountResponse {
 
 message CountResponse {
   int64 count = 1;
+}
+
+message TextSearchRequest {
+  string query = 1;                  // Text to search for (case-insensitive)
+  repeated string entity_types = 2;  // Filter by types, empty = all
+  int32 limit = 3;
 }

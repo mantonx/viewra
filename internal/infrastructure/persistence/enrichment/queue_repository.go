@@ -147,6 +147,38 @@ func (r *QueueRepository) Fail(ctx context.Context, jobID int64, errMsg string, 
 	)
 }
 
+// FailWithoutPenalty re-queues a job for retry without incrementing the attempt count.
+// Used for transient infrastructure errors (plugin restarts, connection issues) that
+// should not count against the retry limit.
+func (r *QueueRepository) FailWithoutPenalty(ctx context.Context, jobID int64, errMsg string, category enrichment.ErrorCategory, nextRetryAt *time.Time) error {
+	return r.router.RouteVoid(
+		func() error {
+			var retryAt sql.NullTime
+			if nextRetryAt != nil {
+				retryAt = sql.NullTime{Time: *nextRetryAt, Valid: true}
+			}
+			return r.postgres.RequeueEnrichmentJob(ctx, sqlc_postgres.RequeueEnrichmentJobParams{
+				ErrorMessage:  sql.NullString{String: errMsg, Valid: errMsg != ""},
+				ErrorCategory: sql.NullString{String: string(category), Valid: category != ""},
+				NextRetryAt:   retryAt,
+				ID:            int32(jobID),
+			})
+		},
+		func() error {
+			var retryAtStr sql.NullString
+			if nextRetryAt != nil {
+				retryAtStr = sql.NullString{String: nextRetryAt.Format(time.RFC3339), Valid: true}
+			}
+			return r.sqlite.RequeueEnrichmentJob(ctx, sqlc_sqlite.RequeueEnrichmentJobParams{
+				ErrorMessage:  sql.NullString{String: errMsg, Valid: errMsg != ""},
+				ErrorCategory: sql.NullString{String: string(category), Valid: category != ""},
+				NextRetryAt:   retryAtStr,
+				ID:            jobID,
+			})
+		},
+	)
+}
+
 // Skip marks a job as skipped (no match found).
 func (r *QueueRepository) Skip(ctx context.Context, jobID int64) error {
 	return r.router.RouteVoid(

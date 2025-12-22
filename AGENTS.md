@@ -4,13 +4,23 @@
 **ALWAYS use make commands when available.** Run `make help` to see all targets.
 
 ```bash
+# Testing & Linting
 make test                              # Run all tests
 go test -v -run TestName ./path/to/pkg # Run single test
 golangci-lint run                      # Go lint
 cd web && npm run lint                 # Frontend lint
+
+# Code Generation
 make sqlc-gen                          # Generate DB code after SQL changes
 make swagger-gen                       # Generate Swagger docs (after API changes)
 make api-client-gen                    # Generate TypeScript API client (runs swagger-gen first)
+make proto-gen                         # Generate Go code from protobuf definitions
+
+# Plugin Development
+make reload-plugin NAME=ai-search      # Build + reload plugin (picks up changes immediately)
+make reload-plugins                    # Build + reload all plugins
+make build-plugin NAME=ai-search       # Build plugin only (no reload)
+make build-plugins                     # Build all plugins
 ```
 
 ## Architecture

@@ -136,6 +136,9 @@ type Manager struct {
 	// hostEmbeddingsServer provides embeddings storage for AI plugins.
 	hostEmbeddingsServer *HostEmbeddingsServer
 
+	// hostWeatherServer provides weather context for AI plugins.
+	hostWeatherServer *HostWeatherServer
+
 	// publisher publishes plugin lifecycle events (optional).
 	publisher domainevents.Publisher
 
@@ -186,6 +189,10 @@ type ManagerConfig struct {
 	// HostEmbeddingsServer provides embeddings storage for AI plugins.
 	// If nil, AI plugins will not be able to store/retrieve embeddings.
 	HostEmbeddingsServer *HostEmbeddingsServer
+
+	// HostWeatherServer provides weather context for AI plugins.
+	// If nil, AI plugins will not receive weather-based context enrichment.
+	HostWeatherServer *HostWeatherServer
 }
 
 // NewManager creates a new plugin manager.
@@ -234,6 +241,7 @@ func NewManager(cfg ManagerConfig, logger *slog.Logger) (*Manager, error) {
 		hostStorageServer:    cfg.HostStorageServer,
 		hostLLMServer:        cfg.HostLLMServer,
 		hostEmbeddingsServer: cfg.HostEmbeddingsServer,
+		hostWeatherServer:    cfg.HostWeatherServer,
 		routeRegistry:        routeRegistry,
 		capabilityRegistry:   capabilityRegistry,
 		rateLimiter:          rateLimiter,
@@ -340,6 +348,14 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 	if m.hostEmbeddingsServer != nil {
 		pluginMap["host_embeddings"] = &HostEmbeddingsGRPCPlugin{
 			Impl:   m.hostEmbeddingsServer,
+			Logger: hostServiceLogger,
+		}
+	}
+
+	// Add host weather service if available
+	if m.hostWeatherServer != nil {
+		pluginMap["host_weather"] = &HostWeatherGRPCPlugin{
+			Impl:   m.hostWeatherServer,
 			Logger: hostServiceLogger,
 		}
 	}
@@ -527,6 +543,28 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		m.logger.Debug("host data server not configured", "plugin", manifest.ID)
 	}
 
+	// Dispense host weather to get the broker ID
+	var hostWeatherBrokerID uint32
+	if m.hostWeatherServer != nil {
+		m.logger.Debug("attempting to dispense host_weather", "plugin", manifest.ID)
+		weatherRaw, err := rpcClient.Dispense("host_weather")
+		if err != nil {
+			m.logger.Warn("failed to dispense host_weather", "plugin", manifest.ID, "error", err)
+		} else if brokerInfo, ok := weatherRaw.(*HostWeatherBrokerInfo); ok && brokerInfo != nil {
+			hostWeatherBrokerID = brokerInfo.BrokerID
+			m.logger.Info("host weather available for plugin",
+				"plugin", manifest.ID,
+				"broker_id", hostWeatherBrokerID)
+		} else {
+			m.logger.Warn("host_weather dispense returned unexpected type",
+				"plugin", manifest.ID,
+				"got_type", fmt.Sprintf("%T", weatherRaw),
+				"is_nil", weatherRaw == nil)
+		}
+	} else {
+		m.logger.Debug("host weather server not configured", "plugin", manifest.ID)
+	}
+
 	initResp, err := coreClient.Initialize(ctx, &pluginv1.InitRequest{
 		HostVersion:            m.hostVersion,
 		DataDir:                dataDir,
@@ -535,6 +573,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		HostLlmBrokerId:        hostLLMBrokerID,
 		HostEmbeddingsBrokerId: hostEmbeddingsBrokerID,
 		HostDataBrokerId:       hostDataBrokerID,
+		HostWeatherBrokerId:    hostWeatherBrokerID,
 	})
 	if err != nil {
 		client.Kill()
@@ -839,6 +878,48 @@ func (m *Manager) restartPlugin(ctx context.Context, p *PluginInstance) {
 	}
 
 	m.logger.Info("plugin restarted successfully", "plugin", p.ID, "restarts", newInstance.Health.Restarts)
+}
+
+// RestartPlugin restarts a plugin by ID. This is useful when the plugin binary
+// has been rebuilt and we need to reload it without a full server restart.
+func (m *Manager) RestartPlugin(ctx context.Context, pluginID string) error {
+	m.mu.RLock()
+	p, ok := m.plugins[pluginID]
+	m.mu.RUnlock()
+
+	if !ok {
+		return fmt.Errorf("plugin not found: %s", pluginID)
+	}
+
+	m.logger.Info("restarting plugin by request", "plugin", pluginID)
+
+	// Kill the old process
+	p.Client.Kill()
+
+	// Remove from registry
+	m.mu.Lock()
+	delete(m.plugins, pluginID)
+	m.mu.Unlock()
+
+	// Try to reload
+	newInstance, err := m.LoadPlugin(ctx, p.Path)
+	if err != nil {
+		return fmt.Errorf("failed to restart plugin %s: %w", pluginID, err)
+	}
+
+	// Publish plugin.loaded event
+	if m.publisher != nil {
+		m.publisher.Publish(domainevents.NewEvent(domainevents.EventPluginLoaded, "plugin-manager").
+			WithData("plugin_id", newInstance.ID).
+			WithData("name", newInstance.Manifest.Name).
+			WithData("version", newInstance.Manifest.Version).
+			WithData("categories", newInstance.Manifest.Categories).
+			WithData("is_restart", true).
+			Build())
+	}
+
+	m.logger.Info("plugin restarted successfully by request", "plugin", pluginID)
+	return nil
 }
 
 // Helper functions

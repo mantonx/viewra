@@ -92,3 +92,75 @@ func TestExtractEpisodePattern_NFOMatching(t *testing.T) {
 		t.Errorf("Media S05E13 should NOT match NFO S05E01: %q == %q", mediaPattern, wrongPattern)
 	}
 }
+
+func TestExtractCastMembers_WithOrder(t *testing.T) {
+	// Test that actors with order fields are sorted correctly
+	actors := []Actor{
+		{Name: "Supporting Actor 3", Role: "Role C", Order: 3},
+		{Name: "Lead Actor", Role: "Main Role", Order: 0},
+		{Name: "Supporting Actor 1", Role: "Role A", Order: 1},
+		{Name: "Supporting Actor 2", Role: "Role B", Order: 2},
+	}
+
+	cast := extractCastMembers(actors)
+
+	if len(cast) != 4 {
+		t.Fatalf("Expected 4 cast members, got %d", len(cast))
+	}
+
+	// Lead Actor has Order: 0, but since 0 means "no order" in our logic,
+	// actors with explicit order > 0 should come first
+	expectedOrder := []string{"Supporting Actor 1", "Supporting Actor 2", "Supporting Actor 3", "Lead Actor"}
+	for i, expected := range expectedOrder {
+		if cast[i].Name != expected {
+			t.Errorf("Expected cast[%d] = %q, got %q", i, expected, cast[i].Name)
+		}
+	}
+}
+
+func TestExtractCastMembers_NoOrder(t *testing.T) {
+	// Test that actors without order fields preserve original order
+	actors := []Actor{
+		{Name: "Actor One", Role: "Role 1"},
+		{Name: "Actor Two", Role: "Role 2"},
+		{Name: "Actor Three", Role: "Role 3"},
+	}
+
+	cast := extractCastMembers(actors)
+
+	if len(cast) != 3 {
+		t.Fatalf("Expected 3 cast members, got %d", len(cast))
+	}
+
+	// Should preserve original order
+	expectedOrder := []string{"Actor One", "Actor Two", "Actor Three"}
+	for i, expected := range expectedOrder {
+		if cast[i].Name != expected {
+			t.Errorf("Expected cast[%d] = %q, got %q", i, expected, cast[i].Name)
+		}
+	}
+}
+
+func TestExtractCastMembers_MixedOrder(t *testing.T) {
+	// Test mixed: some actors have order, some don't
+	actors := []Actor{
+		{Name: "No Order 1", Role: "Role"},        // Order: 0 (no order)
+		{Name: "Order 2", Role: "Role", Order: 2}, // Has order
+		{Name: "No Order 2", Role: "Role"},        // Order: 0 (no order)
+		{Name: "Order 1", Role: "Role", Order: 1}, // Has order
+	}
+
+	cast := extractCastMembers(actors)
+
+	if len(cast) != 4 {
+		t.Fatalf("Expected 4 cast members, got %d", len(cast))
+	}
+
+	// Actors with explicit order should come first, then those without
+	expectedOrder := []string{"Order 1", "Order 2", "No Order 1", "No Order 2"}
+	for i, expected := range expectedOrder {
+		if cast[i].Name != expected {
+			t.Errorf("Expected cast[%d] = %q, got %q", i, expected, cast[i].Name)
+		}
+	}
+}

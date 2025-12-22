@@ -169,6 +169,41 @@ func (s *HostEmbeddingsServer) Search(ctx context.Context, req *pluginv1.Embeddi
 	return &pluginv1.EmbeddingSearchResponse{Results: filteredResults}, nil
 }
 
+// SearchText finds embeddings where text contains the query keywords.
+func (s *HostEmbeddingsServer) SearchText(ctx context.Context, req *pluginv1.TextSearchRequest) (*pluginv1.EmbeddingSearchResponse, error) {
+	if s.repo == nil {
+		return nil, errors.New("embeddings repository not configured")
+	}
+
+	// Convert entity types
+	types := make([]ai.EntityType, len(req.EntityTypes))
+	for i, t := range req.EntityTypes {
+		types[i] = ai.EntityType(t)
+	}
+
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 20
+	}
+
+	results, err := s.repo.SearchText(ctx, req.GetQuery(), types, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	protoResults := make([]*pluginv1.EmbeddingSearchResult, len(results))
+	for i, r := range results {
+		protoResults[i] = &pluginv1.EmbeddingSearchResult{
+			EntityType: string(r.EntityType),
+			EntityId:   r.EntityID,
+			Similarity: 1.0, // Text match = full similarity
+			Text:       r.Text,
+		}
+	}
+
+	return &pluginv1.EmbeddingSearchResponse{Results: protoResults}, nil
+}
+
 // CountByType returns the number of embeddings for an entity type.
 func (s *HostEmbeddingsServer) CountByType(ctx context.Context, req *pluginv1.EntityTypeQuery) (*pluginv1.CountResponse, error) {
 	if s.repo == nil {

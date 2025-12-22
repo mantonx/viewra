@@ -1421,6 +1421,66 @@ func (x *CountResponse) GetCount() int64 {
 	return 0
 }
 
+type TextSearchRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`                                // Text to search for (case-insensitive)
+	EntityTypes   []string               `protobuf:"bytes,2,rep,name=entity_types,json=entityTypes,proto3" json:"entity_types,omitempty"` // Filter by types, empty = all
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TextSearchRequest) Reset() {
+	*x = TextSearchRequest{}
+	mi := &file_api_proto_plugin_host_ai_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TextSearchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TextSearchRequest) ProtoMessage() {}
+
+func (x *TextSearchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_ai_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TextSearchRequest.ProtoReflect.Descriptor instead.
+func (*TextSearchRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_ai_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *TextSearchRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *TextSearchRequest) GetEntityTypes() []string {
+	if x != nil {
+		return x.EntityTypes
+	}
+	return nil
+}
+
+func (x *TextSearchRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
 var File_api_proto_plugin_host_ai_proto protoreflect.FileDescriptor
 
 const file_api_proto_plugin_host_ai_proto_rawDesc = "" +
@@ -1536,7 +1596,11 @@ const file_api_proto_plugin_host_ai_proto_rawDesc = "" +
 	"\x13DeleteCountResponse\x12\x14\n" +
 	"\x05count\x18\x01 \x01(\x03R\x05count\"%\n" +
 	"\rCountResponse\x12\x14\n" +
-	"\x05count\x18\x01 \x01(\x03R\x05count2\x8c\x04\n" +
+	"\x05count\x18\x01 \x01(\x03R\x05count\"b\n" +
+	"\x11TextSearchRequest\x12\x14\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\x12!\n" +
+	"\fentity_types\x18\x02 \x03(\tR\ventityTypes\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit2\x8c\x04\n" +
 	"\aHostLLM\x12K\n" +
 	"\rListProviders\x12\x17.viewra.plugin.v1.Empty\x1a!.viewra.plugin.v1.LLMProviderList\x12P\n" +
 	"\n" +
@@ -1545,7 +1609,7 @@ const file_api_proto_plugin_host_ai_proto_rawDesc = "" +
 	"\x16GenerateEmbeddingBatch\x12'.viewra.plugin.v1.EmbeddingBatchRequest\x1a(.viewra.plugin.v1.EmbeddingBatchResponse\x12E\n" +
 	"\x04Chat\x12\x1d.viewra.plugin.v1.ChatRequest\x1a\x1e.viewra.plugin.v1.ChatResponse\x12P\n" +
 	"\n" +
-	"ChatStream\x12\x1d.viewra.plugin.v1.ChatRequest\x1a!.viewra.plugin.v1.ChatStreamChunk0\x012\x8a\x05\n" +
+	"ChatStream\x12\x1d.viewra.plugin.v1.ChatRequest\x1a!.viewra.plugin.v1.ChatStreamChunk0\x012\xe8\x05\n" +
 	"\x0eHostEmbeddings\x12I\n" +
 	"\x05Store\x12'.viewra.plugin.v1.StoreEmbeddingRequest\x1a\x17.viewra.plugin.v1.Empty\x12J\n" +
 	"\n" +
@@ -1553,7 +1617,9 @@ const file_api_proto_plugin_host_ai_proto_rawDesc = "" +
 	"\x03Get\x12 .viewra.plugin.v1.EmbeddingQuery\x1a!.viewra.plugin.v1.StoredEmbedding\x12C\n" +
 	"\x06Delete\x12 .viewra.plugin.v1.EmbeddingQuery\x1a\x17.viewra.plugin.v1.Empty\x12X\n" +
 	"\fDeleteByType\x12!.viewra.plugin.v1.EntityTypeQuery\x1a%.viewra.plugin.v1.DeleteCountResponse\x12]\n" +
-	"\x06Search\x12(.viewra.plugin.v1.EmbeddingSearchRequest\x1a).viewra.plugin.v1.EmbeddingSearchResponse\x12Q\n" +
+	"\x06Search\x12(.viewra.plugin.v1.EmbeddingSearchRequest\x1a).viewra.plugin.v1.EmbeddingSearchResponse\x12\\\n" +
+	"\n" +
+	"SearchText\x12#.viewra.plugin.v1.TextSearchRequest\x1a).viewra.plugin.v1.EmbeddingSearchResponse\x12Q\n" +
 	"\vCountByType\x12!.viewra.plugin.v1.EntityTypeQuery\x1a\x1f.viewra.plugin.v1.CountResponse\x12D\n" +
 	"\bCountAll\x12\x17.viewra.plugin.v1.Empty\x1a\x1f.viewra.plugin.v1.CountResponseB8Z6github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1b\x06proto3"
 
@@ -1569,7 +1635,7 @@ func file_api_proto_plugin_host_ai_proto_rawDescGZIP() []byte {
 	return file_api_proto_plugin_host_ai_proto_rawDescData
 }
 
-var file_api_proto_plugin_host_ai_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
+var file_api_proto_plugin_host_ai_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_api_proto_plugin_host_ai_proto_goTypes = []any{
 	(*LLMProviderQuery)(nil),        // 0: viewra.plugin.v1.LLMProviderQuery
 	(*LLMProvider)(nil),             // 1: viewra.plugin.v1.LLMProvider
@@ -1595,7 +1661,8 @@ var file_api_proto_plugin_host_ai_proto_goTypes = []any{
 	(*EmbeddingSearchResponse)(nil), // 21: viewra.plugin.v1.EmbeddingSearchResponse
 	(*DeleteCountResponse)(nil),     // 22: viewra.plugin.v1.DeleteCountResponse
 	(*CountResponse)(nil),           // 23: viewra.plugin.v1.CountResponse
-	(*Empty)(nil),                   // 24: viewra.plugin.v1.Empty
+	(*TextSearchRequest)(nil),       // 24: viewra.plugin.v1.TextSearchRequest
+	(*Empty)(nil),                   // 25: viewra.plugin.v1.Empty
 }
 var file_api_proto_plugin_host_ai_proto_depIdxs = []int32{
 	1,  // 0: viewra.plugin.v1.LLMProviderList.providers:type_name -> viewra.plugin.v1.LLMProvider
@@ -1604,7 +1671,7 @@ var file_api_proto_plugin_host_ai_proto_depIdxs = []int32{
 	10, // 3: viewra.plugin.v1.ChatRequest.messages:type_name -> viewra.plugin.v1.ChatMessage
 	14, // 4: viewra.plugin.v1.StoreBatchRequest.embeddings:type_name -> viewra.plugin.v1.StoreEmbeddingRequest
 	20, // 5: viewra.plugin.v1.EmbeddingSearchResponse.results:type_name -> viewra.plugin.v1.EmbeddingSearchResult
-	24, // 6: viewra.plugin.v1.HostLLM.ListProviders:input_type -> viewra.plugin.v1.Empty
+	25, // 6: viewra.plugin.v1.HostLLM.ListProviders:input_type -> viewra.plugin.v1.Empty
 	0,  // 7: viewra.plugin.v1.HostLLM.ListModels:input_type -> viewra.plugin.v1.LLMProviderQuery
 	5,  // 8: viewra.plugin.v1.HostLLM.GenerateEmbedding:input_type -> viewra.plugin.v1.EmbeddingRequest
 	7,  // 9: viewra.plugin.v1.HostLLM.GenerateEmbeddingBatch:input_type -> viewra.plugin.v1.EmbeddingBatchRequest
@@ -1616,24 +1683,26 @@ var file_api_proto_plugin_host_ai_proto_depIdxs = []int32{
 	16, // 15: viewra.plugin.v1.HostEmbeddings.Delete:input_type -> viewra.plugin.v1.EmbeddingQuery
 	17, // 16: viewra.plugin.v1.HostEmbeddings.DeleteByType:input_type -> viewra.plugin.v1.EntityTypeQuery
 	19, // 17: viewra.plugin.v1.HostEmbeddings.Search:input_type -> viewra.plugin.v1.EmbeddingSearchRequest
-	17, // 18: viewra.plugin.v1.HostEmbeddings.CountByType:input_type -> viewra.plugin.v1.EntityTypeQuery
-	24, // 19: viewra.plugin.v1.HostEmbeddings.CountAll:input_type -> viewra.plugin.v1.Empty
-	2,  // 20: viewra.plugin.v1.HostLLM.ListProviders:output_type -> viewra.plugin.v1.LLMProviderList
-	4,  // 21: viewra.plugin.v1.HostLLM.ListModels:output_type -> viewra.plugin.v1.LLMModelList
-	6,  // 22: viewra.plugin.v1.HostLLM.GenerateEmbedding:output_type -> viewra.plugin.v1.EmbeddingResponse
-	8,  // 23: viewra.plugin.v1.HostLLM.GenerateEmbeddingBatch:output_type -> viewra.plugin.v1.EmbeddingBatchResponse
-	12, // 24: viewra.plugin.v1.HostLLM.Chat:output_type -> viewra.plugin.v1.ChatResponse
-	13, // 25: viewra.plugin.v1.HostLLM.ChatStream:output_type -> viewra.plugin.v1.ChatStreamChunk
-	24, // 26: viewra.plugin.v1.HostEmbeddings.Store:output_type -> viewra.plugin.v1.Empty
-	24, // 27: viewra.plugin.v1.HostEmbeddings.StoreBatch:output_type -> viewra.plugin.v1.Empty
-	18, // 28: viewra.plugin.v1.HostEmbeddings.Get:output_type -> viewra.plugin.v1.StoredEmbedding
-	24, // 29: viewra.plugin.v1.HostEmbeddings.Delete:output_type -> viewra.plugin.v1.Empty
-	22, // 30: viewra.plugin.v1.HostEmbeddings.DeleteByType:output_type -> viewra.plugin.v1.DeleteCountResponse
-	21, // 31: viewra.plugin.v1.HostEmbeddings.Search:output_type -> viewra.plugin.v1.EmbeddingSearchResponse
-	23, // 32: viewra.plugin.v1.HostEmbeddings.CountByType:output_type -> viewra.plugin.v1.CountResponse
-	23, // 33: viewra.plugin.v1.HostEmbeddings.CountAll:output_type -> viewra.plugin.v1.CountResponse
-	20, // [20:34] is the sub-list for method output_type
-	6,  // [6:20] is the sub-list for method input_type
+	24, // 18: viewra.plugin.v1.HostEmbeddings.SearchText:input_type -> viewra.plugin.v1.TextSearchRequest
+	17, // 19: viewra.plugin.v1.HostEmbeddings.CountByType:input_type -> viewra.plugin.v1.EntityTypeQuery
+	25, // 20: viewra.plugin.v1.HostEmbeddings.CountAll:input_type -> viewra.plugin.v1.Empty
+	2,  // 21: viewra.plugin.v1.HostLLM.ListProviders:output_type -> viewra.plugin.v1.LLMProviderList
+	4,  // 22: viewra.plugin.v1.HostLLM.ListModels:output_type -> viewra.plugin.v1.LLMModelList
+	6,  // 23: viewra.plugin.v1.HostLLM.GenerateEmbedding:output_type -> viewra.plugin.v1.EmbeddingResponse
+	8,  // 24: viewra.plugin.v1.HostLLM.GenerateEmbeddingBatch:output_type -> viewra.plugin.v1.EmbeddingBatchResponse
+	12, // 25: viewra.plugin.v1.HostLLM.Chat:output_type -> viewra.plugin.v1.ChatResponse
+	13, // 26: viewra.plugin.v1.HostLLM.ChatStream:output_type -> viewra.plugin.v1.ChatStreamChunk
+	25, // 27: viewra.plugin.v1.HostEmbeddings.Store:output_type -> viewra.plugin.v1.Empty
+	25, // 28: viewra.plugin.v1.HostEmbeddings.StoreBatch:output_type -> viewra.plugin.v1.Empty
+	18, // 29: viewra.plugin.v1.HostEmbeddings.Get:output_type -> viewra.plugin.v1.StoredEmbedding
+	25, // 30: viewra.plugin.v1.HostEmbeddings.Delete:output_type -> viewra.plugin.v1.Empty
+	22, // 31: viewra.plugin.v1.HostEmbeddings.DeleteByType:output_type -> viewra.plugin.v1.DeleteCountResponse
+	21, // 32: viewra.plugin.v1.HostEmbeddings.Search:output_type -> viewra.plugin.v1.EmbeddingSearchResponse
+	21, // 33: viewra.plugin.v1.HostEmbeddings.SearchText:output_type -> viewra.plugin.v1.EmbeddingSearchResponse
+	23, // 34: viewra.plugin.v1.HostEmbeddings.CountByType:output_type -> viewra.plugin.v1.CountResponse
+	23, // 35: viewra.plugin.v1.HostEmbeddings.CountAll:output_type -> viewra.plugin.v1.CountResponse
+	21, // [21:36] is the sub-list for method output_type
+	6,  // [6:21] is the sub-list for method input_type
 	6,  // [6:6] is the sub-list for extension type_name
 	6,  // [6:6] is the sub-list for extension extendee
 	0,  // [0:6] is the sub-list for field type_name
@@ -1651,7 +1720,7 @@ func file_api_proto_plugin_host_ai_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_plugin_host_ai_proto_rawDesc), len(file_api_proto_plugin_host_ai_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   24,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

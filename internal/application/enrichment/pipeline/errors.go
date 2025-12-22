@@ -10,8 +10,27 @@ func categorizeError(err error) enrichment.ErrorCategory {
 
 	errMsg := err.Error()
 
+	// gRPC connection errors - infrastructure issue, should retry without penalty
+	// These happen during plugin restarts, server restarts, or network issues
+	if containsAny(errMsg,
+		"connection is closing",
+		"client connection is closing",
+		"transport is closing",
+		"connection reset",
+		"broken pipe",
+		"connection refused",
+		"EOF",
+		"context canceled",
+		"DeadlineExceeded",
+		"Unavailable",
+		"code = Canceled",
+		"code = Unavailable",
+	) {
+		return enrichment.ErrorCategoryNetwork
+	}
+
 	// Network errors - should retry
-	if containsAny(errMsg, "timeout", "connection refused", "no such host", "network") {
+	if containsAny(errMsg, "timeout", "no such host", "network", "dial tcp") {
 		return enrichment.ErrorCategoryNetwork
 	}
 
@@ -27,6 +46,26 @@ func categorizeError(err error) enrichment.ErrorCategory {
 
 	// Default to plugin error
 	return enrichment.ErrorCategoryPlugin
+}
+
+// IsConnectionError returns true if the error is a transient connection issue
+// that should not count against the retry limit.
+func IsConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := err.Error()
+	return containsAny(errMsg,
+		"connection is closing",
+		"client connection is closing",
+		"transport is closing",
+		"connection reset",
+		"broken pipe",
+		"EOF",
+		"context canceled",
+		"code = Canceled",
+		"code = Unavailable",
+	)
 }
 
 // containsAny checks if s contains any of the substrings.

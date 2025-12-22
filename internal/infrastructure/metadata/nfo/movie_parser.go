@@ -43,7 +43,7 @@ type MovieNFO struct {
 	MaturityRating string `xml:"maturityrating"`
 
 	// IDs
-	ID     string `xml:"id"` // Legacy ID field (often IMDb)
+	ID     string `xml:"id"`   // Legacy ID field (often IMDb)
 	IMDb   string `xml:"imdb"` // IMDb ID
 	TMDbID string `xml:"tmdbid"`
 
@@ -93,7 +93,7 @@ type MovieMetadata struct {
 	Tagline           string
 	RuntimeMinutes    int
 	Director          string
-	Cast              []string
+	Cast              []CastMemberInfo
 	Genre             []string
 	ContentRating     string
 	MaturityRating    int
@@ -105,6 +105,7 @@ type MovieMetadata struct {
 	OriginalLanguage  string
 	CountryOfOrigin   string
 	AwardsSummary     string
+	Studio            string
 }
 
 // ParseMovieNFO parses a movie .nfo file and returns extracted metadata
@@ -147,6 +148,7 @@ func ParseMovieNFO(nfoPath string) (*MovieMetadata, error) {
 		OriginalLanguage: nfo.OriginalLanguage,
 		CountryOfOrigin:  nfo.Country,
 		AwardsSummary:    nfo.Awards,
+		Studio:           nfo.Studio,
 	}
 
 	// Parse release date
@@ -165,8 +167,8 @@ func ParseMovieNFO(nfoPath string) (*MovieMetadata, error) {
 		metadata.RuntimeMinutes = parseRuntime(nfo.Runtime)
 	}
 
-	// Extract cast names using common helper
-	metadata.Cast = extractActorNames(nfo.Actors)
+	// Extract cast with order info
+	metadata.Cast = extractCastMembers(nfo.Actors)
 
 	// Extract genres
 	metadata.Genre = nfo.Genres

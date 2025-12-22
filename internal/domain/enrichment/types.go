@@ -120,12 +120,12 @@ type PipelineStage struct {
 // Uses polymorphic association: MediaID is optional (only set for media table entries),
 // while MediaType + EntityID identify the entity regardless of which table it's in.
 type ExternalID struct {
-	ID         int64      // Primary key
-	MediaID    *int64     // Optional FK to media.id (for movies, episodes, tracks)
-	MediaType  MediaType  // Entity type (movie, tv_show, tv_season, tv_episode, etc.)
-	EntityID   int64      // ID in the entity's table (tv_shows.id, media.id, etc.)
-	Provider   string     // External provider (imdb, tmdb, tvdb, etc.)
-	ExternalID string     // The external ID value
+	ID         int64     // Primary key
+	MediaID    *int64    // Optional FK to media.id (for movies, episodes, tracks)
+	MediaType  MediaType // Entity type (movie, tv_show, tv_season, tv_episode, etc.)
+	EntityID   int64     // ID in the entity's table (tv_shows.id, media.id, etc.)
+	Provider   string    // External provider (imdb, tmdb, tvdb, etc.)
+	ExternalID string    // The external ID value
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
@@ -164,6 +164,11 @@ type QueueRepository interface {
 	// Fail marks a job as failed with error details.
 	// Automatically schedules retry if attempts < maxAttempts.
 	Fail(ctx context.Context, jobID int64, errMsg string, category ErrorCategory, nextRetryAt *time.Time) error
+
+	// FailWithoutPenalty re-queues a job for retry without incrementing the attempt count.
+	// Used for transient infrastructure errors (plugin restarts, connection issues) that
+	// should not count against the retry limit.
+	FailWithoutPenalty(ctx context.Context, jobID int64, errMsg string, category ErrorCategory, nextRetryAt *time.Time) error
 
 	// Skip marks a job as skipped (no match found).
 	Skip(ctx context.Context, jobID int64) error

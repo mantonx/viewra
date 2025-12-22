@@ -73,6 +73,10 @@ message InitRequest {
   // Broker ID for host embeddings service (0 = not available)
   // Plugin can dial this ID to get a HostEmbeddingsClient
   uint32 host_embeddings_broker_id = 7;
+
+  // Broker ID for host weather service (0 = not available)
+  // Plugin can dial this ID to get a HostWeatherClient
+  uint32 host_weather_broker_id = 8;
 }
 
 message InitResponse {

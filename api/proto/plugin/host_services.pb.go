@@ -611,6 +611,7 @@ type MediaDetails struct {
 	RuntimeMinutes   int32              `protobuf:"varint,15,opt,name=runtime_minutes,json=runtimeMinutes,proto3" json:"runtime_minutes,omitempty"`
 	OriginalLanguage string             `protobuf:"bytes,16,opt,name=original_language,json=originalLanguage,proto3" json:"original_language,omitempty"` // ISO 639-1 code, e.g., "en", "ko", "ja"
 	CountryOfOrigin  string             `protobuf:"bytes,17,opt,name=country_of_origin,json=countryOfOrigin,proto3" json:"country_of_origin,omitempty"`  // e.g., "United States", "South Korea"
+	Producers        []string           `protobuf:"bytes,18,rep,name=producers,proto3" json:"producers,omitempty"`                                       // Producers and executive producers
 	// TV-specific
 	ShowTitle     string `protobuf:"bytes,20,opt,name=show_title,json=showTitle,proto3" json:"show_title,omitempty"` // For episodes: the parent show title
 	SeasonNumber  int32  `protobuf:"varint,21,opt,name=season_number,json=seasonNumber,proto3" json:"season_number,omitempty"`
@@ -622,7 +623,11 @@ type MediaDetails struct {
 	Country     string `protobuf:"bytes,33,opt,name=country,proto3" json:"country,omitempty"`                            // For artists
 	ReleaseType string `protobuf:"bytes,34,opt,name=release_type,json=releaseType,proto3" json:"release_type,omitempty"` // For albums: "album", "single", "ep", etc.
 	// AI-generated metadata
-	MoodTags      []string `protobuf:"bytes,40,rep,name=mood_tags,json=moodTags,proto3" json:"mood_tags,omitempty"` // e.g., ["dark", "tense", "atmospheric"]
+	MoodTags []string `protobuf:"bytes,40,rep,name=mood_tags,json=moodTags,proto3" json:"mood_tags,omitempty"` // e.g., ["dark", "tense", "atmospheric"]
+	// Location/setting keywords (from TMDB)
+	LocationKeywords []string `protobuf:"bytes,41,rep,name=location_keywords,json=locationKeywords,proto3" json:"location_keywords,omitempty"` // e.g., ["new york city", "manhattan", "paris"]
+	// Theme/topic keywords (from TMDB) - non-location keywords for thematic search
+	ThemeKeywords []string `protobuf:"bytes,42,rep,name=theme_keywords,json=themeKeywords,proto3" json:"theme_keywords,omitempty"` // e.g., ["redemption", "friendship", "prison escape"]
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -776,6 +781,13 @@ func (x *MediaDetails) GetCountryOfOrigin() string {
 	return ""
 }
 
+func (x *MediaDetails) GetProducers() []string {
+	if x != nil {
+		return x.Producers
+	}
+	return nil
+}
+
 func (x *MediaDetails) GetShowTitle() string {
 	if x != nil {
 		return x.ShowTitle
@@ -835,6 +847,20 @@ func (x *MediaDetails) GetReleaseType() string {
 func (x *MediaDetails) GetMoodTags() []string {
 	if x != nil {
 		return x.MoodTags
+	}
+	return nil
+}
+
+func (x *MediaDetails) GetLocationKeywords() []string {
+	if x != nil {
+		return x.LocationKeywords
+	}
+	return nil
+}
+
+func (x *MediaDetails) GetThemeKeywords() []string {
+	if x != nil {
+		return x.ThemeKeywords
 	}
 	return nil
 }
@@ -2421,7 +2447,7 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\n" +
 	"library_id\x18\x01 \x01(\x03R\tlibraryId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\x05R\x06offset\"\xb7\a\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\"\xa9\b\n" +
 	"\fMediaDetails\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1d\n" +
 	"\n" +
@@ -2442,7 +2468,8 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\x0econtent_rating\x18\x0e \x01(\tR\rcontentRating\x12'\n" +
 	"\x0fruntime_minutes\x18\x0f \x01(\x05R\x0eruntimeMinutes\x12+\n" +
 	"\x11original_language\x18\x10 \x01(\tR\x10originalLanguage\x12*\n" +
-	"\x11country_of_origin\x18\x11 \x01(\tR\x0fcountryOfOrigin\x12\x1d\n" +
+	"\x11country_of_origin\x18\x11 \x01(\tR\x0fcountryOfOrigin\x12\x1c\n" +
+	"\tproducers\x18\x12 \x03(\tR\tproducers\x12\x1d\n" +
 	"\n" +
 	"show_title\x18\x14 \x01(\tR\tshowTitle\x12#\n" +
 	"\rseason_number\x18\x15 \x01(\x05R\fseasonNumber\x12%\n" +
@@ -2454,7 +2481,9 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\tbiography\x18  \x01(\tR\tbiography\x12\x18\n" +
 	"\acountry\x18! \x01(\tR\acountry\x12!\n" +
 	"\frelease_type\x18\" \x01(\tR\vreleaseType\x12\x1b\n" +
-	"\tmood_tags\x18( \x03(\tR\bmoodTags\x1a>\n" +
+	"\tmood_tags\x18( \x03(\tR\bmoodTags\x12+\n" +
+	"\x11location_keywords\x18) \x03(\tR\x10locationKeywords\x12%\n" +
+	"\x0etheme_keywords\x18* \x03(\tR\rthemeKeywords\x1a>\n" +
 	"\x10ExternalIdsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"9\n" +

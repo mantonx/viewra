@@ -149,6 +149,16 @@ type MediaImage struct {
 	UpdatedAt      sql.NullTime   `json:"updated_at"`
 }
 
+type MediaKeyword struct {
+	ID         int64        `json:"id"`
+	MediaType  string       `json:"media_type"`
+	EntityID   int64        `json:"entity_id"`
+	KeywordID  int64        `json:"keyword_id"`
+	Keyword    string       `json:"keyword"`
+	IsLocation sql.NullBool `json:"is_location"`
+	CreatedAt  sql.NullTime `json:"created_at"`
+}
+
 type MediaMetadataSource struct {
 	MediaID   int64          `json:"media_id"`
 	FieldName string         `json:"field_name"`

@@ -339,6 +339,7 @@ const (
 	HostEmbeddings_Delete_FullMethodName       = "/viewra.plugin.v1.HostEmbeddings/Delete"
 	HostEmbeddings_DeleteByType_FullMethodName = "/viewra.plugin.v1.HostEmbeddings/DeleteByType"
 	HostEmbeddings_Search_FullMethodName       = "/viewra.plugin.v1.HostEmbeddings/Search"
+	HostEmbeddings_SearchText_FullMethodName   = "/viewra.plugin.v1.HostEmbeddings/SearchText"
 	HostEmbeddings_CountByType_FullMethodName  = "/viewra.plugin.v1.HostEmbeddings/CountByType"
 	HostEmbeddings_CountAll_FullMethodName     = "/viewra.plugin.v1.HostEmbeddings/CountAll"
 )
@@ -362,6 +363,9 @@ type HostEmbeddingsClient interface {
 	DeleteByType(ctx context.Context, in *EntityTypeQuery, opts ...grpc.CallOption) (*DeleteCountResponse, error)
 	// Search finds similar embeddings using cosine similarity.
 	Search(ctx context.Context, in *EmbeddingSearchRequest, opts ...grpc.CallOption) (*EmbeddingSearchResponse, error)
+	// SearchText finds embeddings where text contains the query keywords.
+	// This is useful for name/title searches where semantic search fails.
+	SearchText(ctx context.Context, in *TextSearchRequest, opts ...grpc.CallOption) (*EmbeddingSearchResponse, error)
 	// CountByType returns the number of embeddings for an entity type.
 	CountByType(ctx context.Context, in *EntityTypeQuery, opts ...grpc.CallOption) (*CountResponse, error)
 	// CountAll returns the total number of embeddings.
@@ -436,6 +440,16 @@ func (c *hostEmbeddingsClient) Search(ctx context.Context, in *EmbeddingSearchRe
 	return out, nil
 }
 
+func (c *hostEmbeddingsClient) SearchText(ctx context.Context, in *TextSearchRequest, opts ...grpc.CallOption) (*EmbeddingSearchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EmbeddingSearchResponse)
+	err := c.cc.Invoke(ctx, HostEmbeddings_SearchText_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *hostEmbeddingsClient) CountByType(ctx context.Context, in *EntityTypeQuery, opts ...grpc.CallOption) (*CountResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CountResponse)
@@ -475,6 +489,9 @@ type HostEmbeddingsServer interface {
 	DeleteByType(context.Context, *EntityTypeQuery) (*DeleteCountResponse, error)
 	// Search finds similar embeddings using cosine similarity.
 	Search(context.Context, *EmbeddingSearchRequest) (*EmbeddingSearchResponse, error)
+	// SearchText finds embeddings where text contains the query keywords.
+	// This is useful for name/title searches where semantic search fails.
+	SearchText(context.Context, *TextSearchRequest) (*EmbeddingSearchResponse, error)
 	// CountByType returns the number of embeddings for an entity type.
 	CountByType(context.Context, *EntityTypeQuery) (*CountResponse, error)
 	// CountAll returns the total number of embeddings.
@@ -506,6 +523,9 @@ func (UnimplementedHostEmbeddingsServer) DeleteByType(context.Context, *EntityTy
 }
 func (UnimplementedHostEmbeddingsServer) Search(context.Context, *EmbeddingSearchRequest) (*EmbeddingSearchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Search not implemented")
+}
+func (UnimplementedHostEmbeddingsServer) SearchText(context.Context, *TextSearchRequest) (*EmbeddingSearchResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SearchText not implemented")
 }
 func (UnimplementedHostEmbeddingsServer) CountByType(context.Context, *EntityTypeQuery) (*CountResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CountByType not implemented")
@@ -642,6 +662,24 @@ func _HostEmbeddings_Search_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HostEmbeddings_SearchText_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TextSearchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostEmbeddingsServer).SearchText(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostEmbeddings_SearchText_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostEmbeddingsServer).SearchText(ctx, req.(*TextSearchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _HostEmbeddings_CountByType_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EntityTypeQuery)
 	if err := dec(in); err != nil {
@@ -708,6 +746,10 @@ var HostEmbeddings_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Search",
 			Handler:    _HostEmbeddings_Search_Handler,
+		},
+		{
+			MethodName: "SearchText",
+			Handler:    _HostEmbeddings_SearchText_Handler,
 		},
 		{
 			MethodName: "CountByType",

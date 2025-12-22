@@ -29,7 +29,10 @@ type SemanticSearchRequest struct {
 	// Values: "movie", "tv_show", "tv_episode", "music_artist", "music_album", "music_track"
 	EntityTypes []string `protobuf:"bytes,2,rep,name=entity_types,json=entityTypes,proto3" json:"entity_types,omitempty"`
 	// Maximum number of results (default: 20, max: 100)
-	Limit         int32 `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	Limit int32 `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	// User ID for context enrichment (optional)
+	// When provided, enables location-aware recommendations if the user has opted in
+	UserId        string `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -83,6 +86,13 @@ func (x *SemanticSearchRequest) GetLimit() int32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *SemanticSearchRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
 }
 
 type SemanticSearchResponse struct {
@@ -597,11 +607,12 @@ var File_api_proto_plugin_plugin_ai_proto protoreflect.FileDescriptor
 
 const file_api_proto_plugin_plugin_ai_proto_rawDesc = "" +
 	"\n" +
-	" api/proto/plugin/plugin_ai.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"f\n" +
+	" api/proto/plugin/plugin_ai.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"\x7f\n" +
 	"\x15SemanticSearchRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12!\n" +
 	"\fentity_types\x18\x02 \x03(\tR\ventityTypes\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\x05R\x05limit\"p\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x17\n" +
+	"\auser_id\x18\x04 \x01(\tR\x06userId\"p\n" +
 	"\x16SemanticSearchResponse\x12@\n" +
 	"\aresults\x18\x01 \x03(\v2&.viewra.plugin.v1.SemanticSearchResultR\aresults\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x05R\x05total\"\x88\x01\n" +

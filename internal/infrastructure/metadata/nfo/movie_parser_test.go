@@ -90,8 +90,12 @@ func TestParseMovieNFO(t *testing.T) {
 
 	expectedCast := []string{"Keanu Reeves", "Laurence Fishburne", "Carrie-Anne Moss"}
 	for i, name := range expectedCast {
-		if i >= len(metadata.Cast) || metadata.Cast[i] != name {
-			t.Errorf("Expected cast[%d] to be '%s', got '%s'", i, name, metadata.Cast[i])
+		if i >= len(metadata.Cast) || metadata.Cast[i].Name != name {
+			castName := ""
+			if i < len(metadata.Cast) {
+				castName = metadata.Cast[i].Name
+			}
+			t.Errorf("Expected cast[%d] to be '%s', got '%s'", i, name, castName)
 		}
 	}
 

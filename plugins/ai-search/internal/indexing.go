@@ -76,7 +76,7 @@ func (s *IndexingService) IndexSingle(ctx context.Context, entityType EntityType
 		EntityType: string(entityType),
 		EntityId:   entityID,
 		Embedding:  embedding,
-		Text:       truncateText(text, 500),
+		Text:       text,
 	})
 	if err != nil {
 		return fmt.Errorf("store embedding for %s:%d: %w", entityType, entityID, err)
@@ -305,13 +305,20 @@ func (s *IndexingService) buildMovieText(m *pluginv1.MediaDetails) string {
 		b.WriteString(fmt.Sprintf("Directed by: %s\n", strings.Join(m.Directors, ", ")))
 	}
 
-	// Cast (top 5)
+	// Writers
+	if len(m.Writers) > 0 {
+		b.WriteString(fmt.Sprintf("Written by: %s\n", strings.Join(m.Writers, ", ")))
+	}
+
+	// Producers
+	if len(m.GetProducers()) > 0 {
+		b.WriteString(fmt.Sprintf("Produced by: %s\n", strings.Join(m.GetProducers(), ", ")))
+	}
+
+	// Cast (all cast members, no limit - important for actor-based searches)
 	if len(m.Cast) > 0 {
-		castNames := make([]string, 0, min(5, len(m.Cast)))
-		for i, c := range m.Cast {
-			if i >= 5 {
-				break
-			}
+		castNames := make([]string, 0, len(m.Cast))
+		for _, c := range m.Cast {
 			castNames = append(castNames, c.Name)
 		}
 		b.WriteString(fmt.Sprintf("Cast: %s\n", strings.Join(castNames, ", ")))
@@ -323,8 +330,18 @@ func (s *IndexingService) buildMovieText(m *pluginv1.MediaDetails) string {
 	}
 
 	// Mood tags (AI-generated)
-	if len(m.MoodTags) > 0 {
-		b.WriteString(fmt.Sprintf("Mood: %s\n", strings.Join(m.MoodTags, ", ")))
+	if len(m.GetMoodTags()) > 0 {
+		b.WriteString(fmt.Sprintf("Mood: %s\n", strings.Join(m.GetMoodTags(), ", ")))
+	}
+
+	// Location/setting keywords (from TMDB)
+	if len(m.GetLocationKeywords()) > 0 {
+		b.WriteString(fmt.Sprintf("Setting: %s\n", strings.Join(m.GetLocationKeywords(), ", ")))
+	}
+
+	// Theme keywords (from TMDB) - themes, plot elements, character types, etc.
+	if len(m.GetThemeKeywords()) > 0 {
+		b.WriteString(fmt.Sprintf("Themes: %s\n", strings.Join(m.GetThemeKeywords(), ", ")))
 	}
 
 	return b.String()
@@ -380,13 +397,25 @@ func (s *IndexingService) buildTVShowText(m *pluginv1.MediaDetails) string {
 		b.WriteString(fmt.Sprintf("Plot: %s\n", m.Plot))
 	}
 
-	// Cast (top 5)
+	// Directors (created by)
+	if len(m.Directors) > 0 {
+		b.WriteString(fmt.Sprintf("Created by: %s\n", strings.Join(m.Directors, ", ")))
+	}
+
+	// Writers
+	if len(m.Writers) > 0 {
+		b.WriteString(fmt.Sprintf("Written by: %s\n", strings.Join(m.Writers, ", ")))
+	}
+
+	// Producers
+	if len(m.GetProducers()) > 0 {
+		b.WriteString(fmt.Sprintf("Produced by: %s\n", strings.Join(m.GetProducers(), ", ")))
+	}
+
+	// Cast (all cast members, no limit - important for actor-based searches)
 	if len(m.Cast) > 0 {
-		castNames := make([]string, 0, min(5, len(m.Cast)))
-		for i, c := range m.Cast {
-			if i >= 5 {
-				break
-			}
+		castNames := make([]string, 0, len(m.Cast))
+		for _, c := range m.Cast {
 			castNames = append(castNames, c.Name)
 		}
 		b.WriteString(fmt.Sprintf("Cast: %s\n", strings.Join(castNames, ", ")))
@@ -398,8 +427,18 @@ func (s *IndexingService) buildTVShowText(m *pluginv1.MediaDetails) string {
 	}
 
 	// Mood tags (AI-generated)
-	if len(m.MoodTags) > 0 {
-		b.WriteString(fmt.Sprintf("Mood: %s\n", strings.Join(m.MoodTags, ", ")))
+	if len(m.GetMoodTags()) > 0 {
+		b.WriteString(fmt.Sprintf("Mood: %s\n", strings.Join(m.GetMoodTags(), ", ")))
+	}
+
+	// Location/setting keywords (from TMDB)
+	if len(m.GetLocationKeywords()) > 0 {
+		b.WriteString(fmt.Sprintf("Setting: %s\n", strings.Join(m.GetLocationKeywords(), ", ")))
+	}
+
+	// Theme keywords (from TMDB) - themes, plot elements, character types, etc.
+	if len(m.GetThemeKeywords()) > 0 {
+		b.WriteString(fmt.Sprintf("Themes: %s\n", strings.Join(m.GetThemeKeywords(), ", ")))
 	}
 
 	return b.String()
@@ -532,18 +571,11 @@ func (s *IndexingService) buildGenericText(m *pluginv1.MediaDetails) string {
 	}
 
 	// Mood tags (AI-generated)
-	if len(m.MoodTags) > 0 {
-		b.WriteString(fmt.Sprintf("Mood: %s\n", strings.Join(m.MoodTags, ", ")))
+	if len(m.GetMoodTags()) > 0 {
+		b.WriteString(fmt.Sprintf("Mood: %s\n", strings.Join(m.GetMoodTags(), ", ")))
 	}
 
 	return b.String()
-}
-
-func truncateText(text string, maxLen int) string {
-	if len(text) <= maxLen {
-		return text
-	}
-	return text[:maxLen] + "..."
 }
 
 // getLanguageName converts an ISO 639-1 language code to a human-readable name.

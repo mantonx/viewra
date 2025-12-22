@@ -87,6 +87,7 @@ type MediaDetailsInfo struct {
 	Genres           []string
 	Directors        []string
 	Writers          []string
+	Producers        []string
 	Cast             []CastMemberInfo
 	Studios          []string
 	ContentRating    string
@@ -108,6 +109,10 @@ type MediaDetailsInfo struct {
 
 	// AI-generated
 	MoodTags []string
+
+	// Keywords for search (from TMDB)
+	LocationKeywords []string // Location-related keywords (cities, countries, etc.)
+	ThemeKeywords    []string // Non-location keywords (themes, moods, plot elements)
 }
 
 // CastMemberInfo represents a cast member.
@@ -409,6 +414,7 @@ func mediaDetailsToProto(d *MediaDetailsInfo) *pluginv1.MediaDetails {
 		Genres:           d.Genres,
 		Directors:        d.Directors,
 		Writers:          d.Writers,
+		Producers:        d.Producers,
 		Cast:             cast,
 		Studios:          d.Studios,
 		ContentRating:    d.ContentRating,
@@ -424,6 +430,8 @@ func mediaDetailsToProto(d *MediaDetailsInfo) *pluginv1.MediaDetails {
 		Country:          d.Country,
 		ReleaseType:      d.ReleaseType,
 		MoodTags:         d.MoodTags,
+		LocationKeywords: d.LocationKeywords,
+		ThemeKeywords:    d.ThemeKeywords,
 	}
 }
 

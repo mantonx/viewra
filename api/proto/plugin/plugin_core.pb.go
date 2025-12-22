@@ -158,8 +158,11 @@ type InitRequest struct {
 	// Broker ID for host embeddings service (0 = not available)
 	// Plugin can dial this ID to get a HostEmbeddingsClient
 	HostEmbeddingsBrokerId uint32 `protobuf:"varint,7,opt,name=host_embeddings_broker_id,json=hostEmbeddingsBrokerId,proto3" json:"host_embeddings_broker_id,omitempty"`
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	// Broker ID for host weather service (0 = not available)
+	// Plugin can dial this ID to get a HostWeatherClient
+	HostWeatherBrokerId uint32 `protobuf:"varint,8,opt,name=host_weather_broker_id,json=hostWeatherBrokerId,proto3" json:"host_weather_broker_id,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *InitRequest) Reset() {
@@ -237,6 +240,13 @@ func (x *InitRequest) GetHostLlmBrokerId() uint32 {
 func (x *InitRequest) GetHostEmbeddingsBrokerId() uint32 {
 	if x != nil {
 		return x.HostEmbeddingsBrokerId
+	}
+	return 0
+}
+
+func (x *InitRequest) GetHostWeatherBrokerId() uint32 {
+	if x != nil {
+		return x.HostWeatherBrokerId
 	}
 	return 0
 }
@@ -1164,7 +1174,7 @@ var File_api_proto_plugin_plugin_core_proto protoreflect.FileDescriptor
 
 const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
 	"\n" +
-	"\"api/proto/plugin/plugin_core.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"\xaf\x02\n" +
+	"\"api/proto/plugin/plugin_core.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"\xe4\x02\n" +
 	"\vInitRequest\x12!\n" +
 	"\fhost_version\x18\x01 \x01(\tR\vhostVersion\x12\x19\n" +
 	"\bdata_dir\x18\x02 \x01(\tR\adataDir\x12\x16\n" +
@@ -1172,7 +1182,8 @@ const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
 	"\x16host_storage_broker_id\x18\x04 \x01(\rR\x13hostStorageBrokerId\x12-\n" +
 	"\x13host_data_broker_id\x18\x05 \x01(\rR\x10hostDataBrokerId\x12+\n" +
 	"\x12host_llm_broker_id\x18\x06 \x01(\rR\x0fhostLlmBrokerId\x129\n" +
-	"\x19host_embeddings_broker_id\x18\a \x01(\rR\x16hostEmbeddingsBrokerId\">\n" +
+	"\x19host_embeddings_broker_id\x18\a \x01(\rR\x16hostEmbeddingsBrokerId\x123\n" +
+	"\x16host_weather_broker_id\x18\b \x01(\rR\x13hostWeatherBrokerId\">\n" +
 	"\fInitResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\"\x98\x02\n" +

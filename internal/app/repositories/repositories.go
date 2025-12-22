@@ -8,6 +8,7 @@ import (
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 	enrichmentRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/enrichment"
 	imageRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/image"
+	keywordsRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/keywords"
 	libraryRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/library"
 	mediaRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/media"
 	movieRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/movie"
@@ -58,6 +59,9 @@ type Repositories struct {
 
 	// Studios (production companies)
 	Studios *studiosRepo.Repository
+
+	// Keywords (location-based and thematic tags)
+	Keywords *keywordsRepo.Repository
 
 	// Plugin repositories
 	Plugin             *pluginRepo.Repository
@@ -117,6 +121,9 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	// Create studios repository
 	studiosRepository := studiosRepo.NewRepository(baseRepo)
 
+	// Create keywords repository
+	keywordsRepository := keywordsRepo.NewRepository(baseRepo)
+
 	// Create plugin repositories
 	pluginRepository := pluginRepo.NewRepository(db, driver)
 	pluginMediaQuerier := plugins.NewDBMediaQuerier(db, driver)
@@ -151,6 +158,7 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 		EnrichmentMetadataSource: enrichmentMetadataSourceRepository,
 		People:                   peopleRepository,
 		Studios:                  studiosRepository,
+		Keywords:                 keywordsRepository,
 		Plugin:                   pluginRepository,
 		PluginMediaQuerier:       pluginMediaQuerier,
 		TranscodeAnalytics:       transcodeAnalyticsRepository,
