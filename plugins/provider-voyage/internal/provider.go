@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/pkg/plugin/sdk"
 )
 
 const (
@@ -21,9 +21,9 @@ const (
 	defaultEmbedModel = "voyage-3-lite"
 )
 
-// VoyageProvider implements the PluginProvider service for Voyage AI.
+// VoyageProvider implements sdk.ProviderPlugin for Voyage AI.
 type VoyageProvider struct {
-	pluginv1.UnimplementedPluginProviderServer
+	sdk.Base
 
 	apiKey         string
 	embeddingModel string
@@ -33,11 +33,13 @@ type VoyageProvider struct {
 
 // NewVoyageProvider creates a new Voyage AI provider.
 func NewVoyageProvider(logger *slog.Logger) *VoyageProvider {
-	return &VoyageProvider{
+	p := &VoyageProvider{
 		embeddingModel: defaultEmbedModel,
 		httpClient:     &http.Client{Timeout: voyageTimeout},
 		logger:         logger,
 	}
+	p.SetLogger(logger)
+	return p
 }
 
 // SetEmbeddingModel sets the model to use for embeddings.
@@ -48,8 +50,8 @@ func (p *VoyageProvider) SetEmbeddingModel(embeddingModel string) {
 	p.logger.Info("configured embedding model", "model", p.embeddingModel)
 }
 
-// Configure updates the provider configuration.
-func (p *VoyageProvider) Configure(apiKey string) error {
+// ConfigureClient updates the provider configuration.
+func (p *VoyageProvider) ConfigureClient(apiKey string) error {
 	p.apiKey = apiKey
 	if apiKey != "" {
 		p.logger.Info("configured Voyage AI provider")
@@ -65,166 +67,37 @@ func (p *VoyageProvider) ensureClient() error {
 	return nil
 }
 
-// GetCapabilities returns the provider's capabilities.
-func (p *VoyageProvider) GetCapabilities(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.ProviderCapabilities, error) {
-	return &pluginv1.ProviderCapabilities{
-		ProviderId:            "voyage",
+// --- sdk.ProviderPlugin implementation ---
+
+func (p *VoyageProvider) GetProviderCapabilities() sdk.ProviderCapabilities {
+	return sdk.ProviderCapabilities{
+		ProviderID:            "voyage",
 		DisplayName:           "Voyage AI",
 		Description:           "Voyage AI for high-quality embeddings - Anthropic's recommended embedding provider",
 		SupportsChat:          false,
-		SupportsEmbeddings:    true,
+		SupportsEmbedding:     true,
 		SupportsStreaming:     false,
-		RequiresApiKey:        true,
-		RequiresUrl:           false,
+		RequiresAPIKey:        true,
+		RequiresURL:           false,
 		IsLocal:               false,
 		DefaultChatModel:      "",
 		DefaultEmbeddingModel: defaultEmbedModel,
-	}, nil
-}
-
-// ListModels returns available models from Voyage AI.
-// Note: Voyage doesn't have a models API, so we return a static list.
-func (p *VoyageProvider) ListModels(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.ProviderModelList, error) {
-	models := []*pluginv1.ProviderModel{
-		{
-			Id:          "voyage-3",
-			Name:        "Voyage 3",
-			Description: "Latest flagship model, optimized for general-purpose retrieval and RAG",
-			IsChat:      false,
-			IsEmbedding: true,
-		},
-		{
-			Id:          "voyage-3-lite",
-			Name:        "Voyage 3 Lite",
-			Description: "Lightweight, cost-effective model for latency-sensitive applications",
-			IsChat:      false,
-			IsEmbedding: true,
-		},
-		{
-			Id:          "voyage-code-3",
-			Name:        "Voyage Code 3",
-			Description: "Optimized for code retrieval, supports 80+ programming languages",
-			IsChat:      false,
-			IsEmbedding: true,
-		},
-		{
-			Id:          "voyage-finance-2",
-			Name:        "Voyage Finance 2",
-			Description: "Optimized for financial domain retrieval",
-			IsChat:      false,
-			IsEmbedding: true,
-		},
-		{
-			Id:          "voyage-law-2",
-			Name:        "Voyage Law 2",
-			Description: "Optimized for legal document retrieval",
-			IsChat:      false,
-			IsEmbedding: true,
-		},
-		{
-			Id:          "voyage-multilingual-2",
-			Name:        "Voyage Multilingual 2",
-			Description: "Optimized for multilingual retrieval across 100+ languages",
-			IsChat:      false,
-			IsEmbedding: true,
-		},
 	}
-
-	return &pluginv1.ProviderModelList{Models: models}, nil
 }
 
-// GenerateEmbedding generates an embedding for a single text.
-func (p *VoyageProvider) GenerateEmbedding(ctx context.Context, req *pluginv1.ProviderEmbeddingRequest) (*pluginv1.EmbeddingResponse, error) {
+func (p *VoyageProvider) Initialize(ctx context.Context, dataDir string, config []byte, systemInfo *sdk.SystemInfo) error {
+	p.logger.Info("initializing Voyage AI provider plugin", "data_dir", dataDir)
+	return nil
+}
+
+func (p *VoyageProvider) Shutdown(ctx context.Context) error {
+	p.logger.Info("shutting down Voyage AI provider plugin")
+	return nil
+}
+
+func (p *VoyageProvider) HealthCheck(ctx context.Context) (*sdk.ProviderHealth, error) {
 	if err := p.ensureClient(); err != nil {
-		return nil, err
-	}
-
-	model := req.Model
-	if model == "" {
-		model = p.embeddingModel
-	}
-
-	voyageReq := voyageEmbedRequest{
-		Model:     model,
-		Input:     []string{req.Text},
-		InputType: "document",
-	}
-
-	resp, err := p.doEmbedRequest(ctx, voyageReq)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(resp.Data) == 0 {
-		return nil, fmt.Errorf("no embeddings returned")
-	}
-
-	embedding := make([]float32, len(resp.Data[0].Embedding))
-	for i, v := range resp.Data[0].Embedding {
-		embedding[i] = float32(v)
-	}
-
-	return &pluginv1.EmbeddingResponse{
-		Embedding:  embedding,
-		Dimensions: int32(len(embedding)),
-		TokensUsed: int32(resp.Usage.TotalTokens),
-	}, nil
-}
-
-// GenerateEmbeddingBatch generates embeddings for multiple texts.
-func (p *VoyageProvider) GenerateEmbeddingBatch(ctx context.Context, req *pluginv1.ProviderEmbeddingBatchRequest) (*pluginv1.EmbeddingBatchResponse, error) {
-	if err := p.ensureClient(); err != nil {
-		return nil, err
-	}
-
-	model := req.Model
-	if model == "" {
-		model = p.embeddingModel
-	}
-
-	voyageReq := voyageEmbedRequest{
-		Model:     model,
-		Input:     req.Texts,
-		InputType: "document",
-	}
-
-	resp, err := p.doEmbedRequest(ctx, voyageReq)
-	if err != nil {
-		return nil, err
-	}
-
-	results := make([]*pluginv1.EmbeddingResult, len(resp.Data))
-	for i, data := range resp.Data {
-		embedding := make([]float32, len(data.Embedding))
-		for j, v := range data.Embedding {
-			embedding[j] = float32(v)
-		}
-		results[i] = &pluginv1.EmbeddingResult{
-			Embedding:  embedding,
-			Dimensions: int32(len(embedding)),
-		}
-	}
-
-	return &pluginv1.EmbeddingBatchResponse{
-		Embeddings:  results,
-		TotalTokens: int32(resp.Usage.TotalTokens),
-	}, nil
-}
-
-// Chat is not supported by Voyage AI.
-func (p *VoyageProvider) Chat(ctx context.Context, req *pluginv1.ProviderChatRequest) (*pluginv1.ChatResponse, error) {
-	return nil, fmt.Errorf("Voyage AI does not support chat - use embeddings only")
-}
-
-// ChatStream is not supported by Voyage AI.
-func (p *VoyageProvider) ChatStream(req *pluginv1.ProviderChatRequest, stream pluginv1.PluginProvider_ChatStreamServer) error {
-	return fmt.Errorf("Voyage AI does not support chat - use embeddings only")
-}
-
-// HealthCheck verifies Voyage AI is accessible.
-func (p *VoyageProvider) HealthCheck(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.ProviderHealthStatus, error) {
-	if err := p.ensureClient(); err != nil {
-		return &pluginv1.ProviderHealthStatus{
+		return &sdk.ProviderHealth{
 			Healthy: false,
 			Message: "Not configured",
 			Error:   err.Error(),
@@ -244,20 +117,207 @@ func (p *VoyageProvider) HealthCheck(ctx context.Context, _ *pluginv1.Empty) (*p
 	latency := time.Since(start)
 
 	if err != nil {
-		return &pluginv1.ProviderHealthStatus{
-			Healthy:   false,
-			Message:   "Cannot connect to Voyage AI",
-			LatencyMs: latency.Milliseconds(),
-			Error:     err.Error(),
+		return &sdk.ProviderHealth{
+			Healthy: false,
+			Message: "Cannot connect to Voyage AI",
+			Latency: latency,
+			Error:   err.Error(),
 		}, nil
 	}
 
-	return &pluginv1.ProviderHealthStatus{
-		Healthy:   true,
-		Message:   "Connected to Voyage AI",
-		LatencyMs: latency.Milliseconds(),
+	return &sdk.ProviderHealth{
+		Healthy: true,
+		Message: "Connected to Voyage AI",
+		Latency: latency,
 	}, nil
 }
+
+func (p *VoyageProvider) ListModels(ctx context.Context) ([]sdk.ProviderModel, error) {
+	// Voyage doesn't have a models API, so we return a static list
+	return []sdk.ProviderModel{
+		{
+			ID:          "voyage-3",
+			Name:        "Voyage 3",
+			Description: "Latest flagship model, optimized for general-purpose retrieval and RAG",
+			IsChat:      false,
+			IsEmbedding: true,
+		},
+		{
+			ID:          "voyage-3-lite",
+			Name:        "Voyage 3 Lite",
+			Description: "Lightweight, cost-effective model for latency-sensitive applications",
+			IsChat:      false,
+			IsEmbedding: true,
+		},
+		{
+			ID:          "voyage-code-3",
+			Name:        "Voyage Code 3",
+			Description: "Optimized for code retrieval, supports 80+ programming languages",
+			IsChat:      false,
+			IsEmbedding: true,
+		},
+		{
+			ID:          "voyage-finance-2",
+			Name:        "Voyage Finance 2",
+			Description: "Optimized for financial domain retrieval",
+			IsChat:      false,
+			IsEmbedding: true,
+		},
+		{
+			ID:          "voyage-law-2",
+			Name:        "Voyage Law 2",
+			Description: "Optimized for legal document retrieval",
+			IsChat:      false,
+			IsEmbedding: true,
+		},
+		{
+			ID:          "voyage-multilingual-2",
+			Name:        "Voyage Multilingual 2",
+			Description: "Optimized for multilingual retrieval across 100+ languages",
+			IsChat:      false,
+			IsEmbedding: true,
+		},
+	}, nil
+}
+
+func (p *VoyageProvider) GenerateEmbedding(ctx context.Context, text, model string) ([]float32, error) {
+	if err := p.ensureClient(); err != nil {
+		return nil, err
+	}
+
+	if model == "" {
+		model = p.embeddingModel
+	}
+
+	voyageReq := voyageEmbedRequest{
+		Model:     model,
+		Input:     []string{text},
+		InputType: "document",
+	}
+
+	resp, err := p.doEmbedRequest(ctx, voyageReq)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(resp.Data) == 0 {
+		return nil, fmt.Errorf("no embeddings returned")
+	}
+
+	embedding := make([]float32, len(resp.Data[0].Embedding))
+	for i, v := range resp.Data[0].Embedding {
+		embedding[i] = float32(v)
+	}
+
+	return embedding, nil
+}
+
+func (p *VoyageProvider) GenerateEmbeddingBatch(ctx context.Context, texts []string, model string) ([][]float32, error) {
+	if err := p.ensureClient(); err != nil {
+		return nil, err
+	}
+
+	if model == "" {
+		model = p.embeddingModel
+	}
+
+	voyageReq := voyageEmbedRequest{
+		Model:     model,
+		Input:     texts,
+		InputType: "document",
+	}
+
+	resp, err := p.doEmbedRequest(ctx, voyageReq)
+	if err != nil {
+		return nil, err
+	}
+
+	embeddings := make([][]float32, len(resp.Data))
+	for i, data := range resp.Data {
+		embedding := make([]float32, len(data.Embedding))
+		for j, v := range data.Embedding {
+			embedding[j] = float32(v)
+		}
+		embeddings[i] = embedding
+	}
+
+	return embeddings, nil
+}
+
+func (p *VoyageProvider) Chat(ctx context.Context, req *sdk.ChatRequest) (*sdk.ChatResponse, error) {
+	return nil, fmt.Errorf("Voyage AI does not support chat - use embeddings only")
+}
+
+func (p *VoyageProvider) ChatStream(ctx context.Context, req *sdk.ChatRequest, chunks chan<- sdk.ChatChunk) error {
+	return fmt.Errorf("Voyage AI does not support chat - use embeddings only")
+}
+
+// --- sdk.ConfigurableProvider implementation ---
+
+func (p *VoyageProvider) GetSettingsSchema() ([]byte, error) {
+	return SettingsSchema().Build()
+}
+
+func (p *VoyageProvider) Configure(settings []byte) error {
+	var cfg struct {
+		APIKey         string `json:"api_key"`
+		EmbeddingModel string `json:"embedding_model"`
+	}
+
+	if err := json.Unmarshal(settings, &cfg); err != nil {
+		return fmt.Errorf("invalid settings JSON: %w", err)
+	}
+
+	if err := p.ConfigureClient(cfg.APIKey); err != nil {
+		return err
+	}
+
+	p.SetEmbeddingModel(cfg.EmbeddingModel)
+	return nil
+}
+
+// --- sdk.HTTPProvider implementation ---
+
+func (p *VoyageProvider) GetRoutes() []sdk.Route {
+	return []sdk.Route{
+		{
+			Path:        "/health",
+			Methods:     []string{"GET"},
+			AdminOnly:   false,
+			Description: "Check Voyage AI API connectivity",
+		},
+	}
+}
+
+func (p *VoyageProvider) HandleHTTP(ctx context.Context, req *sdk.HTTPRequest) (*sdk.HTTPResponse, error) {
+	if req.Method == "GET" && req.Path == "/health" {
+		health, err := p.HealthCheck(ctx)
+		if err != nil {
+			return sdk.JSONError(503, err.Error())
+		}
+
+		if !health.Healthy {
+			return sdk.JSONResponse(503, map[string]any{
+				"success": false,
+				"error":   health.Error,
+				"message": health.Message,
+			})
+		}
+
+		return sdk.JSONResponse(200, map[string]any{
+			"success": true,
+			"message": health.Message,
+		})
+	}
+
+	return sdk.JSONError(404, "not found")
+}
+
+func (p *VoyageProvider) HandleHTTPStream(ctx context.Context, req *sdk.HTTPRequest, stream sdk.HTTPStreamWriter) error {
+	return fmt.Errorf("streaming not supported")
+}
+
+// --- Helper functions ---
 
 // doEmbedRequest performs an embedding request to Voyage AI.
 func (p *VoyageProvider) doEmbedRequest(ctx context.Context, req voyageEmbedRequest) (*voyageEmbedResponse, error) {

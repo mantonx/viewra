@@ -10,15 +10,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/pkg/plugin/sdk"
 )
 
 // MoodTagService generates mood/vibe tags for media using LLM.
 // Uses the chat provider configured in the host's AI settings.
 type MoodTagService struct {
-	llmClient  pluginv1.HostLLMClient
-	dataClient pluginv1.HostDataClient
-	logger     *slog.Logger
+	llm    *sdk.LLMClient
+	data   *sdk.DataClient
+	logger *slog.Logger
 
 	// Generation state
 	mu           sync.RWMutex
@@ -49,23 +49,23 @@ type MoodTags struct {
 // NewMoodTagService creates a new mood tag service.
 // The host determines which chat provider/model to use based on AI settings.
 func NewMoodTagService(
-	llmClient pluginv1.HostLLMClient,
-	dataClient pluginv1.HostDataClient,
+	llm *sdk.LLMClient,
+	data *sdk.DataClient,
 	logger *slog.Logger,
 ) *MoodTagService {
 	return &MoodTagService{
-		llmClient:  llmClient,
-		dataClient: dataClient,
-		logger:     logger,
+		llm:    llm,
+		data:   data,
+		logger: logger,
 	}
 }
 
 // GenerateForMedia generates mood tags for a single media item.
 func (s *MoodTagService) GenerateForMedia(
 	ctx context.Context,
-	details *pluginv1.MediaDetails,
+	details *sdk.MediaDetails,
 ) ([]string, error) {
-	if s.llmClient == nil {
+	if s.llm == nil {
 		return nil, fmt.Errorf("LLM client not available")
 	}
 
@@ -75,23 +75,22 @@ func (s *MoodTagService) GenerateForMedia(
 	}
 
 	s.logger.Debug("calling LLM for mood tags",
-		"entity_id", details.Id,
+		"entity_id", details.ID,
 		"media_type", details.MediaType,
 		"prompt_length", len(prompt),
 	)
 
 	// Empty provider/model uses host defaults from AI settings
-	resp, err := s.llmClient.Chat(ctx, &pluginv1.ChatRequest{
-		Messages: []*pluginv1.ChatMessage{
-			{
-				Role:    "system",
-				Content: moodTagSystemPrompt,
-			},
-			{
-				Role:    "user",
-				Content: prompt,
-			},
+	resp, err := s.llm.ChatWithOptions(ctx, []sdk.ChatMessage{
+		{
+			Role:    "system",
+			Content: moodTagSystemPrompt,
 		},
+		{
+			Role:    "user",
+			Content: prompt,
+		},
+	}, sdk.ChatOptions{
 		Temperature: 0.3, // Low temperature for consistent results
 		MaxTokens:   100, // Tags should be short
 	})
@@ -106,7 +105,7 @@ func (s *MoodTagService) GenerateForMedia(
 
 	s.logger.Debug("generated mood tags",
 		"entity_type", details.MediaType,
-		"entity_id", details.Id,
+		"entity_id", details.ID,
 		"tags", tags,
 	)
 
@@ -137,16 +136,16 @@ func (s *MoodTagService) GenerateForLibrary(
 
 	s.logger.Info("starting mood tag generation", "library_id", libraryID)
 
-	// Verify dataClient is available
-	if s.dataClient == nil {
-		s.logger.Error("dataClient is nil in mood tag generation")
-		return fmt.Errorf("dataClient is nil")
+	// Verify data client is available
+	if s.data == nil {
+		s.logger.Error("data client is nil in mood tag generation")
+		return fmt.Errorf("data client is nil")
 	}
 
 	// List media with pagination
 	var processed, failed int64
-	offset := int32(0)
-	limit := int32(100)
+	offset := 0
+	limit := 100
 
 	for {
 		select {
@@ -162,11 +161,7 @@ func (s *MoodTagService) GenerateForLibrary(
 			"limit", limit,
 		)
 
-		resp, err := s.dataClient.ListMediaByLibrary(ctx, &pluginv1.ListMediaRequest{
-			LibraryId: libraryID,
-			Limit:     limit,
-			Offset:    offset,
-		})
+		mediaList, err := s.data.ListMediaByLibrary(ctx, libraryID, limit, offset)
 		if err != nil {
 			s.logger.Error("failed to list media for mood tags",
 				"library_id", libraryID,
@@ -177,12 +172,12 @@ func (s *MoodTagService) GenerateForLibrary(
 
 		s.logger.Debug("listed media for mood tags",
 			"library_id", libraryID,
-			"items", len(resp.Items),
-			"total", resp.Total,
-			"has_more", resp.HasMore,
+			"items", len(mediaList.Items),
+			"total", mediaList.Total,
+			"has_more", mediaList.HasMore,
 		)
 
-		if len(resp.Items) == 0 {
+		if len(mediaList.Items) == 0 {
 			s.logger.Debug("no items returned, ending pagination",
 				"library_id", libraryID,
 				"offset", offset,
@@ -190,10 +185,10 @@ func (s *MoodTagService) GenerateForLibrary(
 			break // No more items
 		}
 
-		total := int64(resp.Total)
-		s.updateProgress(EntityType(resp.Items[0].MediaType), total, processed, failed, "")
+		total := int64(mediaList.Total)
+		s.updateProgress(EntityType(mediaList.Items[0].MediaType), total, processed, failed, "")
 
-		for _, media := range resp.Items {
+		for _, media := range mediaList.Items {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -203,7 +198,7 @@ func (s *MoodTagService) GenerateForLibrary(
 			tags, err := s.GenerateForMedia(ctx, media)
 			if err != nil {
 				s.logger.Warn("failed to generate mood tags",
-					"entity_id", media.Id,
+					"entity_id", media.ID,
 					"media_type", media.MediaType,
 					"title", media.Title,
 					"error", err,
@@ -214,14 +209,14 @@ func (s *MoodTagService) GenerateForLibrary(
 			}
 
 			s.logger.Debug("generated mood tags",
-				"entity_id", media.Id,
+				"entity_id", media.ID,
 				"tags", tags,
 			)
 
 			if callback != nil {
-				if err := callback(EntityType(media.MediaType), media.Id, tags); err != nil {
+				if err := callback(EntityType(media.MediaType), media.ID, tags); err != nil {
 					s.logger.Warn("callback failed",
-						"entity_id", media.Id,
+						"entity_id", media.ID,
 						"error", err,
 					)
 				}
@@ -233,7 +228,7 @@ func (s *MoodTagService) GenerateForLibrary(
 			}
 		}
 
-		if !resp.HasMore {
+		if !mediaList.HasMore {
 			break
 		}
 		offset += limit
@@ -297,7 +292,7 @@ func (s *MoodTagService) updateProgress(
 }
 
 // buildPrompt creates the LLM prompt for mood tag generation.
-func (s *MoodTagService) buildPrompt(details *pluginv1.MediaDetails) string {
+func (s *MoodTagService) buildPrompt(details *sdk.MediaDetails) string {
 	if details == nil {
 		return ""
 	}

@@ -6,36 +6,25 @@ import (
 	"strconv"
 	"strings"
 
-	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/pkg/plugin/sdk"
 )
 
 // enrichTrack fetches metadata for a music track from MusicBrainz.
-func (p *MusicBrainzPlugin) enrichTrack(ctx context.Context, client *Client, req *pluginv1.EnrichRequest, minConfidence float32) (*pluginv1.EnrichResponse, error) {
+func (p *MusicBrainzPlugin) enrichTrack(ctx context.Context, client *Client, req *sdk.EnrichRequest, minConfidence float32) (*sdk.EnrichResponse, error) {
 	var recordingID string
 	var releaseID string
 
 	// Extract music metadata from request
-	artist := ""
-	album := ""
+	artist := req.Artist
+	album := req.Album
 	trackTitle := req.Title
-	if req.Music != nil {
-		if req.Music.Artist != "" {
-			artist = req.Music.Artist
-		}
-		if req.Music.Album != "" {
-			album = req.Music.Album
-		}
-		if req.Music.TrackTitle != "" {
-			trackTitle = req.Music.TrackTitle
-		}
-	}
 
 	// Strategy 1: Use existing MusicBrainz ID if available
-	if mbid, ok := req.ExistingIds["musicbrainz_track"]; ok && mbid != "" {
+	if mbid, ok := req.ExistingIDs["musicbrainz_track"]; ok && mbid != "" {
 		recordingID = mbid
 		p.logger.Debug("using existing MusicBrainz recording ID", "id", recordingID)
 	}
-	if mbid, ok := req.ExistingIds["musicbrainz_album"]; ok && mbid != "" {
+	if mbid, ok := req.ExistingIDs["musicbrainz_album"]; ok && mbid != "" {
 		releaseID = mbid
 	}
 
@@ -74,7 +63,7 @@ func (p *MusicBrainzPlugin) enrichTrack(ctx context.Context, client *Client, req
 	}
 
 	if recordingID == "" {
-		return &pluginv1.EnrichResponse{
+		return &sdk.EnrichResponse{
 			Matched:    false,
 			Skipped:    true,
 			SkipReason: "no recording match found",
@@ -92,24 +81,19 @@ func (p *MusicBrainzPlugin) enrichTrack(ctx context.Context, client *Client, req
 }
 
 // enrichAlbum fetches metadata for a music album from MusicBrainz.
-func (p *MusicBrainzPlugin) enrichAlbum(ctx context.Context, client *Client, req *pluginv1.EnrichRequest, minConfidence float32) (*pluginv1.EnrichResponse, error) {
+func (p *MusicBrainzPlugin) enrichAlbum(ctx context.Context, client *Client, req *sdk.EnrichRequest, minConfidence float32) (*sdk.EnrichResponse, error) {
 	var releaseID string
 
 	// Extract album metadata
-	artist := ""
+	artist := req.Artist
 	albumTitle := req.Title
-	year := int(req.Year)
-	if req.Music != nil {
-		if req.Music.Artist != "" {
-			artist = req.Music.Artist
-		}
-		if req.Music.Album != "" {
-			albumTitle = req.Music.Album
-		}
+	if req.Album != "" {
+		albumTitle = req.Album
 	}
+	year := req.Year
 
 	// Strategy 1: Use existing MusicBrainz ID
-	if mbid, ok := req.ExistingIds["musicbrainz_album"]; ok && mbid != "" {
+	if mbid, ok := req.ExistingIDs["musicbrainz_album"]; ok && mbid != "" {
 		releaseID = mbid
 		p.logger.Debug("using existing MusicBrainz release ID", "id", releaseID)
 	}
@@ -139,7 +123,7 @@ func (p *MusicBrainzPlugin) enrichAlbum(ctx context.Context, client *Client, req
 	}
 
 	if releaseID == "" {
-		return &pluginv1.EnrichResponse{
+		return &sdk.EnrichResponse{
 			Matched:    false,
 			Skipped:    true,
 			SkipReason: "no album match found",
@@ -157,17 +141,17 @@ func (p *MusicBrainzPlugin) enrichAlbum(ctx context.Context, client *Client, req
 }
 
 // enrichArtist fetches metadata for a music artist from MusicBrainz.
-func (p *MusicBrainzPlugin) enrichArtist(ctx context.Context, client *Client, req *pluginv1.EnrichRequest, minConfidence float32) (*pluginv1.EnrichResponse, error) {
+func (p *MusicBrainzPlugin) enrichArtist(ctx context.Context, client *Client, req *sdk.EnrichRequest, minConfidence float32) (*sdk.EnrichResponse, error) {
 	var artistID string
 
 	// Extract artist name
 	artistName := req.Title
-	if req.Music != nil && req.Music.Artist != "" {
-		artistName = req.Music.Artist
+	if req.Artist != "" {
+		artistName = req.Artist
 	}
 
 	// Strategy 1: Use existing MusicBrainz ID
-	if mbid, ok := req.ExistingIds["musicbrainz_artist"]; ok && mbid != "" {
+	if mbid, ok := req.ExistingIDs["musicbrainz_artist"]; ok && mbid != "" {
 		artistID = mbid
 		p.logger.Debug("using existing MusicBrainz artist ID", "id", artistID)
 	}
@@ -197,7 +181,7 @@ func (p *MusicBrainzPlugin) enrichArtist(ctx context.Context, client *Client, re
 	}
 
 	if artistID == "" {
-		return &pluginv1.EnrichResponse{
+		return &sdk.EnrichResponse{
 			Matched:    false,
 			Skipped:    true,
 			SkipReason: "no artist match found",
@@ -215,28 +199,28 @@ func (p *MusicBrainzPlugin) enrichArtist(ctx context.Context, client *Client, re
 }
 
 // buildTrackResponse builds an EnrichResponse for a recording.
-func (p *MusicBrainzPlugin) buildTrackResponse(ctx context.Context, client *Client, recording *Recording, releaseID string) (*pluginv1.EnrichResponse, error) {
-	resp := &pluginv1.EnrichResponse{
-		Matched:       true,
-		DiscoveredIds: make(map[string]string),
-		Confidence:    0.85,
+func (p *MusicBrainzPlugin) buildTrackResponse(ctx context.Context, client *Client, recording *Recording, releaseID string) (*sdk.EnrichResponse, error) {
+	resp := &sdk.EnrichResponse{
+		Matched:         true,
+		DiscoveredIDs:   make(map[string]string),
+		ConfidenceScore: 0.85,
 	}
 
 	// External IDs
-	resp.DiscoveredIds["musicbrainz_track"] = recording.ID
+	resp.DiscoveredIDs["musicbrainz_track"] = recording.ID
 	if len(recording.ISRCs) > 0 {
-		resp.DiscoveredIds["isrc"] = recording.ISRCs[0]
+		resp.DiscoveredIDs["isrc"] = recording.ISRCs[0]
 	}
 
 	// Build metadata
-	metadata := &pluginv1.EnrichedMetadata{
+	metadata := &sdk.EnrichedMetadata{
 		Title: strPtr(recording.Title),
 	}
 
 	// Duration
 	if recording.Length > 0 {
-		runtimeMinutes := int32(recording.Length / 60000) // Convert ms to minutes
-		metadata.RuntimeMinutes = &runtimeMinutes
+		runtimeMinutes := recording.Length / 60000 // Convert ms to minutes
+		metadata.RuntimeMinutes = intPtr(runtimeMinutes)
 	}
 
 	// Artist from artist credit
@@ -246,7 +230,7 @@ func (p *MusicBrainzPlugin) buildTrackResponse(ctx context.Context, client *Clie
 
 		// Store the primary artist's MusicBrainz ID
 		if recording.ArtistCredit[0].Artist != nil {
-			resp.DiscoveredIds["musicbrainz_artist"] = recording.ArtistCredit[0].Artist.ID
+			resp.DiscoveredIDs["musicbrainz_artist"] = recording.ArtistCredit[0].Artist.ID
 		}
 	}
 
@@ -260,7 +244,7 @@ func (p *MusicBrainzPlugin) buildTrackResponse(ctx context.Context, client *Clie
 
 	// Get release info if we have a release ID
 	if releaseID != "" {
-		resp.DiscoveredIds["musicbrainz_album"] = releaseID
+		resp.DiscoveredIDs["musicbrainz_album"] = releaseID
 
 		// Try to get additional info from releases in recording
 		for _, rel := range recording.Releases {
@@ -268,8 +252,7 @@ func (p *MusicBrainzPlugin) buildTrackResponse(ctx context.Context, client *Clie
 				metadata.Album = strPtr(rel.Title)
 				if rel.Date != "" {
 					if year := extractYear(rel.Date); year > 0 {
-						y := int32(year)
-						metadata.Year = &y
+						metadata.Year = intPtr(year)
 					}
 					metadata.ReleaseDate = strPtr(rel.Date)
 				}
@@ -291,26 +274,26 @@ func (p *MusicBrainzPlugin) buildTrackResponse(ctx context.Context, client *Clie
 }
 
 // buildAlbumResponse builds an EnrichResponse for a release.
-func (p *MusicBrainzPlugin) buildAlbumResponse(ctx context.Context, client *Client, release *Release) (*pluginv1.EnrichResponse, error) {
-	resp := &pluginv1.EnrichResponse{
-		Matched:       true,
-		DiscoveredIds: make(map[string]string),
-		Confidence:    0.85,
+func (p *MusicBrainzPlugin) buildAlbumResponse(ctx context.Context, client *Client, release *Release) (*sdk.EnrichResponse, error) {
+	resp := &sdk.EnrichResponse{
+		Matched:         true,
+		DiscoveredIDs:   make(map[string]string),
+		ConfidenceScore: 0.85,
 	}
 
 	// External IDs
-	resp.DiscoveredIds["musicbrainz_album"] = release.ID
+	resp.DiscoveredIDs["musicbrainz_album"] = release.ID
 	if release.Barcode != "" {
-		resp.DiscoveredIds["barcode"] = release.Barcode
+		resp.DiscoveredIDs["barcode"] = release.Barcode
 	}
 	if release.ReleaseGroup != nil {
-		resp.DiscoveredIds["musicbrainz_release_group"] = release.ReleaseGroup.ID
+		resp.DiscoveredIDs["musicbrainz_release_group"] = release.ReleaseGroup.ID
 	}
 
 	// Build album metadata
-	albumMeta := &pluginv1.AlbumMetadata{
+	albumMeta := &sdk.AlbumMetadata{
 		Title:              strPtr(release.Title),
-		MusicbrainzAlbumId: strPtr(release.ID),
+		MusicbrainzAlbumID: strPtr(release.ID),
 	}
 
 	// Artist
@@ -320,7 +303,7 @@ func (p *MusicBrainzPlugin) buildAlbumResponse(ctx context.Context, client *Clie
 		albumMeta.Artist = strPtr(artistName)
 
 		if release.ArtistCredit[0].Artist != nil {
-			resp.DiscoveredIds["musicbrainz_artist"] = release.ArtistCredit[0].Artist.ID
+			resp.DiscoveredIDs["musicbrainz_artist"] = release.ArtistCredit[0].Artist.ID
 		}
 	}
 
@@ -328,22 +311,21 @@ func (p *MusicBrainzPlugin) buildAlbumResponse(ctx context.Context, client *Clie
 	if release.Date != "" {
 		albumMeta.ReleaseDate = strPtr(release.Date)
 		if year := extractYear(release.Date); year > 0 {
-			y := int32(year)
-			albumMeta.Year = &y
+			albumMeta.Year = intPtr(year)
 		}
 	}
 
 	// Track/disc counts
-	var totalTracks, totalDiscs int32
+	var totalTracks, totalDiscs int
 	for _, medium := range release.Media {
-		totalTracks += int32(medium.TrackCount)
+		totalTracks += medium.TrackCount
 		totalDiscs++
 	}
 	if totalTracks > 0 {
-		albumMeta.TotalTracks = &totalTracks
+		albumMeta.TotalTracks = intPtr(totalTracks)
 	}
 	if totalDiscs > 0 {
-		albumMeta.TotalDiscs = &totalDiscs
+		albumMeta.TotalDiscs = intPtr(totalDiscs)
 	}
 
 	// Label
@@ -373,7 +355,7 @@ func (p *MusicBrainzPlugin) buildAlbumResponse(ctx context.Context, client *Clie
 		}
 	}
 
-	resp.Metadata = &pluginv1.EnrichedMetadata{
+	resp.Metadata = &sdk.EnrichedMetadata{
 		AlbumMetadata: albumMeta,
 	}
 
@@ -389,29 +371,28 @@ func (p *MusicBrainzPlugin) buildAlbumResponse(ctx context.Context, client *Clie
 }
 
 // buildArtistResponse builds an EnrichResponse for an artist.
-func (p *MusicBrainzPlugin) buildArtistResponse(artist *Artist) *pluginv1.EnrichResponse {
-	resp := &pluginv1.EnrichResponse{
-		Matched:       true,
-		DiscoveredIds: make(map[string]string),
-		Confidence:    0.85,
+func (p *MusicBrainzPlugin) buildArtistResponse(artist *Artist) *sdk.EnrichResponse {
+	resp := &sdk.EnrichResponse{
+		Matched:         true,
+		DiscoveredIDs:   make(map[string]string),
+		ConfidenceScore: 0.85,
 	}
 
 	// External ID
-	resp.DiscoveredIds["musicbrainz_artist"] = artist.ID
+	resp.DiscoveredIDs["musicbrainz_artist"] = artist.ID
 
 	// Build artist metadata
-	artistMeta := &pluginv1.ArtistMetadata{
-		Name:               strPtr(artist.Name),
-		SortName:           strPtr(artist.SortName),
-		MusicbrainzArtistId: strPtr(artist.ID),
-		Country:            strPtr(artist.Country),
+	artistMeta := &sdk.ArtistMetadata{
+		Name:                strPtr(artist.Name),
+		SortName:            strPtr(artist.SortName),
+		MusicbrainzArtistID: strPtr(artist.ID),
+		Country:             strPtr(artist.Country),
 	}
 
 	// Formed year from life span
 	if artist.LifeSpan != nil && artist.LifeSpan.Begin != "" {
 		if year := extractYear(artist.LifeSpan.Begin); year > 0 {
-			y := int32(year)
-			artistMeta.FormedYear = &y
+			artistMeta.FormedYear = intPtr(year)
 		}
 	}
 
@@ -423,7 +404,7 @@ func (p *MusicBrainzPlugin) buildArtistResponse(artist *Artist) *pluginv1.Enrich
 		}
 	}
 
-	resp.Metadata = &pluginv1.EnrichedMetadata{
+	resp.Metadata = &sdk.EnrichedMetadata{
 		ArtistMetadata: artistMeta,
 	}
 
@@ -431,8 +412,8 @@ func (p *MusicBrainzPlugin) buildArtistResponse(artist *Artist) *pluginv1.Enrich
 }
 
 // extractCoverArtImages extracts images from Cover Art Archive response.
-func (p *MusicBrainzPlugin) extractCoverArtImages(client *Client, coverArt *CoverArtResponse) []*pluginv1.EnrichedImage {
-	var images []*pluginv1.EnrichedImage
+func (p *MusicBrainzPlugin) extractCoverArtImages(client *Client, coverArt *CoverArtResponse) []sdk.EnrichedImage {
+	var images []sdk.EnrichedImage
 
 	for _, img := range coverArt.Images {
 		if !img.Approved {
@@ -462,7 +443,7 @@ func (p *MusicBrainzPlugin) extractCoverArtImages(client *Client, coverArt *Cove
 			}
 		}
 
-		images = append(images, &pluginv1.EnrichedImage{
+		images = append(images, sdk.EnrichedImage{
 			Type:     imageType,
 			Path:     imageURL,
 			IsRemote: true,
@@ -525,7 +506,7 @@ func extractYear(date string) int {
 	return year
 }
 
-// Helper functions for optional proto fields
+// Helper functions for optional fields
 
 func strPtr(s string) *string {
 	if s == "" {
@@ -533,4 +514,11 @@ func strPtr(s string) *string {
 	}
 	s = strings.TrimSpace(s)
 	return &s
+}
+
+func intPtr(i int) *int {
+	if i == 0 {
+		return nil
+	}
+	return &i
 }

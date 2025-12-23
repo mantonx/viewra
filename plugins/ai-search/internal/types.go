@@ -40,34 +40,37 @@ const (
 	EntityMusicTrack  EntityType = "music_track"
 )
 
-// IndexingProgress tracks the progress of an indexing operation.
-type IndexingProgress struct {
-	EntityType  EntityType `json:"entity_type"`
-	Total       int64      `json:"total"`
-	Processed   int64      `json:"processed"`
-	Failed      int64      `json:"failed"`
-	LastError   string     `json:"last_error,omitempty"`
-	StartedAt   int64      `json:"started_at"` // Unix timestamp
-	LastUpdated int64      `json:"last_updated"`
-}
-
-// IndexingStatus represents the overall indexing status.
-type IndexingStatus struct {
-	IsIndexing bool                       `json:"is_indexing"`
-	Progress   *IndexingProgress          `json:"progress,omitempty"`
-	Stats      map[EntityType]EntityStats `json:"stats"`
-}
-
-// EntityStats represents stats for a single entity type.
-type EntityStats struct {
-	Indexed int64 `json:"indexed"`
-	Total   int64 `json:"total"`
-}
-
-// SearchResult represents a semantic search result.
+// SearchResult represents a single semantic search result.
+// Used internally with EntityType enum; converted to SDK types for API.
 type SearchResult struct {
-	EntityType EntityType `json:"entity_type"`
-	EntityID   int64      `json:"entity_id"`
-	Similarity float32    `json:"similarity"`
-	Text       string     `json:"text,omitempty"`
+	EntityType EntityType
+	EntityID   int64
+	Similarity float32
+	Text       string
+}
+
+// IndexingStatus contains status information for the search service.
+// Used internally; converted to sdk.AISearchStatus for API responses.
+type IndexingStatus struct {
+	Stats map[EntityType]EntityStats
+}
+
+// EntityStats contains statistics for an entity type.
+type EntityStats struct {
+	Indexed int64
+	Total   int64
+}
+
+// IndexingProgress tracks indexing operation progress.
+// Used internally; converted to sdk.IndexingProgress for API responses.
+type IndexingProgress struct {
+	LibraryID   int64
+	LibraryType string
+	EntityType  EntityType
+	Total       int64
+	Processed   int64
+	Failed      int64
+	StartedAt   int64
+	LastUpdated int64
+	LastError   string
 }

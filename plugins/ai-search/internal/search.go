@@ -7,13 +7,13 @@ import (
 	"sort"
 	"strings"
 
-	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/pkg/plugin/sdk"
 )
 
 // SearchService handles semantic search operations.
 type SearchService struct {
 	embeddingService *EmbeddingService
-	embeddingsClient pluginv1.HostEmbeddingsClient
+	embeddings       *sdk.EmbeddingsClient
 	defaultLimit     int
 	maxLimit         int
 	minSimilarity    float32
@@ -23,7 +23,7 @@ type SearchService struct {
 // NewSearchService creates a new search service.
 func NewSearchService(
 	embeddingService *EmbeddingService,
-	embeddingsClient pluginv1.HostEmbeddingsClient,
+	embeddings *sdk.EmbeddingsClient,
 	config SearchConfig,
 	logger *slog.Logger,
 ) *SearchService {
@@ -42,7 +42,7 @@ func NewSearchService(
 
 	return &SearchService{
 		embeddingService: embeddingService,
-		embeddingsClient: embeddingsClient,
+		embeddings:       embeddings,
 		defaultLimit:     defaultLimit,
 		maxLimit:         maxLimit,
 		minSimilarity:    minSimilarity,
@@ -59,7 +59,7 @@ type SearchParams struct {
 
 // Search performs semantic search using the query text.
 func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]SearchResult, error) {
-	if s.embeddingService == nil || s.embeddingsClient == nil {
+	if s.embeddingService == nil || s.embeddings == nil {
 		return nil, fmt.Errorf("search service not properly initialized")
 	}
 
@@ -102,23 +102,18 @@ func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]Sear
 	}
 
 	// Search using the embeddings client
-	resp, err := s.embeddingsClient.Search(ctx, &pluginv1.EmbeddingSearchRequest{
-		QueryEmbedding: queryEmbedding,
-		EntityTypes:    entityTypeStrs,
-		Limit:          int32(fetchLimit),
-		MinSimilarity:  minSim,
-	})
+	sdkResults, err := s.embeddings.Search(ctx, queryEmbedding, entityTypeStrs, fetchLimit, minSim)
 	if err != nil {
 		return nil, fmt.Errorf("search embeddings: %w", err)
 	}
 
 	// Convert results to map for merging
 	resultMap := make(map[string]SearchResult)
-	for _, r := range resp.Results {
-		key := fmt.Sprintf("%s:%d", r.EntityType, r.EntityId)
+	for _, r := range sdkResults {
+		key := fmt.Sprintf("%s:%d", r.EntityType, r.EntityID)
 		resultMap[key] = SearchResult{
 			EntityType: EntityType(r.EntityType),
-			EntityID:   r.EntityId,
+			EntityID:   r.EntityID,
 			Similarity: r.Similarity,
 			Text:       r.Text,
 		}
@@ -128,23 +123,19 @@ func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]Sear
 	// This ensures movies containing the person/studio are included even if
 	// semantic similarity is low
 	if searchTerm := s.getTextSearchTerm(intent); searchTerm != "" {
-		textResults, err := s.embeddingsClient.SearchText(ctx, &pluginv1.TextSearchRequest{
-			Query:       searchTerm,
-			EntityTypes: entityTypeStrs,
-			Limit:       100, // Fetch up to 100 text matches
-		})
+		textResults, err := s.embeddings.SearchText(ctx, searchTerm, entityTypeStrs, 100)
 		if err != nil {
 			s.logger.Warn("text search failed, continuing with semantic only", "error", err)
 		} else {
 			// Merge text search results - give them a base similarity score
-			for _, r := range textResults.Results {
-				key := fmt.Sprintf("%s:%d", r.EntityType, r.EntityId)
+			for _, r := range textResults {
+				key := fmt.Sprintf("%s:%d", r.EntityType, r.EntityID)
 				if existing, found := resultMap[key]; found {
 					// Result already in map - keep the higher similarity
 					if r.Similarity > existing.Similarity {
 						resultMap[key] = SearchResult{
 							EntityType: EntityType(r.EntityType),
-							EntityID:   r.EntityId,
+							EntityID:   r.EntityID,
 							Similarity: r.Similarity,
 							Text:       r.Text,
 						}
@@ -154,7 +145,7 @@ func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]Sear
 					// (will be boosted further by applyKeywordBoost)
 					resultMap[key] = SearchResult{
 						EntityType: EntityType(r.EntityType),
-						EntityID:   r.EntityId,
+						EntityID:   r.EntityID,
 						Similarity: 0.5, // Base score for text matches
 						Text:       r.Text,
 					}
@@ -162,7 +153,7 @@ func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]Sear
 			}
 			s.logger.Debug("text search found results",
 				"term", searchTerm,
-				"count", len(textResults.Results),
+				"count", len(textResults),
 				"total_after_merge", len(resultMap))
 		}
 	}
@@ -1132,19 +1123,16 @@ func extractTitleKey(text string) string {
 
 // FindSimilar finds items similar to a given entity.
 func (s *SearchService) FindSimilar(ctx context.Context, entityType EntityType, entityID int64, limit int) ([]SearchResult, error) {
-	if s.embeddingsClient == nil {
+	if s.embeddings == nil {
 		return nil, fmt.Errorf("embeddings client not available")
 	}
 
 	// Get the embedding for the source entity
-	resp, err := s.embeddingsClient.Get(ctx, &pluginv1.EmbeddingQuery{
-		EntityType: string(entityType),
-		EntityId:   entityID,
-	})
+	stored, err := s.embeddings.Get(ctx, string(entityType), entityID)
 	if err != nil {
 		return nil, fmt.Errorf("get embedding: %w", err)
 	}
-	if !resp.Exists {
+	if !stored.Exists {
 		return nil, fmt.Errorf("embedding not found for %s:%d", entityType, entityID)
 	}
 
@@ -1157,25 +1145,20 @@ func (s *SearchService) FindSimilar(ctx context.Context, entityType EntityType, 
 	}
 
 	// Search for similar items (of the same type by default)
-	searchResp, err := s.embeddingsClient.Search(ctx, &pluginv1.EmbeddingSearchRequest{
-		QueryEmbedding: resp.Embedding,
-		EntityTypes:    []string{string(entityType)},
-		Limit:          int32(limit + 1), // +1 to account for self
-		MinSimilarity:  s.minSimilarity,
-	})
+	sdkResults, err := s.embeddings.Search(ctx, stored.Embedding, []string{string(entityType)}, limit+1, s.minSimilarity)
 	if err != nil {
 		return nil, fmt.Errorf("search similar: %w", err)
 	}
 
 	// Filter out the source entity
-	results := make([]SearchResult, 0, len(searchResp.Results))
-	for _, r := range searchResp.Results {
-		if r.EntityType == string(entityType) && r.EntityId == entityID {
+	results := make([]SearchResult, 0, len(sdkResults))
+	for _, r := range sdkResults {
+		if r.EntityType == string(entityType) && r.EntityID == entityID {
 			continue // Skip self
 		}
 		results = append(results, SearchResult{
 			EntityType: EntityType(r.EntityType),
-			EntityID:   r.EntityId,
+			EntityID:   r.EntityID,
 			Similarity: r.Similarity,
 			Text:       r.Text,
 		})
@@ -1189,7 +1172,7 @@ func (s *SearchService) FindSimilar(ctx context.Context, entityType EntityType, 
 
 // GetStatus returns the current search/indexing status.
 func (s *SearchService) GetStatus(ctx context.Context) (*IndexingStatus, error) {
-	if s.embeddingsClient == nil {
+	if s.embeddings == nil {
 		return nil, fmt.Errorf("embeddings client not available")
 	}
 
@@ -1202,15 +1185,13 @@ func (s *SearchService) GetStatus(ctx context.Context) (*IndexingStatus, error) 
 		EntityMovie, EntityTVShow, EntityTVEpisode,
 		EntityMusicArtist, EntityMusicAlbum, EntityMusicTrack,
 	} {
-		resp, err := s.embeddingsClient.CountByType(ctx, &pluginv1.EntityTypeQuery{
-			EntityType: string(entityType),
-		})
+		count, err := s.embeddings.Count(ctx, string(entityType))
 		if err != nil {
 			s.logger.Warn("failed to count embeddings", "type", entityType, "error", err)
 			continue
 		}
 		status.Stats[entityType] = EntityStats{
-			Indexed: resp.Count,
+			Indexed: count,
 		}
 	}
 

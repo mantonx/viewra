@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/pkg/plugin/sdk"
 )
 
 // QueryContext holds contextual information used to enrich search queries.
@@ -43,15 +43,15 @@ type WeatherContext struct {
 
 // ContextEnricher enriches search queries with contextual information.
 type ContextEnricher struct {
-	weatherClient pluginv1.HostWeatherClient
-	logger        *slog.Logger
+	weather *sdk.WeatherClient
+	logger  *slog.Logger
 }
 
 // NewContextEnricher creates a new context enricher.
-func NewContextEnricher(weatherClient pluginv1.HostWeatherClient, logger *slog.Logger) *ContextEnricher {
+func NewContextEnricher(weather *sdk.WeatherClient, logger *slog.Logger) *ContextEnricher {
 	return &ContextEnricher{
-		weatherClient: weatherClient,
-		logger:        logger,
+		weather: weather,
+		logger:  logger,
 	}
 }
 
@@ -67,27 +67,25 @@ func (e *ContextEnricher) GetContext(ctx context.Context, userID string) (*Query
 	}
 
 	// Try to get weather context - ONLY if user has enabled location sharing
-	// The weather service returns Available=false if location is disabled
+	// The weather service returns nil if location is disabled
 	locationEnabled := false
-	if e.weatherClient != nil && userID != "" {
-		weather, err := e.weatherClient.GetCurrentWeather(ctx, &pluginv1.WeatherRequest{
-			UserId: userID,
-		})
+	if e.weather != nil && userID != "" {
+		weather, err := e.weather.GetWeather(ctx, userID)
 		if err != nil {
 			if e.logger != nil {
 				e.logger.Debug("failed to get weather context", "error", err)
 			}
-		} else if weather.Available {
+		} else if weather != nil {
 			// User has explicitly opted in to location sharing
 			locationEnabled = true
 			qc.Weather = &WeatherContext{
 				Available:     true,
 				Temperature:   float64(weather.Temperature),
-				Humidity:      int(weather.Humidity),
+				Humidity:      weather.Humidity,
 				IsDay:         weather.IsDay,
 				Condition:     weather.Condition,
 				Precipitation: float64(weather.Precipitation),
-				CloudCover:    int(weather.CloudCover),
+				CloudCover:    weather.CloudCover,
 			}
 			qc.Season = weather.Season
 			qc.TimeOfDay = weather.TimeOfDay // Use user's local time of day

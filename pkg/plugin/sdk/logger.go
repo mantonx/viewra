@@ -1,4 +1,42 @@
-// Package sdk provides utilities for building ViewRA plugins.
+// Logging utilities for ViewRA plugins.
+//
+// ViewRA plugins use go-plugin for process isolation, which requires special
+// handling of logs. This file provides logger adapters that ensure plugin logs
+// are properly captured and forwarded to the host application.
+//
+// # Why Special Logging?
+//
+// go-plugin runs plugins in separate processes. For logs to appear in the host's
+// log output, they must be written in a format that go-plugin can parse and forward.
+// The NewLogger function creates loggers configured for this.
+//
+// # Usage
+//
+// In your plugin's main() function:
+//
+//	func main() {
+//	    // Create both hclog (for go-plugin) and slog (for your code) loggers
+//	    hclogger, logger := sdk.NewLogger("my-plugin")
+//
+//	    // Create your plugin with the slog logger
+//	    plugin := internal.NewPlugin(logger)
+//
+//	    // Start the plugin server with the hclog logger
+//	    go_plugin.Serve(&go_plugin.ServeConfig{
+//	        HandshakeConfig: sdk.Handshake,
+//	        Plugins: map[string]go_plugin.Plugin{
+//	            "core": &MyGRPCPlugin{Impl: plugin},
+//	        },
+//	        GRPCServer: go_plugin.DefaultGRPCServer,
+//	        Logger:     hclogger, // Important: pass hclogger here
+//	    })
+//	}
+//
+// Then use the slog logger throughout your plugin:
+//
+//	func (p *Plugin) DoSomething() {
+//	    p.logger.Info("doing something", "key", "value")
+//	}
 package sdk
 
 import (
@@ -9,21 +47,26 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
-// NewLogger creates a new logger for use in ViewRA plugins.
-// It returns both an hclog.Logger (for go-plugin compatibility) and
-// an slog.Logger (for use in plugin code).
+// NewLogger creates a new logger pair for use in ViewRA plugins.
 //
-// The hclog.Logger should be passed to plugin.Serve() so go-plugin
-// can capture and forward logs to the host. The slog.Logger wraps
-// hclog and should be used throughout your plugin code.
+// Returns:
+//   - hclog.Logger: Pass this to plugin.Serve() for go-plugin log forwarding
+//   - *slog.Logger: Use this in your plugin code for logging
+//
+// The hclog.Logger outputs JSON to stderr, which go-plugin parses and forwards
+// to the host. The slog.Logger wraps hclog so you can use the standard slog API.
 //
 // Example:
 //
 //	func main() {
 //	    hclogger, logger := sdk.NewLogger("my-plugin")
-//	    myPlugin := NewMyPlugin(logger)
-//	    plugin.Serve(&plugin.ServeConfig{
-//	        // ... other config ...
+//
+//	    plugin := NewMyPlugin(logger)
+//
+//	    go_plugin.Serve(&go_plugin.ServeConfig{
+//	        HandshakeConfig: sdk.Handshake,
+//	        Plugins: map[string]go_plugin.Plugin{...},
+//	        GRPCServer: go_plugin.DefaultGRPCServer,
 //	        Logger: hclogger,
 //	    })
 //	}
@@ -39,7 +82,13 @@ func NewLogger(name string) (hclog.Logger, *slog.Logger) {
 	return hclogger, slogger
 }
 
-// NewLoggerWithLevel creates a logger with a specific log level.
+// NewLoggerWithLevel creates a logger pair with a specific log level.
+// Use this when you want to control the verbosity of plugin logs.
+//
+// Example:
+//
+//	// Only log warnings and errors
+//	hclogger, logger := sdk.NewLoggerWithLevel("my-plugin", slog.LevelWarn)
 func NewLoggerWithLevel(name string, level slog.Level) (hclog.Logger, *slog.Logger) {
 	hcLevel := slogLevelToHclog(level)
 	hclogger := hclog.New(&hclog.LoggerOptions{

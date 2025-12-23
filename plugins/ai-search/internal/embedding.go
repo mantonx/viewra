@@ -6,22 +6,22 @@ import (
 	"log/slog"
 	"math"
 
-	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/pkg/plugin/sdk"
 )
 
 // EmbeddingService handles embedding generation via the host's LLM service.
 // Provider and model selection is handled by the host based on AI settings.
 type EmbeddingService struct {
-	llmClient        pluginv1.HostLLMClient
+	llm              *sdk.LLMClient
 	targetDimensions int
 	logger           *slog.Logger
 }
 
 // NewEmbeddingService creates a new embedding service.
 // The host determines which embedding provider/model to use based on AI settings.
-func NewEmbeddingService(llmClient pluginv1.HostLLMClient, logger *slog.Logger) *EmbeddingService {
+func NewEmbeddingService(llm *sdk.LLMClient, logger *slog.Logger) *EmbeddingService {
 	return &EmbeddingService{
-		llmClient:        llmClient,
+		llm:              llm,
 		targetDimensions: 768, // Standard dimension for most embedding models
 		logger:           logger,
 	}
@@ -30,19 +30,16 @@ func NewEmbeddingService(llmClient pluginv1.HostLLMClient, logger *slog.Logger) 
 // EmbedSingle generates an embedding for a single text.
 // Uses the embedding provider configured in the host's AI settings.
 func (s *EmbeddingService) EmbedSingle(ctx context.Context, text string) ([]float32, error) {
-	if s.llmClient == nil {
+	if s.llm == nil {
 		return nil, fmt.Errorf("LLM client not available")
 	}
 
-	// Empty provider/model uses host defaults from AI settings
-	resp, err := s.llmClient.GenerateEmbedding(ctx, &pluginv1.EmbeddingRequest{
-		Text: text,
-	})
+	// Uses host defaults from AI settings
+	embedding, err := s.llm.Embed(ctx, text)
 	if err != nil {
 		return nil, fmt.Errorf("generate embedding: %w", err)
 	}
 
-	embedding := resp.Embedding
 	if len(embedding) != s.targetDimensions {
 		embedding = s.normalizeEmbedding(embedding, s.targetDimensions)
 	}
@@ -53,21 +50,18 @@ func (s *EmbeddingService) EmbedSingle(ctx context.Context, text string) ([]floa
 // EmbedBatch generates embeddings for multiple texts.
 // Uses the embedding provider configured in the host's AI settings.
 func (s *EmbeddingService) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
-	if s.llmClient == nil {
+	if s.llm == nil {
 		return nil, fmt.Errorf("LLM client not available")
 	}
 
-	// Empty provider/model uses host defaults from AI settings
-	resp, err := s.llmClient.GenerateEmbeddingBatch(ctx, &pluginv1.EmbeddingBatchRequest{
-		Texts: texts,
-	})
+	// Uses host defaults from AI settings
+	embeddings, err := s.llm.EmbedBatch(ctx, texts)
 	if err != nil {
 		return nil, fmt.Errorf("generate embeddings: %w", err)
 	}
 
-	results := make([][]float32, len(resp.Embeddings))
-	for i, emb := range resp.Embeddings {
-		embedding := emb.Embedding
+	results := make([][]float32, len(embeddings))
+	for i, embedding := range embeddings {
 		if len(embedding) != s.targetDimensions {
 			embedding = s.normalizeEmbedding(embedding, s.targetDimensions)
 		}

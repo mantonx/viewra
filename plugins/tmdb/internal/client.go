@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/pkg/plugin/sdk"
 )
 
 const (
@@ -46,8 +46,8 @@ type Client struct {
 	lastRequest time.Time
 	rateMu      sync.Mutex
 
-	// Caching via host storage
-	storage      pluginv1.HostStorageClient
+	// Caching via host storage (SDK client)
+	storage      *sdk.StorageClient
 	cacheTTLSecs int64
 }
 
@@ -55,7 +55,7 @@ type Client struct {
 type ClientConfig struct {
 	APIKey        string
 	CacheTTLHours int
-	Storage       pluginv1.HostStorageClient
+	Storage       *sdk.StorageClient
 	Logger        *slog.Logger
 }
 
@@ -173,17 +173,17 @@ func (c *Client) getFromCache(ctx context.Context, key string) ([]byte, bool) {
 		return nil, false
 	}
 
-	resp, err := c.storage.KVGet(ctx, &pluginv1.KVKey{Key: key})
+	value, exists, err := c.storage.Get(ctx, key)
 	if err != nil {
 		c.logger.Debug("cache get error", "key", key, "error", err)
 		return nil, false
 	}
 
-	if !resp.Exists {
+	if !exists {
 		return nil, false
 	}
 
-	return resp.Value, true
+	return value, true
 }
 
 // setCache stores a response in the cache with TTL.
@@ -192,11 +192,7 @@ func (c *Client) setCache(ctx context.Context, key string, response []byte) {
 		return
 	}
 
-	_, err := c.storage.KVSet(ctx, &pluginv1.KVEntry{
-		Key:        key,
-		Value:      response,
-		TtlSeconds: c.cacheTTLSecs,
-	})
+	err := c.storage.Set(ctx, key, response, c.cacheTTLSecs)
 	if err != nil {
 		c.logger.Warn("failed to cache response", "key", key, "error", err)
 	}

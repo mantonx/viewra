@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
-	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/pkg/plugin/sdk"
 )
 
 const queryRewriteSystemPrompt = `You are a search query optimizer for a media library. Your job is to rewrite user queries to better match content in a movie/TV database.
@@ -30,24 +30,24 @@ Examples:
 
 // QueryRewriter uses an LLM to rewrite search queries for better semantic matching.
 type QueryRewriter struct {
-	llmClient pluginv1.HostLLMClient
-	logger    *slog.Logger
-	enabled   bool
+	llm     *sdk.LLMClient
+	logger  *slog.Logger
+	enabled bool
 }
 
 // NewQueryRewriter creates a new query rewriter.
-func NewQueryRewriter(llmClient pluginv1.HostLLMClient, logger *slog.Logger) *QueryRewriter {
+func NewQueryRewriter(llm *sdk.LLMClient, logger *slog.Logger) *QueryRewriter {
 	return &QueryRewriter{
-		llmClient: llmClient,
-		logger:    logger,
-		enabled:   llmClient != nil,
+		llm:     llm,
+		logger:  logger,
+		enabled: llm != nil,
 	}
 }
 
 // Rewrite rewrites a query using the LLM to better match user intent.
 // Returns the original query if rewriting fails or is disabled.
 func (r *QueryRewriter) Rewrite(ctx context.Context, query string) string {
-	if !r.enabled || r.llmClient == nil {
+	if !r.enabled || r.llm == nil {
 		return query
 	}
 
@@ -56,17 +56,16 @@ func (r *QueryRewriter) Rewrite(ctx context.Context, query string) string {
 		return query
 	}
 
-	resp, err := r.llmClient.Chat(ctx, &pluginv1.ChatRequest{
-		Messages: []*pluginv1.ChatMessage{
-			{
-				Role:    "system",
-				Content: queryRewriteSystemPrompt,
-			},
-			{
-				Role:    "user",
-				Content: query,
-			},
+	resp, err := r.llm.ChatWithOptions(ctx, []sdk.ChatMessage{
+		{
+			Role:    "system",
+			Content: queryRewriteSystemPrompt,
 		},
+		{
+			Role:    "user",
+			Content: query,
+		},
+	}, sdk.ChatOptions{
 		Temperature: 0.3,
 		MaxTokens:   50,
 	})

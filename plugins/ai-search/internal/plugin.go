@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/pkg/plugin/sdk"
 	"gopkg.in/yaml.v3"
 )
 
@@ -22,11 +23,11 @@ type AISearchPlugin struct {
 	dataDir string
 	config  Config
 
-	// Host service clients
-	llmClient        pluginv1.HostLLMClient
-	embeddingsClient pluginv1.HostEmbeddingsClient
-	dataClient       pluginv1.HostDataClient
-	weatherClient    pluginv1.HostWeatherClient
+	// Host service clients (SDK wrappers)
+	llm        *sdk.LLMClient
+	embeddings *sdk.EmbeddingsClient
+	data       *sdk.DataClient
+	weather    *sdk.WeatherClient
 
 	// Services
 	embeddingService *EmbeddingService
@@ -51,31 +52,31 @@ func NewAISearchPlugin(logger *slog.Logger) *AISearchPlugin {
 }
 
 // SetLLMClient sets the host LLM client.
-func (p *AISearchPlugin) SetLLMClient(client pluginv1.HostLLMClient) {
+func (p *AISearchPlugin) SetLLMClient(client *sdk.LLMClient) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.llmClient = client
+	p.llm = client
 }
 
 // SetEmbeddingsClient sets the host embeddings client.
-func (p *AISearchPlugin) SetEmbeddingsClient(client pluginv1.HostEmbeddingsClient) {
+func (p *AISearchPlugin) SetEmbeddingsClient(client *sdk.EmbeddingsClient) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.embeddingsClient = client
+	p.embeddings = client
 }
 
 // SetDataClient sets the host data client.
-func (p *AISearchPlugin) SetDataClient(client pluginv1.HostDataClient) {
+func (p *AISearchPlugin) SetDataClient(client *sdk.DataClient) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.dataClient = client
+	p.data = client
 }
 
 // SetWeatherClient sets the host weather client for location-based context enrichment.
-func (p *AISearchPlugin) SetWeatherClient(client pluginv1.HostWeatherClient) {
+func (p *AISearchPlugin) SetWeatherClient(client *sdk.WeatherClient) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.weatherClient = client
+	p.weather = client
 }
 
 // PluginCore implementation
@@ -130,47 +131,47 @@ func (p *AISearchPlugin) Initialize(ctx context.Context, req *pluginv1.InitReque
 
 func (p *AISearchPlugin) initializeServices() {
 	// Create embedding service - uses host's configured embedding provider
-	if p.llmClient != nil {
-		p.embeddingService = NewEmbeddingService(p.llmClient, p.logger)
+	if p.llm != nil {
+		p.embeddingService = NewEmbeddingService(p.llm, p.logger)
 	}
 
 	// Create search service
-	if p.embeddingService != nil && p.embeddingsClient != nil {
+	if p.embeddingService != nil && p.embeddings != nil {
 		p.searchService = NewSearchService(
 			p.embeddingService,
-			p.embeddingsClient,
+			p.embeddings,
 			p.config.Search,
 			p.logger,
 		)
 	}
 
 	// Create indexing service
-	if p.embeddingService != nil && p.embeddingsClient != nil && p.dataClient != nil {
+	if p.embeddingService != nil && p.embeddings != nil && p.data != nil {
 		p.indexingService = NewIndexingService(
 			p.embeddingService,
-			p.embeddingsClient,
-			p.dataClient,
+			p.embeddings,
+			p.data,
 			p.config.Indexing,
 			p.logger,
 		)
 	}
 
 	// Create mood tag service (if enabled) - uses host's configured chat provider
-	if p.config.MoodTags.Enabled && p.llmClient != nil && p.dataClient != nil {
+	if p.config.MoodTags.Enabled && p.llm != nil && p.data != nil {
 		p.moodTagService = NewMoodTagService(
-			p.llmClient,
-			p.dataClient,
+			p.llm,
+			p.data,
 			p.logger,
 		)
 	}
 
 	// Create context enricher for location-aware search (optional)
-	// Works without weatherClient, just won't include weather/location context
-	p.contextEnricher = NewContextEnricher(p.weatherClient, p.logger)
+	// Works without weather client, just won't include weather/location context
+	p.contextEnricher = NewContextEnricher(p.weather, p.logger)
 
 	// Create query rewriter for intent-based query understanding
 	// Uses the LLM to rewrite queries like "feeling sad" -> "uplifting happy"
-	p.queryRewriter = NewQueryRewriter(p.llmClient, p.logger)
+	p.queryRewriter = NewQueryRewriter(p.llm, p.logger)
 }
 
 func (p *AISearchPlugin) Shutdown(ctx context.Context, req *pluginv1.Empty) (*pluginv1.Empty, error) {
@@ -197,10 +198,10 @@ func (p *AISearchPlugin) HealthCheck(ctx context.Context, req *pluginv1.Empty) (
 	message := "operational"
 
 	// Check if services are available
-	if p.llmClient == nil {
+	if p.llm == nil {
 		status = pluginv1.HealthStatus_DEGRADED
 		message = "LLM client not connected"
-	} else if p.embeddingsClient == nil {
+	} else if p.embeddings == nil {
 		status = pluginv1.HealthStatus_DEGRADED
 		message = "Embeddings client not connected"
 	}
@@ -401,16 +402,8 @@ func (p *AISearchPlugin) Enrich(ctx context.Context, req *pluginv1.EnrichRequest
 	// Convert to our entity type
 	entityType := EntityType(req.MediaType)
 
-	// Build a minimal Media object from the request
-	media := &pluginv1.Media{
-		Id:        req.MediaId,
-		MediaType: req.MediaType,
-		Title:     req.Title,
-		Year:      req.Year,
-	}
-
-	// Index the media
-	if err := indexingService.IndexSingle(ctx, entityType, req.MediaId, media); err != nil {
+	// Index the media (IndexSingle fetches details from host)
+	if err := indexingService.IndexSingle(ctx, entityType, req.MediaId, nil); err != nil {
 		p.mu.Lock()
 		p.errorsTotal++
 		p.mu.Unlock()
@@ -885,7 +878,7 @@ func (p *AISearchPlugin) handleEstimate(ctx context.Context, req *pluginv1.Plugi
 	}
 
 	p.mu.RLock()
-	dataClient := p.dataClient
+	dataClient := p.data
 	p.mu.RUnlock()
 
 	if dataClient == nil {
@@ -904,26 +897,22 @@ func (p *AISearchPlugin) handleEstimate(ctx context.Context, req *pluginv1.Plugi
 	}
 
 	// Get library info
-	library, err := dataClient.GetLibrary(ctx, &pluginv1.LibraryId{Id: libraryID})
+	library, err := dataClient.GetLibrary(ctx, libraryID)
 	if err != nil {
 		return jsonResponse(http.StatusNotFound, map[string]string{"error": "library not found"})
 	}
 
 	// Count items in the library by listing with pagination
 	var totalItems int64
-	offset := int32(0)
-	limit := int32(1000)
+	offset := 0
+	limit := 1000
 	for {
-		resp, err := dataClient.ListMediaByLibrary(ctx, &pluginv1.ListMediaRequest{
-			LibraryId: libraryID,
-			Limit:     limit,
-			Offset:    offset,
-		})
+		mediaList, err := dataClient.ListMediaByLibrary(ctx, libraryID, limit, offset)
 		if err != nil {
 			break
 		}
-		totalItems += int64(len(resp.Items))
-		if !resp.HasMore {
+		totalItems += int64(len(mediaList.Items))
+		if !mediaList.HasMore {
 			break
 		}
 		offset += limit
@@ -966,7 +955,7 @@ func (p *AISearchPlugin) handleClearIndex(ctx context.Context, req *pluginv1.Plu
 	}
 
 	p.mu.RLock()
-	embeddingsClient := p.embeddingsClient
+	embeddingsClient := p.embeddings
 	p.mu.RUnlock()
 
 	if embeddingsClient == nil {
@@ -978,14 +967,12 @@ func (p *AISearchPlugin) handleClearIndex(ctx context.Context, req *pluginv1.Plu
 	var totalDeleted int64
 
 	for _, entityType := range entityTypes {
-		resp, err := embeddingsClient.DeleteByType(ctx, &pluginv1.EntityTypeQuery{
-			EntityType: entityType,
-		})
+		count, err := embeddingsClient.DeleteByType(ctx, entityType)
 		if err != nil {
 			p.logger.Warn("failed to delete embeddings", "type", entityType, "error", err)
 			continue
 		}
-		totalDeleted += resp.Count
+		totalDeleted += count
 	}
 
 	return jsonResponse(http.StatusOK, map[string]any{
@@ -1027,8 +1014,8 @@ func (p *AISearchPlugin) handleMoodTagsGenerate(
 	p.mu.RLock()
 	moodTagService := p.moodTagService
 	embeddingService := p.embeddingService
-	embeddingsClient := p.embeddingsClient
-	dataClient := p.dataClient
+	embeddingsClient := p.embeddings
+	dataClient := p.data
 	p.mu.RUnlock()
 
 	if moodTagService == nil {
@@ -1073,18 +1060,14 @@ func (p *AISearchPlugin) handleMoodTagsGenerate(
 			}
 
 			// Persist mood tags to the database via host data service
-			moodTags := make([]*pluginv1.MoodTag, len(tags))
+			sdkTags := make([]sdk.MoodTag, len(tags))
 			for i, tag := range tags {
-				moodTags[i] = &pluginv1.MoodTag{
+				sdkTags[i] = sdk.MoodTag{
 					Tag:        tag,
 					Confidence: 1.0,
 				}
 			}
-			if _, err := dataClient.SetMoodTags(context.Background(), &pluginv1.SetMoodTagsRequest{
-				MediaId:   entityID,
-				Tags:      moodTags,
-				MediaType: string(entityType),
-			}); err != nil {
+			if err := dataClient.SetMoodTags(context.Background(), entityID, string(entityType), sdkTags); err != nil {
 				p.logger.Warn("failed to persist mood tags",
 					"entity_id", entityID,
 					"error", err,
@@ -1093,16 +1076,13 @@ func (p *AISearchPlugin) handleMoodTagsGenerate(
 			}
 
 			// Fetch the media details again to rebuild text with mood tags
-			details, err := dataClient.GetMediaDetails(
-				context.Background(),
-				&pluginv1.MediaQuery{MediaId: entityID, MediaType: string(entityType)},
-			)
+			details, err := dataClient.GetMediaDetails(context.Background(), entityID, string(entityType))
 			if err != nil {
 				return fmt.Errorf("get media details: %w", err)
 			}
 
 			// Build text with mood tags appended
-			text := buildTextWithMoodTags(details, tags)
+			text := buildTextWithMoodTagsSDK(details, tags)
 
 			// Generate new embedding
 			embedding, err := embeddingService.EmbedSingle(context.Background(), text)
@@ -1111,13 +1091,7 @@ func (p *AISearchPlugin) handleMoodTagsGenerate(
 			}
 
 			// Store updated embedding
-			_, err = embeddingsClient.Store(context.Background(), &pluginv1.StoreEmbeddingRequest{
-				EntityType: string(entityType),
-				EntityId:   entityID,
-				Embedding:  embedding,
-				Text:       text,
-			})
-			return err
+			return embeddingsClient.Store(context.Background(), string(entityType), entityID, embedding, text)
 		}
 
 		p.logger.Debug("calling GenerateForLibrary", "library_id", libraryID)
@@ -1190,8 +1164,8 @@ func (p *AISearchPlugin) handleMoodTagsCancel(
 	return jsonResponse(http.StatusOK, map[string]string{"status": "cancelled"})
 }
 
-// buildTextWithMoodTags appends mood tags to the media text.
-func buildTextWithMoodTags(details *pluginv1.MediaDetails, tags []string) string {
+// buildTextWithMoodTagsSDK appends mood tags to the media text.
+func buildTextWithMoodTagsSDK(details *sdk.MediaDetails, tags []string) string {
 	if details == nil {
 		return ""
 	}

@@ -9,6 +9,8 @@ require (
 	google.golang.org/grpc v1.67.0
 )
 
+replace github.com/mantonx/viewra/api/proto/plugin => ../../../api/proto/plugin
+
 require (
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect

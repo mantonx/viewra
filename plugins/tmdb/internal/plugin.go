@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"sync"
 
-	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/pkg/plugin/sdk"
 	"gopkg.in/yaml.v3"
 )
 
@@ -21,22 +21,30 @@ type Config struct {
 	Language      string `yaml:"language" json:"language"`               // preferred language (default: en-US)
 }
 
-// TMDbPlugin implements both PluginCore and Enricher interfaces.
+// TMDbPlugin implements sdk.EnricherPlugin for TMDb.
 type TMDbPlugin struct {
-	pluginv1.UnimplementedPluginCoreServer
-	pluginv1.UnimplementedEnricherServer
+	sdk.Base
 
 	logger  *slog.Logger
 	dataDir string
 	config  Config
 	client  *Client
-	storage pluginv1.HostStorageClient
+	storage *sdk.StorageClient
 
 	mu sync.RWMutex
 
 	// Stats for health reporting
 	requestsTotal int64
 	errorsTotal   int64
+}
+
+// NewTMDbPlugin creates a new TMDb plugin instance.
+func NewTMDbPlugin(logger *slog.Logger) *TMDbPlugin {
+	p := &TMDbPlugin{
+		logger: logger,
+	}
+	p.SetLogger(logger)
+	return p
 }
 
 // recordError increments the error counter (thread-safe).
@@ -46,60 +54,49 @@ func (p *TMDbPlugin) recordError() {
 	p.mu.Unlock()
 }
 
-// NewTMDbPlugin creates a new TMDb plugin instance.
-func NewTMDbPlugin(logger *slog.Logger) *TMDbPlugin {
-	return &TMDbPlugin{
-		logger: logger,
+// --- sdk.EnricherPlugin implementation ---
+
+func (p *TMDbPlugin) GetCapabilities() sdk.EnricherCapabilities {
+	return sdk.EnricherCapabilities{
+		MediaTypes: []string{"movie", "tv", "tv_show"},
+		Provides:   []string{"metadata", "artwork", "external_ids"},
+		IsLocal:    false,
+		RateLimit:  40, // TMDb allows ~40 requests per 10 seconds
+		Requires:   []string{},
+		Priority:   50,
 	}
 }
 
-// SetStorageClient sets the host storage client for caching.
-// This should be called before Initialize if host storage is available.
-func (p *TMDbPlugin) SetStorageClient(client pluginv1.HostStorageClient) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.storage = client
-}
-
-// PluginCore implementation
-// Plugin identity comes from plugin.yml manifest.
-
-func (p *TMDbPlugin) Initialize(ctx context.Context, req *pluginv1.InitRequest) (*pluginv1.InitResponse, error) {
+func (p *TMDbPlugin) Initialize(ctx context.Context, dataDir string, config []byte, services *sdk.HostServices) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	p.dataDir = req.DataDir
-	p.logger.Info("initializing TMDb plugin",
-		"host_version", req.HostVersion,
-		"data_dir", req.DataDir,
-	)
+	p.dataDir = dataDir
+	p.logger.Info("initializing TMDb plugin", "data_dir", dataDir)
 
-	// Parse config from YAML (source of truth is config.yml passed by host)
-	if len(req.Config) == 0 {
-		return &pluginv1.InitResponse{
-			Success: false,
-			Error:   "config.yml is required but was not provided",
-		}, nil
+	// Store host storage client if available
+	if services != nil && services.Storage != nil {
+		p.storage = services.Storage
+		p.logger.Info("host storage service available")
 	}
 
-	if err := yaml.Unmarshal(req.Config, &p.config); err != nil {
-		return &pluginv1.InitResponse{
-			Success: false,
-			Error:   fmt.Sprintf("failed to parse config.yml: %v", err),
-		}, nil
+	// Parse config from YAML
+	if len(config) == 0 {
+		return fmt.Errorf("config.yml is required but was not provided")
+	}
+
+	if err := yaml.Unmarshal(config, &p.config); err != nil {
+		return fmt.Errorf("failed to parse config.yml: %w", err)
 	}
 
 	// Validate required fields
 	if p.config.APIKey == "" {
-		return &pluginv1.InitResponse{
-			Success: false,
-			Error:   "api_key is required in config.yml",
-		}, nil
+		return fmt.Errorf("api_key is required in config.yml")
 	}
 
 	// Apply defaults
 	if p.config.RateLimit == 0 {
-		p.config.RateLimit = 40 // TMDb default: 40 requests per 10 seconds
+		p.config.RateLimit = 40
 	}
 	if p.config.CacheTTLHours == 0 {
 		p.config.CacheTTLHours = 24
@@ -108,19 +105,15 @@ func (p *TMDbPlugin) Initialize(ctx context.Context, req *pluginv1.InitRequest) 
 		p.config.Language = "en-US"
 	}
 
-	// Create the API client with rate limiting
-	// Note: Storage client will be set separately via SetStorageClient if available
+	// Create the API client
 	client, err := NewClient(ClientConfig{
 		APIKey:        p.config.APIKey,
 		CacheTTLHours: p.config.CacheTTLHours,
-		Storage:       p.storage, // May be nil if host storage not available
+		Storage:       p.storage,
 		Logger:        p.logger,
 	})
 	if err != nil {
-		return &pluginv1.InitResponse{
-			Success: false,
-			Error:   fmt.Sprintf("failed to create API client: %v", err),
-		}, nil
+		return fmt.Errorf("failed to create API client: %w", err)
 	}
 	p.client = client
 
@@ -133,74 +126,18 @@ func (p *TMDbPlugin) Initialize(ctx context.Context, req *pluginv1.InitRequest) 
 		"cache", cacheStatus,
 		"language", p.config.Language)
 
-	return &pluginv1.InitResponse{Success: true}, nil
+	return nil
 }
 
-func (p *TMDbPlugin) Shutdown(ctx context.Context, req *pluginv1.Empty) (*pluginv1.Empty, error) {
+func (p *TMDbPlugin) Shutdown(ctx context.Context) error {
 	p.logger.Info("shutting down TMDb plugin")
 	if p.client != nil {
 		p.client.Close()
 	}
-	return &pluginv1.Empty{}, nil
+	return nil
 }
 
-func (p *TMDbPlugin) HealthCheck(ctx context.Context, req *pluginv1.Empty) (*pluginv1.HealthStatus, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	status := pluginv1.HealthStatus_HEALTHY
-	message := "operational"
-
-	// Check if API key is configured
-	if p.config.APIKey == "" {
-		status = pluginv1.HealthStatus_DEGRADED
-		message = "API key not configured"
-	}
-
-	return &pluginv1.HealthStatus{
-		Status:        status,
-		Message:       message,
-		RequestsTotal: p.requestsTotal,
-		ErrorsTotal:   p.errorsTotal,
-	}, nil
-}
-
-func (p *TMDbPlugin) GetSettingsSchema(ctx context.Context, req *pluginv1.Empty) (*pluginv1.SettingsSchema, error) {
-	// Configuration is via config.yaml file, not runtime settings
-	return &pluginv1.SettingsSchema{JsonSchema: []byte("{}")}, nil
-}
-
-func (p *TMDbPlugin) Configure(ctx context.Context, req *pluginv1.Settings) (*pluginv1.ConfigureResponse, error) {
-	// Configuration is via config.yml file, not runtime settings
-	return &pluginv1.ConfigureResponse{
-		Success: false,
-		Error:   "runtime configuration not supported; edit config.yml and restart the plugin",
-	}, nil
-}
-
-func (p *TMDbPlugin) GetSubscriptions(ctx context.Context, req *pluginv1.Empty) (*pluginv1.EventSubscriptions, error) {
-	// TMDb doesn't need any events
-	return &pluginv1.EventSubscriptions{}, nil
-}
-
-func (p *TMDbPlugin) OnEvent(ctx context.Context, req *pluginv1.Event) (*pluginv1.EventResponse, error) {
-	return &pluginv1.EventResponse{Handled: false}, nil
-}
-
-// Enricher implementation
-
-func (p *TMDbPlugin) GetCapabilities(ctx context.Context, req *pluginv1.Empty) (*pluginv1.EnricherCapabilities, error) {
-	return &pluginv1.EnricherCapabilities{
-		MediaTypes: []string{"movie", "tv", "tv_show"},
-		Provides:   []string{"metadata", "artwork", "external_ids"},
-		IsLocal:    false,
-		RateLimit:  40,         // TMDb allows ~40 requests per 10 seconds
-		Requires:   []string{}, // Can work from title/year, but prefers imdb/tmdb IDs
-		Priority:   50,
-	}, nil
-}
-
-func (p *TMDbPlugin) Enrich(ctx context.Context, req *pluginv1.EnrichRequest) (*pluginv1.EnrichResponse, error) {
+func (p *TMDbPlugin) Enrich(ctx context.Context, req *sdk.EnrichRequest) (*sdk.EnrichResponse, error) {
 	p.mu.Lock()
 	p.requestsTotal++
 	client := p.client
@@ -211,14 +148,11 @@ func (p *TMDbPlugin) Enrich(ctx context.Context, req *pluginv1.EnrichRequest) (*
 		p.mu.Lock()
 		p.errorsTotal++
 		p.mu.Unlock()
-		return &pluginv1.EnrichResponse{
-			Skipped:    true,
-			SkipReason: "TMDb API key not configured",
-		}, nil
+		return sdk.Skip("TMDb API key not configured"), nil
 	}
 
 	p.logger.Debug("enriching media",
-		"media_id", req.MediaId,
+		"media_id", req.MediaID,
 		"media_type", req.MediaType,
 		"title", req.Title,
 		"year", req.Year,
@@ -230,39 +164,30 @@ func (p *TMDbPlugin) Enrich(ctx context.Context, req *pluginv1.EnrichRequest) (*
 	case "tv", "tv_show":
 		return p.enrichTV(ctx, client, req)
 	default:
-		return &pluginv1.EnrichResponse{
-			Skipped:    true,
-			SkipReason: "unsupported media type: " + req.MediaType,
-		}, nil
+		return sdk.Skip("unsupported media type: " + req.MediaType), nil
 	}
 }
 
-// ============================================================
-// Plugin-defined HTTP routes for testing/debugging
-// ============================================================
+// --- sdk.HTTPEnricher implementation ---
 
-// GetRoutes returns the HTTP routes this plugin provides.
-func (p *TMDbPlugin) GetRoutes(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.PluginRoutes, error) {
-	return &pluginv1.PluginRoutes{
-		Routes: []*pluginv1.PluginRoute{
-			{
-				Path:        "/enrich",
-				Methods:     []string{"POST"},
-				AdminOnly:   true,
-				Description: "Trigger enrichment for a specific media item (for testing)",
-			},
-			{
-				Path:        "/lookup",
-				Methods:     []string{"GET"},
-				AdminOnly:   false,
-				Description: "Look up a title on TMDB without enriching",
-			},
+func (p *TMDbPlugin) GetRoutes() []sdk.Route {
+	return []sdk.Route{
+		{
+			Path:        "/enrich",
+			Methods:     []string{"POST"},
+			AdminOnly:   true,
+			Description: "Trigger enrichment for a specific media item (for testing)",
 		},
-	}, nil
+		{
+			Path:        "/lookup",
+			Methods:     []string{"GET"},
+			AdminOnly:   false,
+			Description: "Look up a title on TMDB without enriching",
+		},
+	}
 }
 
-// HandleHTTP handles HTTP requests to plugin routes.
-func (p *TMDbPlugin) HandleHTTP(ctx context.Context, req *pluginv1.PluginHTTPRequest) (*pluginv1.PluginHTTPResponse, error) {
+func (p *TMDbPlugin) HandleHTTP(ctx context.Context, req *sdk.HTTPRequest) (*sdk.HTTPResponse, error) {
 	p.logger.Debug("handling HTTP request", "path", req.Path, "method", req.Method)
 
 	switch req.Path {
@@ -271,51 +196,46 @@ func (p *TMDbPlugin) HandleHTTP(ctx context.Context, req *pluginv1.PluginHTTPReq
 	case "/lookup":
 		return p.handleLookup(ctx, req)
 	default:
-		return jsonResponse(http.StatusNotFound, map[string]string{
-			"error": "route not found",
-			"path":  req.Path,
-		})
+		return sdk.JSONError(http.StatusNotFound, "route not found: "+req.Path)
 	}
 }
 
-// handleEnrich handles POST /enrich - triggers enrichment for a specific media item.
-// Request body: {"media_id": 123, "media_type": "movie", "title": "The Matrix", "year": 1999}
-func (p *TMDbPlugin) handleEnrich(ctx context.Context, req *pluginv1.PluginHTTPRequest) (*pluginv1.PluginHTTPResponse, error) {
+func (p *TMDbPlugin) handleEnrich(ctx context.Context, req *sdk.HTTPRequest) (*sdk.HTTPResponse, error) {
 	if req.Method != "POST" {
-		return jsonResponse(http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return sdk.JSONError(http.StatusMethodNotAllowed, "method not allowed")
 	}
 
 	var enrichReq struct {
 		MediaID     int64             `json:"media_id"`
 		MediaType   string            `json:"media_type"`
 		Title       string            `json:"title"`
-		Year        int32             `json:"year"`
+		Year        int               `json:"year"`
 		ExternalIDs map[string]string `json:"external_ids,omitempty"`
 	}
 	if err := json.Unmarshal(req.Body, &enrichReq); err != nil {
-		return jsonResponse(http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+		return sdk.JSONError(http.StatusBadRequest, "invalid JSON: "+err.Error())
 	}
 
 	if enrichReq.MediaType == "" {
-		return jsonResponse(http.StatusBadRequest, map[string]string{"error": "media_type is required"})
+		return sdk.JSONError(http.StatusBadRequest, "media_type is required")
 	}
 	if enrichReq.Title == "" && len(enrichReq.ExternalIDs) == 0 {
-		return jsonResponse(http.StatusBadRequest, map[string]string{"error": "title or external_ids is required"})
+		return sdk.JSONError(http.StatusBadRequest, "title or external_ids is required")
 	}
 
-	// Build the enrich request
-	protoReq := &pluginv1.EnrichRequest{
-		MediaId:     enrichReq.MediaID,
+	// Build the SDK enrich request
+	sdkReq := &sdk.EnrichRequest{
+		MediaID:     enrichReq.MediaID,
 		MediaType:   enrichReq.MediaType,
 		Title:       enrichReq.Title,
 		Year:        enrichReq.Year,
-		ExistingIds: enrichReq.ExternalIDs,
+		ExistingIDs: enrichReq.ExternalIDs,
 	}
 
 	// Call the enrichment logic
-	resp, err := p.Enrich(ctx, protoReq)
+	resp, err := p.Enrich(ctx, sdkReq)
 	if err != nil {
-		return jsonResponse(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return sdk.JSONError(http.StatusInternalServerError, err.Error())
 	}
 
 	// Build response with metadata summary
@@ -327,10 +247,14 @@ func (p *TMDbPlugin) handleEnrich(ctx context.Context, req *pluginv1.PluginHTTPR
 	}
 	if resp.Metadata != nil {
 		metaMap := map[string]any{
-			"title":      resp.Metadata.Title,
-			"year":       resp.Metadata.Year,
 			"genres":     resp.Metadata.Genres,
 			"cast_count": len(resp.Metadata.Cast),
+		}
+		if resp.Metadata.Title != nil {
+			metaMap["title"] = *resp.Metadata.Title
+		}
+		if resp.Metadata.Year != nil {
+			metaMap["year"] = *resp.Metadata.Year
 		}
 		if resp.Metadata.Plot != nil {
 			metaMap["plot"] = truncate(*resp.Metadata.Plot, 200)
@@ -343,7 +267,7 @@ func (p *TMDbPlugin) handleEnrich(ctx context.Context, req *pluginv1.PluginHTTPR
 			locationCount := 0
 			for _, kw := range resp.Metadata.Keywords {
 				keywords = append(keywords, map[string]any{
-					"id":          kw.Id,
+					"id":          kw.ID,
 					"name":        kw.Name,
 					"is_location": kw.IsLocation,
 				})
@@ -356,14 +280,12 @@ func (p *TMDbPlugin) handleEnrich(ctx context.Context, req *pluginv1.PluginHTTPR
 		}
 	}
 
-	return jsonResponse(http.StatusOK, result)
+	return sdk.JSONResponse(http.StatusOK, result)
 }
 
-// handleLookup handles GET /lookup - looks up a title on TMDB without enriching.
-// Query params: ?title=The+Matrix&year=1999&type=movie
-func (p *TMDbPlugin) handleLookup(ctx context.Context, req *pluginv1.PluginHTTPRequest) (*pluginv1.PluginHTTPResponse, error) {
+func (p *TMDbPlugin) handleLookup(ctx context.Context, req *sdk.HTTPRequest) (*sdk.HTTPResponse, error) {
 	if req.Method != "GET" {
-		return jsonResponse(http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return sdk.JSONError(http.StatusMethodNotAllowed, "method not allowed")
 	}
 
 	title := req.Query["title"]
@@ -373,7 +295,7 @@ func (p *TMDbPlugin) handleLookup(ctx context.Context, req *pluginv1.PluginHTTPR
 	}
 
 	if title == "" {
-		return jsonResponse(http.StatusBadRequest, map[string]string{"error": "title query param is required"})
+		return sdk.JSONError(http.StatusBadRequest, "title query param is required")
 	}
 
 	p.mu.RLock()
@@ -381,7 +303,7 @@ func (p *TMDbPlugin) handleLookup(ctx context.Context, req *pluginv1.PluginHTTPR
 	p.mu.RUnlock()
 
 	if client == nil {
-		return jsonResponse(http.StatusServiceUnavailable, map[string]string{"error": "TMDb client not initialized"})
+		return sdk.JSONError(http.StatusServiceUnavailable, "TMDb client not initialized")
 	}
 
 	var results any
@@ -393,14 +315,14 @@ func (p *TMDbPlugin) handleLookup(ctx context.Context, req *pluginv1.PluginHTTPR
 	case "tv", "tv_show":
 		results, err = client.SearchTV(ctx, title, 0)
 	default:
-		return jsonResponse(http.StatusBadRequest, map[string]string{"error": "invalid type, must be 'movie' or 'tv'"})
+		return sdk.JSONError(http.StatusBadRequest, "invalid type, must be 'movie' or 'tv'")
 	}
 
 	if err != nil {
-		return jsonResponse(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return sdk.JSONError(http.StatusInternalServerError, err.Error())
 	}
 
-	return jsonResponse(http.StatusOK, map[string]any{
+	return sdk.JSONResponse(http.StatusOK, map[string]any{
 		"query":   title,
 		"type":    mediaType,
 		"results": results,
@@ -413,22 +335,4 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
-}
-
-// jsonResponse creates a JSON HTTP response.
-func jsonResponse(statusCode int, data any) (*pluginv1.PluginHTTPResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return &pluginv1.PluginHTTPResponse{
-			StatusCode:  http.StatusInternalServerError,
-			ContentType: "application/json",
-			Body:        []byte(`{"error":"failed to serialize response"}`),
-		}, nil
-	}
-
-	return &pluginv1.PluginHTTPResponse{
-		StatusCode:  int32(statusCode),
-		ContentType: "application/json",
-		Body:        body,
-	}, nil
 }

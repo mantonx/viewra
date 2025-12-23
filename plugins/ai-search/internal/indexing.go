@@ -9,14 +9,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/pkg/plugin/sdk"
 )
 
 // IndexingService handles media indexing for semantic search.
 type IndexingService struct {
 	embeddingService *EmbeddingService
-	embeddingsClient pluginv1.HostEmbeddingsClient
-	dataClient       pluginv1.HostDataClient
+	embeddings       *sdk.EmbeddingsClient
+	data             *sdk.DataClient
 	batchSize        int
 	logger           *slog.Logger
 
@@ -30,8 +30,8 @@ type IndexingService struct {
 // NewIndexingService creates a new indexing service.
 func NewIndexingService(
 	embeddingService *EmbeddingService,
-	embeddingsClient pluginv1.HostEmbeddingsClient,
-	dataClient pluginv1.HostDataClient,
+	embeddings *sdk.EmbeddingsClient,
+	data *sdk.DataClient,
 	config IndexingConfig,
 	logger *slog.Logger,
 ) *IndexingService {
@@ -41,8 +41,8 @@ func NewIndexingService(
 	}
 	return &IndexingService{
 		embeddingService: embeddingService,
-		embeddingsClient: embeddingsClient,
-		dataClient:       dataClient,
+		embeddings:       embeddings,
+		data:             data,
 		batchSize:        batchSize,
 		logger:           logger,
 	}
@@ -50,13 +50,10 @@ func NewIndexingService(
 
 // IndexSingle indexes a single entity. Called by the enrichment pipeline.
 // It fetches full media details from the host to build rich searchable text.
-func (s *IndexingService) IndexSingle(ctx context.Context, entityType EntityType, entityID int64, _ *pluginv1.Media) error {
+func (s *IndexingService) IndexSingle(ctx context.Context, entityType EntityType, entityID int64, _ *sdk.Media) error {
 	// Fetch full media details from the host, passing the media type
 	// so the host can query the correct table directly
-	details, err := s.dataClient.GetMediaDetails(ctx, &pluginv1.MediaQuery{
-		MediaId:   entityID,
-		MediaType: string(entityType),
-	})
+	details, err := s.data.GetMediaDetails(ctx, entityID, string(entityType))
 	if err != nil {
 		return fmt.Errorf("get media details for %s:%d: %w", entityType, entityID, err)
 	}
@@ -72,12 +69,7 @@ func (s *IndexingService) IndexSingle(ctx context.Context, entityType EntityType
 		return fmt.Errorf("generate embedding for %s:%d: %w", entityType, entityID, err)
 	}
 
-	_, err = s.embeddingsClient.Store(ctx, &pluginv1.StoreEmbeddingRequest{
-		EntityType: string(entityType),
-		EntityId:   entityID,
-		Embedding:  embedding,
-		Text:       text,
-	})
+	err = s.embeddings.Store(ctx, string(entityType), entityID, embedding, text)
 	if err != nil {
 		return fmt.Errorf("store embedding for %s:%d: %w", entityType, entityID, err)
 	}
@@ -119,23 +111,19 @@ func (s *IndexingService) IndexLibrary(ctx context.Context, libraryID int64, lib
 		default:
 		}
 
-		resp, err := s.dataClient.ListMediaByLibrary(ctx, &pluginv1.ListMediaRequest{
-			LibraryId: libraryID,
-			Limit:     limit,
-			Offset:    offset,
-		})
+		mediaList, err := s.data.ListMediaByLibrary(ctx, libraryID, int(limit), int(offset))
 		if err != nil {
 			return fmt.Errorf("list media: %w", err)
 		}
 
 		// Update total on first batch
 		if offset == 0 {
-			total = int64(resp.Total)
+			total = int64(mediaList.Total)
 			s.updateProgress(entityType, total, 0, 0, "")
 			s.logger.Info("found media items", "total", total)
 		}
 
-		for _, media := range resp.Items {
+		for _, media := range mediaList.Items {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -148,8 +136,8 @@ func (s *IndexingService) IndexLibrary(ctx context.Context, libraryID int64, lib
 				itemEntityType = entityType // fallback to library-derived type
 			}
 
-			if err := s.IndexSingle(ctx, itemEntityType, media.Id, nil); err != nil {
-				s.logger.Warn("failed to index media", "id", media.Id, "type", itemEntityType, "error", err)
+			if err := s.IndexSingle(ctx, itemEntityType, media.ID, nil); err != nil {
+				s.logger.Warn("failed to index media", "id", media.ID, "type", itemEntityType, "error", err)
 				atomic.AddInt64(&failed, 1)
 			} else {
 				atomic.AddInt64(&processed, 1)
@@ -160,7 +148,7 @@ func (s *IndexingService) IndexLibrary(ctx context.Context, libraryID int64, lib
 			}
 		}
 
-		if !resp.HasMore {
+		if !mediaList.HasMore {
 			break
 		}
 		offset += limit
@@ -231,7 +219,7 @@ func (s *IndexingService) getEntityType(mediaType string) EntityType {
 
 // buildTextFromDetails builds rich searchable text from full media details.
 // Text format follows the AI Assistant spec for optimal semantic search.
-func (s *IndexingService) buildTextFromDetails(details *pluginv1.MediaDetails) string {
+func (s *IndexingService) buildTextFromDetails(details *sdk.MediaDetails) string {
 	if details == nil {
 		return ""
 	}
@@ -258,7 +246,7 @@ func (s *IndexingService) buildTextFromDetails(details *pluginv1.MediaDetails) s
 // buildMovieText builds text for movies.
 // Format: Title (Year). Tagline. Plot. Directed by X. Starring A, B, C. Genres: X, Y. Mood: X, Y.
 // Also includes language and country of origin for better international content discovery.
-func (s *IndexingService) buildMovieText(m *pluginv1.MediaDetails) string {
+func (s *IndexingService) buildMovieText(m *sdk.MediaDetails) string {
 	var b strings.Builder
 
 	// Title and year
@@ -274,17 +262,17 @@ func (s *IndexingService) buildMovieText(m *pluginv1.MediaDetails) string {
 	}
 
 	// Language and country (important for international content discovery)
-	if m.GetOriginalLanguage() != "" {
-		langName := getLanguageName(m.GetOriginalLanguage())
+	if m.OriginalLanguage != "" {
+		langName := getLanguageName(m.OriginalLanguage)
 		b.WriteString(fmt.Sprintf("Language: %s\n", langName))
 	}
-	if m.GetCountryOfOrigin() != "" {
-		b.WriteString(fmt.Sprintf("Country: %s\n", m.GetCountryOfOrigin()))
+	if m.CountryOfOrigin != "" {
+		b.WriteString(fmt.Sprintf("Country: %s\n", m.CountryOfOrigin))
 	}
 
 	// Era context (helps with decade-based searches like "80s action movies")
 	if m.Year > 0 {
-		era := getEraLabel(m.Year)
+		era := getEraLabel(int32(m.Year))
 		if era != "" {
 			b.WriteString(fmt.Sprintf("Era: %s\n", era))
 		}
@@ -311,8 +299,8 @@ func (s *IndexingService) buildMovieText(m *pluginv1.MediaDetails) string {
 	}
 
 	// Producers
-	if len(m.GetProducers()) > 0 {
-		b.WriteString(fmt.Sprintf("Produced by: %s\n", strings.Join(m.GetProducers(), ", ")))
+	if len(m.Producers) > 0 {
+		b.WriteString(fmt.Sprintf("Produced by: %s\n", strings.Join(m.Producers, ", ")))
 	}
 
 	// Cast (all cast members, no limit - important for actor-based searches)
@@ -330,18 +318,18 @@ func (s *IndexingService) buildMovieText(m *pluginv1.MediaDetails) string {
 	}
 
 	// Mood tags (AI-generated)
-	if len(m.GetMoodTags()) > 0 {
-		b.WriteString(fmt.Sprintf("Mood: %s\n", strings.Join(m.GetMoodTags(), ", ")))
+	if len(m.MoodTags) > 0 {
+		b.WriteString(fmt.Sprintf("Mood: %s\n", strings.Join(m.MoodTags, ", ")))
 	}
 
 	// Location/setting keywords (from TMDB)
-	if len(m.GetLocationKeywords()) > 0 {
-		b.WriteString(fmt.Sprintf("Setting: %s\n", strings.Join(m.GetLocationKeywords(), ", ")))
+	if len(m.LocationKeywords) > 0 {
+		b.WriteString(fmt.Sprintf("Setting: %s\n", strings.Join(m.LocationKeywords, ", ")))
 	}
 
 	// Theme keywords (from TMDB) - themes, plot elements, character types, etc.
-	if len(m.GetThemeKeywords()) > 0 {
-		b.WriteString(fmt.Sprintf("Themes: %s\n", strings.Join(m.GetThemeKeywords(), ", ")))
+	if len(m.ThemeKeywords) > 0 {
+		b.WriteString(fmt.Sprintf("Themes: %s\n", strings.Join(m.ThemeKeywords, ", ")))
 	}
 
 	return b.String()
@@ -350,7 +338,7 @@ func (s *IndexingService) buildMovieText(m *pluginv1.MediaDetails) string {
 // buildTVShowText builds text for TV shows.
 // Format: Title (Year). Tagline. Plot. Network: X. Genres: X, Y. Mood: X, Y.
 // Includes language and country for K-drama, J-drama discovery etc.
-func (s *IndexingService) buildTVShowText(m *pluginv1.MediaDetails) string {
+func (s *IndexingService) buildTVShowText(m *sdk.MediaDetails) string {
 	var b strings.Builder
 
 	// Title and year
@@ -366,11 +354,11 @@ func (s *IndexingService) buildTVShowText(m *pluginv1.MediaDetails) string {
 	}
 
 	// Language and country (important for K-drama, J-drama, etc.)
-	if m.GetOriginalLanguage() != "" {
-		langName := getLanguageName(m.GetOriginalLanguage())
+	if m.OriginalLanguage != "" {
+		langName := getLanguageName(m.OriginalLanguage)
 		b.WriteString(fmt.Sprintf("Language: %s\n", langName))
 		// Add regional drama type hints
-		switch m.GetOriginalLanguage() {
+		switch m.OriginalLanguage {
 		case "ko":
 			b.WriteString("Type: K-drama Korean drama\n")
 		case "ja":
@@ -383,8 +371,8 @@ func (s *IndexingService) buildTVShowText(m *pluginv1.MediaDetails) string {
 			b.WriteString("Type: Turkish drama dizi\n")
 		}
 	}
-	if m.GetCountryOfOrigin() != "" {
-		b.WriteString(fmt.Sprintf("Country: %s\n", m.GetCountryOfOrigin()))
+	if m.CountryOfOrigin != "" {
+		b.WriteString(fmt.Sprintf("Country: %s\n", m.CountryOfOrigin))
 	}
 
 	// Tagline
@@ -408,8 +396,8 @@ func (s *IndexingService) buildTVShowText(m *pluginv1.MediaDetails) string {
 	}
 
 	// Producers
-	if len(m.GetProducers()) > 0 {
-		b.WriteString(fmt.Sprintf("Produced by: %s\n", strings.Join(m.GetProducers(), ", ")))
+	if len(m.Producers) > 0 {
+		b.WriteString(fmt.Sprintf("Produced by: %s\n", strings.Join(m.Producers, ", ")))
 	}
 
 	// Cast (all cast members, no limit - important for actor-based searches)
@@ -427,18 +415,18 @@ func (s *IndexingService) buildTVShowText(m *pluginv1.MediaDetails) string {
 	}
 
 	// Mood tags (AI-generated)
-	if len(m.GetMoodTags()) > 0 {
-		b.WriteString(fmt.Sprintf("Mood: %s\n", strings.Join(m.GetMoodTags(), ", ")))
+	if len(m.MoodTags) > 0 {
+		b.WriteString(fmt.Sprintf("Mood: %s\n", strings.Join(m.MoodTags, ", ")))
 	}
 
 	// Location/setting keywords (from TMDB)
-	if len(m.GetLocationKeywords()) > 0 {
-		b.WriteString(fmt.Sprintf("Setting: %s\n", strings.Join(m.GetLocationKeywords(), ", ")))
+	if len(m.LocationKeywords) > 0 {
+		b.WriteString(fmt.Sprintf("Setting: %s\n", strings.Join(m.LocationKeywords, ", ")))
 	}
 
 	// Theme keywords (from TMDB) - themes, plot elements, character types, etc.
-	if len(m.GetThemeKeywords()) > 0 {
-		b.WriteString(fmt.Sprintf("Themes: %s\n", strings.Join(m.GetThemeKeywords(), ", ")))
+	if len(m.ThemeKeywords) > 0 {
+		b.WriteString(fmt.Sprintf("Themes: %s\n", strings.Join(m.ThemeKeywords, ", ")))
 	}
 
 	return b.String()
@@ -446,7 +434,7 @@ func (s *IndexingService) buildTVShowText(m *pluginv1.MediaDetails) string {
 
 // buildTVEpisodeText builds text for TV episodes.
 // Format: Show - S01E05: Episode Title. Plot.
-func (s *IndexingService) buildTVEpisodeText(m *pluginv1.MediaDetails) string {
+func (s *IndexingService) buildTVEpisodeText(m *sdk.MediaDetails) string {
 	var b strings.Builder
 
 	// Show title and episode info
@@ -475,7 +463,7 @@ func (s *IndexingService) buildTVEpisodeText(m *pluginv1.MediaDetails) string {
 
 // buildMusicArtistText builds text for music artists.
 // Format: Name. Bio. Genre: X. From Country.
-func (s *IndexingService) buildMusicArtistText(m *pluginv1.MediaDetails) string {
+func (s *IndexingService) buildMusicArtistText(m *sdk.MediaDetails) string {
 	var b strings.Builder
 
 	// Name
@@ -501,7 +489,7 @@ func (s *IndexingService) buildMusicArtistText(m *pluginv1.MediaDetails) string 
 
 // buildMusicAlbumText builds text for music albums.
 // Format: Title by Artist (Year). Genre: X. Type: album/single/ep.
-func (s *IndexingService) buildMusicAlbumText(m *pluginv1.MediaDetails) string {
+func (s *IndexingService) buildMusicAlbumText(m *sdk.MediaDetails) string {
 	var b strings.Builder
 
 	// Title and artist
@@ -529,7 +517,7 @@ func (s *IndexingService) buildMusicAlbumText(m *pluginv1.MediaDetails) string {
 
 // buildMusicTrackText builds text for music tracks.
 // Format: Title by Artist. Album: X. Genre: X.
-func (s *IndexingService) buildMusicTrackText(m *pluginv1.MediaDetails) string {
+func (s *IndexingService) buildMusicTrackText(m *sdk.MediaDetails) string {
 	var b strings.Builder
 
 	// Title and artist
@@ -553,7 +541,7 @@ func (s *IndexingService) buildMusicTrackText(m *pluginv1.MediaDetails) string {
 }
 
 // buildGenericText builds text for unknown media types.
-func (s *IndexingService) buildGenericText(m *pluginv1.MediaDetails) string {
+func (s *IndexingService) buildGenericText(m *sdk.MediaDetails) string {
 	var b strings.Builder
 
 	b.WriteString(fmt.Sprintf("Title: %s", m.Title))
@@ -571,8 +559,8 @@ func (s *IndexingService) buildGenericText(m *pluginv1.MediaDetails) string {
 	}
 
 	// Mood tags (AI-generated)
-	if len(m.GetMoodTags()) > 0 {
-		b.WriteString(fmt.Sprintf("Mood: %s\n", strings.Join(m.GetMoodTags(), ", ")))
+	if len(m.MoodTags) > 0 {
+		b.WriteString(fmt.Sprintf("Mood: %s\n", strings.Join(m.MoodTags, ", ")))
 	}
 
 	return b.String()

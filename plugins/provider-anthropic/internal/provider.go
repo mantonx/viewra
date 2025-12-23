@@ -3,6 +3,7 @@ package internal
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,16 +13,16 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 
-	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/pkg/plugin/sdk"
 )
 
 const (
 	defaultChatModel = "claude-sonnet-4-5-20250929"
 )
 
-// AnthropicProvider implements the PluginProvider service for Anthropic.
+// AnthropicProvider implements sdk.ProviderPlugin for Anthropic.
 type AnthropicProvider struct {
-	pluginv1.UnimplementedPluginProviderServer
+	sdk.Base
 
 	client    *anthropic.Client
 	apiKey    string
@@ -31,10 +32,12 @@ type AnthropicProvider struct {
 
 // NewAnthropicProvider creates a new Anthropic provider.
 func NewAnthropicProvider(logger *slog.Logger) *AnthropicProvider {
-	return &AnthropicProvider{
+	p := &AnthropicProvider{
 		chatModel: defaultChatModel,
 		logger:    logger,
 	}
+	p.SetLogger(logger)
+	return p
 }
 
 // SetChatModel sets the model to use for chat.
@@ -45,8 +48,8 @@ func (p *AnthropicProvider) SetChatModel(chatModel string) {
 	p.logger.Info("configured chat model", "model", p.chatModel)
 }
 
-// Configure updates the provider configuration.
-func (p *AnthropicProvider) Configure(apiKey string) error {
+// ConfigureClient updates the provider configuration.
+func (p *AnthropicProvider) ConfigureClient(apiKey string) error {
 	if apiKey == "" {
 		p.client = nil
 		p.apiKey = ""
@@ -68,25 +71,64 @@ func (p *AnthropicProvider) ensureClient() error {
 	return nil
 }
 
-// GetCapabilities returns the provider's capabilities.
-func (p *AnthropicProvider) GetCapabilities(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.ProviderCapabilities, error) {
-	return &pluginv1.ProviderCapabilities{
-		ProviderId:            "anthropic",
+// --- sdk.ProviderPlugin implementation ---
+
+func (p *AnthropicProvider) GetProviderCapabilities() sdk.ProviderCapabilities {
+	return sdk.ProviderCapabilities{
+		ProviderID:            "anthropic",
 		DisplayName:           "Anthropic",
 		Description:           "Anthropic API for Claude models",
 		SupportsChat:          true,
-		SupportsEmbeddings:    false, // Anthropic doesn't have embeddings
+		SupportsEmbedding:     false, // Anthropic doesn't have embeddings
 		SupportsStreaming:     true,
-		RequiresApiKey:        true,
-		RequiresUrl:           false,
+		RequiresAPIKey:        true,
+		RequiresURL:           false,
 		IsLocal:               false,
 		DefaultChatModel:      defaultChatModel,
 		DefaultEmbeddingModel: "", // No embeddings support
+	}
+}
+
+func (p *AnthropicProvider) Initialize(ctx context.Context, dataDir string, config []byte, systemInfo *sdk.SystemInfo) error {
+	p.logger.Info("initializing Anthropic provider plugin", "data_dir", dataDir)
+	return nil
+}
+
+func (p *AnthropicProvider) Shutdown(ctx context.Context) error {
+	p.logger.Info("shutting down Anthropic provider plugin")
+	return nil
+}
+
+func (p *AnthropicProvider) HealthCheck(ctx context.Context) (*sdk.ProviderHealth, error) {
+	if err := p.ensureClient(); err != nil {
+		return &sdk.ProviderHealth{
+			Healthy: false,
+			Message: "Not configured",
+			Error:   err.Error(),
+		}, nil
+	}
+
+	start := time.Now()
+	_, err := p.client.Models.List(ctx, anthropic.ModelListParams{})
+	latency := time.Since(start)
+
+	if err != nil {
+		return &sdk.ProviderHealth{
+			Healthy: false,
+			Message: "Cannot connect to Anthropic",
+			Latency: latency,
+			Error:   p.mapError(err).Error(),
+		}, nil
+	}
+
+	return &sdk.ProviderHealth{
+		Healthy: true,
+		Message: "Connected to Anthropic",
+		Latency: latency,
 	}, nil
 }
 
-// ListModels returns available models from Anthropic.
-func (p *AnthropicProvider) ListModels(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.ProviderModelList, error) {
+func (p *AnthropicProvider) ListModels(ctx context.Context) ([]sdk.ProviderModel, error) {
 	if err := p.ensureClient(); err != nil {
 		return nil, err
 	}
@@ -96,10 +138,10 @@ func (p *AnthropicProvider) ListModels(ctx context.Context, _ *pluginv1.Empty) (
 		return nil, p.mapError(err)
 	}
 
-	var models []*pluginv1.ProviderModel
+	var models []sdk.ProviderModel
 	for _, model := range page.Data {
-		models = append(models, &pluginv1.ProviderModel{
-			Id:          model.ID,
+		models = append(models, sdk.ProviderModel{
+			ID:          model.ID,
 			Name:        formatModelName(model.ID),
 			Description: model.DisplayName,
 			IsChat:      true,
@@ -107,21 +149,18 @@ func (p *AnthropicProvider) ListModels(ctx context.Context, _ *pluginv1.Empty) (
 		})
 	}
 
-	return &pluginv1.ProviderModelList{Models: models}, nil
+	return models, nil
 }
 
-// GenerateEmbedding is not supported by Anthropic.
-func (p *AnthropicProvider) GenerateEmbedding(ctx context.Context, req *pluginv1.ProviderEmbeddingRequest) (*pluginv1.EmbeddingResponse, error) {
+func (p *AnthropicProvider) GenerateEmbedding(ctx context.Context, text, model string) ([]float32, error) {
 	return nil, fmt.Errorf("Anthropic does not support embeddings")
 }
 
-// GenerateEmbeddingBatch is not supported by Anthropic.
-func (p *AnthropicProvider) GenerateEmbeddingBatch(ctx context.Context, req *pluginv1.ProviderEmbeddingBatchRequest) (*pluginv1.EmbeddingBatchResponse, error) {
+func (p *AnthropicProvider) GenerateEmbeddingBatch(ctx context.Context, texts []string, model string) ([][]float32, error) {
 	return nil, fmt.Errorf("Anthropic does not support embeddings")
 }
 
-// Chat sends a chat completion request.
-func (p *AnthropicProvider) Chat(ctx context.Context, req *pluginv1.ProviderChatRequest) (*pluginv1.ChatResponse, error) {
+func (p *AnthropicProvider) Chat(ctx context.Context, req *sdk.ChatRequest) (*sdk.ChatResponse, error) {
 	if err := p.ensureClient(); err != nil {
 		return nil, err
 	}
@@ -146,21 +185,18 @@ func (p *AnthropicProvider) Chat(ctx context.Context, req *pluginv1.ProviderChat
 		}
 	}
 
-	return &pluginv1.ChatResponse{
+	return &sdk.ChatResponse{
 		Content:          content,
 		FinishReason:     string(resp.StopReason),
-		PromptTokens:     int32(resp.Usage.InputTokens),
-		CompletionTokens: int32(resp.Usage.OutputTokens),
+		PromptTokens:     int(resp.Usage.InputTokens),
+		CompletionTokens: int(resp.Usage.OutputTokens),
 	}, nil
 }
 
-// ChatStream sends a streaming chat completion request.
-func (p *AnthropicProvider) ChatStream(req *pluginv1.ProviderChatRequest, stream pluginv1.PluginProvider_ChatStreamServer) error {
+func (p *AnthropicProvider) ChatStream(ctx context.Context, req *sdk.ChatRequest, chunks chan<- sdk.ChatChunk) error {
 	if err := p.ensureClient(); err != nil {
 		return err
 	}
-
-	ctx := stream.Context()
 
 	model := req.Model
 	if model == "" {
@@ -178,18 +214,14 @@ func (p *AnthropicProvider) ChatStream(req *pluginv1.ProviderChatRequest, stream
 		case anthropic.ContentBlockDeltaEvent:
 			switch delta := variant.Delta.AsAny().(type) {
 			case anthropic.TextDelta:
-				if err := stream.Send(&pluginv1.ChatStreamChunk{
+				chunks <- sdk.ChatChunk{
 					Content: delta.Text,
 					Done:    false,
-				}); err != nil {
-					return err
 				}
 			}
 		case anthropic.MessageStopEvent:
-			if err := stream.Send(&pluginv1.ChatStreamChunk{
+			chunks <- sdk.ChatChunk{
 				Done: true,
-			}); err != nil {
-				return err
 			}
 		}
 	}
@@ -201,38 +233,75 @@ func (p *AnthropicProvider) ChatStream(req *pluginv1.ProviderChatRequest, stream
 	return nil
 }
 
-// HealthCheck verifies Anthropic is accessible.
-func (p *AnthropicProvider) HealthCheck(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.ProviderHealthStatus, error) {
-	if err := p.ensureClient(); err != nil {
-		return &pluginv1.ProviderHealthStatus{
-			Healthy: false,
-			Message: "Not configured",
-			Error:   err.Error(),
-		}, nil
-	}
+// --- sdk.ConfigurableProvider implementation ---
 
-	start := time.Now()
-	_, err := p.client.Models.List(ctx, anthropic.ModelListParams{})
-	latency := time.Since(start)
-
-	if err != nil {
-		return &pluginv1.ProviderHealthStatus{
-			Healthy:   false,
-			Message:   "Cannot connect to Anthropic",
-			LatencyMs: latency.Milliseconds(),
-			Error:     p.mapError(err).Error(),
-		}, nil
-	}
-
-	return &pluginv1.ProviderHealthStatus{
-		Healthy:   true,
-		Message:   "Connected to Anthropic",
-		LatencyMs: latency.Milliseconds(),
-	}, nil
+func (p *AnthropicProvider) GetSettingsSchema() ([]byte, error) {
+	return SettingsSchema().Build()
 }
 
-// buildMessageParams converts the request to Anthropic SDK params.
-func (p *AnthropicProvider) buildMessageParams(model string, req *pluginv1.ProviderChatRequest) anthropic.MessageNewParams {
+func (p *AnthropicProvider) Configure(settings []byte) error {
+	var cfg struct {
+		APIKey    string `json:"api_key"`
+		ChatModel string `json:"chat_model"`
+	}
+
+	if err := json.Unmarshal(settings, &cfg); err != nil {
+		return fmt.Errorf("invalid settings JSON: %w", err)
+	}
+
+	if err := p.ConfigureClient(cfg.APIKey); err != nil {
+		return err
+	}
+
+	p.SetChatModel(cfg.ChatModel)
+	return nil
+}
+
+// --- sdk.HTTPProvider implementation ---
+
+func (p *AnthropicProvider) GetRoutes() []sdk.Route {
+	return []sdk.Route{
+		{
+			Path:        "/health",
+			Methods:     []string{"GET"},
+			AdminOnly:   false,
+			Description: "Check Anthropic API connectivity",
+		},
+	}
+}
+
+func (p *AnthropicProvider) HandleHTTP(ctx context.Context, req *sdk.HTTPRequest) (*sdk.HTTPResponse, error) {
+	if req.Method == "GET" && req.Path == "/health" {
+		health, err := p.HealthCheck(ctx)
+		if err != nil {
+			return sdk.JSONError(503, err.Error())
+		}
+
+		if !health.Healthy {
+			return sdk.JSONResponse(503, map[string]any{
+				"success": false,
+				"error":   health.Error,
+				"message": health.Message,
+			})
+		}
+
+		return sdk.JSONResponse(200, map[string]any{
+			"success": true,
+			"message": health.Message,
+		})
+	}
+
+	return sdk.JSONError(404, "not found")
+}
+
+func (p *AnthropicProvider) HandleHTTPStream(ctx context.Context, req *sdk.HTTPRequest, stream sdk.HTTPStreamWriter) error {
+	return fmt.Errorf("streaming not supported")
+}
+
+// --- Helper functions ---
+
+// buildMessageParams converts the SDK request to Anthropic SDK params.
+func (p *AnthropicProvider) buildMessageParams(model string, req *sdk.ChatRequest) anthropic.MessageNewParams {
 	params := anthropic.MessageNewParams{
 		Model:     anthropic.Model(model),
 		MaxTokens: int64(req.MaxTokens),

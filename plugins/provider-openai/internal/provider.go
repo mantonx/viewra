@@ -3,6 +3,7 @@ package internal
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,7 +13,7 @@ import (
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 
-	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/pkg/plugin/sdk"
 )
 
 const (
@@ -20,9 +21,9 @@ const (
 	defaultEmbedModel = "text-embedding-3-small"
 )
 
-// OpenAIProvider implements the PluginProvider service for OpenAI.
+// OpenAIProvider implements sdk.ProviderPlugin for OpenAI.
 type OpenAIProvider struct {
-	pluginv1.UnimplementedPluginProviderServer
+	sdk.Base
 
 	client         *openai.Client
 	apiKey         string
@@ -34,11 +35,13 @@ type OpenAIProvider struct {
 
 // NewOpenAIProvider creates a new OpenAI provider.
 func NewOpenAIProvider(logger *slog.Logger) *OpenAIProvider {
-	return &OpenAIProvider{
+	p := &OpenAIProvider{
 		embeddingModel: defaultEmbedModel,
 		chatModel:      defaultChatModel,
 		logger:         logger,
 	}
+	p.SetLogger(logger)
+	return p
 }
 
 // SetModels sets the models to use for embeddings and chat.
@@ -52,8 +55,8 @@ func (p *OpenAIProvider) SetModels(embeddingModel, chatModel string) {
 	p.logger.Info("configured models", "embedding", p.embeddingModel, "chat", p.chatModel)
 }
 
-// Configure updates the provider configuration.
-func (p *OpenAIProvider) Configure(apiKey, baseURL string) error {
+// ConfigureClient updates the provider configuration.
+func (p *OpenAIProvider) ConfigureClient(apiKey, baseURL string) error {
 	if apiKey == "" {
 		p.client = nil
 		p.apiKey = ""
@@ -85,25 +88,64 @@ func (p *OpenAIProvider) ensureClient() error {
 	return nil
 }
 
-// GetCapabilities returns the provider's capabilities.
-func (p *OpenAIProvider) GetCapabilities(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.ProviderCapabilities, error) {
-	return &pluginv1.ProviderCapabilities{
-		ProviderId:            "openai",
+// --- sdk.ProviderPlugin implementation ---
+
+func (p *OpenAIProvider) GetProviderCapabilities() sdk.ProviderCapabilities {
+	return sdk.ProviderCapabilities{
+		ProviderID:            "openai",
 		DisplayName:           "OpenAI",
 		Description:           "OpenAI API for GPT models and embeddings",
 		SupportsChat:          true,
-		SupportsEmbeddings:    true,
+		SupportsEmbedding:     true,
 		SupportsStreaming:     true,
-		RequiresApiKey:        true,
-		RequiresUrl:           false,
+		RequiresAPIKey:        true,
+		RequiresURL:           false,
 		IsLocal:               false,
 		DefaultChatModel:      defaultChatModel,
 		DefaultEmbeddingModel: defaultEmbedModel,
+	}
+}
+
+func (p *OpenAIProvider) Initialize(ctx context.Context, dataDir string, config []byte, systemInfo *sdk.SystemInfo) error {
+	p.logger.Info("initializing OpenAI provider plugin", "data_dir", dataDir)
+	return nil
+}
+
+func (p *OpenAIProvider) Shutdown(ctx context.Context) error {
+	p.logger.Info("shutting down OpenAI provider plugin")
+	return nil
+}
+
+func (p *OpenAIProvider) HealthCheck(ctx context.Context) (*sdk.ProviderHealth, error) {
+	if err := p.ensureClient(); err != nil {
+		return &sdk.ProviderHealth{
+			Healthy: false,
+			Message: "Not configured",
+			Error:   err.Error(),
+		}, nil
+	}
+
+	start := time.Now()
+	_, err := p.client.Models.List(ctx)
+	latency := time.Since(start)
+
+	if err != nil {
+		return &sdk.ProviderHealth{
+			Healthy: false,
+			Message: "Cannot connect to OpenAI",
+			Latency: latency,
+			Error:   p.mapError(err).Error(),
+		}, nil
+	}
+
+	return &sdk.ProviderHealth{
+		Healthy: true,
+		Message: "Connected to OpenAI",
+		Latency: latency,
 	}, nil
 }
 
-// ListModels returns available models from OpenAI.
-func (p *OpenAIProvider) ListModels(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.ProviderModelList, error) {
+func (p *OpenAIProvider) ListModels(ctx context.Context) ([]sdk.ProviderModel, error) {
 	if err := p.ensureClient(); err != nil {
 		return nil, err
 	}
@@ -113,15 +155,15 @@ func (p *OpenAIProvider) ListModels(ctx context.Context, _ *pluginv1.Empty) (*pl
 		return nil, p.mapError(err)
 	}
 
-	var models []*pluginv1.ProviderModel
+	var models []sdk.ProviderModel
 	for _, model := range resp.Data {
 		isChat := strings.Contains(model.ID, "gpt") || strings.Contains(model.ID, "chat") ||
 			strings.Contains(model.ID, "o1") || strings.Contains(model.ID, "o3")
 		isEmbedding := strings.Contains(model.ID, "embed")
 
 		if isChat || isEmbedding {
-			models = append(models, &pluginv1.ProviderModel{
-				Id:          model.ID,
+			models = append(models, sdk.ProviderModel{
+				ID:          model.ID,
 				Name:        model.ID,
 				Description: getModelDescription(model.ID),
 				IsChat:      isChat,
@@ -130,16 +172,14 @@ func (p *OpenAIProvider) ListModels(ctx context.Context, _ *pluginv1.Empty) (*pl
 		}
 	}
 
-	return &pluginv1.ProviderModelList{Models: models}, nil
+	return models, nil
 }
 
-// GenerateEmbedding generates an embedding for a single text.
-func (p *OpenAIProvider) GenerateEmbedding(ctx context.Context, req *pluginv1.ProviderEmbeddingRequest) (*pluginv1.EmbeddingResponse, error) {
+func (p *OpenAIProvider) GenerateEmbedding(ctx context.Context, text, model string) ([]float32, error) {
 	if err := p.ensureClient(); err != nil {
 		return nil, err
 	}
 
-	model := req.Model
 	if model == "" {
 		model = p.embeddingModel
 	}
@@ -147,7 +187,7 @@ func (p *OpenAIProvider) GenerateEmbedding(ctx context.Context, req *pluginv1.Pr
 	params := openai.EmbeddingNewParams{
 		Model: openai.EmbeddingModel(model),
 		Input: openai.EmbeddingNewParamsInputUnion{
-			OfArrayOfStrings: []string{req.Text},
+			OfArrayOfStrings: []string{text},
 		},
 	}
 
@@ -165,20 +205,14 @@ func (p *OpenAIProvider) GenerateEmbedding(ctx context.Context, req *pluginv1.Pr
 		embedding[i] = float32(v)
 	}
 
-	return &pluginv1.EmbeddingResponse{
-		Embedding:  embedding,
-		Dimensions: int32(len(embedding)),
-		TokensUsed: int32(resp.Usage.PromptTokens),
-	}, nil
+	return embedding, nil
 }
 
-// GenerateEmbeddingBatch generates embeddings for multiple texts.
-func (p *OpenAIProvider) GenerateEmbeddingBatch(ctx context.Context, req *pluginv1.ProviderEmbeddingBatchRequest) (*pluginv1.EmbeddingBatchResponse, error) {
+func (p *OpenAIProvider) GenerateEmbeddingBatch(ctx context.Context, texts []string, model string) ([][]float32, error) {
 	if err := p.ensureClient(); err != nil {
 		return nil, err
 	}
 
-	model := req.Model
 	if model == "" {
 		model = p.embeddingModel
 	}
@@ -186,7 +220,7 @@ func (p *OpenAIProvider) GenerateEmbeddingBatch(ctx context.Context, req *plugin
 	params := openai.EmbeddingNewParams{
 		Model: openai.EmbeddingModel(model),
 		Input: openai.EmbeddingNewParamsInputUnion{
-			OfArrayOfStrings: req.Texts,
+			OfArrayOfStrings: texts,
 		},
 	}
 
@@ -195,26 +229,19 @@ func (p *OpenAIProvider) GenerateEmbeddingBatch(ctx context.Context, req *plugin
 		return nil, p.mapError(err)
 	}
 
-	results := make([]*pluginv1.EmbeddingResult, len(resp.Data))
+	embeddings := make([][]float32, len(resp.Data))
 	for i, data := range resp.Data {
 		embedding := make([]float32, len(data.Embedding))
 		for j, v := range data.Embedding {
 			embedding[j] = float32(v)
 		}
-		results[i] = &pluginv1.EmbeddingResult{
-			Embedding:  embedding,
-			Dimensions: int32(len(embedding)),
-		}
+		embeddings[i] = embedding
 	}
 
-	return &pluginv1.EmbeddingBatchResponse{
-		Embeddings:  results,
-		TotalTokens: int32(resp.Usage.TotalTokens),
-	}, nil
+	return embeddings, nil
 }
 
-// Chat sends a chat completion request.
-func (p *OpenAIProvider) Chat(ctx context.Context, req *pluginv1.ProviderChatRequest) (*pluginv1.ChatResponse, error) {
+func (p *OpenAIProvider) Chat(ctx context.Context, req *sdk.ChatRequest) (*sdk.ChatResponse, error) {
 	if err := p.ensureClient(); err != nil {
 		return nil, err
 	}
@@ -257,21 +284,18 @@ func (p *OpenAIProvider) Chat(ctx context.Context, req *pluginv1.ProviderChatReq
 		return nil, fmt.Errorf("no completion choices returned")
 	}
 
-	return &pluginv1.ChatResponse{
+	return &sdk.ChatResponse{
 		Content:          resp.Choices[0].Message.Content,
 		FinishReason:     string(resp.Choices[0].FinishReason),
-		PromptTokens:     int32(resp.Usage.PromptTokens),
-		CompletionTokens: int32(resp.Usage.CompletionTokens),
+		PromptTokens:     int(resp.Usage.PromptTokens),
+		CompletionTokens: int(resp.Usage.CompletionTokens),
 	}, nil
 }
 
-// ChatStream sends a streaming chat completion request.
-func (p *OpenAIProvider) ChatStream(req *pluginv1.ProviderChatRequest, stream pluginv1.PluginProvider_ChatStreamServer) error {
+func (p *OpenAIProvider) ChatStream(ctx context.Context, req *sdk.ChatRequest, chunks chan<- sdk.ChatChunk) error {
 	if err := p.ensureClient(); err != nil {
 		return err
 	}
-
-	ctx := stream.Context()
 
 	model := req.Model
 	if model == "" {
@@ -312,12 +336,10 @@ func (p *OpenAIProvider) ChatStream(req *pluginv1.ProviderChatRequest, stream pl
 		}
 
 		choice := chunk.Choices[0]
-		if err := stream.Send(&pluginv1.ChatStreamChunk{
+		chunks <- sdk.ChatChunk{
 			Content:      choice.Delta.Content,
 			Done:         choice.FinishReason != "",
 			FinishReason: string(choice.FinishReason),
-		}); err != nil {
-			return err
 		}
 	}
 
@@ -328,35 +350,74 @@ func (p *OpenAIProvider) ChatStream(req *pluginv1.ProviderChatRequest, stream pl
 	return nil
 }
 
-// HealthCheck verifies OpenAI is accessible.
-func (p *OpenAIProvider) HealthCheck(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.ProviderHealthStatus, error) {
-	if err := p.ensureClient(); err != nil {
-		return &pluginv1.ProviderHealthStatus{
-			Healthy: false,
-			Message: "Not configured",
-			Error:   err.Error(),
-		}, nil
-	}
+// --- sdk.ConfigurableProvider implementation ---
 
-	start := time.Now()
-	_, err := p.client.Models.List(ctx)
-	latency := time.Since(start)
-
-	if err != nil {
-		return &pluginv1.ProviderHealthStatus{
-			Healthy:   false,
-			Message:   "Cannot connect to OpenAI",
-			LatencyMs: latency.Milliseconds(),
-			Error:     p.mapError(err).Error(),
-		}, nil
-	}
-
-	return &pluginv1.ProviderHealthStatus{
-		Healthy:   true,
-		Message:   "Connected to OpenAI",
-		LatencyMs: latency.Milliseconds(),
-	}, nil
+func (p *OpenAIProvider) GetSettingsSchema() ([]byte, error) {
+	return SettingsSchema().Build()
 }
+
+func (p *OpenAIProvider) Configure(settings []byte) error {
+	var cfg struct {
+		APIKey         string `json:"api_key"`
+		BaseURL        string `json:"base_url"`
+		EmbeddingModel string `json:"embedding_model"`
+		ChatModel      string `json:"chat_model"`
+	}
+
+	if err := json.Unmarshal(settings, &cfg); err != nil {
+		return fmt.Errorf("invalid settings JSON: %w", err)
+	}
+
+	if err := p.ConfigureClient(cfg.APIKey, cfg.BaseURL); err != nil {
+		return err
+	}
+
+	p.SetModels(cfg.EmbeddingModel, cfg.ChatModel)
+	return nil
+}
+
+// --- sdk.HTTPProvider implementation ---
+
+func (p *OpenAIProvider) GetRoutes() []sdk.Route {
+	return []sdk.Route{
+		{
+			Path:        "/health",
+			Methods:     []string{"GET"},
+			AdminOnly:   false,
+			Description: "Check OpenAI API connectivity",
+		},
+	}
+}
+
+func (p *OpenAIProvider) HandleHTTP(ctx context.Context, req *sdk.HTTPRequest) (*sdk.HTTPResponse, error) {
+	if req.Method == "GET" && req.Path == "/health" {
+		health, err := p.HealthCheck(ctx)
+		if err != nil {
+			return sdk.JSONError(503, err.Error())
+		}
+
+		if !health.Healthy {
+			return sdk.JSONResponse(503, map[string]any{
+				"success": false,
+				"error":   health.Error,
+				"message": health.Message,
+			})
+		}
+
+		return sdk.JSONResponse(200, map[string]any{
+			"success": true,
+			"message": health.Message,
+		})
+	}
+
+	return sdk.JSONError(404, "not found")
+}
+
+func (p *OpenAIProvider) HandleHTTPStream(ctx context.Context, req *sdk.HTTPRequest, stream sdk.HTTPStreamWriter) error {
+	return fmt.Errorf("streaming not supported")
+}
+
+// --- Helper functions ---
 
 // mapError converts OpenAI errors to descriptive messages.
 func (p *OpenAIProvider) mapError(err error) error {

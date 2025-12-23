@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"sync"
 
-	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/pkg/plugin/sdk"
 	"gopkg.in/yaml.v3"
 )
 
@@ -21,22 +21,30 @@ type Config struct {
 	CoverArtSize  string  `yaml:"cover_art_size" json:"cover_art_size"`
 }
 
-// MusicBrainzPlugin implements both PluginCore and Enricher interfaces.
+// MusicBrainzPlugin implements sdk.EnricherPlugin for MusicBrainz.
 type MusicBrainzPlugin struct {
-	pluginv1.UnimplementedPluginCoreServer
-	pluginv1.UnimplementedEnricherServer
+	sdk.Base
 
 	logger  *slog.Logger
 	dataDir string
 	config  Config
 	client  *Client
-	storage pluginv1.HostStorageClient
+	storage *sdk.StorageClient
 
 	mu sync.RWMutex
 
 	// Stats for health reporting
 	requestsTotal int64
 	errorsTotal   int64
+}
+
+// NewMusicBrainzPlugin creates a new MusicBrainz plugin instance.
+func NewMusicBrainzPlugin(logger *slog.Logger) *MusicBrainzPlugin {
+	p := &MusicBrainzPlugin{
+		logger: logger,
+	}
+	p.SetLogger(logger)
+	return p
 }
 
 // recordError increments the error counter (thread-safe).
@@ -46,54 +54,44 @@ func (p *MusicBrainzPlugin) recordError() {
 	p.mu.Unlock()
 }
 
-// NewMusicBrainzPlugin creates a new MusicBrainz plugin instance.
-func NewMusicBrainzPlugin(logger *slog.Logger) *MusicBrainzPlugin {
-	return &MusicBrainzPlugin{
-		logger: logger,
+// --- sdk.EnricherPlugin implementation ---
+
+func (p *MusicBrainzPlugin) GetCapabilities() sdk.EnricherCapabilities {
+	return sdk.EnricherCapabilities{
+		MediaTypes: []string{"music", "music_album", "music_artist"},
+		Provides:   []string{"metadata", "artwork", "external_ids"},
+		IsLocal:    false,
+		RateLimit:  60, // MusicBrainz allows ~1 request/second
+		Requires:   []string{},
+		Priority:   50,
 	}
 }
 
-// SetStorageClient sets the host storage client for caching.
-// This should be called before Initialize if host storage is available.
-func (p *MusicBrainzPlugin) SetStorageClient(client pluginv1.HostStorageClient) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.storage = client
-}
-
-// PluginCore implementation
-
-func (p *MusicBrainzPlugin) Initialize(ctx context.Context, req *pluginv1.InitRequest) (*pluginv1.InitResponse, error) {
+func (p *MusicBrainzPlugin) Initialize(ctx context.Context, dataDir string, config []byte, services *sdk.HostServices) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	p.dataDir = req.DataDir
-	p.logger.Info("initializing MusicBrainz plugin",
-		"host_version", req.HostVersion,
-		"data_dir", req.DataDir,
-	)
+	p.dataDir = dataDir
+	p.logger.Info("initializing MusicBrainz plugin", "data_dir", dataDir)
+
+	// Store host storage client if available
+	if services != nil && services.Storage != nil {
+		p.storage = services.Storage
+		p.logger.Info("host storage service available")
+	}
 
 	// Parse config from YAML
-	if len(req.Config) == 0 {
-		return &pluginv1.InitResponse{
-			Success: false,
-			Error:   "config.yml is required but was not provided",
-		}, nil
+	if len(config) == 0 {
+		return fmt.Errorf("config.yml is required but was not provided")
 	}
 
-	if err := yaml.Unmarshal(req.Config, &p.config); err != nil {
-		return &pluginv1.InitResponse{
-			Success: false,
-			Error:   fmt.Sprintf("failed to parse config.yml: %v", err),
-		}, nil
+	if err := yaml.Unmarshal(config, &p.config); err != nil {
+		return fmt.Errorf("failed to parse config.yml: %w", err)
 	}
 
 	// Validate required fields
 	if p.config.UserAgent == "" {
-		return &pluginv1.InitResponse{
-			Success: false,
-			Error:   "user_agent is required in config.yml (MusicBrainz API policy)",
-		}, nil
+		return fmt.Errorf("user_agent is required in config.yml (MusicBrainz API policy)")
 	}
 
 	// Apply defaults
@@ -117,10 +115,7 @@ func (p *MusicBrainzPlugin) Initialize(ctx context.Context, req *pluginv1.InitRe
 		CoverArtSize:  p.config.CoverArtSize,
 	})
 	if err != nil {
-		return &pluginv1.InitResponse{
-			Success: false,
-			Error:   fmt.Sprintf("failed to create API client: %v", err),
-		}, nil
+		return fmt.Errorf("failed to create API client: %w", err)
 	}
 	p.client = client
 
@@ -134,70 +129,18 @@ func (p *MusicBrainzPlugin) Initialize(ctx context.Context, req *pluginv1.InitRe
 		"fetch_cover_art", p.config.FetchCoverArt,
 	)
 
-	return &pluginv1.InitResponse{Success: true}, nil
+	return nil
 }
 
-func (p *MusicBrainzPlugin) Shutdown(ctx context.Context, req *pluginv1.Empty) (*pluginv1.Empty, error) {
+func (p *MusicBrainzPlugin) Shutdown(ctx context.Context) error {
 	p.logger.Info("shutting down MusicBrainz plugin")
 	if p.client != nil {
 		p.client.Close()
 	}
-	return &pluginv1.Empty{}, nil
+	return nil
 }
 
-func (p *MusicBrainzPlugin) HealthCheck(ctx context.Context, req *pluginv1.Empty) (*pluginv1.HealthStatus, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	status := pluginv1.HealthStatus_HEALTHY
-	message := "operational"
-
-	if p.config.UserAgent == "" {
-		status = pluginv1.HealthStatus_DEGRADED
-		message = "user agent not configured"
-	}
-
-	return &pluginv1.HealthStatus{
-		Status:        status,
-		Message:       message,
-		RequestsTotal: p.requestsTotal,
-		ErrorsTotal:   p.errorsTotal,
-	}, nil
-}
-
-func (p *MusicBrainzPlugin) GetSettingsSchema(ctx context.Context, req *pluginv1.Empty) (*pluginv1.SettingsSchema, error) {
-	return &pluginv1.SettingsSchema{JsonSchema: []byte("{}")}, nil
-}
-
-func (p *MusicBrainzPlugin) Configure(ctx context.Context, req *pluginv1.Settings) (*pluginv1.ConfigureResponse, error) {
-	return &pluginv1.ConfigureResponse{
-		Success: false,
-		Error:   "runtime configuration not supported; edit config.yml and restart the plugin",
-	}, nil
-}
-
-func (p *MusicBrainzPlugin) GetSubscriptions(ctx context.Context, req *pluginv1.Empty) (*pluginv1.EventSubscriptions, error) {
-	return &pluginv1.EventSubscriptions{}, nil
-}
-
-func (p *MusicBrainzPlugin) OnEvent(ctx context.Context, req *pluginv1.Event) (*pluginv1.EventResponse, error) {
-	return &pluginv1.EventResponse{Handled: false}, nil
-}
-
-// Enricher implementation
-
-func (p *MusicBrainzPlugin) GetCapabilities(ctx context.Context, req *pluginv1.Empty) (*pluginv1.EnricherCapabilities, error) {
-	return &pluginv1.EnricherCapabilities{
-		MediaTypes: []string{"music", "music_album", "music_artist"},
-		Provides:   []string{"metadata", "artwork", "external_ids"},
-		IsLocal:    false,
-		RateLimit:  60, // MusicBrainz allows ~1 request/second
-		Requires:   []string{}, // Can work from artist/album/track names
-		Priority:   50,
-	}, nil
-}
-
-func (p *MusicBrainzPlugin) Enrich(ctx context.Context, req *pluginv1.EnrichRequest) (*pluginv1.EnrichResponse, error) {
+func (p *MusicBrainzPlugin) Enrich(ctx context.Context, req *sdk.EnrichRequest) (*sdk.EnrichResponse, error) {
 	p.mu.Lock()
 	p.requestsTotal++
 	client := p.client
@@ -208,14 +151,11 @@ func (p *MusicBrainzPlugin) Enrich(ctx context.Context, req *pluginv1.EnrichRequ
 		p.mu.Lock()
 		p.errorsTotal++
 		p.mu.Unlock()
-		return &pluginv1.EnrichResponse{
-			Skipped:    true,
-			SkipReason: "MusicBrainz plugin not configured",
-		}, nil
+		return sdk.Skip("MusicBrainz plugin not configured"), nil
 	}
 
 	p.logger.Debug("enriching media",
-		"media_id", req.MediaId,
+		"media_id", req.MediaID,
 		"media_type", req.MediaType,
 		"title", req.Title,
 	)
@@ -228,9 +168,6 @@ func (p *MusicBrainzPlugin) Enrich(ctx context.Context, req *pluginv1.EnrichRequ
 	case "music_artist":
 		return p.enrichArtist(ctx, client, req, minConfidence)
 	default:
-		return &pluginv1.EnrichResponse{
-			Skipped:    true,
-			SkipReason: "unsupported media type: " + req.MediaType,
-		}, nil
+		return sdk.Skip("unsupported media type: " + req.MediaType), nil
 	}
 }
