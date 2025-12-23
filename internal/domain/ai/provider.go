@@ -68,6 +68,7 @@ type ModelInfo struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
+	Size        string   `json:"size,omitempty"`        // Model size for display (e.g., "7B", "3.8 GB")
 	ContextSize int      `json:"contextSize,omitempty"` // For chat models
 	Dimensions  int      `json:"dimensions,omitempty"`  // For embedding models
 	IsChat      bool     `json:"isChat"`
@@ -95,6 +96,7 @@ type ProviderInfo struct {
 	SupportsChat      bool         `json:"supportsChat"`
 	RequiresAPIKey    bool         `json:"requiresApiKey"`
 	RequiresURL       bool         `json:"requiresUrl"`
+	IsPlugin          bool         `json:"isPlugin"`
 	EmbeddingModels   []ModelInfo  `json:"embeddingModels,omitempty"`
 	ChatModels        []ModelInfo  `json:"chatModels,omitempty"`
 }

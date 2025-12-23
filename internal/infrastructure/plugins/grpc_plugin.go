@@ -287,6 +287,22 @@ func (p *AISearchGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPC
 	return pluginv1.NewAISearchClient(c), nil
 }
 
+// PluginProviderGRPCPlugin is the go-plugin implementation for the PluginProvider service.
+// This allows the host to call the plugin's AI provider methods (chat, embeddings, etc.).
+// Provider plugins (e.g., provider-ollama, provider-openai) implement this service.
+type PluginProviderGRPCPlugin struct {
+	plugin.Plugin
+}
+
+func (p *PluginProviderGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
+	// Plugin serves this, host doesn't
+	return nil
+}
+
+func (p *PluginProviderGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+	return pluginv1.NewPluginProviderClient(c), nil
+}
+
 // HostWeatherGRPCPlugin is the go-plugin implementation for the HostWeather service.
 // On the host side, this starts a gRPC server on a broker ID that the plugin can connect to.
 // This provides weather context for AI search query enrichment.

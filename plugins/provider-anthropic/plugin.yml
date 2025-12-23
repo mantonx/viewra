@@ -1,0 +1,25 @@
+# Anthropic Provider Plugin Manifest
+id: provider-anthropic
+name: Anthropic Provider
+version: 1.0.0
+description: AI provider using Anthropic API for Claude models
+
+author: ViewRA Team
+license: MIT
+homepage: https://github.com/mantonx/viewra
+
+# Minimum ViewRA version required
+min_host_version: "0.1.0"
+
+# Plugin capabilities
+categories:
+  - provider
+
+# What this plugin provides to other plugins
+provides:
+  - provider
+  - provider:anthropic
+
+# Permissions required
+permissions:
+  - network  # For Anthropic API calls

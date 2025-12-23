@@ -392,12 +392,53 @@ func (s *Service) toSummary(row Plugin) PluginSummary {
 		summary.Health = row.HealthStatus
 	}
 
-	// Get runtime health if plugin is loaded
+	// Get runtime info if plugin is loaded
 	if instance, ok := s.manager.GetPlugin(row.ID); ok {
 		summary.Health = instance.Health.Status.String()
+
+		// Extract x-viewra-meta from settings schema
+		if meta := s.getPluginMeta(instance); meta != nil {
+			summary.Meta = meta
+		}
+	}
+
+	// Get provider ID if this is a provider plugin
+	if providerRegistry := s.manager.GetProviderRegistry(); providerRegistry != nil {
+		summary.ProviderID = providerRegistry.GetByPluginID(row.ID)
 	}
 
 	return summary
+}
+
+// getPluginMeta extracts x-viewra-meta from a plugin's settings schema.
+func (s *Service) getPluginMeta(instance *infraplugins.PluginInstance) map[string]any {
+	if instance.CoreClient == nil {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	schemaResp, err := instance.CoreClient.GetSettingsSchema(ctx, &pluginv1.Empty{})
+	if err != nil {
+		return nil
+	}
+
+	if len(schemaResp.JsonSchema) == 0 {
+		return nil
+	}
+
+	var schema map[string]any
+	if err := json.Unmarshal(schemaResp.JsonSchema, &schema); err != nil {
+		return nil
+	}
+
+	meta, ok := schema["x-viewra-meta"].(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	return meta
 }
 
 // toDetail converts a database row to a PluginDetail.

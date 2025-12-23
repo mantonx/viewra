@@ -1,0 +1,25 @@
+# Ollama Provider Plugin Manifest
+id: provider-ollama
+name: Ollama Provider
+version: 1.0.0
+description: Local AI provider using Ollama for chat and embeddings
+
+author: ViewRA Team
+license: MIT
+homepage: https://github.com/mantonx/viewra
+
+# Minimum ViewRA version required
+min_host_version: "0.1.0"
+
+# Plugin capabilities
+categories:
+  - provider
+
+# What this plugin provides to other plugins
+provides:
+  - provider
+  - provider:ollama
+
+# Permissions required
+permissions:
+  - network  # For Ollama API calls

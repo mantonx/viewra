@@ -6,16 +6,16 @@ import { Trash2, Monitor, Smartphone, Globe } from 'lucide-react'
 import type { ActiveSessionsProps } from './ActiveSessions.types'
 
 const formatUserAgent = (userAgent: string | undefined): string => {
-  if (!userAgent) return 'Unknown device'
-  if (userAgent.includes('Firefox')) return 'Firefox'
-  if (userAgent.includes('Chrome')) return 'Chrome'
-  if (userAgent.includes('Safari')) return 'Safari'
-  if (userAgent.includes('Edge')) return 'Edge'
+  if (!userAgent) {return 'Unknown device'}
+  if (userAgent.includes('Firefox')) {return 'Firefox'}
+  if (userAgent.includes('Chrome')) {return 'Chrome'}
+  if (userAgent.includes('Safari')) {return 'Safari'}
+  if (userAgent.includes('Edge')) {return 'Edge'}
   return userAgent.slice(0, 50) + (userAgent.length > 50 ? '...' : '')
 }
 
 const formatDate = (dateStr: string | undefined): string => {
-  if (!dateStr) return 'Unknown'
+  if (!dateStr) {return 'Unknown'}
   return new Date(dateStr).toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',
@@ -26,7 +26,7 @@ const formatDate = (dateStr: string | undefined): string => {
 }
 
 const getDeviceIcon = (userAgent: string | undefined) => {
-  if (!userAgent) return <Globe className="w-5 h-5" />
+  if (!userAgent) {return <Globe className="w-5 h-5" />}
   const ua = userAgent.toLowerCase()
   if (ua.includes('mobile') || ua.includes('android') || ua.includes('iphone')) {
     return <Smartphone className="w-5 h-5" />

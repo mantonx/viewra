@@ -26,6 +26,7 @@ const (
 	CategoryEnricher         PluginCategory = "enricher"
 	CategoryNotificationSink PluginCategory = "notification_sink"
 	CategoryAI               PluginCategory = "ai"
+	CategoryProvider         PluginCategory = "provider"
 )
 
 // Handshake is the shared handshake config for all plugins.
@@ -71,6 +72,10 @@ type PluginInstance struct {
 
 	// AISearchClient provides access to AI search methods (if applicable).
 	AISearchClient pluginv1.AISearchClient
+
+	// ProviderClient provides access to AI provider methods (if applicable).
+	// This is set for plugins with category "provider" (e.g., provider-ollama, provider-openai).
+	ProviderClient pluginv1.PluginProviderClient
 
 	// Health tracks the plugin's current health status.
 	Health PluginHealth
@@ -153,6 +158,12 @@ type Manager struct {
 
 	// httpProxy proxies HTTP requests to plugins.
 	httpProxy *HTTPProxy
+
+	// providerRegistry tracks AI provider plugins.
+	providerRegistry *ProviderRegistry
+
+	// systemInfo contains host system resource information to pass to plugins.
+	systemInfo *pluginv1.SystemInfo
 }
 
 // ManagerConfig configures the plugin manager.
@@ -227,6 +238,7 @@ func NewManager(cfg ManagerConfig, logger *slog.Logger) (*Manager, error) {
 	// Create registries and rate limiter
 	routeRegistry := NewRouteRegistry()
 	capabilityRegistry := NewCapabilityRegistry()
+	providerRegistry := NewProviderRegistry()
 	rateLimiter := NewRouteRateLimiter()
 
 	m := &Manager{
@@ -244,6 +256,7 @@ func NewManager(cfg ManagerConfig, logger *slog.Logger) (*Manager, error) {
 		hostWeatherServer:    cfg.HostWeatherServer,
 		routeRegistry:        routeRegistry,
 		capabilityRegistry:   capabilityRegistry,
+		providerRegistry:     providerRegistry,
 		rateLimiter:          rateLimiter,
 	}
 
@@ -256,6 +269,12 @@ func NewManager(cfg ManagerConfig, logger *slog.Logger) (*Manager, error) {
 // SetPublisher sets the event publisher for plugin lifecycle events.
 func (m *Manager) SetPublisher(pub domainevents.Publisher) {
 	m.publisher = pub
+}
+
+// SetSystemInfo sets the system information to pass to plugins during initialization.
+// This should be called before loading plugins so they can receive hardware/system details.
+func (m *Manager) SetSystemInfo(info *pluginv1.SystemInfo) {
+	m.systemInfo = info
 }
 
 // DiscoverPlugins scans the plugin directory for plugin binaries.
@@ -314,6 +333,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		"core":      &PluginCoreGRPCPlugin{},
 		"enricher":  &EnricherGRPCPlugin{},
 		"ai_search": &AISearchGRPCPlugin{},
+		"provider":  &PluginProviderGRPCPlugin{},
 	}
 
 	// Create a logger for host services with plugin context
@@ -426,6 +446,18 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		} else if aiSearchClient, ok := aiSearchRaw.(pluginv1.AISearchClient); ok {
 			instance.AISearchClient = aiSearchClient
 			m.logger.Info("AI search client available", "plugin", manifest.ID)
+		}
+	}
+
+	// If it's a provider plugin, get the provider client
+	if hasCategory(instance.Categories, CategoryProvider) {
+		providerRaw, err := rpcClient.Dispense("provider")
+		if err != nil {
+			m.logger.Warn("plugin declares provider category but dispense failed",
+				"plugin", manifest.ID, "error", err)
+		} else if providerClient, ok := providerRaw.(pluginv1.PluginProviderClient); ok {
+			instance.ProviderClient = providerClient
+			m.logger.Info("Provider client available", "plugin", manifest.ID)
 		}
 	}
 
@@ -574,6 +606,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		HostEmbeddingsBrokerId: hostEmbeddingsBrokerID,
 		HostDataBrokerId:       hostDataBrokerID,
 		HostWeatherBrokerId:    hostWeatherBrokerID,
+		SystemInfo:             m.systemInfo,
 	})
 	if err != nil {
 		client.Kill()
@@ -604,6 +637,22 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		// Continue loading - plugin is usable but routes won't work
 	}
 
+	// Register provider plugin with provider registry
+	if instance.ProviderClient != nil {
+		caps, err := m.providerRegistry.Register(ctx, manifest.ID, instance.ProviderClient, instance.CoreClient)
+		if err != nil {
+			m.logger.Warn("failed to register provider plugin",
+				"plugin", manifest.ID,
+				"error", err)
+		} else {
+			m.logger.Info("registered AI provider",
+				"plugin", manifest.ID,
+				"provider_id", caps.ProviderId,
+				"supports_chat", caps.SupportsChat,
+				"supports_embeddings", caps.SupportsEmbeddings)
+		}
+	}
+
 	// Publish plugin.loaded event
 	if m.publisher != nil {
 		m.publisher.Publish(domainevents.NewEvent(domainevents.EventPluginLoaded, "plugin-manager").
@@ -618,21 +667,169 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 	return instance, nil
 }
 
+// pluginLoadInfo holds manifest and path info for dependency resolution.
+type pluginLoadInfo struct {
+	manifest *Manifest
+	path     string
+}
+
 // LoadAllPlugins discovers and loads all plugins in the plugin directory.
+// It performs dependency resolution to ensure provider plugins load before
+// plugins that depend on them.
 func (m *Manager) LoadAllPlugins(ctx context.Context) error {
 	paths, err := m.DiscoverPlugins()
 	if err != nil {
 		return err
 	}
 
+	// Phase 1: Load all manifests without starting plugins
+	pluginInfos := make(map[string]*pluginLoadInfo)
 	for _, path := range paths {
-		if _, err := m.LoadPlugin(ctx, path); err != nil {
-			m.logger.Error("failed to load plugin", "path", path, "error", err)
+		pluginDir := filepath.Dir(path)
+		manifest, err := LoadManifest(pluginDir)
+		if err != nil {
+			m.logger.Error("failed to load plugin manifest", "path", path, "error", err)
+			continue
+		}
+		pluginInfos[manifest.ID] = &pluginLoadInfo{
+			manifest: manifest,
+			path:     path,
+		}
+	}
+
+	// Phase 2: Build capability -> plugin mapping
+	capabilityProviders := make(map[string][]string) // capability -> []pluginID
+	for pluginID, info := range pluginInfos {
+		for _, capability := range info.manifest.Provides {
+			capabilityProviders[capability] = append(capabilityProviders[capability], pluginID)
+		}
+	}
+
+	// Phase 3: Resolve load order using topological sort
+	loadOrder, skipped := m.resolveLoadOrder(pluginInfos, capabilityProviders)
+
+	// Log skipped plugins
+	for pluginID, reason := range skipped {
+		m.logger.Warn("skipping plugin due to unsatisfied dependencies",
+			"plugin", pluginID,
+			"reason", reason)
+	}
+
+	// Phase 4: Load plugins in resolved order
+	for _, pluginID := range loadOrder {
+		info := pluginInfos[pluginID]
+		if _, err := m.LoadPlugin(ctx, info.path); err != nil {
+			m.logger.Error("failed to load plugin", "plugin", pluginID, "path", info.path, "error", err)
 			// Continue loading other plugins
 		}
 	}
 
 	return nil
+}
+
+// resolveLoadOrder performs topological sort based on plugin dependencies.
+// Returns the ordered list of plugin IDs to load and a map of skipped plugins with reasons.
+func (m *Manager) resolveLoadOrder(
+	plugins map[string]*pluginLoadInfo,
+	capabilityProviders map[string][]string,
+) ([]string, map[string]string) {
+	// Build adjacency list: plugin -> plugins it depends on
+	dependencies := make(map[string][]string)
+	skipped := make(map[string]string)
+
+	for pluginID, info := range plugins {
+		var deps []string
+		for _, dep := range info.manifest.Dependencies {
+			// Find plugins that provide this capability
+			providers := capabilityProviders[dep.Capability]
+			if len(providers) == 0 {
+				if dep.Required {
+					skipped[pluginID] = fmt.Sprintf("required capability '%s' not provided by any plugin", dep.Capability)
+					break
+				}
+				// Optional dependency not satisfied - continue without it
+				m.logger.Debug("optional dependency not satisfied",
+					"plugin", pluginID,
+					"capability", dep.Capability)
+				continue
+			}
+			// Add all providers as dependencies (any one of them can satisfy it)
+			deps = append(deps, providers...)
+		}
+		if _, wasSkipped := skipped[pluginID]; !wasSkipped {
+			dependencies[pluginID] = deps
+		}
+	}
+
+	// Remove skipped plugins from consideration
+	for pluginID := range skipped {
+		delete(dependencies, pluginID)
+	}
+
+	// Kahn's algorithm for topological sort
+	inDegree := make(map[string]int)
+	for pluginID := range dependencies {
+		if _, exists := inDegree[pluginID]; !exists {
+			inDegree[pluginID] = 0
+		}
+		for _, dep := range dependencies[pluginID] {
+			// Only count dependencies that are in our plugin set
+			if _, exists := dependencies[dep]; exists {
+				inDegree[pluginID]++
+			}
+		}
+	}
+
+	// Start with plugins that have no dependencies
+	var queue []string
+	for pluginID, degree := range inDegree {
+		if degree == 0 {
+			queue = append(queue, pluginID)
+		}
+	}
+
+	var result []string
+	for len(queue) > 0 {
+		// Pop from queue
+		current := queue[0]
+		queue = queue[1:]
+		result = append(result, current)
+
+		// Reduce in-degree for plugins that depend on current
+		for pluginID, deps := range dependencies {
+			for _, dep := range deps {
+				if dep == current {
+					inDegree[pluginID]--
+					if inDegree[pluginID] == 0 {
+						queue = append(queue, pluginID)
+					}
+				}
+			}
+		}
+	}
+
+	// Check for circular dependencies
+	if len(result) != len(dependencies) {
+		// Find plugins involved in cycle
+		for pluginID := range dependencies {
+			found := false
+			for _, r := range result {
+				if r == pluginID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				skipped[pluginID] = "circular dependency detected"
+			}
+		}
+	}
+
+	m.logger.Info("resolved plugin load order",
+		"order", result,
+		"skipped_count", len(skipped))
+
+	return result, skipped
 }
 
 // UnloadPlugin gracefully shuts down and removes a plugin.
@@ -656,9 +853,10 @@ func (m *Manager) UnloadPlugin(ctx context.Context, pluginID string) error {
 	// Kill the plugin process
 	instance.Client.Kill()
 
-	// Unregister routes and capabilities
+	// Unregister routes, capabilities, and providers
 	m.routeRegistry.UnregisterRoutes(pluginID)
 	m.capabilityRegistry.Unregister(pluginID)
+	m.providerRegistry.Unregister(pluginID)
 
 	m.logger.Info("plugin unloaded", "id", pluginID)
 
@@ -705,6 +903,18 @@ func (m *Manager) GetEnrichers() []*PluginInstance {
 		}
 	}
 	return enrichers
+}
+
+// GetAllPlugins returns all loaded plugins.
+func (m *Manager) GetAllPlugins() []*PluginInstance {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	plugins := make([]*PluginInstance, 0, len(m.plugins))
+	for _, p := range m.plugins {
+		plugins = append(plugins, p)
+	}
+	return plugins
 }
 
 // GetAISearchPlugin returns the first plugin that implements AI search.
@@ -1001,4 +1211,9 @@ func (m *Manager) GetRouteRegistry() *RouteRegistry {
 // GetCapabilityRegistry returns the capability registry.
 func (m *Manager) GetCapabilityRegistry() *CapabilityRegistry {
 	return m.capabilityRegistry
+}
+
+// GetProviderRegistry returns the provider registry for AI provider plugins.
+func (m *Manager) GetProviderRegistry() *ProviderRegistry {
+	return m.providerRegistry
 }

@@ -23,6 +23,8 @@ import type {
 
 import type {
   GetApiEnrichmentStats200,
+  InternalApiHandlersBulkEnqueueRequest,
+  InternalApiHandlersBulkEnqueueResponse,
   InternalApiHandlersEnqueueMediaRequest,
   InternalApiHandlersEnqueueMediaResponse,
   InternalApiHandlersErrorResponse,
@@ -33,6 +35,128 @@ import { customInstance } from '../../mutator/index'
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
 
+/**
+ * Enqueues all media items of a specific type in a library for a specific enrichment stage
+ * @summary Bulk enqueue media for enrichment
+ */
+export type postApiEnrichmentBulkEnqueueResponse202 = {
+  data: InternalApiHandlersBulkEnqueueResponse
+  status: 202
+}
+
+export type postApiEnrichmentBulkEnqueueResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type postApiEnrichmentBulkEnqueueResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type postApiEnrichmentBulkEnqueueResponseSuccess =
+  postApiEnrichmentBulkEnqueueResponse202 & {
+    headers: Headers
+  }
+export type postApiEnrichmentBulkEnqueueResponseError = (
+  | postApiEnrichmentBulkEnqueueResponse400
+  | postApiEnrichmentBulkEnqueueResponse500
+) & {
+  headers: Headers
+}
+
+export type postApiEnrichmentBulkEnqueueResponse =
+  | postApiEnrichmentBulkEnqueueResponseSuccess
+  | postApiEnrichmentBulkEnqueueResponseError
+
+export const getPostApiEnrichmentBulkEnqueueUrl = () => {
+  return `/api/enrichment/bulk-enqueue`
+}
+
+export const postApiEnrichmentBulkEnqueue = async (
+  internalApiHandlersBulkEnqueueRequest: InternalApiHandlersBulkEnqueueRequest,
+  options?: RequestInit
+): Promise<postApiEnrichmentBulkEnqueueResponse> => {
+  return customInstance<postApiEnrichmentBulkEnqueueResponse>(
+    getPostApiEnrichmentBulkEnqueueUrl(),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(internalApiHandlersBulkEnqueueRequest),
+    }
+  )
+}
+
+export const getPostApiEnrichmentBulkEnqueueMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiEnrichmentBulkEnqueue>>,
+    TError,
+    { data: InternalApiHandlersBulkEnqueueRequest },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiEnrichmentBulkEnqueue>>,
+  TError,
+  { data: InternalApiHandlersBulkEnqueueRequest },
+  TContext
+> => {
+  const mutationKey = ['postApiEnrichmentBulkEnqueue']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiEnrichmentBulkEnqueue>>,
+    { data: InternalApiHandlersBulkEnqueueRequest }
+  > = (props) => {
+    const { data } = props ?? {}
+
+    return postApiEnrichmentBulkEnqueue(data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiEnrichmentBulkEnqueueMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiEnrichmentBulkEnqueue>>
+>
+export type PostApiEnrichmentBulkEnqueueMutationBody = InternalApiHandlersBulkEnqueueRequest
+export type PostApiEnrichmentBulkEnqueueMutationError = InternalApiHandlersErrorResponse
+
+/**
+ * @summary Bulk enqueue media for enrichment
+ */
+export const usePostApiEnrichmentBulkEnqueue = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiEnrichmentBulkEnqueue>>,
+      TError,
+      { data: InternalApiHandlersBulkEnqueueRequest },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiEnrichmentBulkEnqueue>>,
+  TError,
+  { data: InternalApiHandlersBulkEnqueueRequest },
+  TContext
+> => {
+  const mutationOptions = getPostApiEnrichmentBulkEnqueueMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
 /**
  * Manually enqueues a media item for a specific enrichment stage
  * @summary Enqueue media for enrichment

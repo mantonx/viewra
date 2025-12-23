@@ -41,7 +41,7 @@ export const QualitySelector = ({
   // Sort qualities by height (highest first), then by bandwidth (highest first)
   const sortedQualities = useMemo(() => {
     return [...availableQualities].sort((a, b) => {
-      if (a.height !== b.height) return b.height - a.height
+      if (a.height !== b.height) {return b.height - a.height}
       return b.bandwidth - a.bandwidth
     })
   }, [availableQualities])

@@ -11,3 +11,4 @@ export {
   getDurationSeconds,
   hasProgress,
 } from './progress'
+export { getIcon } from './icons'

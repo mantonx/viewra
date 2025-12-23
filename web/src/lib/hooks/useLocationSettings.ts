@@ -33,8 +33,8 @@ export const useLocationSettings = () => {
 
   // Sync with server data
   useEffect(() => {
-    if (locationData?.status !== 200) return
-    if (isChanging) return // Don't overwrite while user is changing
+    if (locationData?.status !== 200) {return}
+    if (isChanging) {return} // Don't overwrite while user is changing
 
     const data = locationData.data as {
       enabled?: boolean
@@ -52,7 +52,7 @@ export const useLocationSettings = () => {
   }, [locationData, isChanging])
 
   const search = useCallback(async (query: string) => {
-    if (!query.trim()) return
+    if (!query.trim()) {return}
 
     setIsSearching(true)
     setSearchResults([])

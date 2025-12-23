@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/mantonx/viewra/internal/app/config"
@@ -16,7 +17,7 @@ import (
 	"github.com/mantonx/viewra/internal/application/settings"
 	"github.com/mantonx/viewra/internal/application/transcode"
 	domaintranscode "github.com/mantonx/viewra/internal/domain/transcode"
-	"github.com/mantonx/viewra/internal/infrastructure/ai/providers"
+
 	"github.com/mantonx/viewra/internal/infrastructure/auth"
 	"github.com/mantonx/viewra/internal/infrastructure/crypto"
 	"github.com/mantonx/viewra/internal/infrastructure/events"
@@ -31,6 +32,8 @@ import (
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/session"
 	"github.com/mantonx/viewra/internal/infrastructure/weather"
 	"github.com/mantonx/viewra/internal/version"
+
+	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 )
 
 // DiskMonitoringRepo defines the repository interface needed for disk monitoring cleanup.
@@ -261,9 +264,6 @@ func BuildServices(
 		settingsService.SetSystemProfile(cfg.SystemProfile)
 	}
 
-	// Create AI config reader for HostLLMServer integration
-	aiConfigReader := settings.NewAIConfigReader(settingsService)
-
 	// Wire settings service into session manager for dynamic config
 	// This enables runtime changes to tone mapping settings without restart
 	configProvider := transcode.NewSettingsConfigProvider(settingsService, transcodeConfig)
@@ -364,18 +364,10 @@ func BuildServices(
 		var hostLLMServer *plugins.HostLLMServer
 		var hostEmbeddingsServer *plugins.HostEmbeddingsServer
 
-		// Create provider factory for LLM/embedding providers
-		providerFactory := providers.NewFactory()
-
-		// Create HostLLMServer with provider factory
-		// Default to Ollama on localhost for local AI inference
+		// Create HostLLMServer - provider plugins will be registered after manager is created
 		hostLLMServer = plugins.NewHostLLMServer(plugins.HostLLMConfig{
-			OllamaBaseURL: "http://localhost:11434",
-		}, providerFactory, logger.With("component", "host-llm"))
-
-		// Wire AI config reader for dynamic settings from database
-		hostLLMServer.SetConfigReader(aiConfigReader)
-		hostLLMServer.RefreshConfig(context.Background())
+			// Defaults can be empty - will be set from settings or provider defaults
+		}, logger.With("component", "host-llm"))
 
 		// Create HostEmbeddingsServer if embedding repository is available
 		if repos.Embedding != nil {
@@ -413,9 +405,38 @@ func BuildServices(
 			pluginManager.SetPublisher(eventBus)
 		}
 
+		// Wire system profile to plugin manager for hardware/system info
+		if pluginManager != nil && cfg.SystemProfile != nil {
+			sysInfo := &pluginv1.SystemInfo{
+				RamBytes:          cfg.SystemProfile.Memory.TotalBytes,
+				RamAvailableBytes: cfg.SystemProfile.Memory.AvailableBytes,
+				HasGpu:            cfg.SystemProfile.GPU.Available,
+				VramBytes:         cfg.SystemProfile.GPU.VRAMBytes,
+				CpuCores:          int32(cfg.SystemProfile.CPU.NumPhysical),
+				CpuModel:          cfg.SystemProfile.CPU.Model,
+				Os:                runtime.GOOS,
+				Arch:              runtime.GOARCH,
+			}
+			// Get GPU name from first detected device
+			if len(cfg.SystemProfile.GPU.DeviceNames) > 0 {
+				sysInfo.GpuName = cfg.SystemProfile.GPU.DeviceNames[0]
+			}
+			pluginManager.SetSystemInfo(sysInfo)
+			logger.Info("System info configured for plugins",
+				"ram_gb", cfg.SystemProfile.Memory.TotalBytes/(1024*1024*1024),
+				"cpu_cores", cfg.SystemProfile.CPU.NumPhysical,
+				"has_gpu", cfg.SystemProfile.GPU.Available,
+				"vram_gb", cfg.SystemProfile.GPU.VRAMBytes/(1024*1024*1024))
+		}
+
 		// Subscribe to AI settings changes for dynamic config refresh
 		if hostLLMServer != nil && eventBus != nil {
-			go subscribeToAISettingsChanges(eventBus, hostLLMServer, logger)
+			go subscribeToAISettingsChanges(eventBus, hostLLMServer, settingsService, logger)
+		}
+
+		// Wire provider registry to HostLLMServer after plugins are loaded
+		if hostLLMServer != nil && pluginManager != nil {
+			hostLLMServer.SetProviderRegistry(pluginManager.GetProviderRegistry())
 		}
 	}
 
@@ -469,16 +490,19 @@ func (a *metadataExtractorAdapter) ExtractMetadata(imagePath string) (*pipeline.
 	}, nil
 }
 
-// subscribeToAISettingsChanges listens for AI settings changes and refreshes the LLM config.
-// This runs as a background goroutine and automatically refreshes HostLLMServer config
+// subscribeToAISettingsChanges listens for AI settings changes and updates LLM defaults.
+// This runs as a background goroutine and automatically updates HostLLMServer defaults
 // when AI-related settings are changed via the settings API.
 func subscribeToAISettingsChanges(
 	eventBus *events.Bus,
 	hostLLMServer *plugins.HostLLMServer,
+	settingsService *settings.Service,
 	logger *slog.Logger,
 ) {
 	sub := eventBus.Subscribe(events.WithEventTypes(events.EventSettingsChanged))
 	defer sub.Close()
+
+	aiReader := settings.NewAIConfigReader(settingsService)
 
 	for event := range sub.Events() {
 		// Check if this is an AI settings change
@@ -488,8 +512,19 @@ func subscribeToAISettingsChanges(
 		}
 
 		if category == "ai" {
-			logger.Debug("AI settings changed, refreshing HostLLMServer config")
-			hostLLMServer.RefreshConfig(context.Background())
+			logger.Debug("AI settings changed, updating HostLLMServer defaults")
+			ctx := context.Background()
+
+			// Read current settings and update HostLLMServer
+			embeddingProvider := string(aiReader.GetEmbeddingProvider(ctx))
+			chatProvider := string(aiReader.GetChatProvider(ctx))
+
+			// Get model based on provider
+			var embeddingModel, chatModel string
+			// Note: model selection is now handled by provider plugins via their defaults
+			// The settings only store provider selection, not model per provider
+
+			hostLLMServer.SetDefaults(embeddingProvider, embeddingModel, chatProvider, chatModel)
 		}
 	}
 }

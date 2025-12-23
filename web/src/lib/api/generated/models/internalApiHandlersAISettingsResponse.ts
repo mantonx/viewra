@@ -7,28 +7,11 @@
  */
 
 export interface InternalApiHandlersAISettingsResponse {
-  anthropicApiKey?: string
-  anthropicChatModel?: string
-  /** Chat settings */
   chatProvider?: string
-  /** Embedding settings */
+  /** Provider selection */
   embeddingProvider?: string
   enabled?: boolean
   /** Search settings */
   maxResults?: number
-  /** Status */
-  ollamaAvailable?: boolean
-  ollamaChatModel?: string
-  ollamaEmbeddingModel?: string
-  /** Shared settings */
-  ollamaUrl?: string
-  /** API keys (masked) */
-  openaiApiKey?: string
-  openaiChatModel?: string
-  openaiEmbeddingModel?: string
-  openrouterApiKey?: string
-  openrouterChatModel?: string
   similarityThreshold?: string
-  voyageApiKey?: string
-  voyageEmbeddingModel?: string
 }

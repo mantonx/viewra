@@ -5,6 +5,7 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
+import type { GithubComMantonxViewraInternalApplicationPluginsPluginSummaryMeta } from './githubComMantonxViewraInternalApplicationPluginsPluginSummaryMeta'
 
 export interface GithubComMantonxViewraInternalApplicationPluginsPluginSummary {
   author?: string
@@ -15,6 +16,10 @@ export interface GithubComMantonxViewraInternalApplicationPluginsPluginSummary {
   health?: string
   id?: string
   is_builtin?: boolean
+  /** x-viewra-meta from settings schema */
+  meta?: GithubComMantonxViewraInternalApplicationPluginsPluginSummaryMeta
   name?: string
+  /** Provider ID if this is a provider plugin (e.g., "ollama") */
+  provider_id?: string
   version?: string
 }

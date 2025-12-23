@@ -3,415 +3,247 @@ package plugins
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"sync"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
-	"github.com/mantonx/viewra/internal/application/settings"
-	"github.com/mantonx/viewra/internal/domain/ai"
-	"github.com/mantonx/viewra/internal/infrastructure/ai/providers"
 )
 
+// ErrNoProvider is returned when no provider plugin is available.
+var ErrNoProvider = errors.New("no AI provider plugin available")
+
 // HostLLMServer implements the HostLLM gRPC service.
-// It provides plugins access to LLM providers for embeddings and chat.
+// It delegates all AI operations to registered provider plugins.
 type HostLLMServer struct {
 	pluginv1.UnimplementedHostLLMServer
 
-	factory *providers.Factory
-
-	// Config reader for dynamic settings (optional)
-	configReader *settings.AIConfigReader
-
-	// Cached config with mutex for thread-safe access
 	mu                       sync.RWMutex
-	defaultEmbeddingProvider ai.ProviderType
+	providerRegistry         *ProviderRegistry
+	defaultEmbeddingProvider string
 	defaultEmbeddingModel    string
-	defaultChatProvider      ai.ProviderType
+	defaultChatProvider      string
 	defaultChatModel         string
-	ollamaBaseURL            string
-
-	logger *slog.Logger
+	logger                   *slog.Logger
 }
 
 // HostLLMConfig configures the host LLM server.
 type HostLLMConfig struct {
-	DefaultEmbeddingProvider ai.ProviderType
+	DefaultEmbeddingProvider string
 	DefaultEmbeddingModel    string
-	DefaultChatProvider      ai.ProviderType
+	DefaultChatProvider      string
 	DefaultChatModel         string
-	OllamaBaseURL            string
 }
 
 // NewHostLLMServer creates a new HostLLMServer.
-func NewHostLLMServer(cfg HostLLMConfig, factory *providers.Factory, logger *slog.Logger) *HostLLMServer {
+func NewHostLLMServer(cfg HostLLMConfig, logger *slog.Logger) *HostLLMServer {
 	return &HostLLMServer{
-		factory:                  factory,
 		defaultEmbeddingProvider: cfg.DefaultEmbeddingProvider,
 		defaultEmbeddingModel:    cfg.DefaultEmbeddingModel,
 		defaultChatProvider:      cfg.DefaultChatProvider,
 		defaultChatModel:         cfg.DefaultChatModel,
-		ollamaBaseURL:            cfg.OllamaBaseURL,
 		logger:                   logger,
 	}
 }
 
-// SetConfigReader sets the AI config reader for dynamic settings.
-// When set, RefreshConfig will reload settings from the database.
-func (s *HostLLMServer) SetConfigReader(reader *settings.AIConfigReader) {
+// SetProviderRegistry sets the provider registry.
+func (s *HostLLMServer) SetProviderRegistry(registry *ProviderRegistry) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.configReader = reader
+	s.providerRegistry = registry
 }
 
-// RefreshConfig reloads configuration from settings.
-// Call this when AI settings are changed.
-func (s *HostLLMServer) RefreshConfig(ctx context.Context) {
+// SetDefaults updates the default provider and model settings.
+func (s *HostLLMServer) SetDefaults(embeddingProvider, embeddingModel, chatProvider, chatModel string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	if s.configReader == nil {
-		return
-	}
-
-	// Get embedding provider config
-	embeddingProvider := s.configReader.GetEmbeddingProvider(ctx)
 	s.defaultEmbeddingProvider = embeddingProvider
-
-	// Get chat provider config
-	chatProvider := s.configReader.GetChatProvider(ctx)
+	s.defaultEmbeddingModel = embeddingModel
 	s.defaultChatProvider = chatProvider
-
-	// Get Ollama base URL (used by both embedding and chat if using Ollama)
-	s.ollamaBaseURL = s.configReader.GetOllamaURL(ctx)
-
-	// Get embedding model based on provider
-	switch embeddingProvider {
-	case ai.ProviderOpenAI:
-		s.defaultEmbeddingModel = s.configReader.GetOpenAIEmbeddingModel(ctx)
-	case ai.ProviderVoyage:
-		s.defaultEmbeddingModel = s.configReader.GetVoyageEmbeddingModel(ctx)
-	case ai.ProviderOllama:
-		fallthrough
-	default:
-		s.defaultEmbeddingModel = s.configReader.GetOllamaEmbeddingModel(ctx)
-	}
-
-	// Get chat model based on provider
-	switch chatProvider {
-	case ai.ProviderOpenAI:
-		s.defaultChatModel = s.configReader.GetOpenAIChatModel(ctx)
-	case ai.ProviderAnthropic:
-		s.defaultChatModel = s.configReader.GetAnthropicChatModel(ctx)
-	case ai.ProviderOpenRouter:
-		s.defaultChatModel = s.configReader.GetOpenRouterChatModel(ctx)
-	case ai.ProviderOllama:
-		fallthrough
-	default:
-		s.defaultChatModel = s.configReader.GetOllamaChatModel(ctx)
-	}
-
-	s.logger.Info("AI config refreshed",
-		"embedding_provider", embeddingProvider,
-		"embedding_model", s.defaultEmbeddingModel,
-		"chat_provider", chatProvider,
-		"chat_model", s.defaultChatModel,
-		"ollama_url", s.ollamaBaseURL)
+	s.defaultChatModel = chatModel
 }
 
-// ListProviders returns available LLM providers.
-func (s *HostLLMServer) ListProviders(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.LLMProviderList, error) {
-	providerList := []*pluginv1.LLMProvider{
-		{
-			Id:                "ollama",
-			Name:              "Ollama (Local)",
-			Configured:        s.factory != nil,
-			SupportsChat:      true,
-			SupportsEmbedding: true,
-		},
-		{
-			Id:                "openai",
-			Name:              "OpenAI",
-			Configured:        false,
-			SupportsChat:      true,
-			SupportsEmbedding: true,
-		},
-		{
-			Id:                "anthropic",
-			Name:              "Anthropic",
-			Configured:        false,
-			SupportsChat:      true,
-			SupportsEmbedding: false,
-		},
+// getProvider returns the provider for the given ID, applying defaults.
+func (s *HostLLMServer) getProvider(providerID string, useChat bool) (*RegisteredProvider, string, error) {
+	s.mu.RLock()
+	registry := s.providerRegistry
+	defaultProvider := s.defaultEmbeddingProvider
+	if useChat {
+		defaultProvider = s.defaultChatProvider
+	}
+	s.mu.RUnlock()
+
+	if registry == nil {
+		return nil, "", ErrNoProvider
 	}
 
-	return &pluginv1.LLMProviderList{Providers: providerList}, nil
+	if providerID == "" {
+		providerID = defaultProvider
+	}
+	if providerID == "" {
+		return nil, "", errors.New("no provider specified and no default configured")
+	}
+
+	provider := registry.Get(providerID)
+	if provider == nil {
+		return nil, "", errors.New("provider not found: " + providerID)
+	}
+
+	return provider, providerID, nil
+}
+
+// ListProviders returns available providers.
+func (s *HostLLMServer) ListProviders(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.LLMProviderList, error) {
+	s.mu.RLock()
+	registry := s.providerRegistry
+	s.mu.RUnlock()
+
+	var list []*pluginv1.LLMProvider
+	if registry != nil {
+		for _, p := range registry.List() {
+			list = append(list, &pluginv1.LLMProvider{
+				Id:                p.Capabilities.ProviderId,
+				Name:              p.Capabilities.DisplayName,
+				Configured:        true,
+				SupportsChat:      p.Capabilities.SupportsChat,
+				SupportsEmbedding: p.Capabilities.SupportsEmbeddings,
+			})
+		}
+	}
+	return &pluginv1.LLMProviderList{Providers: list}, nil
 }
 
 // ListModels returns available models for a provider.
 func (s *HostLLMServer) ListModels(ctx context.Context, req *pluginv1.LLMProviderQuery) (*pluginv1.LLMModelList, error) {
-	if s.factory == nil {
-		return nil, errors.New("provider factory not configured")
-	}
-
-	providerType := ai.ProviderType(req.ProviderId)
-	models, err := s.factory.ListAvailableModels(ctx, providerType, s.ollamaBaseURL)
+	provider, _, err := s.getProvider(req.ProviderId, false)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]*pluginv1.LLMModel, len(models))
-	for i, m := range models {
-		result[i] = &pluginv1.LLMModel{
-			Id:            m.ID,
-			Name:          m.Name,
-			Provider:      req.ProviderId,
-			IsEmbedding:   m.IsEmbedding,
-			ContextLength: int32(m.ContextSize),
-		}
+	resp, err := provider.Client.ListModels(ctx, &pluginv1.Empty{})
+	if err != nil {
+		return nil, err
 	}
 
-	return &pluginv1.LLMModelList{Models: result}, nil
+	models := make([]*pluginv1.LLMModel, len(resp.Models))
+	for i, m := range resp.Models {
+		models[i] = &pluginv1.LLMModel{
+			Id:            m.Id,
+			Name:          m.Name,
+			Provider:      provider.ProviderID,
+			IsEmbedding:   m.IsEmbedding,
+			ContextLength: m.ContextLength,
+		}
+	}
+	return &pluginv1.LLMModelList{Models: models}, nil
 }
 
 // GenerateEmbedding generates an embedding for a single text.
 func (s *HostLLMServer) GenerateEmbedding(ctx context.Context, req *pluginv1.EmbeddingRequest) (*pluginv1.EmbeddingResponse, error) {
-	if s.factory == nil {
-		return nil, errors.New("provider factory not configured")
-	}
-
-	providerType := ai.ProviderType(req.Provider)
-	if providerType == "" {
-		providerType = s.defaultEmbeddingProvider
-	}
-	if providerType == "" {
-		providerType = ai.ProviderOllama
-	}
-
-	model := req.Model
-	if model == "" {
-		model = s.defaultEmbeddingModel
-	}
-	if model == "" {
-		model = "nomic-embed-text"
-	}
-
-	provider, err := s.factory.CreateEmbeddingProvider(ai.EmbeddingConfig{
-		Provider: providerType,
-		Model:    model,
-		APIKey:   s.ollamaBaseURL, // For Ollama, this is the base URL
-	})
+	provider, providerID, err := s.getProvider(req.Provider, false)
 	if err != nil {
 		return nil, err
 	}
+	if !provider.Capabilities.SupportsEmbeddings {
+		return nil, errors.New("provider does not support embeddings: " + providerID)
+	}
 
-	resp, err := provider.Embed(ctx, ai.EmbeddingRequest{
-		Texts: []string{req.Text},
+	model := s.resolveModel(req.Model, s.defaultEmbeddingModel, provider.Capabilities.DefaultEmbeddingModel)
+
+	return provider.Client.GenerateEmbedding(ctx, &pluginv1.ProviderEmbeddingRequest{
+		Text:  req.Text,
+		Model: model,
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	if len(resp.Embeddings) == 0 {
-		return nil, errors.New("no embedding returned")
-	}
-
-	return &pluginv1.EmbeddingResponse{
-		Embedding:  resp.Embeddings[0],
-		Dimensions: int32(len(resp.Embeddings[0])),
-		TokensUsed: int32(resp.Usage.TotalTokens),
-	}, nil
 }
 
 // GenerateEmbeddingBatch generates embeddings for multiple texts.
 func (s *HostLLMServer) GenerateEmbeddingBatch(ctx context.Context, req *pluginv1.EmbeddingBatchRequest) (*pluginv1.EmbeddingBatchResponse, error) {
-	if s.factory == nil {
-		return nil, errors.New("provider factory not configured")
-	}
-
-	providerType := ai.ProviderType(req.Provider)
-	if providerType == "" {
-		providerType = s.defaultEmbeddingProvider
-	}
-	if providerType == "" {
-		providerType = ai.ProviderOllama
-	}
-
-	model := req.Model
-	if model == "" {
-		model = s.defaultEmbeddingModel
-	}
-	if model == "" {
-		model = "nomic-embed-text"
-	}
-
-	provider, err := s.factory.CreateEmbeddingProvider(ai.EmbeddingConfig{
-		Provider: providerType,
-		Model:    model,
-		APIKey:   s.ollamaBaseURL,
-	})
+	provider, providerID, err := s.getProvider(req.Provider, false)
 	if err != nil {
 		return nil, err
 	}
+	if !provider.Capabilities.SupportsEmbeddings {
+		return nil, errors.New("provider does not support embeddings: " + providerID)
+	}
 
-	resp, err := provider.Embed(ctx, ai.EmbeddingRequest{
+	model := s.resolveModel(req.Model, s.defaultEmbeddingModel, provider.Capabilities.DefaultEmbeddingModel)
+
+	return provider.Client.GenerateEmbeddingBatch(ctx, &pluginv1.ProviderEmbeddingBatchRequest{
 		Texts: req.Texts,
+		Model: model,
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	results := make([]*pluginv1.EmbeddingResult, len(resp.Embeddings))
-	for i, emb := range resp.Embeddings {
-		results[i] = &pluginv1.EmbeddingResult{
-			Embedding:  emb,
-			Dimensions: int32(len(emb)),
-		}
-	}
-
-	return &pluginv1.EmbeddingBatchResponse{
-		Embeddings:  results,
-		TotalTokens: int32(resp.Usage.TotalTokens),
-	}, nil
 }
 
 // Chat sends a chat completion request.
 func (s *HostLLMServer) Chat(ctx context.Context, req *pluginv1.ChatRequest) (*pluginv1.ChatResponse, error) {
-	if s.factory == nil {
-		return nil, errors.New("provider factory not configured")
-	}
-
-	providerType := ai.ProviderType(req.Provider)
-	if providerType == "" {
-		providerType = s.defaultChatProvider
-	}
-	if providerType == "" {
-		providerType = ai.ProviderOllama
-	}
-
-	model := req.Model
-	if model == "" {
-		model = s.defaultChatModel
-	}
-	if model == "" {
-		model = "llama3.1:8b"
-	}
-
-	s.logger.Debug("chat request",
-		"provider", providerType,
-		"model", model,
-		"messages", len(req.Messages),
-	)
-
-	provider, err := s.factory.CreateLLMProvider(ai.ProviderConfig{
-		Type:    providerType,
-		Model:   model,
-		BaseURL: s.ollamaBaseURL,
-	})
+	provider, providerID, err := s.getProvider(req.Provider, true)
 	if err != nil {
-		s.logger.Error("failed to create LLM provider",
-			"provider", providerType,
-			"model", model,
-			"error", err,
-		)
 		return nil, err
 	}
-
-	messages := make([]ai.Message, len(req.Messages))
-	for i, m := range req.Messages {
-		messages[i] = ai.Message{
-			Role:    ai.Role(m.Role),
-			Content: m.Content,
-		}
+	if !provider.Capabilities.SupportsChat {
+		return nil, errors.New("provider does not support chat: " + providerID)
 	}
 
-	resp, err := provider.Chat(ctx, ai.ChatRequest{
-		Messages:    messages,
-		Temperature: float64(req.Temperature),
-		MaxTokens:   int(req.MaxTokens),
+	model := s.resolveModel(req.Model, s.defaultChatModel, provider.Capabilities.DefaultChatModel)
+
+	return provider.Client.Chat(ctx, &pluginv1.ProviderChatRequest{
+		Messages:    req.Messages,
+		Model:       model,
+		Temperature: req.Temperature,
+		MaxTokens:   req.MaxTokens,
 	})
-	if err != nil {
-		s.logger.Error("chat completion failed",
-			"provider", providerType,
-			"model", model,
-			"error", err,
-		)
-		return nil, err
-	}
-
-	return &pluginv1.ChatResponse{
-		Content:          resp.Content,
-		FinishReason:     resp.FinishReason,
-		PromptTokens:     int32(resp.Usage.PromptTokens),
-		CompletionTokens: int32(resp.Usage.CompletionTokens),
-	}, nil
 }
 
 // ChatStream sends a streaming chat completion request.
 func (s *HostLLMServer) ChatStream(req *pluginv1.ChatRequest, stream pluginv1.HostLLM_ChatStreamServer) error {
-	if s.factory == nil {
-		return errors.New("provider factory not configured")
+	provider, providerID, err := s.getProvider(req.Provider, true)
+	if err != nil {
+		return err
+	}
+	if !provider.Capabilities.SupportsChat {
+		return errors.New("provider does not support chat: " + providerID)
 	}
 
-	ctx := stream.Context()
+	model := s.resolveModel(req.Model, s.defaultChatModel, provider.Capabilities.DefaultChatModel)
 
-	providerType := ai.ProviderType(req.Provider)
-	if providerType == "" {
-		providerType = s.defaultChatProvider
-	}
-	if providerType == "" {
-		providerType = ai.ProviderOllama
-	}
-
-	model := req.Model
-	if model == "" {
-		model = s.defaultChatModel
-	}
-	if model == "" {
-		model = "llama3.1:8b"
-	}
-
-	provider, err := s.factory.CreateLLMProvider(ai.ProviderConfig{
-		Type:    providerType,
-		Model:   model,
-		BaseURL: s.ollamaBaseURL,
+	providerStream, err := provider.Client.ChatStream(stream.Context(), &pluginv1.ProviderChatRequest{
+		Messages:    req.Messages,
+		Model:       model,
+		Temperature: req.Temperature,
+		MaxTokens:   req.MaxTokens,
 	})
 	if err != nil {
 		return err
 	}
 
-	messages := make([]ai.Message, len(req.Messages))
-	for i, m := range req.Messages {
-		messages[i] = ai.Message{
-			Role:    ai.Role(m.Role),
-			Content: m.Content,
+	for {
+		chunk, err := providerStream.Recv()
+		if errors.Is(err, io.EOF) {
+			return nil
 		}
-	}
-
-	events, err := provider.ChatStream(ctx, ai.ChatRequest{
-		Messages:    messages,
-		Temperature: float64(req.Temperature),
-		MaxTokens:   int(req.MaxTokens),
-	})
-	if err != nil {
-		return err
-	}
-
-	for event := range events {
-		if event.Error != nil {
-			return event.Error
-		}
-
-		if err := stream.Send(&pluginv1.ChatStreamChunk{
-			Content:      event.Content,
-			Done:         event.Done,
-			FinishReason: event.FinishReason,
-		}); err != nil {
+		if err != nil {
 			return err
 		}
+		if err := stream.Send(chunk); err != nil {
+			return err
+		}
+		if chunk.Done {
+			return nil
+		}
 	}
-
-	return nil
 }
 
-// Ensure interface is implemented
+// resolveModel returns the first non-empty model from the candidates.
+func (s *HostLLMServer) resolveModel(requested, defaultModel, providerDefault string) string {
+	if requested != "" {
+		return requested
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if defaultModel != "" {
+		return defaultModel
+	}
+	return providerDefault
+}
+
 var _ pluginv1.HostLLMServer = (*HostLLMServer)(nil)

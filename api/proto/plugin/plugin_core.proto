@@ -77,6 +77,31 @@ message InitRequest {
   // Broker ID for host weather service (0 = not available)
   // Plugin can dial this ID to get a HostWeatherClient
   uint32 host_weather_broker_id = 8;
+
+  // System resource information for plugins that need it
+  // (e.g., AI providers for model recommendations)
+  SystemInfo system_info = 9;
+}
+
+// SystemInfo contains host system resource information.
+// Useful for plugins that need to make decisions based on available resources.
+message SystemInfo {
+  // Memory
+  uint64 ram_bytes = 1;
+  uint64 ram_available_bytes = 2;
+
+  // GPU
+  bool has_gpu = 3;
+  uint64 vram_bytes = 4;
+  string gpu_name = 5;
+
+  // CPU
+  int32 cpu_cores = 6;
+  string cpu_model = 7;
+
+  // OS
+  string os = 8;    // "linux", "darwin", "windows"
+  string arch = 9;  // "amd64", "arm64"
 }
 
 message InitResponse {

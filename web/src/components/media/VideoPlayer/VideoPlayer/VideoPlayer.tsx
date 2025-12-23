@@ -312,9 +312,9 @@ export const VideoPlayer = ({
   // Use a ref to ensure we only apply once per media
   const appliedAudioPrefRef = useRef(false)
   useEffect(() => {
-    if (appliedAudioPrefRef.current) return
-    if (!savedPreferences?.selectedAudioTrack) return
-    if (availableAudioTracks.length === 0) return
+    if (appliedAudioPrefRef.current) {return}
+    if (!savedPreferences?.selectedAudioTrack) {return}
+    if (availableAudioTracks.length === 0) {return}
 
     // Check if saved track exists in available tracks
     const trackExists = availableAudioTracks.some(t => t.id === savedPreferences.selectedAudioTrack)
@@ -327,9 +327,9 @@ export const VideoPlayer = ({
   // Apply saved subtitle preference when subtitles load
   const appliedSubtitlePrefRef = useRef(false)
   useEffect(() => {
-    if (appliedSubtitlePrefRef.current) return
-    if (savedPreferences?.selectedSubtitleTrack === undefined) return
-    if (availableSubtitles.length === 0 && savedPreferences.selectedSubtitleTrack !== null) return
+    if (appliedSubtitlePrefRef.current) {return}
+    if (savedPreferences?.selectedSubtitleTrack === undefined) {return}
+    if (availableSubtitles.length === 0 && savedPreferences.selectedSubtitleTrack !== null) {return}
 
     // -1 or null means subtitles off, otherwise find the track
     if (savedPreferences.selectedSubtitleTrack === null || savedPreferences.selectedSubtitleTrack === -1) {
@@ -366,7 +366,7 @@ export const VideoPlayer = ({
   const handleQualityChange = useCallback(
     (qualityId: string) => {
       const video = videoRef.current
-      if (!video || !onQualityChangeCallback) return
+      if (!video || !onQualityChangeCallback) {return}
 
       // Calculate the actual media time (accounting for stream offset in progressive transcoding)
       const currentPosition = video.currentTime + (streamOffsetRef.current || 0)

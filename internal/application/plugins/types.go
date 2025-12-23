@@ -8,15 +8,17 @@ import (
 
 // PluginSummary contains basic plugin information for list views.
 type PluginSummary struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Version     string   `json:"version"`
-	Description string   `json:"description"`
-	Author      string   `json:"author"`
-	Categories  []string `json:"categories"`
-	Enabled     bool     `json:"enabled"`
-	IsBuiltin   bool     `json:"is_builtin"`
-	Health      string   `json:"health"` // "healthy", "degraded", "unhealthy", "unknown"
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Version     string         `json:"version"`
+	Description string         `json:"description"`
+	Author      string         `json:"author"`
+	Categories  []string       `json:"categories"`
+	Enabled     bool           `json:"enabled"`
+	IsBuiltin   bool           `json:"is_builtin"`
+	Health      string         `json:"health"`                // "healthy", "degraded", "unhealthy", "unknown"
+	ProviderID  string         `json:"provider_id,omitempty"` // Provider ID if this is a provider plugin (e.g., "ollama")
+	Meta        map[string]any `json:"meta,omitempty"`        // x-viewra-meta from settings schema
 }
 
 // PluginDetail contains full plugin information.

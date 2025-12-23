@@ -12,7 +12,7 @@
  * basename('movie.mkv') // 'movie.mkv'
  */
 export const basename = (path: string): string => {
-  if (!path) return ''
+  if (!path) {return ''}
 
   // Handle both Unix and Windows path separators
   const lastSlash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
@@ -34,7 +34,7 @@ export const basename = (path: string): string => {
  * dirname('movie.mkv') // ''
  */
 export const dirname = (path: string): string => {
-  if (!path) return ''
+  if (!path) {return ''}
 
   // Handle both Unix and Windows path separators
   const lastSlash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))

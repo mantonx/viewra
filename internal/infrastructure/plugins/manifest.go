@@ -35,8 +35,27 @@ type Manifest struct {
 	// e.g., ["semantic_search", "similar_items"] creates /api/search and /api/similar aliases
 	ServiceCapabilities []string `yaml:"service_capabilities,omitempty"`
 
+	// Dependencies declares what capabilities this plugin requires from other plugins.
+	// Used for dependency resolution and plugin load ordering.
+	Dependencies []ManifestDependency `yaml:"dependencies,omitempty"`
+
+	// Provides declares what capabilities this plugin offers to others.
+	// e.g., ["provider:ollama", "provider"] for a provider plugin
+	// Other plugins can depend on these capabilities.
+	Provides []string `yaml:"provides,omitempty"`
+
 	// Required permissions
 	Permissions []string `yaml:"permissions"`
+}
+
+// ManifestDependency declares a capability requirement for a plugin.
+type ManifestDependency struct {
+	// Capability is the required capability, e.g., "provider", "ai:search"
+	Capability string `yaml:"capability"`
+
+	// Required indicates if this dependency must be satisfied for the plugin to load.
+	// If true and no plugin provides the capability, this plugin won't load.
+	Required bool `yaml:"required"`
 }
 
 // ManifestCapabilities describes enricher capabilities in the manifest.

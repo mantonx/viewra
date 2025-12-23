@@ -180,7 +180,7 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
       const progressResult = await authFetch(`/api/progress/${id}`)
         .then(async (response) => {
           const progressData = response.ok ? await response.json() : null
-          if (!progressData) return { position: 0, preferences: null }
+          if (!progressData) {return { position: 0, preferences: null }}
 
           const progressSecs = getProgressSeconds(progressData)
           const durationSecs = progressData?.duration_seconds ?? 0

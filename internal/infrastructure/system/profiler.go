@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 	"syscall"
@@ -338,21 +339,36 @@ func detectNVIDIAGPUsWithVRAM() ([]string, uint64) {
 
 // detectNVIDIAVRAM uses nvidia-smi to get total VRAM in bytes
 func detectNVIDIAVRAM() uint64 {
-	// Read from /proc if available (faster than exec)
-	// Try nvidia-smi via /proc/driver/nvidia
-	data, err := os.ReadFile("/proc/driver/nvidia/gpus/0000:01:00.0/information")
-	if err != nil {
-		// Try common alternative paths
-		entries, err := os.ReadDir("/proc/driver/nvidia/gpus")
-		if err != nil || len(entries) == 0 {
-			return 0
+	// First try nvidia-smi command (most reliable)
+	// nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits returns memory in MiB
+	cmd := exec.Command("nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits")
+	output, err := cmd.Output()
+	if err == nil {
+		// Parse output - may have multiple lines for multiple GPUs
+		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+		var totalVRAM uint64
+		for _, line := range lines {
+			var mib uint64
+			if _, err := fmt.Sscanf(strings.TrimSpace(line), "%d", &mib); err == nil {
+				totalVRAM += mib * 1024 * 1024 // Convert MiB to bytes
+			}
 		}
-		for _, entry := range entries {
-			if entry.IsDir() {
-				data, err = os.ReadFile("/proc/driver/nvidia/gpus/" + entry.Name() + "/information")
-				if err == nil {
-					break
-				}
+		if totalVRAM > 0 {
+			return totalVRAM
+		}
+	}
+
+	// Fallback: read from /proc if available
+	var data []byte
+	entries, err := os.ReadDir("/proc/driver/nvidia/gpus")
+	if err != nil || len(entries) == 0 {
+		return 0
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			data, err = os.ReadFile("/proc/driver/nvidia/gpus/" + entry.Name() + "/information")
+			if err == nil {
+				break
 			}
 		}
 	}

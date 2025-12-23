@@ -1,0 +1,157 @@
+syntax = "proto3";
+
+package viewra.plugin.v1;
+
+option go_package = "github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1";
+
+import "api/proto/plugin/common.proto";
+import "api/proto/plugin/host_ai.proto";
+
+// PluginProvider is implemented by AI provider plugins (ollama, openai, etc.).
+// The host calls these methods when a consumer plugin requests AI services.
+// Provider plugins register themselves with the host on startup.
+service PluginProvider {
+  // GetCapabilities returns what this provider supports.
+  // Called by the host during provider registration.
+  rpc GetCapabilities(Empty) returns (ProviderCapabilities);
+
+  // ListModels returns available models for this provider.
+  // For cloud providers, this may fetch from their APIs.
+  // For Ollama, this returns locally installed models.
+  rpc ListModels(Empty) returns (ProviderModelList);
+
+  // GenerateEmbedding generates an embedding for a single text.
+  rpc GenerateEmbedding(ProviderEmbeddingRequest) returns (EmbeddingResponse);
+
+  // GenerateEmbeddingBatch generates embeddings for multiple texts.
+  rpc GenerateEmbeddingBatch(ProviderEmbeddingBatchRequest) returns (EmbeddingBatchResponse);
+
+  // Chat sends a chat completion request.
+  rpc Chat(ProviderChatRequest) returns (ChatResponse);
+
+  // ChatStream sends a streaming chat completion request.
+  rpc ChatStream(ProviderChatRequest) returns (stream ChatStreamChunk);
+
+  // HealthCheck verifies the provider is working.
+  // Checks API key validity, service reachability, etc.
+  rpc HealthCheck(Empty) returns (ProviderHealthStatus);
+}
+
+// ProviderCapabilities describes what an AI provider plugin supports.
+message ProviderCapabilities {
+  // Unique provider identifier, e.g., "ollama", "openai", "anthropic"
+  string provider_id = 1;
+
+  // Human-readable display name, e.g., "Ollama (Local)"
+  string display_name = 2;
+
+  // Description of the provider
+  string description = 3;
+
+  // Whether this provider supports chat completions
+  bool supports_chat = 4;
+
+  // Whether this provider supports embedding generation
+  bool supports_embeddings = 5;
+
+  // Whether this provider supports streaming responses
+  bool supports_streaming = 6;
+
+  // Whether this provider requires an API key
+  bool requires_api_key = 7;
+
+  // Whether this provider requires a custom URL (e.g., Ollama)
+  bool requires_url = 8;
+
+  // Whether this provider runs locally (affects UI display)
+  bool is_local = 9;
+
+  // Default chat model ID
+  string default_chat_model = 10;
+
+  // Default embedding model ID
+  string default_embedding_model = 11;
+}
+
+// ProviderModelList contains models available from a provider.
+message ProviderModelList {
+  repeated ProviderModel models = 1;
+}
+
+// ProviderModel describes a model available from a provider.
+message ProviderModel {
+  // Model identifier, e.g., "llama3.2", "gpt-4o-mini"
+  string id = 1;
+
+  // Human-readable name
+  string name = 2;
+
+  // Description of the model
+  string description = 3;
+
+  // Whether this is a chat/completion model
+  bool is_chat = 4;
+
+  // Whether this is an embedding model
+  bool is_embedding = 5;
+
+  // Context window size (for chat models)
+  int32 context_length = 6;
+
+  // Embedding dimensions (for embedding models)
+  int32 embedding_dimensions = 7;
+
+  // Model size for display (e.g., "7B", "3.8GB")
+  string size = 8;
+
+  // Whether this model is recommended
+  bool recommended = 9;
+}
+
+// ProviderEmbeddingRequest is sent to a provider plugin for embedding generation.
+message ProviderEmbeddingRequest {
+  // Text to generate embedding for
+  string text = 1;
+
+  // Model to use (uses plugin default if empty)
+  string model = 2;
+}
+
+// ProviderEmbeddingBatchRequest is sent for batch embedding generation.
+message ProviderEmbeddingBatchRequest {
+  // Texts to generate embeddings for
+  repeated string texts = 1;
+
+  // Model to use (uses plugin default if empty)
+  string model = 2;
+}
+
+// ProviderChatRequest is sent to a provider plugin for chat completion.
+message ProviderChatRequest {
+  // Chat messages
+  repeated ChatMessage messages = 1;
+
+  // Model to use (uses plugin default if empty)
+  string model = 2;
+
+  // Temperature (0.0 - 2.0)
+  float temperature = 3;
+
+  // Maximum tokens to generate
+  int32 max_tokens = 4;
+}
+
+// ProviderHealthStatus indicates the health of a provider.
+message ProviderHealthStatus {
+  // Whether the provider is healthy and ready to serve requests
+  bool healthy = 1;
+
+  // Human-readable status message
+  string message = 2;
+
+  // Latency of the health check in milliseconds
+  int64 latency_ms = 3;
+
+  // Error message if unhealthy
+  string error = 4;
+}

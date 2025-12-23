@@ -11,6 +11,9 @@
     "generate:api": "orval"
   },
   "dependencies": {
+    "@rjsf/core": "^6.1.2",
+    "@rjsf/utils": "^6.1.2",
+    "@rjsf/validator-ajv8": "^6.1.2",
     "@tailwindcss/postcss": "^4.1.17",
     "@tanstack/react-form": "^1.6.2",
     "@tanstack/react-router": "^1.135.2",

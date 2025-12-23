@@ -12,6 +12,7 @@ export interface GithubComMantonxViewraInternalDomainAiProviderInfo {
   chatModels?: GithubComMantonxViewraInternalDomainAiModelInfo[]
   description?: string
   embeddingModels?: GithubComMantonxViewraInternalDomainAiModelInfo[]
+  isPlugin?: boolean
   name?: string
   requiresApiKey?: boolean
   requiresUrl?: boolean

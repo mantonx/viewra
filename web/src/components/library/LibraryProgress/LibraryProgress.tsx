@@ -51,13 +51,13 @@ const LibraryProgress = ({
 
   // Truncate text to max length with ellipsis
   const truncate = (text: string, maxLength: number): string => {
-    if (text.length <= maxLength) return text
-    return text.slice(0, maxLength - 1) + '...'
+    if (text.length <= maxLength) {return text}
+    return `${text.slice(0, maxLength - 1)  }...`
   }
 
   // Get current enrichment item display
   const getCurrentEnrichmentDisplay = (): string | null => {
-    if (!isEnrichmentActive || !enrichmentProgress) return null
+    if (!isEnrichmentActive || !enrichmentProgress) {return null}
 
     const currentItem = enrichmentProgress.currentItem
     if (currentItem) {
@@ -75,7 +75,7 @@ const LibraryProgress = ({
 
   // Calculate enrichment progress (only meaningful after scan completes)
   const getEnrichmentProgress = () => {
-    if (!enrichmentProgress) return { percent: 0, remaining: 0, total: 0 }
+    if (!enrichmentProgress) {return { percent: 0, remaining: 0, total: 0 }}
 
     const { completed, pending, processing, failed, total } = enrichmentProgress
     const remaining = pending + processing

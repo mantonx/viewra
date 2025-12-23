@@ -17,7 +17,7 @@ const QualityIndicator = ({
   selectedQuality: QualityOption | null
   availableQualities: QualityOption[]
 }) => {
-  if (!selectedQuality) return null
+  if (!selectedQuality) {return null}
 
   // Check if this is the highest quality (original)
   const maxHeight = Math.max(...availableQualities.map(q => q.height), 0)

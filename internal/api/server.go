@@ -209,10 +209,11 @@ func (s *Server) setupRoutes() {
 	routes.RegisterEnrichmentRoutes(protected, h.Enrichment)
 
 	// Register plugin routes (protected, with admin requirement for mutations)
-	routes.RegisterPluginRoutes(protected, h.Plugins, h.AuthValidator)
+	// This also registers plugin custom routes via the HTTP proxy
+	routes.RegisterPluginRoutes(protected, h.Plugins, h.PluginProxy, h.AuthValidator)
 
-	// Register dynamic plugin routes (replaces hardcoded AI routes)
-	s.registerPluginRoutes(protected)
+	// Register capability alias routes (e.g., /api/search -> ai-search plugin)
+	s.registerCapabilityAliases(protected)
 
 	// Register image routes (protected via api group)
 	routes.RegisterImageRoutes(s.router, h.Images)
@@ -248,22 +249,14 @@ func (s *Server) Router() *gin.Engine {
 	return s.router
 }
 
-// registerPluginRoutes sets up routes for plugin-defined HTTP endpoints.
-// This includes:
-// - /api/plugins/:plugin_id/*path - Direct plugin access
-// - /api/search, /api/similar, etc. - Capability-aliased stable URLs
-func (s *Server) registerPluginRoutes(protected *gin.RouterGroup) {
+// registerCapabilityAliases sets up capability alias routes for plugins.
+// For example, /api/search is aliased to the semantic_search capability.
+func (s *Server) registerCapabilityAliases(protected *gin.RouterGroup) {
 	proxy := s.handlers.PluginProxy
 	if proxy == nil {
-		s.logger.Debug("plugin proxy not configured, skipping plugin route registration")
+		s.logger.Debug("plugin proxy not configured, skipping capability alias registration")
 		return
 	}
-
-	// Register the plugin namespace route
-	// All routes under /api/plugins/:plugin_id/* are handled by the proxy
-	// Note: There's already a /api/plugins group from RegisterPluginRoutes for plugin management.
-	// We use a different sub-path pattern to avoid conflicts.
-	protected.Any("/plugin-routes/:plugin_id/*path", proxy.HandlePluginRoute)
 
 	// Register capability alias routes (e.g., /api/search -> ai-search plugin)
 	// These go on the parent protected group to get stable URLs

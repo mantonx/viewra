@@ -8,6 +8,13 @@ import (
 
 // RegisterAISettingsRoutes registers AI settings routes.
 // These routes require admin authentication.
+//
+// Provider-specific routes (schema, configure, test, models) have been moved to the
+// unified plugin API at /api/plugins/:id/... The frontend should use:
+//   - GET /api/plugins/:id/settings - Get schema + values
+//   - PUT /api/plugins/:id/settings - Configure plugin
+//   - GET /api/plugins/:id/health - Health check (replaces test)
+//   - GET /api/plugins/:id/models - Plugin custom route for model listing
 func RegisterAISettingsRoutes(protected *gin.RouterGroup, h *handlers.AISettingsHandler, authValidator middleware.AuthValidator) {
 	if h == nil {
 		return
@@ -19,24 +26,15 @@ func RegisterAISettingsRoutes(protected *gin.RouterGroup, h *handlers.AISettings
 		ai.Use(middleware.RequireAdmin(authValidator))
 	}
 	{
-		// Settings CRUD
+		// AI feature settings
 		ai.GET("", h.GetAISettings)
 		ai.PUT("", h.UpdateAISettings)
 
-		// Provider information
+		// Provider listing (with capabilities)
 		ai.GET("/providers", h.GetProviders)
-		ai.GET("/providers/:provider/models", h.ListModels)
-		ai.POST("/providers/:provider/test", h.TestConnection)
 
-		// Ollama-specific model management
-		ai.GET("/models", h.ListOllamaModels)                          // Legacy, same as /providers/ollama/models
-		ai.GET("/models/recommended", h.GetRecommendedModels)          // System-aware embedding recommendations
-		ai.GET("/models/recommended/chat", h.GetRecommendedChatModels) // System-aware chat recommendations
-		ai.POST("/models/pull", h.PullOllamaModel)
-		ai.DELETE("/models", h.DeleteOllamaModel)
-
-		// Legacy connection tests (redirect to new endpoints)
-		ai.POST("/test/ollama", h.TestOllamaConnection)
-		ai.POST("/test/openai", h.TestOpenAIConnection)
+		// Model recommendations (uses Ollama plugin internally)
+		ai.GET("/models/recommended", h.GetRecommendedModels)
+		ai.GET("/models/recommended/chat", h.GetRecommendedChatModels)
 	}
 }

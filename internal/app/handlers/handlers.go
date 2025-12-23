@@ -157,6 +157,10 @@ func BuildHandlers(
 			}
 			return profile.Memory.TotalBytes, profile.GPU.VRAMBytes
 		})
+		// Wire up provider registry for dynamic provider lookup
+		if svcs.PluginManager != nil {
+			aiSettingsHandler.SetProviderRegistry(svcs.PluginManager.GetProviderRegistry())
+		}
 	}
 
 	// Location settings handler (for weather context)

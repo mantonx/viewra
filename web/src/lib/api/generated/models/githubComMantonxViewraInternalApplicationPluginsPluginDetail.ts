@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.0.1
  */
 import type { GithubComMantonxViewraInternalApplicationPluginsEnricherCapabilities } from './githubComMantonxViewraInternalApplicationPluginsEnricherCapabilities'
+import type { GithubComMantonxViewraInternalApplicationPluginsPluginDetailMeta } from './githubComMantonxViewraInternalApplicationPluginsPluginDetailMeta'
 
 export interface GithubComMantonxViewraInternalApplicationPluginsPluginDetail {
   author?: string
@@ -23,7 +24,11 @@ export interface GithubComMantonxViewraInternalApplicationPluginsPluginDetail {
   is_builtin?: boolean
   last_heartbeat?: string
   license?: string
+  /** x-viewra-meta from settings schema */
+  meta?: GithubComMantonxViewraInternalApplicationPluginsPluginDetailMeta
   name?: string
+  /** Provider ID if this is a provider plugin (e.g., "ollama") */
+  provider_id?: string
   restart_count?: number
   updated_at?: string
   version?: string

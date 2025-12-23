@@ -70,7 +70,7 @@ func (x HealthStatus_Status) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use HealthStatus_Status.Descriptor instead.
 func (HealthStatus_Status) EnumDescriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{2, 0}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{3, 0}
 }
 
 // Chunk type for streaming protocol
@@ -135,7 +135,7 @@ func (x PluginHTTPChunk_Type) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use PluginHTTPChunk_Type.Descriptor instead.
 func (PluginHTTPChunk_Type) EnumDescriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{14, 0}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{15, 0}
 }
 
 type InitRequest struct {
@@ -161,8 +161,11 @@ type InitRequest struct {
 	// Broker ID for host weather service (0 = not available)
 	// Plugin can dial this ID to get a HostWeatherClient
 	HostWeatherBrokerId uint32 `protobuf:"varint,8,opt,name=host_weather_broker_id,json=hostWeatherBrokerId,proto3" json:"host_weather_broker_id,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// System resource information for plugins that need it
+	// (e.g., AI providers for model recommendations)
+	SystemInfo    *SystemInfo `protobuf:"bytes,9,opt,name=system_info,json=systemInfo,proto3" json:"system_info,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *InitRequest) Reset() {
@@ -251,6 +254,127 @@ func (x *InitRequest) GetHostWeatherBrokerId() uint32 {
 	return 0
 }
 
+func (x *InitRequest) GetSystemInfo() *SystemInfo {
+	if x != nil {
+		return x.SystemInfo
+	}
+	return nil
+}
+
+// SystemInfo contains host system resource information.
+// Useful for plugins that need to make decisions based on available resources.
+type SystemInfo struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Memory
+	RamBytes          uint64 `protobuf:"varint,1,opt,name=ram_bytes,json=ramBytes,proto3" json:"ram_bytes,omitempty"`
+	RamAvailableBytes uint64 `protobuf:"varint,2,opt,name=ram_available_bytes,json=ramAvailableBytes,proto3" json:"ram_available_bytes,omitempty"`
+	// GPU
+	HasGpu    bool   `protobuf:"varint,3,opt,name=has_gpu,json=hasGpu,proto3" json:"has_gpu,omitempty"`
+	VramBytes uint64 `protobuf:"varint,4,opt,name=vram_bytes,json=vramBytes,proto3" json:"vram_bytes,omitempty"`
+	GpuName   string `protobuf:"bytes,5,opt,name=gpu_name,json=gpuName,proto3" json:"gpu_name,omitempty"`
+	// CPU
+	CpuCores int32  `protobuf:"varint,6,opt,name=cpu_cores,json=cpuCores,proto3" json:"cpu_cores,omitempty"`
+	CpuModel string `protobuf:"bytes,7,opt,name=cpu_model,json=cpuModel,proto3" json:"cpu_model,omitempty"`
+	// OS
+	Os            string `protobuf:"bytes,8,opt,name=os,proto3" json:"os,omitempty"`     // "linux", "darwin", "windows"
+	Arch          string `protobuf:"bytes,9,opt,name=arch,proto3" json:"arch,omitempty"` // "amd64", "arm64"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SystemInfo) Reset() {
+	*x = SystemInfo{}
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SystemInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SystemInfo) ProtoMessage() {}
+
+func (x *SystemInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SystemInfo.ProtoReflect.Descriptor instead.
+func (*SystemInfo) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SystemInfo) GetRamBytes() uint64 {
+	if x != nil {
+		return x.RamBytes
+	}
+	return 0
+}
+
+func (x *SystemInfo) GetRamAvailableBytes() uint64 {
+	if x != nil {
+		return x.RamAvailableBytes
+	}
+	return 0
+}
+
+func (x *SystemInfo) GetHasGpu() bool {
+	if x != nil {
+		return x.HasGpu
+	}
+	return false
+}
+
+func (x *SystemInfo) GetVramBytes() uint64 {
+	if x != nil {
+		return x.VramBytes
+	}
+	return 0
+}
+
+func (x *SystemInfo) GetGpuName() string {
+	if x != nil {
+		return x.GpuName
+	}
+	return ""
+}
+
+func (x *SystemInfo) GetCpuCores() int32 {
+	if x != nil {
+		return x.CpuCores
+	}
+	return 0
+}
+
+func (x *SystemInfo) GetCpuModel() string {
+	if x != nil {
+		return x.CpuModel
+	}
+	return ""
+}
+
+func (x *SystemInfo) GetOs() string {
+	if x != nil {
+		return x.Os
+	}
+	return ""
+}
+
+func (x *SystemInfo) GetArch() string {
+	if x != nil {
+		return x.Arch
+	}
+	return ""
+}
+
 type InitResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -261,7 +385,7 @@ type InitResponse struct {
 
 func (x *InitResponse) Reset() {
 	*x = InitResponse{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[1]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -273,7 +397,7 @@ func (x *InitResponse) String() string {
 func (*InitResponse) ProtoMessage() {}
 
 func (x *InitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[1]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -286,7 +410,7 @@ func (x *InitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InitResponse.ProtoReflect.Descriptor instead.
 func (*InitResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{1}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *InitResponse) GetSuccess() bool {
@@ -317,7 +441,7 @@ type HealthStatus struct {
 
 func (x *HealthStatus) Reset() {
 	*x = HealthStatus{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[2]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -329,7 +453,7 @@ func (x *HealthStatus) String() string {
 func (*HealthStatus) ProtoMessage() {}
 
 func (x *HealthStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[2]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -342,7 +466,7 @@ func (x *HealthStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthStatus.ProtoReflect.Descriptor instead.
 func (*HealthStatus) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{2}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *HealthStatus) GetStatus() HealthStatus_Status {
@@ -390,7 +514,7 @@ type SettingsSchema struct {
 
 func (x *SettingsSchema) Reset() {
 	*x = SettingsSchema{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[3]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -402,7 +526,7 @@ func (x *SettingsSchema) String() string {
 func (*SettingsSchema) ProtoMessage() {}
 
 func (x *SettingsSchema) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[3]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -415,7 +539,7 @@ func (x *SettingsSchema) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SettingsSchema.ProtoReflect.Descriptor instead.
 func (*SettingsSchema) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{3}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *SettingsSchema) GetJsonSchema() []byte {
@@ -435,7 +559,7 @@ type Settings struct {
 
 func (x *Settings) Reset() {
 	*x = Settings{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[4]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -447,7 +571,7 @@ func (x *Settings) String() string {
 func (*Settings) ProtoMessage() {}
 
 func (x *Settings) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[4]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -460,7 +584,7 @@ func (x *Settings) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Settings.ProtoReflect.Descriptor instead.
 func (*Settings) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{4}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Settings) GetJson() []byte {
@@ -480,7 +604,7 @@ type ConfigureResponse struct {
 
 func (x *ConfigureResponse) Reset() {
 	*x = ConfigureResponse{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[5]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -492,7 +616,7 @@ func (x *ConfigureResponse) String() string {
 func (*ConfigureResponse) ProtoMessage() {}
 
 func (x *ConfigureResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[5]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -505,7 +629,7 @@ func (x *ConfigureResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigureResponse.ProtoReflect.Descriptor instead.
 func (*ConfigureResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{5}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ConfigureResponse) GetSuccess() bool {
@@ -532,7 +656,7 @@ type EventSubscriptions struct {
 
 func (x *EventSubscriptions) Reset() {
 	*x = EventSubscriptions{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[6]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -544,7 +668,7 @@ func (x *EventSubscriptions) String() string {
 func (*EventSubscriptions) ProtoMessage() {}
 
 func (x *EventSubscriptions) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[6]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -557,7 +681,7 @@ func (x *EventSubscriptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventSubscriptions.ProtoReflect.Descriptor instead.
 func (*EventSubscriptions) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{6}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *EventSubscriptions) GetEventTypes() []string {
@@ -580,7 +704,7 @@ type Event struct {
 
 func (x *Event) Reset() {
 	*x = Event{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[7]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -592,7 +716,7 @@ func (x *Event) String() string {
 func (*Event) ProtoMessage() {}
 
 func (x *Event) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[7]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -605,7 +729,7 @@ func (x *Event) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Event.ProtoReflect.Descriptor instead.
 func (*Event) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{7}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Event) GetType() string {
@@ -653,7 +777,7 @@ type EventResponse struct {
 
 func (x *EventResponse) Reset() {
 	*x = EventResponse{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[8]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -665,7 +789,7 @@ func (x *EventResponse) String() string {
 func (*EventResponse) ProtoMessage() {}
 
 func (x *EventResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[8]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -678,7 +802,7 @@ func (x *EventResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventResponse.ProtoReflect.Descriptor instead.
 func (*EventResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{8}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *EventResponse) GetHandled() bool {
@@ -704,7 +828,7 @@ type PluginRoutes struct {
 
 func (x *PluginRoutes) Reset() {
 	*x = PluginRoutes{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[9]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -716,7 +840,7 @@ func (x *PluginRoutes) String() string {
 func (*PluginRoutes) ProtoMessage() {}
 
 func (x *PluginRoutes) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[9]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -729,7 +853,7 @@ func (x *PluginRoutes) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginRoutes.ProtoReflect.Descriptor instead.
 func (*PluginRoutes) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{9}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *PluginRoutes) GetRoutes() []*PluginRoute {
@@ -763,7 +887,7 @@ type PluginRoute struct {
 
 func (x *PluginRoute) Reset() {
 	*x = PluginRoute{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[10]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -775,7 +899,7 @@ func (x *PluginRoute) String() string {
 func (*PluginRoute) ProtoMessage() {}
 
 func (x *PluginRoute) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[10]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -788,7 +912,7 @@ func (x *PluginRoute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginRoute.ProtoReflect.Descriptor instead.
 func (*PluginRoute) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{10}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *PluginRoute) GetPath() string {
@@ -852,7 +976,7 @@ type PluginRateLimit struct {
 
 func (x *PluginRateLimit) Reset() {
 	*x = PluginRateLimit{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[11]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -864,7 +988,7 @@ func (x *PluginRateLimit) String() string {
 func (*PluginRateLimit) ProtoMessage() {}
 
 func (x *PluginRateLimit) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[11]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -877,7 +1001,7 @@ func (x *PluginRateLimit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginRateLimit.ProtoReflect.Descriptor instead.
 func (*PluginRateLimit) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{11}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *PluginRateLimit) GetRequestsPerMinute() int32 {
@@ -918,7 +1042,7 @@ type PluginHTTPRequest struct {
 
 func (x *PluginHTTPRequest) Reset() {
 	*x = PluginHTTPRequest{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[12]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -930,7 +1054,7 @@ func (x *PluginHTTPRequest) String() string {
 func (*PluginHTTPRequest) ProtoMessage() {}
 
 func (x *PluginHTTPRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[12]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -943,7 +1067,7 @@ func (x *PluginHTTPRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginHTTPRequest.ProtoReflect.Descriptor instead.
 func (*PluginHTTPRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{12}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *PluginHTTPRequest) GetPath() string {
@@ -1018,7 +1142,7 @@ type PluginHTTPResponse struct {
 
 func (x *PluginHTTPResponse) Reset() {
 	*x = PluginHTTPResponse{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[13]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1030,7 +1154,7 @@ func (x *PluginHTTPResponse) String() string {
 func (*PluginHTTPResponse) ProtoMessage() {}
 
 func (x *PluginHTTPResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[13]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1043,7 +1167,7 @@ func (x *PluginHTTPResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginHTTPResponse.ProtoReflect.Descriptor instead.
 func (*PluginHTTPResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{13}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *PluginHTTPResponse) GetStatusCode() int32 {
@@ -1093,7 +1217,7 @@ type PluginHTTPChunk struct {
 
 func (x *PluginHTTPChunk) Reset() {
 	*x = PluginHTTPChunk{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[14]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1105,7 +1229,7 @@ func (x *PluginHTTPChunk) String() string {
 func (*PluginHTTPChunk) ProtoMessage() {}
 
 func (x *PluginHTTPChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[14]
+	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1118,7 +1242,7 @@ func (x *PluginHTTPChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginHTTPChunk.ProtoReflect.Descriptor instead.
 func (*PluginHTTPChunk) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{14}
+	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *PluginHTTPChunk) GetType() PluginHTTPChunk_Type {
@@ -1174,7 +1298,7 @@ var File_api_proto_plugin_plugin_core_proto protoreflect.FileDescriptor
 
 const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
 	"\n" +
-	"\"api/proto/plugin/plugin_core.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"\xe4\x02\n" +
+	"\"api/proto/plugin/plugin_core.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"\xa3\x03\n" +
 	"\vInitRequest\x12!\n" +
 	"\fhost_version\x18\x01 \x01(\tR\vhostVersion\x12\x19\n" +
 	"\bdata_dir\x18\x02 \x01(\tR\adataDir\x12\x16\n" +
@@ -1183,7 +1307,21 @@ const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
 	"\x13host_data_broker_id\x18\x05 \x01(\rR\x10hostDataBrokerId\x12+\n" +
 	"\x12host_llm_broker_id\x18\x06 \x01(\rR\x0fhostLlmBrokerId\x129\n" +
 	"\x19host_embeddings_broker_id\x18\a \x01(\rR\x16hostEmbeddingsBrokerId\x123\n" +
-	"\x16host_weather_broker_id\x18\b \x01(\rR\x13hostWeatherBrokerId\">\n" +
+	"\x16host_weather_broker_id\x18\b \x01(\rR\x13hostWeatherBrokerId\x12=\n" +
+	"\vsystem_info\x18\t \x01(\v2\x1c.viewra.plugin.v1.SystemInfoR\n" +
+	"systemInfo\"\x8a\x02\n" +
+	"\n" +
+	"SystemInfo\x12\x1b\n" +
+	"\tram_bytes\x18\x01 \x01(\x04R\bramBytes\x12.\n" +
+	"\x13ram_available_bytes\x18\x02 \x01(\x04R\x11ramAvailableBytes\x12\x17\n" +
+	"\ahas_gpu\x18\x03 \x01(\bR\x06hasGpu\x12\x1d\n" +
+	"\n" +
+	"vram_bytes\x18\x04 \x01(\x04R\tvramBytes\x12\x19\n" +
+	"\bgpu_name\x18\x05 \x01(\tR\agpuName\x12\x1b\n" +
+	"\tcpu_cores\x18\x06 \x01(\x05R\bcpuCores\x12\x1b\n" +
+	"\tcpu_model\x18\a \x01(\tR\bcpuModel\x12\x0e\n" +
+	"\x02os\x18\b \x01(\tR\x02os\x12\x12\n" +
+	"\x04arch\x18\t \x01(\tR\x04arch\">\n" +
 	"\fInitResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\"\x98\x02\n" +
@@ -1311,68 +1449,70 @@ func file_api_proto_plugin_plugin_core_proto_rawDescGZIP() []byte {
 }
 
 var file_api_proto_plugin_plugin_core_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_api_proto_plugin_plugin_core_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_api_proto_plugin_plugin_core_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_api_proto_plugin_plugin_core_proto_goTypes = []any{
 	(HealthStatus_Status)(0),   // 0: viewra.plugin.v1.HealthStatus.Status
 	(PluginHTTPChunk_Type)(0),  // 1: viewra.plugin.v1.PluginHTTPChunk.Type
 	(*InitRequest)(nil),        // 2: viewra.plugin.v1.InitRequest
-	(*InitResponse)(nil),       // 3: viewra.plugin.v1.InitResponse
-	(*HealthStatus)(nil),       // 4: viewra.plugin.v1.HealthStatus
-	(*SettingsSchema)(nil),     // 5: viewra.plugin.v1.SettingsSchema
-	(*Settings)(nil),           // 6: viewra.plugin.v1.Settings
-	(*ConfigureResponse)(nil),  // 7: viewra.plugin.v1.ConfigureResponse
-	(*EventSubscriptions)(nil), // 8: viewra.plugin.v1.EventSubscriptions
-	(*Event)(nil),              // 9: viewra.plugin.v1.Event
-	(*EventResponse)(nil),      // 10: viewra.plugin.v1.EventResponse
-	(*PluginRoutes)(nil),       // 11: viewra.plugin.v1.PluginRoutes
-	(*PluginRoute)(nil),        // 12: viewra.plugin.v1.PluginRoute
-	(*PluginRateLimit)(nil),    // 13: viewra.plugin.v1.PluginRateLimit
-	(*PluginHTTPRequest)(nil),  // 14: viewra.plugin.v1.PluginHTTPRequest
-	(*PluginHTTPResponse)(nil), // 15: viewra.plugin.v1.PluginHTTPResponse
-	(*PluginHTTPChunk)(nil),    // 16: viewra.plugin.v1.PluginHTTPChunk
-	nil,                        // 17: viewra.plugin.v1.PluginHTTPRequest.HeadersEntry
-	nil,                        // 18: viewra.plugin.v1.PluginHTTPRequest.QueryEntry
-	nil,                        // 19: viewra.plugin.v1.PluginHTTPRequest.PathParamsEntry
-	nil,                        // 20: viewra.plugin.v1.PluginHTTPResponse.HeadersEntry
-	nil,                        // 21: viewra.plugin.v1.PluginHTTPChunk.HeadersEntry
-	(*Empty)(nil),              // 22: viewra.plugin.v1.Empty
+	(*SystemInfo)(nil),         // 3: viewra.plugin.v1.SystemInfo
+	(*InitResponse)(nil),       // 4: viewra.plugin.v1.InitResponse
+	(*HealthStatus)(nil),       // 5: viewra.plugin.v1.HealthStatus
+	(*SettingsSchema)(nil),     // 6: viewra.plugin.v1.SettingsSchema
+	(*Settings)(nil),           // 7: viewra.plugin.v1.Settings
+	(*ConfigureResponse)(nil),  // 8: viewra.plugin.v1.ConfigureResponse
+	(*EventSubscriptions)(nil), // 9: viewra.plugin.v1.EventSubscriptions
+	(*Event)(nil),              // 10: viewra.plugin.v1.Event
+	(*EventResponse)(nil),      // 11: viewra.plugin.v1.EventResponse
+	(*PluginRoutes)(nil),       // 12: viewra.plugin.v1.PluginRoutes
+	(*PluginRoute)(nil),        // 13: viewra.plugin.v1.PluginRoute
+	(*PluginRateLimit)(nil),    // 14: viewra.plugin.v1.PluginRateLimit
+	(*PluginHTTPRequest)(nil),  // 15: viewra.plugin.v1.PluginHTTPRequest
+	(*PluginHTTPResponse)(nil), // 16: viewra.plugin.v1.PluginHTTPResponse
+	(*PluginHTTPChunk)(nil),    // 17: viewra.plugin.v1.PluginHTTPChunk
+	nil,                        // 18: viewra.plugin.v1.PluginHTTPRequest.HeadersEntry
+	nil,                        // 19: viewra.plugin.v1.PluginHTTPRequest.QueryEntry
+	nil,                        // 20: viewra.plugin.v1.PluginHTTPRequest.PathParamsEntry
+	nil,                        // 21: viewra.plugin.v1.PluginHTTPResponse.HeadersEntry
+	nil,                        // 22: viewra.plugin.v1.PluginHTTPChunk.HeadersEntry
+	(*Empty)(nil),              // 23: viewra.plugin.v1.Empty
 }
 var file_api_proto_plugin_plugin_core_proto_depIdxs = []int32{
-	0,  // 0: viewra.plugin.v1.HealthStatus.status:type_name -> viewra.plugin.v1.HealthStatus.Status
-	12, // 1: viewra.plugin.v1.PluginRoutes.routes:type_name -> viewra.plugin.v1.PluginRoute
-	13, // 2: viewra.plugin.v1.PluginRoute.rate_limit:type_name -> viewra.plugin.v1.PluginRateLimit
-	17, // 3: viewra.plugin.v1.PluginHTTPRequest.headers:type_name -> viewra.plugin.v1.PluginHTTPRequest.HeadersEntry
-	18, // 4: viewra.plugin.v1.PluginHTTPRequest.query:type_name -> viewra.plugin.v1.PluginHTTPRequest.QueryEntry
-	19, // 5: viewra.plugin.v1.PluginHTTPRequest.path_params:type_name -> viewra.plugin.v1.PluginHTTPRequest.PathParamsEntry
-	20, // 6: viewra.plugin.v1.PluginHTTPResponse.headers:type_name -> viewra.plugin.v1.PluginHTTPResponse.HeadersEntry
-	1,  // 7: viewra.plugin.v1.PluginHTTPChunk.type:type_name -> viewra.plugin.v1.PluginHTTPChunk.Type
-	14, // 8: viewra.plugin.v1.PluginHTTPChunk.request:type_name -> viewra.plugin.v1.PluginHTTPRequest
-	21, // 9: viewra.plugin.v1.PluginHTTPChunk.headers:type_name -> viewra.plugin.v1.PluginHTTPChunk.HeadersEntry
-	2,  // 10: viewra.plugin.v1.PluginCore.Initialize:input_type -> viewra.plugin.v1.InitRequest
-	22, // 11: viewra.plugin.v1.PluginCore.Shutdown:input_type -> viewra.plugin.v1.Empty
-	22, // 12: viewra.plugin.v1.PluginCore.HealthCheck:input_type -> viewra.plugin.v1.Empty
-	22, // 13: viewra.plugin.v1.PluginCore.GetSettingsSchema:input_type -> viewra.plugin.v1.Empty
-	6,  // 14: viewra.plugin.v1.PluginCore.Configure:input_type -> viewra.plugin.v1.Settings
-	22, // 15: viewra.plugin.v1.PluginCore.GetSubscriptions:input_type -> viewra.plugin.v1.Empty
-	9,  // 16: viewra.plugin.v1.PluginCore.OnEvent:input_type -> viewra.plugin.v1.Event
-	22, // 17: viewra.plugin.v1.PluginCore.GetRoutes:input_type -> viewra.plugin.v1.Empty
-	14, // 18: viewra.plugin.v1.PluginCore.HandleHTTP:input_type -> viewra.plugin.v1.PluginHTTPRequest
-	16, // 19: viewra.plugin.v1.PluginCore.HandleHTTPStream:input_type -> viewra.plugin.v1.PluginHTTPChunk
-	3,  // 20: viewra.plugin.v1.PluginCore.Initialize:output_type -> viewra.plugin.v1.InitResponse
-	22, // 21: viewra.plugin.v1.PluginCore.Shutdown:output_type -> viewra.plugin.v1.Empty
-	4,  // 22: viewra.plugin.v1.PluginCore.HealthCheck:output_type -> viewra.plugin.v1.HealthStatus
-	5,  // 23: viewra.plugin.v1.PluginCore.GetSettingsSchema:output_type -> viewra.plugin.v1.SettingsSchema
-	7,  // 24: viewra.plugin.v1.PluginCore.Configure:output_type -> viewra.plugin.v1.ConfigureResponse
-	8,  // 25: viewra.plugin.v1.PluginCore.GetSubscriptions:output_type -> viewra.plugin.v1.EventSubscriptions
-	10, // 26: viewra.plugin.v1.PluginCore.OnEvent:output_type -> viewra.plugin.v1.EventResponse
-	11, // 27: viewra.plugin.v1.PluginCore.GetRoutes:output_type -> viewra.plugin.v1.PluginRoutes
-	15, // 28: viewra.plugin.v1.PluginCore.HandleHTTP:output_type -> viewra.plugin.v1.PluginHTTPResponse
-	16, // 29: viewra.plugin.v1.PluginCore.HandleHTTPStream:output_type -> viewra.plugin.v1.PluginHTTPChunk
-	20, // [20:30] is the sub-list for method output_type
-	10, // [10:20] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	3,  // 0: viewra.plugin.v1.InitRequest.system_info:type_name -> viewra.plugin.v1.SystemInfo
+	0,  // 1: viewra.plugin.v1.HealthStatus.status:type_name -> viewra.plugin.v1.HealthStatus.Status
+	13, // 2: viewra.plugin.v1.PluginRoutes.routes:type_name -> viewra.plugin.v1.PluginRoute
+	14, // 3: viewra.plugin.v1.PluginRoute.rate_limit:type_name -> viewra.plugin.v1.PluginRateLimit
+	18, // 4: viewra.plugin.v1.PluginHTTPRequest.headers:type_name -> viewra.plugin.v1.PluginHTTPRequest.HeadersEntry
+	19, // 5: viewra.plugin.v1.PluginHTTPRequest.query:type_name -> viewra.plugin.v1.PluginHTTPRequest.QueryEntry
+	20, // 6: viewra.plugin.v1.PluginHTTPRequest.path_params:type_name -> viewra.plugin.v1.PluginHTTPRequest.PathParamsEntry
+	21, // 7: viewra.plugin.v1.PluginHTTPResponse.headers:type_name -> viewra.plugin.v1.PluginHTTPResponse.HeadersEntry
+	1,  // 8: viewra.plugin.v1.PluginHTTPChunk.type:type_name -> viewra.plugin.v1.PluginHTTPChunk.Type
+	15, // 9: viewra.plugin.v1.PluginHTTPChunk.request:type_name -> viewra.plugin.v1.PluginHTTPRequest
+	22, // 10: viewra.plugin.v1.PluginHTTPChunk.headers:type_name -> viewra.plugin.v1.PluginHTTPChunk.HeadersEntry
+	2,  // 11: viewra.plugin.v1.PluginCore.Initialize:input_type -> viewra.plugin.v1.InitRequest
+	23, // 12: viewra.plugin.v1.PluginCore.Shutdown:input_type -> viewra.plugin.v1.Empty
+	23, // 13: viewra.plugin.v1.PluginCore.HealthCheck:input_type -> viewra.plugin.v1.Empty
+	23, // 14: viewra.plugin.v1.PluginCore.GetSettingsSchema:input_type -> viewra.plugin.v1.Empty
+	7,  // 15: viewra.plugin.v1.PluginCore.Configure:input_type -> viewra.plugin.v1.Settings
+	23, // 16: viewra.plugin.v1.PluginCore.GetSubscriptions:input_type -> viewra.plugin.v1.Empty
+	10, // 17: viewra.plugin.v1.PluginCore.OnEvent:input_type -> viewra.plugin.v1.Event
+	23, // 18: viewra.plugin.v1.PluginCore.GetRoutes:input_type -> viewra.plugin.v1.Empty
+	15, // 19: viewra.plugin.v1.PluginCore.HandleHTTP:input_type -> viewra.plugin.v1.PluginHTTPRequest
+	17, // 20: viewra.plugin.v1.PluginCore.HandleHTTPStream:input_type -> viewra.plugin.v1.PluginHTTPChunk
+	4,  // 21: viewra.plugin.v1.PluginCore.Initialize:output_type -> viewra.plugin.v1.InitResponse
+	23, // 22: viewra.plugin.v1.PluginCore.Shutdown:output_type -> viewra.plugin.v1.Empty
+	5,  // 23: viewra.plugin.v1.PluginCore.HealthCheck:output_type -> viewra.plugin.v1.HealthStatus
+	6,  // 24: viewra.plugin.v1.PluginCore.GetSettingsSchema:output_type -> viewra.plugin.v1.SettingsSchema
+	8,  // 25: viewra.plugin.v1.PluginCore.Configure:output_type -> viewra.plugin.v1.ConfigureResponse
+	9,  // 26: viewra.plugin.v1.PluginCore.GetSubscriptions:output_type -> viewra.plugin.v1.EventSubscriptions
+	11, // 27: viewra.plugin.v1.PluginCore.OnEvent:output_type -> viewra.plugin.v1.EventResponse
+	12, // 28: viewra.plugin.v1.PluginCore.GetRoutes:output_type -> viewra.plugin.v1.PluginRoutes
+	16, // 29: viewra.plugin.v1.PluginCore.HandleHTTP:output_type -> viewra.plugin.v1.PluginHTTPResponse
+	17, // 30: viewra.plugin.v1.PluginCore.HandleHTTPStream:output_type -> viewra.plugin.v1.PluginHTTPChunk
+	21, // [21:31] is the sub-list for method output_type
+	11, // [11:21] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_plugin_plugin_core_proto_init() }
@@ -1387,7 +1527,7 @@ func file_api_proto_plugin_plugin_core_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_plugin_plugin_core_proto_rawDesc), len(file_api_proto_plugin_plugin_core_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   20,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

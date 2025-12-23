@@ -430,10 +430,9 @@ func loadExternalPlugins(ctx context.Context, svcs *services.Services, repos *re
 		return
 	}
 
-	// Get all loaded plugins and register enrichers with the pipeline
-	for _, instance := range pm.GetEnrichers() {
-		// Persist plugin to database (upsert to handle version updates)
-		if repos.Plugin != nil {
+	// Persist ALL plugins to database (including provider plugins)
+	if repos.Plugin != nil {
+		for _, instance := range pm.GetAllPlugins() {
 			manifest := instance.Manifest
 			categories := "[]"
 			if len(manifest.Categories) > 0 {
@@ -462,7 +461,10 @@ func loadExternalPlugins(ctx context.Context, svcs *services.Services, repos *re
 					"error", err)
 			}
 		}
+	}
 
+	// Register enrichers with the pipeline
+	for _, instance := range pm.GetEnrichers() {
 		// Wrap the plugin's enricher client as an application Enricher
 		enricher, err := plugins.NewGRPCEnricher(
 			instance.ID,

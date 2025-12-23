@@ -19,4 +19,6 @@ export interface GithubComMantonxViewraInternalDomainAiModelInfo {
   isEmbedding?: boolean
   name?: string
   recommended?: boolean
+  /** Model size for display (e.g., "7B", "3.8 GB") */
+  size?: string
 }

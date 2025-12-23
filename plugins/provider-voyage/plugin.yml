@@ -1,0 +1,25 @@
+# Voyage AI Provider Plugin Manifest
+id: provider-voyage
+name: Voyage AI Provider
+version: 1.0.0
+description: Embedding provider using Voyage AI - Anthropic's recommended embedding service
+
+author: ViewRA Team
+license: MIT
+homepage: https://github.com/mantonx/viewra
+
+# Minimum ViewRA version required
+min_host_version: "0.1.0"
+
+# Plugin capabilities
+categories:
+  - provider
+
+# What this plugin provides to other plugins
+provides:
+  - provider
+  - provider:voyage
+
+# Permissions required
+permissions:
+  - network  # For Voyage AI API calls

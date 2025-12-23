@@ -94,7 +94,7 @@ export const useStreamStats = (options: UseStreamStatsOptions): UseStreamStatsRe
       const getStoredAccessToken = (): string | null => {
         try {
           const tokensStr = localStorage.getItem('viewra_auth_tokens')
-          if (!tokensStr) return null
+          if (!tokensStr) {return null}
           const tokens = JSON.parse(tokensStr)
           return tokens.accessToken || null
         } catch {
