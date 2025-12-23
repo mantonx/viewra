@@ -440,6 +440,19 @@ func BuildServices(
 		// Wire provider registry to HostLLMServer after plugins are loaded
 		if hostLLMServer != nil && pluginManager != nil {
 			hostLLMServer.SetProviderRegistry(pluginManager.GetProviderRegistry())
+
+			// Set initial defaults from AI settings
+			if settingsService != nil {
+				aiReader := settings.NewAIConfigReader(settingsService)
+				ctx := context.Background()
+				embeddingProvider := string(aiReader.GetEmbeddingProvider(ctx))
+				chatProvider := string(aiReader.GetChatProvider(ctx))
+				// Model selection is handled by provider plugins via their defaults
+				hostLLMServer.SetDefaults(embeddingProvider, "", chatProvider, "")
+				logger.Info("AI provider defaults configured",
+					"embedding_provider", embeddingProvider,
+					"chat_provider", chatProvider)
+			}
 		}
 	}
 
