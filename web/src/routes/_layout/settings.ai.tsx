@@ -53,11 +53,11 @@ type ProviderCardProps = {
   provider: ProviderInfo
   pluginId?: string
   meta?: PluginMeta
-  /** Filter to only show specific action tabs */
-  tabFilter?: string[]
+  /** Show only sections for this capability */
+  capability?: 'embedding' | 'chat'
 }
 
-const ProviderCard = ({ provider, pluginId, meta, tabFilter }: ProviderCardProps) => {
+const ProviderCard = ({ provider, pluginId, meta, capability }: ProviderCardProps) => {
   const displayName = meta?.displayName || provider.name
   const description = meta?.description || provider.description
   const isLocal = meta?.isLocal ?? false
@@ -75,7 +75,7 @@ const ProviderCard = ({ provider, pluginId, meta, tabFilter }: ProviderCardProps
         </div>
       </div>
       {description && <p className={cn('text-xs', text.secondary)}>{description}</p>}
-      {pluginId && <PluginSettingsForm pluginId={pluginId} tabFilter={tabFilter} className="mt-4" />}
+      {pluginId && <PluginSettingsForm pluginId={pluginId} capability={capability} className="mt-4" />}
     </div>
   )
 }
@@ -304,7 +304,7 @@ const AISettings = () => {
                           provider={selectedEmbeddingProvider}
                           pluginId={providerPluginMap[String(selectedEmbeddingProvider.type)]}
                           meta={providerMetaMap[String(selectedEmbeddingProvider.type)]}
-                          tabFilter={['embedding-models']}
+                          capability="embedding"
                         />
                       )}
                     </>
@@ -351,13 +351,13 @@ const AISettings = () => {
                           options={chatProviderOptions}
                         />
                       </div>
-                      {/* Show ProviderCard with chat models tab */}
+                      {/* Show ProviderCard with chat models */}
                       {selectedChatProvider && (
                         <ProviderCard
                           provider={selectedChatProvider}
                           pluginId={providerPluginMap[String(selectedChatProvider.type)]}
                           meta={providerMetaMap[String(selectedChatProvider.type)]}
-                          tabFilter={['chat-models']}
+                          capability="chat"
                         />
                       )}
                     </>

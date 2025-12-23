@@ -203,3 +203,38 @@ export const findCreateAction = (
 /** Find a test action */
 export const findTestAction = (actions: SchemaAction[]): TestAction | undefined =>
   actions.find(isTestAction)
+
+// ============================================================================
+// Section Types (x-viewra-sections)
+// ============================================================================
+
+/** Capability types for section filtering */
+export type Capability = 'embedding' | 'chat'
+
+/** Section configuration from x-viewra-sections */
+export type SchemaSection = {
+  id: string
+  title?: string
+  properties?: string[]
+  actions?: string[]
+  capabilities: Capability[]
+}
+
+/** Parse x-viewra-sections from a JSON Schema */
+export const parseSchemaSections = (schema: unknown): SchemaSection[] => {
+  if (!schema || typeof schema !== 'object') {
+    return []
+  }
+  const s = schema as Record<string, unknown>
+  const sections = s['x-viewra-sections']
+  if (!Array.isArray(sections)) {
+    return []
+  }
+  return sections as SchemaSection[]
+}
+
+/** Filter sections by capability */
+export const getSectionsForCapability = (
+  sections: SchemaSection[],
+  capability: Capability
+): SchemaSection[] => sections.filter((s) => s.capabilities.includes(capability))

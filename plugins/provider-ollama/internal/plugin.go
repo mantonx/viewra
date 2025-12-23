@@ -301,6 +301,26 @@ func (p *Plugin) GetSettingsSchema(ctx context.Context, _ *pluginv1.Empty) (*plu
 			"embedding_model": embeddingProp,
 			"chat_model":      chatProp,
 		},
+		"x-viewra-sections": []any{
+			map[string]any{
+				"id":           "connection",
+				"properties":   []string{"base_url"},
+				"actions":      []string{"test-connection"},
+				"capabilities": []string{"embedding", "chat"},
+			},
+			map[string]any{
+				"id":           "embedding-models",
+				"properties":   []string{"embedding_model"},
+				"actions":      []string{"embedding-models"},
+				"capabilities": []string{"embedding"},
+			},
+			map[string]any{
+				"id":           "chat-models",
+				"properties":   []string{"chat_model"},
+				"actions":      []string{"chat-models"},
+				"capabilities": []string{"chat"},
+			},
+		},
 		"x-viewra-actions": []any{
 			// Embedding Models tab
 			map[string]any{

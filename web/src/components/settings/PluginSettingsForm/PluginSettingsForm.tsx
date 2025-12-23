@@ -12,23 +12,22 @@ import { JsonSchemaForm } from '../JsonSchemaForm'
 import { ActionList, ActionCreate, ActionTest } from '../SchemaActions'
 import {
   parseSchemaActions,
+  parseSchemaSections,
+  getSectionsForCapability,
   getTabActions,
   getInlineListActions,
   findCreateAction,
   findTestAction,
   isCreateAction,
 } from '@/lib/types/schema-actions'
-import type { SchemaAction } from '@/lib/types/schema-actions'
+import type { SchemaAction, SchemaSection } from '@/lib/types/schema-actions'
 import type { PluginSettingsFormProps } from './PluginSettingsForm.types'
 
 export const PluginSettingsForm = ({
   pluginId,
   onSettingsChange,
   className,
-  fieldFilter,
-  hideSettingsTab = false,
-  hideActionTabs = false,
-  tabFilter,
+  capability,
 }: PluginSettingsFormProps) => {
   const toast = useToast()
   const [formData, setFormData] = useState<Record<string, unknown>>({})
@@ -45,8 +44,8 @@ export const PluginSettingsForm = ({
     query: { enabled: !!pluginId },
   })
 
-  // Parse schema and actions (strip title to avoid duplication in UI)
-  const schema: RJSFSchema | null = useMemo(() => {
+  // Parse raw schema (strip title to avoid duplication in UI)
+  const rawSchema: RJSFSchema | null = useMemo(() => {
     if (settingsResponse?.status !== 200) {
       return null
     }
@@ -56,38 +55,104 @@ export const PluginSettingsForm = ({
     }
     // Remove title to avoid duplication when embedded in other components
     const { title: _title, ...schemaWithoutTitle } = s as RJSFSchema & { title?: string }
-
-    // Apply field filter if provided
-    if (fieldFilter && fieldFilter.length > 0 && schemaWithoutTitle.properties) {
-      const filteredProperties: Record<string, unknown> = {}
-      for (const field of fieldFilter) {
-        if (schemaWithoutTitle.properties[field]) {
-          filteredProperties[field] = schemaWithoutTitle.properties[field]
-        }
-      }
-      return {
-        ...schemaWithoutTitle,
-        properties: filteredProperties,
-      } as RJSFSchema
-    }
-
     return schemaWithoutTitle as RJSFSchema
-  }, [settingsResponse, fieldFilter])
+  }, [settingsResponse])
 
-  const actions: SchemaAction[] = useMemo(() => {
-    if (!schema) {
+  // Parse sections from schema
+  const allSections: SchemaSection[] = useMemo(() => {
+    if (!rawSchema) {
       return []
     }
-    return parseSchemaActions(schema)
-  }, [schema])
+    return parseSchemaSections(rawSchema)
+  }, [rawSchema])
 
-  const tabActions = useMemo(() => {
-    const allTabActions = getTabActions(actions)
-    if (tabFilter && tabFilter.length > 0) {
-      return allTabActions.filter((a) => tabFilter.includes(a.id))
+  // Filter sections by capability if provided
+  const activeSections: SchemaSection[] | null = useMemo(() => {
+    // null = render all (no section filtering)
+    if (!capability || allSections.length === 0) {
+      return null
     }
-    return allTabActions
-  }, [actions, tabFilter])
+    return getSectionsForCapability(allSections, capability)
+  }, [allSections, capability])
+
+  // Derive allowed properties and action IDs from active sections
+  const allowedProperties: Set<string> | null = useMemo(() => {
+    // null = allow all
+    if (!activeSections) {
+      return null
+    }
+    const props = new Set<string>()
+    for (const section of activeSections) {
+      if (section.properties) {
+        for (const prop of section.properties) {
+          props.add(prop)
+        }
+      }
+    }
+    return props
+  }, [activeSections])
+
+  const allowedActionIds: Set<string> | null = useMemo(() => {
+    // null = allow all
+    if (!activeSections) {
+      return null
+    }
+    const ids = new Set<string>()
+    for (const section of activeSections) {
+      if (section.actions) {
+        for (const actionId of section.actions) {
+          ids.add(actionId)
+        }
+      }
+    }
+    return ids
+  }, [activeSections])
+
+  // Build filtered schema with only allowed properties
+  const schema: RJSFSchema | null = useMemo(() => {
+    if (!rawSchema) {
+      return null
+    }
+    if (!allowedProperties || allowedProperties.size === 0) {
+      // No filtering or no properties in sections - return raw schema
+      // But if we have sections with no properties, filter to empty
+      if (activeSections && allowedProperties?.size === 0) {
+        return { ...rawSchema, properties: {} } as RJSFSchema
+      }
+      return rawSchema
+    }
+
+    if (!rawSchema.properties) {
+      return rawSchema
+    }
+
+    const filteredProperties: Record<string, unknown> = {}
+    for (const prop of allowedProperties) {
+      if (rawSchema.properties[prop]) {
+        filteredProperties[prop] = rawSchema.properties[prop]
+      }
+    }
+    return { ...rawSchema, properties: filteredProperties } as RJSFSchema
+  }, [rawSchema, allowedProperties, activeSections])
+
+  // Parse all actions from raw schema
+  const allActions: SchemaAction[] = useMemo(() => {
+    if (!rawSchema) {
+      return []
+    }
+    return parseSchemaActions(rawSchema)
+  }, [rawSchema])
+
+  // Filter actions by allowed IDs
+  const actions: SchemaAction[] = useMemo(() => {
+    if (!allowedActionIds) {
+      return allActions
+    }
+    return allActions.filter((a) => allowedActionIds.has(a.id))
+  }, [allActions, allowedActionIds])
+
+  // Compute tab actions, inline list actions, and test action from filtered actions
+  const tabActions = useMemo(() => getTabActions(actions), [actions])
   const inlineListActions = useMemo(() => getInlineListActions(actions), [actions])
   const testAction = useMemo(() => findTestAction(actions), [actions])
 
@@ -98,8 +163,8 @@ export const PluginSettingsForm = ({
   )
 
   // Determine which tabs to show
-  const showSettingsTab = !hideSettingsTab && hasProperties
-  const showActionTabs = !hideActionTabs && tabActions.length > 0
+  const showSettingsTab = hasProperties
+  const showActionTabs = tabActions.length > 0
 
   // Build visible tabs
   const visibleTabs: Tab[] = useMemo(() => {
@@ -177,13 +242,13 @@ export const PluginSettingsForm = ({
 
   const handleShowCreate = useCallback(
     (actionId: string) => {
-      const createAction = findCreateAction(actions, actionId)
+      const createAction = findCreateAction(allActions, actionId)
       if (createAction) {
         // Switch to the tab that contains this action
         setActiveTab(actionId)
       }
     },
-    [actions]
+    [allActions]
   )
 
   const handleListRefresh = useCallback(() => {
@@ -198,26 +263,13 @@ export const PluginSettingsForm = ({
     return <Alert variant="warning">Failed to load plugin settings.</Alert>
   }
 
-  if (!schema) {
+  if (!rawSchema) {
     return <Alert variant="info">This plugin does not have configurable settings.</Alert>
   }
 
-  // If field filter is set, show a simplified inline form (no tabs, no actions)
-  if (fieldFilter && fieldFilter.length > 0) {
-    if (!hasProperties) {
-      return null // No matching fields to show
-    }
-    return (
-      <div className={cn('space-y-4', className)}>
-        <JsonSchemaForm
-          schema={schema}
-          uiSchema={uiSchema}
-          formData={formData}
-          onChange={handleChange}
-          onSubmit={handleSubmit}
-        />
-      </div>
-    )
+  // If capability filtering results in nothing to show, return null
+  if (capability && activeSections && activeSections.length === 0) {
+    return null
   }
 
   // If there are tabs to show, use tabbed interface
@@ -244,13 +296,15 @@ export const PluginSettingsForm = ({
               {testAction && <ActionTest action={testAction} pluginId={pluginId} />}
 
               {/* Main settings form */}
-              <JsonSchemaForm
-                schema={schema}
-                uiSchema={uiSchema}
-                formData={formData}
-                onChange={handleChange}
-                onSubmit={handleSubmit}
-              />
+              {schema && (
+                <JsonSchemaForm
+                  schema={schema}
+                  uiSchema={uiSchema}
+                  formData={formData}
+                  onChange={handleChange}
+                  onSubmit={handleSubmit}
+                />
+              )}
 
               {/* Inline list actions (no tabTitle) */}
               {inlineListActions.map((listAction) => (
@@ -271,7 +325,7 @@ export const PluginSettingsForm = ({
             // Find associated create action
             const createActionId = listAction.emptyState?.showCreate
             const createAction = createActionId
-              ? actions.find((a) => a.id === createActionId && isCreateAction(a))
+              ? allActions.find((a) => a.id === createActionId && isCreateAction(a))
               : undefined
 
             return (
@@ -306,13 +360,15 @@ export const PluginSettingsForm = ({
       {showSettingsTab && (
         <>
           {testAction && <ActionTest action={testAction} pluginId={pluginId} />}
-          <JsonSchemaForm
-            schema={schema}
-            uiSchema={uiSchema}
-            formData={formData}
-            onChange={handleChange}
-            onSubmit={handleSubmit}
-          />
+          {schema && (
+            <JsonSchemaForm
+              schema={schema}
+              uiSchema={uiSchema}
+              formData={formData}
+              onChange={handleChange}
+              onSubmit={handleSubmit}
+            />
+          )}
           {/* Inline list actions */}
           {inlineListActions.map((listAction) => (
             <ActionList
