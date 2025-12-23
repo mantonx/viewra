@@ -87,6 +87,8 @@ export type ActionOnSuccess = {
 /** Source configuration for data fetching */
 export type ActionSource = {
   endpoint: string
+  /** Query parameters to pass to the endpoint */
+  params?: Record<string, string>
 }
 
 /** JSON Schema for form fields */

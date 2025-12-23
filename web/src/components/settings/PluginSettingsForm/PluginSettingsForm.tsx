@@ -28,6 +28,7 @@ export const PluginSettingsForm = ({
   fieldFilter,
   hideSettingsTab = false,
   hideActionTabs = false,
+  tabFilter,
 }: PluginSettingsFormProps) => {
   const toast = useToast()
   const [formData, setFormData] = useState<Record<string, unknown>>({})
@@ -80,7 +81,13 @@ export const PluginSettingsForm = ({
     return parseSchemaActions(schema)
   }, [schema])
 
-  const tabActions = useMemo(() => getTabActions(actions), [actions])
+  const tabActions = useMemo(() => {
+    const allTabActions = getTabActions(actions)
+    if (tabFilter && tabFilter.length > 0) {
+      return allTabActions.filter((a) => tabFilter.includes(a.id))
+    }
+    return allTabActions
+  }, [actions, tabFilter])
   const inlineListActions = useMemo(() => getInlineListActions(actions), [actions])
   const testAction = useMemo(() => findTestAction(actions), [actions])
 

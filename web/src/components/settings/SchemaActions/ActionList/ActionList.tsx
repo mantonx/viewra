@@ -25,8 +25,10 @@ export const ActionList = ({
 }: ActionListProps) => {
   const toast = useToast()
 
-  // Data fetching
-  const { items, isLoading, refresh } = useListData(pluginId, action.source.endpoint)
+  // Data fetching with optional query params from source config
+  const { items, isLoading, refresh } = useListData(pluginId, action.source.endpoint, {
+    params: action.source.params,
+  })
 
   // Find delete action config
   const deleteActionConfig = action.itemActions?.find((a) => a.type === 'delete')

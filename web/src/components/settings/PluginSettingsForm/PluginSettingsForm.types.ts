@@ -9,10 +9,12 @@ export interface PluginSettingsFormProps {
   onSettingsChange?: (hasChanges: boolean) => void
   /** Additional class names */
   className?: string
-  /** Filter to only show specific fields (e.g., ['embedding_model'] or ['chat_model']) */
+  /** Filter to only show specific schema fields by name */
   fieldFilter?: string[]
-  /** Hide the settings tab entirely (useful when only showing filtered fields inline) */
+  /** Hide the settings tab entirely */
   hideSettingsTab?: boolean
-  /** Hide action tabs (Models, etc.) */
+  /** Hide all action tabs */
   hideActionTabs?: boolean
+  /** Filter to only show specific action tabs by ID */
+  tabFilter?: string[]
 }

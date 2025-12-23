@@ -53,9 +53,11 @@ type ProviderCardProps = {
   provider: ProviderInfo
   pluginId?: string
   meta?: PluginMeta
+  /** Filter to only show specific action tabs */
+  tabFilter?: string[]
 }
 
-const ProviderCard = ({ provider, pluginId, meta }: ProviderCardProps) => {
+const ProviderCard = ({ provider, pluginId, meta, tabFilter }: ProviderCardProps) => {
   const displayName = meta?.displayName || provider.name
   const description = meta?.description || provider.description
   const isLocal = meta?.isLocal ?? false
@@ -73,7 +75,7 @@ const ProviderCard = ({ provider, pluginId, meta }: ProviderCardProps) => {
         </div>
       </div>
       {description && <p className={cn('text-xs', text.secondary)}>{description}</p>}
-      {pluginId && <PluginSettingsForm pluginId={pluginId} className="mt-4" />}
+      {pluginId && <PluginSettingsForm pluginId={pluginId} tabFilter={tabFilter} className="mt-4" />}
     </div>
   )
 }
@@ -302,6 +304,7 @@ const AISettings = () => {
                           provider={selectedEmbeddingProvider}
                           pluginId={providerPluginMap[String(selectedEmbeddingProvider.type)]}
                           meta={providerMetaMap[String(selectedEmbeddingProvider.type)]}
+                          tabFilter={['embedding-models']}
                         />
                       )}
                     </>
@@ -348,22 +351,15 @@ const AISettings = () => {
                           options={chatProviderOptions}
                         />
                       </div>
-                      {/* Only show ProviderCard if different from embedding provider */}
-                      {selectedChatProvider &&
-                        selectedChatProvider.type !== selectedEmbeddingProvider?.type && (
-                          <ProviderCard
-                            provider={selectedChatProvider}
-                            pluginId={providerPluginMap[String(selectedChatProvider.type)]}
-                            meta={providerMetaMap[String(selectedChatProvider.type)]}
-                          />
-                        )}
-                      {/* When same provider, just show a note */}
-                      {selectedChatProvider &&
-                        selectedChatProvider.type === selectedEmbeddingProvider?.type && (
-                          <p className={cn('text-sm', text.secondary)}>
-                            Using the same provider as embedding. Configure models above.
-                          </p>
-                        )}
+                      {/* Show ProviderCard with chat models tab */}
+                      {selectedChatProvider && (
+                        <ProviderCard
+                          provider={selectedChatProvider}
+                          pluginId={providerPluginMap[String(selectedChatProvider.type)]}
+                          meta={providerMetaMap[String(selectedChatProvider.type)]}
+                          tabFilter={['chat-models']}
+                        />
+                      )}
                     </>
                   ) : (
                     <Alert variant="warning">

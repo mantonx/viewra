@@ -33,18 +33,33 @@ const parseError = async (response: Response): Promise<PluginApiError> => {
 }
 
 /**
- * Build the full plugin endpoint URL
+ * Build the full plugin endpoint URL with optional query params
  */
-const buildUrl = (pluginId: string, endpoint: string): string => {
+const buildUrl = (
+  pluginId: string,
+  endpoint: string,
+  params?: Record<string, string>
+): string => {
   const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
-  return `/api/plugin/${pluginId}${normalizedEndpoint}`
+  const baseUrl = `/api/plugin/${pluginId}${normalizedEndpoint}`
+
+  if (params && Object.keys(params).length > 0) {
+    const searchParams = new URLSearchParams(params)
+    return `${baseUrl}?${searchParams.toString()}`
+  }
+
+  return baseUrl
 }
 
 /**
  * GET request to a plugin endpoint
  */
-const get = async <T = unknown>(pluginId: string, endpoint: string): Promise<T> => {
-  const response = await authFetch(buildUrl(pluginId, endpoint), {
+const get = async <T = unknown>(
+  pluginId: string,
+  endpoint: string,
+  params?: Record<string, string>
+): Promise<T> => {
+  const response = await authFetch(buildUrl(pluginId, endpoint, params), {
     method: 'GET',
     credentials: 'include',
   })

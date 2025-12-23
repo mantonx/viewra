@@ -302,21 +302,63 @@ func (p *Plugin) GetSettingsSchema(ctx context.Context, _ *pluginv1.Empty) (*plu
 			"chat_model":      chatProp,
 		},
 		"x-viewra-actions": []any{
+			// Embedding Models tab
 			map[string]any{
-				"id":       "recommended-models",
+				"id":       "embedding-models",
 				"type":     "list",
-				"title":    "Recommended Models",
-				"tabTitle": "Models",
+				"title":    "Embedding Models",
+				"tabTitle": "Embedding Models",
 				"source": map[string]any{
 					"endpoint": "/models/recommended",
+					"params":   map[string]string{"type": "embedding"},
 				},
 				"showSystemInfo": true,
 				"display": map[string]any{
 					"primaryField":   "name",
 					"secondaryField": "description",
 					"badges": []any{
-						map[string]any{"field": "isEmbedding", "value": true, "label": "Embedding", "color": "blue"},
-						map[string]any{"field": "isChat", "value": true, "label": "Chat", "color": "green"},
+						map[string]any{"field": "installed", "value": true, "label": "Installed", "color": "emerald"},
+						map[string]any{"field": "canRun", "value": false, "label": "Insufficient Resources", "color": "red"},
+					},
+					"metadata": []string{"size", "minRam"},
+				},
+				"itemActions": []any{
+					map[string]any{
+						"id":        "pull",
+						"type":      "action",
+						"label":     "Pull",
+						"endpoint":  "/models/pull",
+						"streaming": true,
+						"showWhen":  map[string]any{"field": "installed", "value": false},
+					},
+					map[string]any{
+						"id":       "delete",
+						"type":     "delete",
+						"label":    "Delete",
+						"endpoint": "/models/:id",
+						"showWhen": map[string]any{"field": "installed", "value": true},
+						"confirm": map[string]any{
+							"title":   "Delete Model",
+							"message": "Are you sure you want to delete this model?",
+						},
+					},
+				},
+			},
+			// Chat Models tab
+			map[string]any{
+				"id":       "chat-models",
+				"type":     "list",
+				"title":    "Chat Models",
+				"tabTitle": "Chat Models",
+				"source": map[string]any{
+					"endpoint": "/models/recommended",
+					"params":   map[string]string{"type": "chat"},
+				},
+				"showSystemInfo": true,
+				"display": map[string]any{
+					"primaryField":   "name",
+					"secondaryField": "description",
+					"badges": []any{
 						map[string]any{"field": "installed", "value": true, "label": "Installed", "color": "emerald"},
 						map[string]any{"field": "canRun", "value": false, "label": "Insufficient Resources", "color": "red"},
 					},
@@ -423,8 +465,10 @@ func (p *Plugin) HandleHTTP(ctx context.Context, req *pluginv1.PluginHTTPRequest
 	}
 
 	// GET /models/recommended - List recommended models based on system resources
+	// Optional query param: type=embedding|chat to filter by model type
 	if req.Method == "GET" && req.Path == "/models/recommended" {
-		return p.handleRecommendedModels(ctx)
+		modelType := req.Query["type"] // "embedding", "chat", or empty for all
+		return p.handleRecommendedModels(ctx, modelType)
 	}
 
 	// GET /health - Check Ollama server connectivity
@@ -635,7 +679,8 @@ func jsonError(status int32, message string) (*pluginv1.PluginHTTPResponse, erro
 }
 
 // handleRecommendedModels returns recommended models based on system resources.
-func (p *Plugin) handleRecommendedModels(ctx context.Context) (*pluginv1.PluginHTTPResponse, error) {
+// modelType can be "embedding", "chat", or empty for all models.
+func (p *Plugin) handleRecommendedModels(ctx context.Context, modelType string) (*pluginv1.PluginHTTPResponse, error) {
 	// Get installed models to check installation status
 	installedModels := make(map[string]bool)
 	if models, err := p.provider.ListModels(ctx, &pluginv1.Empty{}); err == nil {
@@ -658,14 +703,23 @@ func (p *Plugin) handleRecommendedModels(ctx context.Context) (*pluginv1.PluginH
 		hasGPU = p.systemInfo.HasGpu
 	}
 
-	// Combine all models
-	allSpecs := append(embeddingModels, chatModels...)
+	// Select models based on type filter
+	var specs []ModelSpec
+	switch modelType {
+	case "embedding":
+		specs = embeddingModels
+	case "chat":
+		specs = chatModels
+	default:
+		// No filter - combine all models
+		specs = append(embeddingModels, chatModels...)
+	}
 
 	// Build response items
 	// If we have system info, filter to models that can run or are installed
 	// If we don't have system info, show all models (can't determine what can run)
-	items := make([]map[string]any, 0, len(allSpecs))
-	for _, spec := range allSpecs {
+	items := make([]map[string]any, 0, len(specs))
+	for _, spec := range specs {
 		canRun := !hasSystemInfo || (ramBytes >= spec.MinRAM && (spec.MinVRAM == 0 || vramBytes >= spec.MinVRAM))
 		installed := installedModels[spec.ID]
 
