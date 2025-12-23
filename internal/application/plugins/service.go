@@ -313,8 +313,51 @@ func (s *Service) Restart(ctx context.Context, id string) error {
 		s.logger.Warn("failed to unload plugin during restart", "plugin", id, "error", err)
 	}
 
-	_, err = s.manager.LoadPlugin(ctx, row.Path)
-	return err
+	if _, err := s.manager.LoadPlugin(ctx, row.Path); err != nil {
+		return err
+	}
+
+	// Reapply saved settings after reload
+	if row.Settings != "" {
+		if err := s.configurePluginFromSettings(ctx, id, row.Settings, row.SettingsSchema); err != nil {
+			s.logger.Warn("failed to reapply settings after restart", "plugin", id, "error", err)
+			// Don't fail - plugin is running, just not configured
+		}
+	}
+
+	return nil
+}
+
+// configurePluginFromSettings sends stored settings to a running plugin.
+func (s *Service) configurePluginFromSettings(ctx context.Context, id, settingsJSON, schemaJSON string) error {
+	instance, ok := s.manager.GetPlugin(id)
+	if !ok || instance.CoreClient == nil {
+		return errors.New("plugin not running")
+	}
+
+	// Decrypt sensitive fields before sending to plugin
+	var schema json.RawMessage
+	if schemaJSON != "" {
+		schema = json.RawMessage(schemaJSON)
+	}
+
+	decryptedValues, err := s.decryptSensitiveFields(json.RawMessage(settingsJSON), schema)
+	if err != nil {
+		return err
+	}
+
+	resp, err := instance.CoreClient.Configure(ctx, &pluginv1.Settings{
+		Json: decryptedValues,
+	})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return &ConfigureError{Message: resp.Error}
+	}
+
+	s.logger.Info("reapplied settings after restart", "plugin", id)
+	return nil
 }
 
 // GetHealth returns detailed health information for a plugin.

@@ -80,6 +80,7 @@ func (p *OllamaProvider) ensureClient() error {
 }
 
 // GetCapabilities returns the provider's capabilities.
+// Returns the currently configured models, not hardcoded defaults.
 func (p *OllamaProvider) GetCapabilities(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.ProviderCapabilities, error) {
 	return &pluginv1.ProviderCapabilities{
 		ProviderId:            "ollama",
@@ -91,8 +92,8 @@ func (p *OllamaProvider) GetCapabilities(ctx context.Context, _ *pluginv1.Empty)
 		RequiresApiKey:        false,
 		RequiresUrl:           true,
 		IsLocal:               true,
-		DefaultChatModel:      defaultChatModel,
-		DefaultEmbeddingModel: defaultEmbedModel,
+		DefaultChatModel:      p.chatModel,      // Use configured model
+		DefaultEmbeddingModel: p.embeddingModel, // Use configured model
 	}, nil
 }
 

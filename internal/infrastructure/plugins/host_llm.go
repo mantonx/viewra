@@ -234,7 +234,8 @@ func (s *HostLLMServer) ChatStream(req *pluginv1.ChatRequest, stream pluginv1.Ho
 }
 
 // resolveModel returns the first non-empty model from the candidates.
-func (s *HostLLMServer) resolveModel(requested, defaultModel, providerDefault string) string {
+// If no model is specified at the host level, returns empty to let the provider use its configured default.
+func (s *HostLLMServer) resolveModel(requested, defaultModel, _ string) string {
 	if requested != "" {
 		return requested
 	}
@@ -243,7 +244,8 @@ func (s *HostLLMServer) resolveModel(requested, defaultModel, providerDefault st
 	if defaultModel != "" {
 		return defaultModel
 	}
-	return providerDefault
+	// Don't use cached provider default - let the provider use its own configured model
+	return ""
 }
 
 var _ pluginv1.HostLLMServer = (*HostLLMServer)(nil)
