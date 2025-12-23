@@ -651,7 +651,8 @@ func (p *Plugin) handleRecommendedModels(ctx context.Context) (*pluginv1.PluginH
 	// Get system resources
 	var ramBytes, vramBytes uint64
 	var hasGPU bool
-	if p.systemInfo != nil {
+	hasSystemInfo := p.systemInfo != nil
+	if hasSystemInfo {
 		ramBytes = p.systemInfo.RamBytes
 		vramBytes = p.systemInfo.VramBytes
 		hasGPU = p.systemInfo.HasGpu
@@ -660,14 +661,16 @@ func (p *Plugin) handleRecommendedModels(ctx context.Context) (*pluginv1.PluginH
 	// Combine all models
 	allSpecs := append(embeddingModels, chatModels...)
 
-	// Build response items - only include models that can run OR are already installed
+	// Build response items
+	// If we have system info, filter to models that can run or are installed
+	// If we don't have system info, show all models (can't determine what can run)
 	items := make([]map[string]any, 0, len(allSpecs))
 	for _, spec := range allSpecs {
-		canRun := ramBytes >= spec.MinRAM && (spec.MinVRAM == 0 || vramBytes >= spec.MinVRAM)
+		canRun := !hasSystemInfo || (ramBytes >= spec.MinRAM && (spec.MinVRAM == 0 || vramBytes >= spec.MinVRAM))
 		installed := installedModels[spec.ID]
 
-		// Skip models that can't run and aren't installed
-		if !canRun && !installed {
+		// Only filter if we have system info - skip models that can't run and aren't installed
+		if hasSystemInfo && !canRun && !installed {
 			continue
 		}
 

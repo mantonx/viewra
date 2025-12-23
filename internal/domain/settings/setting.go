@@ -67,72 +67,84 @@ type UserSetting struct {
 	UpdatedAt time.Time
 }
 
-// GetString returns the setting value as a string.
-// Returns empty string if the value cannot be decoded.
-func (s *SystemSetting) GetString() string {
+// decodeString decodes a JSON-encoded string value.
+func decodeString(jsonValue string) string {
 	var v string
-	if err := json.Unmarshal([]byte(s.Value), &v); err != nil {
+	if err := json.Unmarshal([]byte(jsonValue), &v); err != nil {
 		return ""
 	}
 	return v
 }
+
+// decodeInt decodes a JSON-encoded int value.
+func decodeInt(jsonValue string) int {
+	var v int
+	if err := json.Unmarshal([]byte(jsonValue), &v); err != nil {
+		return 0
+	}
+	return v
+}
+
+// decodeBool decodes a JSON-encoded bool value.
+func decodeBool(jsonValue string) bool {
+	var v bool
+	if err := json.Unmarshal([]byte(jsonValue), &v); err != nil {
+		return false
+	}
+	return v
+}
+
+// decodeJSON decodes a JSON value into the destination.
+func decodeJSON(jsonValue string, dest any) error {
+	return json.Unmarshal([]byte(jsonValue), dest)
+}
+
+// DecodeSettingValue decodes a JSON-encoded setting value based on its type.
+func DecodeSettingValue(jsonValue string, valueType ValueType) (any, error) {
+	switch valueType {
+	case TypeString:
+		return decodeString(jsonValue), nil
+	case TypeInt:
+		return decodeInt(jsonValue), nil
+	case TypeBool:
+		return decodeBool(jsonValue), nil
+	case TypeJSON:
+		var v any
+		if err := decodeJSON(jsonValue, &v); err != nil {
+			return nil, err
+		}
+		return v, nil
+	default:
+		return jsonValue, nil
+	}
+}
+
+// GetString returns the setting value as a string.
+func (s *SystemSetting) GetString() string { return decodeString(s.Value) }
 
 // GetInt returns the setting value as an integer.
-// Returns 0 if the value cannot be decoded.
-func (s *SystemSetting) GetInt() int {
-	var v int
-	if err := json.Unmarshal([]byte(s.Value), &v); err != nil {
-		return 0
-	}
-	return v
-}
+func (s *SystemSetting) GetInt() int { return decodeInt(s.Value) }
 
 // GetBool returns the setting value as a boolean.
-// Returns false if the value cannot be decoded.
-func (s *SystemSetting) GetBool() bool {
-	var v bool
-	if err := json.Unmarshal([]byte(s.Value), &v); err != nil {
-		return false
-	}
-	return v
-}
+func (s *SystemSetting) GetBool() bool { return decodeBool(s.Value) }
 
 // GetJSON unmarshals the setting value into the provided destination.
-func (s *SystemSetting) GetJSON(dest any) error {
-	return json.Unmarshal([]byte(s.Value), dest)
-}
+func (s *SystemSetting) GetJSON(dest any) error { return decodeJSON(s.Value, dest) }
+
+// GetValue decodes the setting value based on its type.
+func (s *SystemSetting) GetValue() (any, error) { return DecodeSettingValue(s.Value, s.ValueType) }
 
 // GetString returns the user setting value as a string.
-func (s *UserSetting) GetString() string {
-	var v string
-	if err := json.Unmarshal([]byte(s.Value), &v); err != nil {
-		return ""
-	}
-	return v
-}
+func (s *UserSetting) GetString() string { return decodeString(s.Value) }
 
 // GetInt returns the user setting value as an integer.
-func (s *UserSetting) GetInt() int {
-	var v int
-	if err := json.Unmarshal([]byte(s.Value), &v); err != nil {
-		return 0
-	}
-	return v
-}
+func (s *UserSetting) GetInt() int { return decodeInt(s.Value) }
 
 // GetBool returns the user setting value as a boolean.
-func (s *UserSetting) GetBool() bool {
-	var v bool
-	if err := json.Unmarshal([]byte(s.Value), &v); err != nil {
-		return false
-	}
-	return v
-}
+func (s *UserSetting) GetBool() bool { return decodeBool(s.Value) }
 
 // GetJSON unmarshals the user setting value into the provided destination.
-func (s *UserSetting) GetJSON(dest any) error {
-	return json.Unmarshal([]byte(s.Value), dest)
-}
+func (s *UserSetting) GetJSON(dest any) error { return decodeJSON(s.Value, dest) }
 
 // EncodeValue encodes a value to JSON for storage.
 func EncodeValue(v any) (string, error) {

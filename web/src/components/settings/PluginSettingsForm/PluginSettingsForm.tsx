@@ -1,6 +1,9 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { Alert, Loading, Tabs, TabPanel } from '@/components/ui'
-import { useGetApiPluginsIdSettings } from '@/lib/api/generated/plugins/plugins'
+import {
+  useGetApiPluginsIdSettings,
+  usePutApiPluginsIdSettings,
+} from '@/lib/api/generated/plugins/plugins'
 import { useToast } from '@/lib/hooks/useToast'
 import { cn } from '@/lib/utils'
 import type { RJSFSchema, UiSchema } from '@rjsf/utils'
@@ -16,18 +19,7 @@ import {
   isCreateAction,
 } from '@/lib/types/schema-actions'
 import type { SchemaAction } from '@/lib/types/schema-actions'
-
-export type PluginSettingsFormProps = {
-  pluginId: string
-  onSettingsChange?: (hasChanges: boolean) => void
-  className?: string
-  /** Filter to only show specific fields (e.g., ['embedding_model'] or ['chat_model']) */
-  fieldFilter?: string[]
-  /** Hide the settings tab entirely (useful when only showing filtered fields inline) */
-  hideSettingsTab?: boolean
-  /** Hide action tabs (Models, etc.) */
-  hideActionTabs?: boolean
-}
+import type { PluginSettingsFormProps } from './PluginSettingsForm.types'
 
 export const PluginSettingsForm = ({
   pluginId,
@@ -148,29 +140,32 @@ export const PluginSettingsForm = ({
     setFormData(data)
   }, [])
 
+  // Use generated mutation hook for updating settings
+  const updateSettingsMutation = usePutApiPluginsIdSettings()
+
   const handleSubmit = useCallback(
     async (data: Record<string, unknown>) => {
       try {
-        const response = await fetch(`/api/plugins/${pluginId}/settings`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ settings: data }),
-          credentials: 'include',
+        // Note: The generated types show values as number[] due to a swagger gen issue,
+        // but the actual API expects an object. We cast here for type safety.
+        const result = await updateSettingsMutation.mutateAsync({
+          id: pluginId,
+          data: { values: data as unknown as number[] },
         })
 
-        const result = await response.json()
-        if (!response.ok || !result.success) {
-          toast.error(result.error || 'Failed to save settings')
+        if (result.status !== 200 || !result.data.success) {
+          toast.error('Failed to save settings')
           return
         }
 
         toast.success('Settings saved')
         setInitialData(data)
-      } catch {
-        toast.error('Failed to save settings')
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to save settings'
+        toast.error(message)
       }
     },
-    [pluginId, toast]
+    [pluginId, updateSettingsMutation, toast]
   )
 
   const handleShowCreate = useCallback(

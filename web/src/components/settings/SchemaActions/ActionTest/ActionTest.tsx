@@ -1,20 +1,13 @@
+/**
+ * ActionTest - Button to test connectivity/health of a plugin endpoint.
+ */
+
 import { useState, useCallback } from 'react'
-import { Button } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { CheckCircle, XCircle, Loader2, Wifi } from 'lucide-react'
-import type { TestAction } from '@/lib/types/schema-actions'
-
-type TestResult = {
-  success: boolean
-  message?: string
-  error?: string
-}
-
-type ActionTestProps = {
-  action: TestAction
-  pluginId: string
-  className?: string
-}
+import { Button } from '@/components/ui'
+import { pluginApi } from '@/lib/api/pluginApi'
+import type { ActionTestProps, TestResult } from './ActionTest.types'
 
 export const ActionTest = ({ action, pluginId, className }: ActionTestProps) => {
   const [result, setResult] = useState<TestResult | null>(null)
@@ -25,11 +18,7 @@ export const ActionTest = ({ action, pluginId, className }: ActionTestProps) => 
     setResult(null)
 
     try {
-      const response = await fetch(`/api/plugin/${pluginId}${action.endpoint}`, {
-        credentials: 'include',
-      })
-
-      const data = await response.json()
+      const data = await pluginApi.get<TestResult>(pluginId, action.endpoint)
       setResult({
         success: data.success === true,
         message: data.message,
@@ -62,14 +51,14 @@ export const ActionTest = ({ action, pluginId, className }: ActionTestProps) => 
             {result.success ? (
               <>
                 <CheckCircle className="w-4 h-4 text-emerald-500" />
-                <span className={cn('text-sm', 'text-emerald-600 dark:text-emerald-400')}>
+                <span className="text-sm text-emerald-600 dark:text-emerald-400">
                   {result.message || 'Connected'}
                 </span>
               </>
             ) : (
               <>
                 <XCircle className="w-4 h-4 text-red-500" />
-                <span className={cn('text-sm', 'text-red-600 dark:text-red-400')}>
+                <span className="text-sm text-red-600 dark:text-red-400">
                   {result.error || 'Connection failed'}
                 </span>
               </>
@@ -80,3 +69,5 @@ export const ActionTest = ({ action, pluginId, className }: ActionTestProps) => 
     </div>
   )
 }
+
+ActionTest.displayName = 'ActionTest'

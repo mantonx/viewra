@@ -326,7 +326,7 @@ func loadServerConfig(logger *slog.Logger) ServerConfig {
 
 	// CORS configuration
 	corsOrigins := getEnvStringSlice("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://localhost:8080"})
-	corsCredentials := getEnvBool("CORS_ALLOW_CREDENTIALS", false)
+	corsCredentials := getEnvBool("CORS_ALLOW_CREDENTIALS", true)
 
 	return ServerConfig{
 		Port:                 apiConfig.Port,

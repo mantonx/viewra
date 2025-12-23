@@ -120,22 +120,9 @@ func (s *Service) GetSystemValue(ctx context.Context, key string) (any, error) {
 	}
 
 	// Decode based on type
-	var value any
-	switch setting.ValueType {
-	case settingsDomain.TypeString:
-		value = setting.GetString()
-	case settingsDomain.TypeInt:
-		value = setting.GetInt()
-	case settingsDomain.TypeBool:
-		value = setting.GetBool()
-	case settingsDomain.TypeJSON:
-		var v any
-		if err := setting.GetJSON(&v); err != nil {
-			return nil, err
-		}
-		value = v
-	default:
-		value = setting.Value
+	value, err := setting.GetValue()
+	if err != nil {
+		return nil, err
 	}
 
 	// Decrypt sensitive values
@@ -214,18 +201,8 @@ func (s *Service) GetSystemByCategory(ctx context.Context, category settingsDoma
 
 	result := make(map[string]any)
 	for _, setting := range allSettings {
-		switch setting.ValueType {
-		case settingsDomain.TypeString:
-			result[setting.Key] = setting.GetString()
-		case settingsDomain.TypeInt:
-			result[setting.Key] = setting.GetInt()
-		case settingsDomain.TypeBool:
-			result[setting.Key] = setting.GetBool()
-		case settingsDomain.TypeJSON:
-			var v any
-			if err := setting.GetJSON(&v); err == nil {
-				result[setting.Key] = v
-			}
+		if value, err := setting.GetValue(); err == nil {
+			result[setting.Key] = value
 		}
 	}
 
@@ -281,29 +258,13 @@ func (s *Service) GetUserValue(ctx context.Context, userID, key string) (any, er
 		return nil, err
 	}
 
-	// Get type from definition
+	// Get type from definition to decode properly
 	def := settingsDomain.GetUserDefinition(key)
 	if def == nil {
 		return setting.Value, nil
 	}
 
-	// Decode based on type
-	switch def.Type {
-	case settingsDomain.TypeString:
-		return setting.GetString(), nil
-	case settingsDomain.TypeInt:
-		return setting.GetInt(), nil
-	case settingsDomain.TypeBool:
-		return setting.GetBool(), nil
-	case settingsDomain.TypeJSON:
-		var v any
-		if err := setting.GetJSON(&v); err != nil {
-			return nil, err
-		}
-		return v, nil
-	}
-
-	return setting.Value, nil
+	return settingsDomain.DecodeSettingValue(setting.Value, def.Type)
 }
 
 // SetUser creates or updates a user setting.
@@ -439,6 +400,70 @@ func (s *Service) IsSensitiveSetting(key string) bool {
 	return def != nil && def.Sensitive
 }
 
+// GetSystemString retrieves a system setting as a string.
+// Returns the default value if not found or if the value is not a string.
+func (s *Service) GetSystemString(ctx context.Context, key string, defaultValue string) string {
+	val, err := s.GetSystemValue(ctx, key)
+	if err != nil {
+		return defaultValue
+	}
+	if str, ok := val.(string); ok && str != "" {
+		return str
+	}
+	return defaultValue
+}
+
+// GetSystemBool retrieves a system setting as a boolean.
+// Returns the default value if not found or if the value is not a boolean.
+func (s *Service) GetSystemBool(ctx context.Context, key string, defaultValue bool) bool {
+	val, err := s.GetSystemValue(ctx, key)
+	if err != nil {
+		return defaultValue
+	}
+	if b, ok := val.(bool); ok {
+		return b
+	}
+	return defaultValue
+}
+
+// GetSystemInt retrieves a system setting as an integer.
+// Handles both int and float64 types (JSON numbers decode as float64).
+// Returns the default value if not found or if the value cannot be converted.
+func (s *Service) GetSystemInt(ctx context.Context, key string, defaultValue int) int {
+	val, err := s.GetSystemValue(ctx, key)
+	if err != nil {
+		return defaultValue
+	}
+	switch v := val.(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	}
+	return defaultValue
+}
+
+// GetSystemFloat64 retrieves a system setting as a float64.
+// Handles string (parses), int, and float64 types.
+// Returns the default value if not found or if the value cannot be converted.
+func (s *Service) GetSystemFloat64(ctx context.Context, key string, defaultValue float64) float64 {
+	val, err := s.GetSystemValue(ctx, key)
+	if err != nil {
+		return defaultValue
+	}
+	switch v := val.(type) {
+	case float64:
+		return v
+	case int:
+		return float64(v)
+	case string:
+		if f, parseErr := strconv.ParseFloat(v, 64); parseErr == nil {
+			return f
+		}
+	}
+	return defaultValue
+}
+
 // GetEffectiveSystemValue resolves a system setting with full source tracking.
 // Resolution order: env var > database > detected value > default
 func (s *Service) GetEffectiveSystemValue(ctx context.Context, key string) (settingsDomain.EffectiveValue, error) {
@@ -474,22 +499,7 @@ func (s *Service) GetEffectiveSystemValue(ctx context.Context, key string) (sett
 	// 3. Check database value
 	setting, err := s.GetSystem(ctx, key)
 	if err == nil && setting != nil {
-		var value any
-		switch setting.ValueType {
-		case settingsDomain.TypeString:
-			value = setting.GetString()
-		case settingsDomain.TypeInt:
-			value = setting.GetInt()
-		case settingsDomain.TypeBool:
-			value = setting.GetBool()
-		case settingsDomain.TypeJSON:
-			var v any
-			if err := setting.GetJSON(&v); err == nil {
-				value = v
-			}
-		default:
-			value = setting.Value
-		}
+		value, _ := setting.GetValue()
 
 		// For sensitive values, mask the value for display
 		if def.Sensitive {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/internal/infrastructure/crypto"
 	"github.com/mantonx/viewra/internal/infrastructure/events/bus"
 	infraplugins "github.com/mantonx/viewra/internal/infrastructure/plugins"
 )
@@ -52,20 +53,29 @@ type Plugin struct {
 
 // Service provides plugin management operations.
 type Service struct {
-	queries PluginQueries
-	manager *infraplugins.Manager
-	bus     *bus.Bus
-	logger  *slog.Logger
+	queries      PluginQueries
+	manager      *infraplugins.Manager
+	bus          *bus.Bus
+	logger       *slog.Logger
+	encryptor    *crypto.Encryptor
+	schemaParser *SchemaParser
 }
 
 // NewService creates a new plugin service.
 func NewService(queries PluginQueries, manager *infraplugins.Manager, bus *bus.Bus, logger *slog.Logger) *Service {
 	return &Service{
-		queries: queries,
-		manager: manager,
-		bus:     bus,
-		logger:  logger,
+		queries:      queries,
+		manager:      manager,
+		bus:          bus,
+		logger:       logger,
+		schemaParser: NewSchemaParser(),
 	}
+}
+
+// SetEncryptor sets the encryptor for sensitive field encryption.
+// If not set, sensitive fields will be stored in plaintext.
+func (s *Service) SetEncryptor(encryptor *crypto.Encryptor) {
+	s.encryptor = encryptor
 }
 
 // List returns all plugins.
@@ -106,6 +116,7 @@ func (s *Service) Get(ctx context.Context, id string) (*PluginDetail, error) {
 }
 
 // GetSettings returns the settings schema and current values for a plugin.
+// Sensitive fields are masked for display (not decrypted).
 func (s *Service) GetSettings(ctx context.Context, id string) (*PluginSettings, error) {
 	// Verify plugin exists and get plugin data
 	plugin, err := s.queries.GetPlugin(ctx, id)
@@ -149,17 +160,20 @@ func (s *Service) GetSettings(ctx context.Context, id string) (*PluginSettings, 
 		schema = json.RawMessage("{}")
 	}
 
+	// Mask sensitive fields for display
+	maskedValues := s.maskSensitiveFields(values, schema)
+
 	return &PluginSettings{
 		PluginID: id,
 		Schema:   schema,
-		Values:   values,
+		Values:   maskedValues,
 	}, nil
 }
 
 // UpdateSettings updates a plugin's settings.
 func (s *Service) UpdateSettings(ctx context.Context, id string, values json.RawMessage) error {
 	// Verify plugin exists
-	_, err := s.queries.GetPlugin(ctx, id)
+	plugin, err := s.queries.GetPlugin(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrPluginNotFound{PluginID: id}
@@ -167,10 +181,39 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, values json.Raw
 		return err
 	}
 
-	// If plugin is running, configure it first
+	// Get schema for sensitive field handling
+	var schema json.RawMessage
 	if instance, ok := s.manager.GetPlugin(id); ok && instance.CoreClient != nil {
+		schemaResp, err := instance.CoreClient.GetSettingsSchema(ctx, &pluginv1.Empty{})
+		if err == nil && schemaResp != nil && len(schemaResp.JsonSchema) > 0 {
+			schema = schemaResp.JsonSchema
+		}
+	}
+	if len(schema) == 0 && plugin.SettingsSchema != "" {
+		schema = json.RawMessage(plugin.SettingsSchema)
+	}
+
+	// Merge with existing values (preserve encrypted values for masked fields)
+	mergedValues, err := s.mergeSettings(ctx, id, values, schema)
+	if err != nil {
+		return err
+	}
+
+	// Encrypt sensitive fields before storage
+	encryptedValues, err := s.encryptSensitiveFields(mergedValues, schema)
+	if err != nil {
+		return err
+	}
+
+	// If plugin is running, configure it with decrypted values
+	if instance, ok := s.manager.GetPlugin(id); ok && instance.CoreClient != nil {
+		// Decrypt for the plugin (it needs plaintext values)
+		decryptedValues, err := s.decryptSensitiveFields(encryptedValues, schema)
+		if err != nil {
+			return err
+		}
 		resp, err := instance.CoreClient.Configure(ctx, &pluginv1.Settings{
-			Json: values,
+			Json: decryptedValues,
 		})
 		if err != nil {
 			return err
@@ -180,8 +223,8 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, values json.Raw
 		}
 	}
 
-	// Persist settings to database (so they survive restarts)
-	if err := s.queries.UpdatePluginSettings(ctx, id, string(values)); err != nil {
+	// Persist encrypted settings to database
+	if err := s.queries.UpdatePluginSettings(ctx, id, string(encryptedValues)); err != nil {
 		return err
 	}
 
@@ -510,4 +553,175 @@ type ConfigureError struct {
 
 func (e *ConfigureError) Error() string {
 	return "plugin configuration failed: " + e.Message
+}
+
+// maskSensitiveFields masks sensitive field values for display.
+// Returns a new JSON with sensitive fields replaced by a mask.
+func (s *Service) maskSensitiveFields(values, schema json.RawMessage) json.RawMessage {
+	if len(values) == 0 || len(schema) == 0 {
+		return values
+	}
+
+	sensitiveFields := s.schemaParser.GetSensitiveFields(schema)
+	if len(sensitiveFields) == 0 {
+		return values
+	}
+
+	var valuesMap map[string]any
+	if err := json.Unmarshal(values, &valuesMap); err != nil {
+		return values
+	}
+
+	for fieldName := range sensitiveFields {
+		if val, ok := valuesMap[fieldName].(string); ok && val != "" {
+			valuesMap[fieldName] = crypto.MaskAPIKey(val)
+		}
+	}
+
+	masked, err := json.Marshal(valuesMap)
+	if err != nil {
+		return values
+	}
+	return masked
+}
+
+// encryptSensitiveFields encrypts sensitive field values before storage.
+// Returns a new JSON with sensitive fields encrypted.
+func (s *Service) encryptSensitiveFields(values, schema json.RawMessage) (json.RawMessage, error) {
+	if s.encryptor == nil || len(values) == 0 || len(schema) == 0 {
+		return values, nil
+	}
+
+	sensitiveFields := s.schemaParser.GetSensitiveFields(schema)
+	if len(sensitiveFields) == 0 {
+		return values, nil
+	}
+
+	var valuesMap map[string]any
+	if err := json.Unmarshal(values, &valuesMap); err != nil {
+		return values, nil
+	}
+
+	for fieldName := range sensitiveFields {
+		if val, ok := valuesMap[fieldName].(string); ok && val != "" {
+			// Skip if already encrypted or if it's a masked value
+			if crypto.IsEncrypted(val) || isMaskedValue(val) {
+				continue
+			}
+			encrypted, err := s.encryptor.Encrypt(val)
+			if err != nil {
+				return nil, err
+			}
+			valuesMap[fieldName] = encrypted
+		}
+	}
+
+	encrypted, err := json.Marshal(valuesMap)
+	if err != nil {
+		return nil, err
+	}
+	return encrypted, nil
+}
+
+// decryptSensitiveFields decrypts sensitive field values after retrieval.
+// Returns a new JSON with sensitive fields decrypted (for passing to plugins).
+func (s *Service) decryptSensitiveFields(values, schema json.RawMessage) (json.RawMessage, error) {
+	if s.encryptor == nil || len(values) == 0 || len(schema) == 0 {
+		return values, nil
+	}
+
+	sensitiveFields := s.schemaParser.GetSensitiveFields(schema)
+	if len(sensitiveFields) == 0 {
+		return values, nil
+	}
+
+	var valuesMap map[string]any
+	if err := json.Unmarshal(values, &valuesMap); err != nil {
+		return values, nil
+	}
+
+	for fieldName := range sensitiveFields {
+		if val, ok := valuesMap[fieldName].(string); ok && val != "" {
+			if crypto.IsEncrypted(val) {
+				decrypted, err := s.encryptor.Decrypt(val)
+				if err != nil {
+					s.logger.Warn("failed to decrypt sensitive field", "field", fieldName, "error", err)
+					continue
+				}
+				valuesMap[fieldName] = decrypted
+			}
+		}
+	}
+
+	decrypted, err := json.Marshal(valuesMap)
+	if err != nil {
+		return nil, err
+	}
+	return decrypted, nil
+}
+
+// isMaskedValue returns true if the value is a masked placeholder.
+func isMaskedValue(val string) bool {
+	return val == "" || val == "••••••••" || val == "••••••••••••" || val == "********"
+}
+
+// mergeSettings merges new values with existing values, preserving encrypted values for masked fields.
+func (s *Service) mergeSettings(ctx context.Context, pluginID string, newValues, schema json.RawMessage) (json.RawMessage, error) {
+	if len(schema) == 0 {
+		return newValues, nil
+	}
+
+	sensitiveFields := s.schemaParser.GetSensitiveFields(schema)
+	if len(sensitiveFields) == 0 {
+		return newValues, nil
+	}
+
+	// Parse new values
+	var newMap map[string]any
+	if err := json.Unmarshal(newValues, &newMap); err != nil {
+		return newValues, nil
+	}
+
+	// Check if any sensitive field has a masked value that needs preserving
+	needsExisting := false
+	for fieldName := range sensitiveFields {
+		if val, ok := newMap[fieldName].(string); ok && isMaskedValue(val) {
+			needsExisting = true
+			break
+		}
+	}
+
+	if !needsExisting {
+		return newValues, nil
+	}
+
+	// Get existing values from database
+	existingJSON, err := s.queries.GetPluginSettings(ctx, pluginID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+
+	if existingJSON == "" {
+		return newValues, nil
+	}
+
+	var existingMap map[string]any
+	if err := json.Unmarshal([]byte(existingJSON), &existingMap); err != nil {
+		return newValues, nil
+	}
+
+	// Replace masked values with existing encrypted values
+	for fieldName := range sensitiveFields {
+		if val, ok := newMap[fieldName].(string); ok && isMaskedValue(val) {
+			if existingVal, ok := existingMap[fieldName].(string); ok {
+				newMap[fieldName] = existingVal
+			}
+		}
+	}
+
+	merged, err := json.Marshal(newMap)
+	if err != nil {
+		return nil, err
+	}
+	return merged, nil
 }

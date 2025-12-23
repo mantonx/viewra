@@ -68,6 +68,9 @@ type Services struct {
 	// Settings service
 	Settings *settings.Service
 
+	// Encryption service for sensitive data
+	Encryptor *crypto.Encryptor
+
 	// Event Bus for pub/sub messaging
 	EventBus *events.Bus
 
@@ -455,6 +458,7 @@ func BuildServices(
 		PasswordHasher:    passwordHasher,
 		TokenService:      tokenService,
 		Settings:          settingsService,
+		Encryptor:         encryptor,
 		EventBus:          eventBus,
 		PipelineManager:   pipelineManager,
 		EnricherRegistry:  enricherRegistry,
