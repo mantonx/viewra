@@ -99,7 +99,7 @@ func ProcessMovie(
 		PostSave: func(ctx context.Context) {
 			PersistMediaTracks(ctx, deps, movie.Media.ID, result)
 			// Calculate enrichment priority from release date estimate
-			priority := pipeline.CalculatePriorityFromMetadata(result.Year, result.FileMTime)
+			priority := pipeline.CalculatePriorityFromMetadata(result.Year, time.Now())
 			// Enqueue for enrichment - images are now extracted via the enrichment pipeline
 			enqueueForEnrichment(ctx, deps, movie.Media.ID, libraryID, enrichment.MediaTypeMovie, priority)
 		},

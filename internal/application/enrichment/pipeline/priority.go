@@ -51,30 +51,42 @@ func CalculatePriority(releaseDate time.Time) int {
 }
 
 // EstimateReleaseDate estimates the release date from available metadata.
-// Priority order:
-//  1. Parsed year from filename (assume July 1 for middle of year)
-//  2. File modification time (fallback)
+// Uses parsed year from filename, assuming July 1 for middle of year estimate.
 //
 // Note: Actual release date from NFO/TMDB is applied later via re-prioritization.
-func EstimateReleaseDate(year *int, fileMTime time.Time) time.Time {
+func EstimateReleaseDate(year *int) time.Time {
 	// If we have a parsed year, use July 1 of that year as an estimate
 	// (middle of year is a reasonable guess for theatrical releases)
 	if year != nil && *year > 1800 && *year < 2200 {
 		return time.Date(*year, time.July, 1, 0, 0, 0, 0, time.UTC)
 	}
 
-	// Fall back to file modification time
-	if !fileMTime.IsZero() {
-		return fileMTime
-	}
-
-	// No information available - use zero time (will get PriorityOlder)
+	// No year information available - use zero time (will get PriorityOlder)
 	return time.Time{}
 }
 
-// CalculatePriorityFromMetadata is a convenience function that combines
-// EstimateReleaseDate and CalculatePriority.
-func CalculatePriorityFromMetadata(year *int, fileMTime time.Time) int {
-	releaseDate := EstimateReleaseDate(year, fileMTime)
-	return CalculatePriority(releaseDate)
+// CalculatePriorityFromMetadata determines enrichment priority based on two factors:
+//  1. Release recency - newer releases (2024-2025) should be enriched before older content
+//  2. Addition recency - content added to the library today should be prioritized
+//
+// The final priority is the maximum of release-based and addition-based priorities.
+// This ensures both new releases AND freshly added content get fast enrichment.
+//
+// Parameters:
+//   - year: parsed release year from filename (nil if unknown)
+//   - addedAt: when the item was added to the library (typically time.Now() during scan)
+func CalculatePriorityFromMetadata(year *int, addedAt time.Time) int {
+	// Priority based on release date (new releases should be enriched first)
+	releaseDate := EstimateReleaseDate(year)
+	releasePriority := CalculatePriority(releaseDate)
+
+	// Priority based on when added to library (fresh additions should be enriched first)
+	// This ensures a 1990s movie added today gets priority over a 1990s movie added last month
+	addedPriority := CalculatePriority(addedAt)
+
+	// Return the higher priority - content is important if it's EITHER a new release OR newly added
+	if releasePriority > addedPriority {
+		return releasePriority
+	}
+	return addedPriority
 }

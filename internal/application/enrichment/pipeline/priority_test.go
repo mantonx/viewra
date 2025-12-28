@@ -81,7 +81,6 @@ func TestCalculatePriority(t *testing.T) {
 }
 
 func TestEstimateReleaseDate(t *testing.T) {
-	now := time.Now()
 	year2024 := 2024
 	year1999 := 1999
 	invalidYear := 1500
@@ -89,13 +88,11 @@ func TestEstimateReleaseDate(t *testing.T) {
 	tests := []struct {
 		name      string
 		year      *int
-		fileMTime time.Time
 		checkFunc func(t *testing.T, result time.Time)
 	}{
 		{
-			name:      "uses year when provided",
-			year:      &year2024,
-			fileMTime: now,
+			name: "uses year when provided",
+			year: &year2024,
 			checkFunc: func(t *testing.T, result time.Time) {
 				if result.Year() != 2024 {
 					t.Errorf("expected year 2024, got %d", result.Year())
@@ -109,9 +106,8 @@ func TestEstimateReleaseDate(t *testing.T) {
 			},
 		},
 		{
-			name:      "uses year 1999",
-			year:      &year1999,
-			fileMTime: now,
+			name: "uses year 1999",
+			year: &year1999,
 			checkFunc: func(t *testing.T, result time.Time) {
 				if result.Year() != 1999 {
 					t.Errorf("expected year 1999, got %d", result.Year())
@@ -119,32 +115,20 @@ func TestEstimateReleaseDate(t *testing.T) {
 			},
 		},
 		{
-			name:      "falls back to mtime when year is nil",
-			year:      nil,
-			fileMTime: now,
-			checkFunc: func(t *testing.T, result time.Time) {
-				if !result.Equal(now) {
-					t.Errorf("expected mtime %v, got %v", now, result)
-				}
-			},
-		},
-		{
-			name:      "falls back to mtime when year is invalid",
-			year:      &invalidYear,
-			fileMTime: now,
-			checkFunc: func(t *testing.T, result time.Time) {
-				if !result.Equal(now) {
-					t.Errorf("expected mtime %v, got %v", now, result)
-				}
-			},
-		},
-		{
-			name:      "returns zero time when no data available",
-			year:      nil,
-			fileMTime: time.Time{},
+			name: "returns zero time when year is nil",
+			year: nil,
 			checkFunc: func(t *testing.T, result time.Time) {
 				if !result.IsZero() {
 					t.Errorf("expected zero time, got %v", result)
+				}
+			},
+		},
+		{
+			name: "returns zero time when year is invalid",
+			year: &invalidYear,
+			checkFunc: func(t *testing.T, result time.Time) {
+				if !result.IsZero() {
+					t.Errorf("expected zero time for invalid year, got %v", result)
 				}
 			},
 		},
@@ -152,7 +136,7 @@ func TestEstimateReleaseDate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := EstimateReleaseDate(tt.year, tt.fileMTime)
+			result := EstimateReleaseDate(tt.year)
 			tt.checkFunc(t, result)
 		})
 	}
@@ -164,40 +148,52 @@ func TestCalculatePriorityFromMetadata(t *testing.T) {
 	oldYear := 1999
 
 	tests := []struct {
-		name      string
-		year      *int
-		fileMTime time.Time
-		expected  int
+		name     string
+		year     *int
+		addedAt  time.Time
+		expected int
 	}{
 		{
-			name:      "current year with current mtime gets this year priority",
-			year:      &currentYear,
-			fileMTime: now,
-			expected:  PriorityThisYear, // July 1 of current year is within 365 days
+			name:     "current year release added today gets today priority (addition wins)",
+			year:     &currentYear,
+			addedAt:  now,
+			expected: PriorityToday, // Added today > July 1 of current year
 		},
 		{
-			name:      "old year gets older priority",
-			year:      &oldYear,
-			fileMTime: now,
-			expected:  PriorityOlder,
+			name:     "old year release added today gets today priority (addition wins)",
+			year:     &oldYear,
+			addedAt:  now,
+			expected: PriorityToday, // 1999 release = PriorityOlder, but added today = PriorityToday
 		},
 		{
-			name:      "no year but recent mtime gets appropriate priority",
-			year:      nil,
-			fileMTime: now.Add(-2 * 24 * time.Hour),
-			expected:  PriorityThisWeek,
+			name:     "old year release added last year gets older priority",
+			year:     &oldYear,
+			addedAt:  now.Add(-400 * 24 * time.Hour),
+			expected: PriorityOlder, // Both release and addition are old
 		},
 		{
-			name:      "no data gets older priority",
-			year:      nil,
-			fileMTime: time.Time{},
-			expected:  PriorityOlder,
+			name:     "current year release added last month gets this year priority (release wins)",
+			year:     &currentYear,
+			addedAt:  now.Add(-60 * 24 * time.Hour),
+			expected: PriorityThisYear, // Release = this year, added = this year, same tier
+		},
+		{
+			name:     "no year but added this week gets this week priority",
+			year:     nil,
+			addedAt:  now.Add(-2 * 24 * time.Hour),
+			expected: PriorityThisWeek,
+		},
+		{
+			name:     "no year and zero addedAt gets older priority",
+			year:     nil,
+			addedAt:  time.Time{},
+			expected: PriorityOlder,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := CalculatePriorityFromMetadata(tt.year, tt.fileMTime)
+			got := CalculatePriorityFromMetadata(tt.year, tt.addedAt)
 			if got != tt.expected {
 				t.Errorf("CalculatePriorityFromMetadata() = %d, want %d", got, tt.expected)
 			}

@@ -42,6 +42,7 @@ make build-plugins                     # Build all plugins
 - **NEVER** run `make dev` or restart the server - user manages it
 - **NO** stub code, TODOs, example files, or extra documentation
 - **NO** adapter/wrapper patterns - implement interfaces directly. Adapters add tech debt and indirection.
+- **NO** "simplest fixes" - they aren't necessarily the most comprehensive and often turn out wrong. Think through the full solution.
 - Use `~/go/bin/air` for auto-reload instead of manual rebuilds
 
 ## MCP Tools

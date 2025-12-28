@@ -267,7 +267,7 @@ func ProcessMusicTrack(
 		},
 		PostSave: func(ctx context.Context) {
 			// Calculate enrichment priority from release date estimate
-			priority := pipeline.CalculatePriorityFromMetadata(result.Year, result.FileMTime)
+			priority := pipeline.CalculatePriorityFromMetadata(result.Year, time.Now())
 			// Enqueue track for enrichment - images are now extracted via the enrichment pipeline
 			enqueueForEnrichment(ctx, deps, track.Media.ID, libraryID, enrichment.MediaTypeMusic, priority)
 			// Enqueue parent entities (album/artist) for enrichment
