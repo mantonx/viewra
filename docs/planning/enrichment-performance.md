@@ -720,6 +720,16 @@ The `StageStatus` component should be shown in:
 
 ## Phase 5: UX Improvements (Priority: MEDIUM)
 
+> **Status:** ✅ **COMPLETED** (2024-12-27)
+>
+> All tasks implemented:
+> - `useEnrichmentFailures.ts` - Hook to fetch/manage enrichment failures for a library
+> - `ScanErrorsDialog` extended with tabbed interface for scan issues and enrichment failures
+> - `EnrichmentStages` component for per-stage progress breakdown with circuit status
+> - `EnrichmentBadge` component for subtle enrichment status indicators on media cards
+> - Library cards show enrichment failure count with orange indicator
+> - `formatRelativeTime` utility for displaying timestamps
+
 **Goal:** Unified, clean UI for scanning and enrichment with progressive disclosure.
 
 **Estimated Effort:** 10-14 hours
@@ -916,9 +926,9 @@ interface EnrichmentBadgeProps {
 | 2 | Batch enqueue, external ID prefetch, re-prioritization | 10-14h | High | ✅ Complete |
 | 3 | Entity cache (TV/Music deduplication) | 8-12h | High | ✅ Complete |
 | 4 | Priority boost, circuit breaker | 6-8h | UX + Resilience | ✅ Complete |
-| 5 | UX improvements (unified UI, badges, dialogs) | 10-14h | UX | Pending |
+| 5 | UX improvements (unified UI, badges, dialogs) | 10-14h | UX | ✅ Complete |
 
-**Total Remaining Effort:** 10-14 hours
+**Total Remaining Effort:** 0 hours - All phases complete!
 
 ---
 

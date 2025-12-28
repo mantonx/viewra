@@ -1,5 +1,6 @@
 import { useEnrichmentProgress } from '@/lib/hooks'
 import { Progress } from '@/components/ui'
+import { EnrichmentStages } from '@/components/library/EnrichmentStages'
 import type { EnrichmentIndicatorProps } from './EnrichmentIndicator.types'
 
 /** Format stage name for display (e.g., "local-images" -> "Local Images") */
@@ -32,7 +33,7 @@ const EnrichmentIndicator = ({
     return null
   }
 
-  const { currentItem, failed, overallProgress } = progress
+  const { currentItem, failed, overallProgress, stageProgress } = progress
 
   // Use overall progress for accurate percentage (unique items, not inflated by stages)
   const progressPercent = overallProgress?.percentage ?? 0
@@ -72,8 +73,11 @@ const EnrichmentIndicator = ({
   // Full mode: show progress bar with enrichment status
   const label = `Enriching: ${statusText} (${completedItems.toLocaleString()}/${totalItems.toLocaleString()})`
 
+  // Check if we have meaningful stage data to show
+  const hasStageData = stageProgress && Object.keys(stageProgress).length > 0
+
   return (
-    <div className="px-4 pb-4">
+    <div className="px-4 pb-4 space-y-3">
       <Progress
         value={progressPercent}
         label={label}
@@ -81,13 +85,19 @@ const EnrichmentIndicator = ({
         size="sm"
         showPercentage
       />
+      {hasStageData && (
+        <EnrichmentStages
+          stageProgress={stageProgress}
+          showCircuitStatus
+        />
+      )}
       {failed > 0 && (
-        <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+        <p className="text-xs text-red-500 dark:text-red-400">
           {failed.toLocaleString()} failed
         </p>
       )}
       {connectionState === 'error' && (
-        <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+        <p className="text-xs text-red-500 dark:text-red-400">
           Connection lost - reconnecting...
         </p>
       )}

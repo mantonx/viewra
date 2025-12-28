@@ -5,3 +5,4 @@ export { VideoPlayer, type VideoPlayerProps, type MediaMetadata } from './VideoP
 export { VideoPlayerContainer } from './VideoPlayerContainer'
 export { ProgressBar } from './ProgressBar'
 export { WatchedBadge } from './WatchedBadge'
+export { EnrichmentBadge, type EnrichmentBadgeProps, type EnrichmentStatus } from './EnrichmentBadge'
