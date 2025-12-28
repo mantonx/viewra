@@ -435,10 +435,12 @@ func (r *QueueRepository) GetCurrentItem(ctx context.Context, libraryID int64) (
 }
 
 // UpdatePriorityByMedia updates the priority for all pending/processing jobs
-// for a specific media item.
+// for a specific media item. Only upgrades priority, never downgrades - this
+// preserves the "added recently" boost even after TMDB returns an old release date.
 func (r *QueueRepository) UpdatePriorityByMedia(ctx context.Context, mediaID int64, mediaType enrichment.MediaType, priority int) error {
 	return r.router.RouteVoid(
 		func() error {
+			// Postgres reuses $1 for both priority comparisons
 			return r.postgres.UpdatePriorityByMedia(ctx, sqlc_postgres.UpdatePriorityByMediaParams{
 				Priority:  sql.NullInt32{Int32: int32(priority), Valid: true},
 				MediaID:   int32(mediaID),
@@ -446,10 +448,12 @@ func (r *QueueRepository) UpdatePriorityByMedia(ctx context.Context, mediaID int
 			})
 		},
 		func() error {
+			// SQLite uses positional params, so we need to pass priority twice
 			return r.sqlite.UpdatePriorityByMedia(ctx, sqlc_sqlite.UpdatePriorityByMediaParams{
-				Priority:  sql.NullInt64{Int64: int64(priority), Valid: true},
-				MediaID:   mediaID,
-				MediaType: string(mediaType),
+				Priority:   sql.NullInt64{Int64: int64(priority), Valid: true},
+				MediaID:    mediaID,
+				MediaType:  string(mediaType),
+				Priority_2: sql.NullInt64{Int64: int64(priority), Valid: true},
 			})
 		},
 	)

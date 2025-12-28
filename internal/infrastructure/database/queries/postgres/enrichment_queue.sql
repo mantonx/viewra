@@ -181,9 +181,10 @@ LIMIT 1;
 -- name: UpdatePriorityByMedia :exec
 -- Updates priority for all pending/processing jobs for a media item.
 -- Used to boost priority after enrichment discovers actual release date.
+-- Only upgrades priority (higher values), never downgrades - preserves "added recently" boost.
 UPDATE enrichment_queue
 SET priority = $1, updated_at = NOW()
-WHERE media_id = $2 AND media_type = $3 AND status IN ('pending', 'processing');
+WHERE media_id = $2 AND media_type = $3 AND status IN ('pending', 'processing') AND priority < $1;
 
 -- name: BoostPriority :execrows
 -- Boosts priority for pending/processing jobs and returns the number of affected rows.

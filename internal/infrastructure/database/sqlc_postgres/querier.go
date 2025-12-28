@@ -489,6 +489,7 @@ type Querier interface {
 	UpdatePluginSettingsSchema(ctx context.Context, arg UpdatePluginSettingsSchemaParams) error
 	// Updates priority for all pending/processing jobs for a media item.
 	// Used to boost priority after enrichment discovers actual release date.
+	// Only upgrades priority (higher values), never downgrades - preserves "added recently" boost.
 	UpdatePriorityByMedia(ctx context.Context, arg UpdatePriorityByMediaParams) error
 	UpdateScanCheckpointRetryCount(ctx context.Context, arg UpdateScanCheckpointRetryCountParams) error
 	UpdateScanCheckpointStatus(ctx context.Context, arg UpdateScanCheckpointStatusParams) error

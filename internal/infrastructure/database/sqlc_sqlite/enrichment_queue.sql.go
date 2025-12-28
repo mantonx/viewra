@@ -782,18 +782,25 @@ func (q *Queries) SkipEnrichmentJob(ctx context.Context, id int64) error {
 const updatePriorityByMedia = `-- name: UpdatePriorityByMedia :exec
 UPDATE enrichment_queue
 SET priority = ?, updated_at = datetime('now')
-WHERE media_id = ? AND media_type = ? AND status IN ('pending', 'processing')
+WHERE media_id = ? AND media_type = ? AND status IN ('pending', 'processing') AND priority < ?
 `
 
 type UpdatePriorityByMediaParams struct {
-	Priority  sql.NullInt64 `json:"priority"`
-	MediaID   int64         `json:"media_id"`
-	MediaType string        `json:"media_type"`
+	Priority   sql.NullInt64 `json:"priority"`
+	MediaID    int64         `json:"media_id"`
+	MediaType  string        `json:"media_type"`
+	Priority_2 sql.NullInt64 `json:"priority_2"`
 }
 
 // Updates priority for all pending/processing jobs for a media item.
 // Used to boost priority after enrichment discovers actual release date.
+// Only upgrades priority (higher values), never downgrades - preserves "added recently" boost.
 func (q *Queries) UpdatePriorityByMedia(ctx context.Context, arg UpdatePriorityByMediaParams) error {
-	_, err := q.db.ExecContext(ctx, updatePriorityByMedia, arg.Priority, arg.MediaID, arg.MediaType)
+	_, err := q.db.ExecContext(ctx, updatePriorityByMedia,
+		arg.Priority,
+		arg.MediaID,
+		arg.MediaType,
+		arg.Priority_2,
+	)
 	return err
 }
