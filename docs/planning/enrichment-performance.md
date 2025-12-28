@@ -49,9 +49,9 @@ Optimize enrichment pipeline performance for 100K+ item libraries. Current enric
 | 1 | Pipeline cache, rate limiter, worker tuning | 4-6h | **COMPLETED** |
 | 2 | Batch enqueue, external ID prefetch, re-prioritization | 10-14h | **COMPLETED** |
 | 3 | Entity cache (TV/Music deduplication) | 8-12h | **COMPLETED** |
-| 4 | Priority boost, circuit breaker | 6-8h | Pending |
+| 4 | Priority boost, circuit breaker | 6-8h | **COMPLETED** |
 | 5 | UX improvements (unified UI, badges, dialogs) | 10-14h | Pending |
-| **Total Remaining** | | **16-22h** | |
+| **Total Remaining** | | **10-14h** | |
 
 ---
 
@@ -347,7 +347,23 @@ Movies like "(500) Days of Summer" and "3 Idiots" appear in wrong positions in t
 
 ---
 
-## Phase 4: Priority & Resilience (Priority: MEDIUM)
+## Phase 4: Priority & Resilience (Priority: MEDIUM) - COMPLETED
+
+> **Status:** ✅ **COMPLETED** (2024-12-27)
+>
+> All tasks implemented:
+> - `POST /api/enrichment/prioritize` - Boosts priority to 1000 (interactive)
+> - `BoostPriority` SQL query updates pending/processing jobs
+> - `useAutoEnrich.ts` hook for auto-prioritizing viewed items
+> - `circuit_breaker.go` - Full state machine (closed/open/half-open)
+> - `CircuitBreakerRegistry` manages per-stage circuit breakers
+> - Workers check circuit before claiming jobs
+> - JobProcessor records success/failure to update circuit state
+> - `GET /api/enrichment/stages` - Returns all circuit breaker statuses
+> - `POST /api/enrichment/stages/:stage/reset` - Manual circuit reset
+> - SSE event `enrichment.circuit_state` on state changes
+> - `useStageStatus.ts` hook for fetching/resetting circuit breakers
+> - `StageStatus` component shows problem stages with countdown timer
 
 **Goal:** Improve UX for interactive use and handle API outages gracefully.
 
@@ -355,7 +371,7 @@ Movies like "(500) Days of Summer" and "3 Idiots" appear in wrong positions in t
 
 ### Tasks
 
-#### 4.1 Interactive Priority Boost
+#### 4.1 Interactive Priority Boost ✅
 
 - **Files:**
   - `internal/api/handlers/enrichment.go`
@@ -373,7 +389,7 @@ Movies like "(500) Days of Summer" and "3 Idiots" appear in wrong positions in t
 - **Impact:** Immediate enrichment for items user is viewing
 - **Effort:** 3 hours
 
-#### 4.2 Circuit Breaker with Status UI
+#### 4.2 Circuit Breaker with Status UI ✅
 
 - **Files:**
   - `internal/application/enrichment/pipeline/circuit_breaker.go` (new)
@@ -899,10 +915,10 @@ interface EnrichmentBadgeProps {
 | 1 | Pipeline cache, rate limiter, worker tuning | 4-6h | Medium | ✅ Complete |
 | 2 | Batch enqueue, external ID prefetch, re-prioritization | 10-14h | High | ✅ Complete |
 | 3 | Entity cache (TV/Music deduplication) | 8-12h | High | ✅ Complete |
-| 4 | Priority boost, circuit breaker | 6-8h | UX + Resilience | Pending |
+| 4 | Priority boost, circuit breaker | 6-8h | UX + Resilience | ✅ Complete |
 | 5 | UX improvements (unified UI, badges, dialogs) | 10-14h | UX | Pending |
 
-**Total Remaining Effort:** 16-22 hours
+**Total Remaining Effort:** 10-14 hours
 
 ---
 
