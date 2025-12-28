@@ -137,4 +137,36 @@ const formatETA = (seconds: number | undefined | null): string | null => {
   return `~${minutes}m`
 }
 
-export { formatDate, formatDuration, formatETA, formatFileSize, formatTime, pluralize }
+/**
+ * Format a date as a relative time string (e.g., "2 hours ago", "3 days ago")
+ * @param date - Date string or Date object
+ * @returns Formatted relative time string
+ * @example
+ * formatRelativeTime("2024-01-12T14:30:00Z") // "2 hours ago"
+ */
+const formatRelativeTime = (date: string | Date): string => {
+  const dateObj = typeof date === 'string' ? new Date(date) : date
+  const now = new Date()
+  const diffMs = now.getTime() - dateObj.getTime()
+  const diffSeconds = Math.floor(diffMs / 1000)
+  const diffMinutes = Math.floor(diffSeconds / 60)
+  const diffHours = Math.floor(diffMinutes / 60)
+  const diffDays = Math.floor(diffHours / 24)
+
+  if (diffSeconds < 60) {
+    return 'just now'
+  }
+  if (diffMinutes < 60) {
+    return `${diffMinutes} ${diffMinutes === 1 ? 'minute' : 'minutes'} ago`
+  }
+  if (diffHours < 24) {
+    return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`
+  }
+  if (diffDays < 7) {
+    return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`
+  }
+  // Fall back to formatted date for older items
+  return formatDate(dateObj)
+}
+
+export { formatDate, formatDuration, formatETA, formatFileSize, formatRelativeTime, formatTime, pluralize }

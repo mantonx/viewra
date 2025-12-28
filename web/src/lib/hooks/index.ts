@@ -64,3 +64,5 @@ export type {
 } from './useDeleteAction.types'
 export { useStageStatus } from './useStageStatus'
 export type { StageStatus } from './useStageStatus'
+export { useEnrichmentFailures } from './useEnrichmentFailures'
+export type { EnrichmentFailure } from './useEnrichmentFailures'

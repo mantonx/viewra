@@ -10,6 +10,7 @@ import {
 } from '@/lib/api'
 import { useConfirm } from '@/lib/hooks/useConfirm'
 import { useEnrichmentProgress } from '@/lib/hooks/useEnrichmentProgress'
+import { useEnrichmentFailures } from '@/lib/hooks/useEnrichmentFailures'
 import { useInvalidateLibraries } from '@/lib/hooks/useInvalidateLibraries'
 import { useScanProgress } from '@/lib/hooks/useScanProgress'
 import { useToast } from '@/lib/hooks/useToast'
@@ -43,6 +44,13 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   // Only show "Complete" if we've received enrichment data and it's not active
   // If we haven't received data yet (enrichmentProgress is null), don't claim completion
   const enrichmentConfirmedComplete = enrichmentProgress !== null && !isEnriching
+
+  // Get enrichment failures count (only when not actively scanning/enriching)
+  const { total: enrichmentFailureCount } = useEnrichmentFailures({
+    libraryId,
+    enabled: libraryId > 0 && !isScanning && enrichmentConfirmedComplete,
+    limit: 1, // Only need count
+  })
 
   // Get total media count for this library
   const { data: mediaCount } = useGetApiMedia(
@@ -218,6 +226,30 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                     <span>{pluralize(scanStatus.warningCount, 'warning')}</span>
                   </button>
                 )}
+                {enrichmentFailureCount > 0 && (
+                  <button
+                    onClick={() => setShowErrorsDialog(true)}
+                    className="cursor-pointer text-orange-600 dark:text-orange-500 font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-1 rounded-sm flex items-center gap-1.5 transition-colors"
+                    title="View enrichment failures"
+                    aria-label={`View ${pluralize(enrichmentFailureCount, 'enrichment failure')}`}
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
+                      />
+                    </svg>
+                    <span>{pluralize(enrichmentFailureCount, 'enrichment failure')}</span>
+                  </button>
+                )}
               </div>
             </div>
             <div className="flex gap-2 ml-4">
@@ -348,7 +380,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
         )}
       </div>
 
-      {hasIssues && library.id && (
+      {(hasIssues || enrichmentFailureCount > 0) && library.id && (
         <ScanErrorsDialog
           libraryId={library.id}
           jobId={scanStatus?.jobId}
