@@ -27,15 +27,27 @@ func NewRequestBuilder(deps *Deps, typedRepos *TypedMediaRepos, logger *slog.Log
 
 // Build fetches media data and builds an EnrichRequest.
 // Uses job.MediaType for explicit routing - no fallback lookups needed.
+// This method fetches external IDs on-demand. For batch processing, use BuildWithExternalIDs.
 func (b *RequestBuilder) Build(ctx context.Context, job *enrichment.QueueJob) (*pluginv1.EnrichRequest, enrichment.MediaType, error) {
-	// Get existing external IDs for this media
-	existingIDs := make(map[string]string)
-	if extIDs, err := b.deps.ExternalIDRepo.GetByMedia(ctx, job.MediaID); err != nil {
-		// Non-fatal - continue without existing IDs
-		b.logger.Warn("failed to get external IDs", slog.Int64("media_id", job.MediaID), slog.Any("error", err))
+	return b.BuildWithExternalIDs(ctx, job, nil)
+}
+
+// BuildWithExternalIDs fetches media data and builds an EnrichRequest.
+// If prefetchedIDs is provided, it will be used instead of fetching from the database.
+func (b *RequestBuilder) BuildWithExternalIDs(ctx context.Context, job *enrichment.QueueJob, prefetchedIDs map[string]string) (*pluginv1.EnrichRequest, enrichment.MediaType, error) {
+	// Use prefetched IDs if available, otherwise fetch from database
+	var existingIDs map[string]string
+	if prefetchedIDs != nil {
+		existingIDs = prefetchedIDs
 	} else {
-		for _, extID := range extIDs {
-			existingIDs[extID.Provider] = extID.ExternalID
+		existingIDs = make(map[string]string)
+		if extIDs, err := b.deps.ExternalIDRepo.GetByMedia(ctx, job.MediaID); err != nil {
+			// Non-fatal - continue without existing IDs
+			b.logger.Warn("failed to get external IDs", slog.Int64("media_id", job.MediaID), slog.Any("error", err))
+		} else {
+			for _, extID := range extIDs {
+				existingIDs[extID.Provider] = extID.ExternalID
+			}
 		}
 	}
 

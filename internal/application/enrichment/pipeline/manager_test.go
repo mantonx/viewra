@@ -45,6 +45,21 @@ func (r *mockQueueRepo) Enqueue(ctx context.Context, job *enrichment.QueueJob) (
 	return job, nil
 }
 
+func (r *mockQueueRepo) EnqueueBatch(ctx context.Context, jobs []*enrichment.QueueJob) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, job := range jobs {
+		r.enqueueCalls++
+		job.ID = r.nextID
+		r.nextID++
+		job.Status = enrichment.JobStatusPending
+		job.CreatedAt = time.Now()
+		job.UpdatedAt = time.Now()
+		r.jobs[job.ID] = job
+	}
+	return len(jobs), nil
+}
+
 func (r *mockQueueRepo) ClaimBatch(ctx context.Context, stage, workerID string, batchSize int) ([]*enrichment.QueueJob, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -151,6 +166,19 @@ func (r *mockQueueRepo) DeleteByMedia(ctx context.Context, mediaID int64, mediaT
 
 func (r *mockQueueRepo) GetOrphanedPipelineStates(ctx context.Context) ([]*enrichment.OrphanedPipelineState, error) {
 	return nil, nil
+}
+
+func (r *mockQueueRepo) UpdatePriorityByMedia(ctx context.Context, mediaID int64, mediaType enrichment.MediaType, priority int) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, job := range r.jobs {
+		if job.MediaID == mediaID && job.MediaType == mediaType {
+			if job.Status == enrichment.JobStatusPending || job.Status == enrichment.JobStatusProcessing {
+				job.Priority = priority
+			}
+		}
+	}
+	return nil
 }
 
 // mockStatusRepo implements enrichment.StatusRepository for testing.

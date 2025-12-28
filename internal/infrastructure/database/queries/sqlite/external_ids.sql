@@ -30,6 +30,14 @@ SELECT * FROM media_external_ids
 WHERE media_id = ?
 ORDER BY provider;
 
+-- name: GetExternalIDsByMediaIDBatch :many
+-- Batch fetch: gets external IDs for multiple media IDs
+-- Note: sqlc doesn't support array params in SQLite, so this is implemented
+-- in the repository using a dynamic query or multiple calls
+SELECT * FROM media_external_ids
+WHERE media_id IN (sqlc.slice('media_ids'))
+ORDER BY media_id, provider;
+
 -- name: GetMediaByExternalID :one
 -- Returns entity_id for the given provider/external_id combination
 SELECT entity_id FROM media_external_ids

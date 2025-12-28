@@ -434,6 +434,84 @@ func (r *QueueRepository) GetCurrentItem(ctx context.Context, libraryID int64) (
 	}, nil
 }
 
+// UpdatePriorityByMedia updates the priority for all pending/processing jobs
+// for a specific media item.
+func (r *QueueRepository) UpdatePriorityByMedia(ctx context.Context, mediaID int64, mediaType enrichment.MediaType, priority int) error {
+	return r.router.RouteVoid(
+		func() error {
+			return r.postgres.UpdatePriorityByMedia(ctx, sqlc_postgres.UpdatePriorityByMediaParams{
+				Priority:  sql.NullInt32{Int32: int32(priority), Valid: true},
+				MediaID:   int32(mediaID),
+				MediaType: string(mediaType),
+			})
+		},
+		func() error {
+			return r.sqlite.UpdatePriorityByMedia(ctx, sqlc_sqlite.UpdatePriorityByMediaParams{
+				Priority:  sql.NullInt64{Int64: int64(priority), Valid: true},
+				MediaID:   mediaID,
+				MediaType: string(mediaType),
+			})
+		},
+	)
+}
+
+// EnqueueBatch adds multiple jobs to the queue in a single transaction.
+// This is much faster than individual Enqueue calls for bulk operations.
+// Jobs that fail to enqueue are skipped (logged), and the operation continues.
+func (r *QueueRepository) EnqueueBatch(ctx context.Context, jobs []*enrichment.QueueJob) (int, error) {
+	if len(jobs) == 0 {
+		return 0, nil
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	var successCount int
+
+	if r.router.IsPostgresDB() {
+		q := r.postgres.WithTx(tx)
+		for _, job := range jobs {
+			_, err := q.EnqueueEnrichmentJob(ctx, sqlc_postgres.EnqueueEnrichmentJobParams{
+				MediaID:     int32(job.MediaID),
+				LibraryID:   sql.NullInt32{Int32: int32(job.LibraryID), Valid: job.LibraryID > 0},
+				MediaType:   string(job.MediaType),
+				Stage:       job.Stage,
+				Priority:    sql.NullInt32{Int32: int32(job.Priority), Valid: true},
+				MaxAttempts: sql.NullInt32{Int32: int32(job.MaxAttempts), Valid: job.MaxAttempts > 0},
+			})
+			if err == nil {
+				successCount++
+			}
+			// Skip failed inserts - don't abort the whole batch
+		}
+	} else {
+		q := r.sqlite.WithTx(tx)
+		for _, job := range jobs {
+			_, err := q.EnqueueEnrichmentJob(ctx, sqlc_sqlite.EnqueueEnrichmentJobParams{
+				MediaID:     job.MediaID,
+				LibraryID:   sql.NullInt64{Int64: job.LibraryID, Valid: job.LibraryID > 0},
+				MediaType:   string(job.MediaType),
+				Stage:       job.Stage,
+				Priority:    sql.NullInt64{Int64: int64(job.Priority), Valid: true},
+				MaxAttempts: sql.NullInt64{Int64: int64(job.MaxAttempts), Valid: job.MaxAttempts > 0},
+			})
+			if err == nil {
+				successCount++
+			}
+			// Skip failed inserts - don't abort the whole batch
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return successCount, nil
+}
+
 // GetOrphanedPipelineStates finds media items where a stage completed but
 // the next stage was never enqueued. This happens when the server crashes
 // between marking a stage complete and enqueuing the next.

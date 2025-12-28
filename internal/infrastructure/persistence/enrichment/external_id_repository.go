@@ -104,6 +104,54 @@ func (r *ExternalIDRepository) GetByMedia(ctx context.Context, mediaID int64) ([
 	return r.convertResultList(result), nil
 }
 
+// GetByMediaBatch returns external IDs for multiple media IDs in a single query.
+// Returns a map of mediaID -> []*ExternalID for efficient batch processing.
+func (r *ExternalIDRepository) GetByMediaBatch(ctx context.Context, mediaIDs []int64) (map[int64][]*enrichment.ExternalID, error) {
+	if len(mediaIDs) == 0 {
+		return make(map[int64][]*enrichment.ExternalID), nil
+	}
+
+	result, err := r.router.Route(
+		func() (any, error) {
+			// Convert to []int32 for PostgreSQL
+			pgIDs := make([]int32, len(mediaIDs))
+			for i, id := range mediaIDs {
+				pgIDs[i] = int32(id)
+			}
+			return r.postgres.GetExternalIDsByMediaIDBatch(ctx, pgIDs)
+		},
+		func() (any, error) {
+			return r.sqlite.GetExternalIDsByMediaIDBatch(ctx, mediaIDs)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Group results by media ID
+	resultMap := make(map[int64][]*enrichment.ExternalID)
+
+	if r.router.IsPostgresDB() {
+		pgIDs := result.([]sqlc_postgres.MediaExternalID)
+		for _, pgID := range pgIDs {
+			if pgID.MediaID.Valid {
+				mediaID := int64(pgID.MediaID.Int32)
+				resultMap[mediaID] = append(resultMap[mediaID], r.convertPostgresExternalID(pgID))
+			}
+		}
+	} else {
+		sqIDs := result.([]sqlc_sqlite.MediaExternalID)
+		for _, sqID := range sqIDs {
+			if sqID.MediaID.Valid {
+				mediaID := sqID.MediaID.Int64
+				resultMap[mediaID] = append(resultMap[mediaID], r.convertSqliteExternalID(sqID))
+			}
+		}
+	}
+
+	return resultMap, nil
+}
+
 // GetEntityByExternalID finds an entity by provider and external ID.
 func (r *ExternalIDRepository) GetEntityByExternalID(ctx context.Context, provider, externalID string) (enrichment.MediaType, int64, error) {
 	result, err := r.router.Route(

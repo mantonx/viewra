@@ -145,12 +145,56 @@ func (p *WorkerPool) worker(ctx context.Context, workerID int) {
 			continue
 		}
 
-		// Process each job
+		// Prefetch external IDs for all claimed jobs (batch optimization)
+		externalIDsMap := p.prefetchExternalIDs(ctx, jobs)
+
+		// Process each job with prefetched external IDs
 		for _, job := range jobs {
 			if ctx.Err() != nil {
 				return
 			}
-			p.jobProcessor.Process(ctx, job)
+			p.jobProcessor.ProcessWithExternalIDs(ctx, job, externalIDsMap[job.MediaID])
 		}
 	}
+}
+
+// prefetchExternalIDs fetches external IDs for all jobs in a single batch query.
+// Returns a map of mediaID -> map[provider]externalID for efficient lookup.
+func (p *WorkerPool) prefetchExternalIDs(ctx context.Context, jobs []*enrichment.QueueJob) map[int64]map[string]string {
+	result := make(map[int64]map[string]string)
+
+	// Collect unique media IDs
+	mediaIDs := make([]int64, 0, len(jobs))
+	seen := make(map[int64]bool)
+	for _, job := range jobs {
+		if !seen[job.MediaID] {
+			seen[job.MediaID] = true
+			mediaIDs = append(mediaIDs, job.MediaID)
+		}
+	}
+
+	if len(mediaIDs) == 0 {
+		return result
+	}
+
+	// Batch fetch external IDs
+	extIDsMap, err := p.deps.ExternalIDRepo.GetByMediaBatch(ctx, mediaIDs)
+	if err != nil {
+		// Non-fatal - individual jobs will fall back to their own lookup
+		p.deps.Logger.Debug("failed to prefetch external IDs",
+			slog.Int("job_count", len(jobs)),
+			slog.Any("error", err))
+		return result
+	}
+
+	// Convert to map[mediaID]map[provider]externalID
+	for mediaID, extIDs := range extIDsMap {
+		providerMap := make(map[string]string)
+		for _, extID := range extIDs {
+			providerMap[extID.Provider] = extID.ExternalID
+		}
+		result[mediaID] = providerMap
+	}
+
+	return result
 }

@@ -281,6 +281,78 @@ func (m *Manager) EnqueueFirstStage(ctx context.Context, mediaID int64, libraryI
 	return nil
 }
 
+// EnqueueFirstStageBatch enqueues multiple media items for their first pipeline stages.
+// This is much more efficient than individual EnqueueFirstStage calls during library scans.
+// Returns the number of successfully enqueued jobs.
+func (m *Manager) EnqueueFirstStageBatch(ctx context.Context, items []EnqueueItem) (int, error) {
+	if len(items) == 0 {
+		return 0, nil
+	}
+
+	// Group items by media type for efficient stage lookup
+	byType := make(map[enrichment.MediaType][]EnqueueItem)
+	for _, item := range items {
+		byType[item.MediaType] = append(byType[item.MediaType], item)
+	}
+
+	// Build jobs for each media type
+	var jobs []*enrichment.QueueJob
+	for mediaType, typeItems := range byType {
+		// Get first stage for this media type (cached)
+		firstStage, err := m.pipelineCache.GetFirstStage(ctx, mediaType)
+		if err != nil {
+			m.deps.Logger.Warn("failed to get first stage for batch",
+				slog.String("media_type", string(mediaType)),
+				slog.Any("error", err))
+			continue
+		}
+
+		if firstStage == nil {
+			// No pipeline for this media type - skip
+			continue
+		}
+
+		for _, item := range typeItems {
+			jobs = append(jobs, &enrichment.QueueJob{
+				MediaID:     item.MediaID,
+				LibraryID:   item.LibraryID,
+				MediaType:   mediaType,
+				Stage:       firstStage.StageName,
+				Priority:    item.Priority,
+				Status:      enrichment.JobStatusPending,
+				MaxAttempts: 3,
+			})
+		}
+	}
+
+	if len(jobs) == 0 {
+		return 0, nil
+	}
+
+	// Batch enqueue
+	count, err := m.deps.QueueRepo.EnqueueBatch(ctx, jobs)
+	if err != nil {
+		return 0, fmt.Errorf("batch enqueue: %w", err)
+	}
+
+	// Publish batch event (single event for all items)
+	if count > 0 {
+		m.deps.EventBus.Publish(events.NewEvent(events.EventEnrichmentQueued, "pipeline").
+			WithData("batch_size", count).
+			Build())
+	}
+
+	return count, nil
+}
+
+// EnqueueItem represents a media item to be enqueued for enrichment.
+type EnqueueItem struct {
+	MediaID   int64
+	LibraryID int64
+	MediaType enrichment.MediaType
+	Priority  int
+}
+
 // EnqueueNextStage enqueues a media item for the next pipeline stage.
 // Called after a stage completes successfully.
 // libraryID is passed through from the completing job for SSE event filtering.

@@ -53,7 +53,14 @@ func (p *JobProcessor) SetEnqueueNext(fn func(ctx context.Context, mediaID int64
 }
 
 // Process handles a single enrichment job with timeout and error handling.
+// This method fetches external IDs on-demand. For batch processing, use ProcessWithExternalIDs.
 func (p *JobProcessor) Process(ctx context.Context, job *enrichment.QueueJob) {
+	p.ProcessWithExternalIDs(ctx, job, nil)
+}
+
+// ProcessWithExternalIDs handles a single enrichment job with prefetched external IDs.
+// If prefetchedIDs is nil, external IDs will be fetched on-demand.
+func (p *JobProcessor) ProcessWithExternalIDs(ctx context.Context, job *enrichment.QueueJob, prefetchedIDs map[string]string) {
 	logger := p.logger.With(
 		slog.Int64("job_id", job.ID),
 		slog.Int64("media_id", job.MediaID),
@@ -81,9 +88,9 @@ func (p *JobProcessor) Process(ctx context.Context, job *enrichment.QueueJob) {
 		logger.Error("failed to update status", slog.Any("error", err))
 	}
 
-	// Build EnrichRequest from job
+	// Build EnrichRequest from job (using prefetched external IDs if available)
 	startTime := time.Now()
-	req, mediaType, err := p.requestBuilder.Build(jobCtx, job)
+	req, mediaType, err := p.requestBuilder.BuildWithExternalIDs(jobCtx, job, prefetchedIDs)
 	if err != nil {
 		p.handleFailure(ctx, logger, job, job.MediaType, fmt.Errorf("build request: %w", err), time.Since(startTime))
 		return

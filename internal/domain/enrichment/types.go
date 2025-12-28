@@ -154,6 +154,11 @@ type QueueRepository interface {
 	// Uses upsert behavior: re-enqueues completed/skipped/failed jobs.
 	Enqueue(ctx context.Context, job *QueueJob) (*QueueJob, error)
 
+	// EnqueueBatch adds multiple jobs to the queue in a single transaction.
+	// Returns the number of successfully enqueued jobs.
+	// This is much faster than individual Enqueue calls for bulk operations.
+	EnqueueBatch(ctx context.Context, jobs []*QueueJob) (int, error)
+
 	// ClaimBatch claims a batch of pending jobs for processing.
 	// Returns jobs locked to the specified worker.
 	ClaimBatch(ctx context.Context, stage, workerID string, batchSize int) ([]*QueueJob, error)
@@ -186,6 +191,11 @@ type QueueRepository interface {
 	// the next stage was never enqueued. This happens when the server crashes
 	// between marking a stage complete and enqueuing the next.
 	GetOrphanedPipelineStates(ctx context.Context) ([]*OrphanedPipelineState, error)
+
+	// UpdatePriorityByMedia updates the priority for all pending/processing jobs
+	// for a specific media item. Used to boost priority after enrichment discovers
+	// the actual release date.
+	UpdatePriorityByMedia(ctx context.Context, mediaID int64, mediaType MediaType, priority int) error
 }
 
 // StatusRepository defines operations for enrichment status tracking.
@@ -261,6 +271,10 @@ type ExternalIDRepository interface {
 	// GetByMedia returns all external IDs for a media table entry (legacy).
 	// Prefer GetByEntity for new code.
 	GetByMedia(ctx context.Context, mediaID int64) ([]*ExternalID, error)
+
+	// GetByMediaBatch returns external IDs for multiple media IDs in a single query.
+	// Returns a map of mediaID -> []*ExternalID for efficient batch processing.
+	GetByMediaBatch(ctx context.Context, mediaIDs []int64) (map[int64][]*ExternalID, error)
 
 	// GetEntityByExternalID finds an entity by provider and external ID.
 	// Returns the media type and entity ID.

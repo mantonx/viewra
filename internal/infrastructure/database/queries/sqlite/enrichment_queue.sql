@@ -177,6 +177,13 @@ WHERE eq.library_id = ?
 ORDER BY eq.locked_at ASC
 LIMIT 1;
 
+-- name: UpdatePriorityByMedia :exec
+-- Updates priority for all pending/processing jobs for a media item.
+-- Used to boost priority after enrichment discovers actual release date.
+UPDATE enrichment_queue
+SET priority = ?, updated_at = datetime('now')
+WHERE media_id = ? AND media_type = ? AND status IN ('pending', 'processing');
+
 -- name: GetOrphanedPipelineStates :many
 -- Find enrichment statuses where a stage completed but the next stage was never enqueued.
 -- This happens when the server crashes between marking a stage complete and enqueuing the next.

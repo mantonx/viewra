@@ -47,11 +47,11 @@ Optimize enrichment pipeline performance for 100K+ item libraries. Current enric
 |-------|-------------|--------|--------|
 | 0 | Sort title bug fix (prerequisite) | ~1h | **COMPLETED** |
 | 1 | Pipeline cache, rate limiter, worker tuning | 4-6h | **COMPLETED** |
-| 2 | Batch enqueue, external ID prefetch, re-prioritization | 10-14h | Pending |
+| 2 | Batch enqueue, external ID prefetch, re-prioritization | 10-14h | **COMPLETED** |
 | 3 | Entity cache (TV/Music deduplication) | 8-12h | Pending |
 | 4 | Priority boost, circuit breaker | 6-8h | Pending |
 | 5 | UX improvements (unified UI, badges, dialogs) | 10-14h | Pending |
-| **Total Remaining** | | **34-48h** | |
+| **Total Remaining** | | **24-34h** | |
 
 ---
 
@@ -231,7 +231,15 @@ Movies like "(500) Days of Summer" and "3 Idiots" appear in wrong positions in t
 
 ---
 
-## Phase 2: Batch Operations (Priority: HIGH)
+## Phase 2: Batch Operations (Priority: HIGH) - COMPLETED
+
+> **Status:** ✅ **COMPLETED** (2024-12-27)
+>
+> All tasks implemented:
+> - `enqueue_buffer.go` - Channel-based async buffer with batch flush (500 items or 2s)
+> - `EnqueueBatch` - Repository method for transactional batch inserts
+> - `GetByMediaBatch` - Batch external ID prefetch for claimed jobs
+> - `UpdatePriorityByMedia` - SQL query for priority updates after metadata discovery
 
 **Goal:** Reduce DB round-trips by batching related operations.
 
@@ -239,7 +247,7 @@ Movies like "(500) Days of Summer" and "3 Idiots" appear in wrong positions in t
 
 ### Tasks
 
-#### 2.1 Batch Enrichment Enqueue
+#### 2.1 Batch Enrichment Enqueue ✅
 
 - **Files:**
   - `internal/application/enrichment/pipeline/enqueue_buffer.go` (new)
@@ -254,7 +262,7 @@ Movies like "(500) Days of Summer" and "3 Idiots" appear in wrong positions in t
 - **Impact:** ~100x fewer DB round-trips during scan enqueue
 - **Effort:** 6 hours
 
-#### 2.2 External ID Batch Prefetch
+#### 2.2 External ID Batch Prefetch ✅
 
 - **Files:**
   - `internal/application/enrichment/pipeline/worker_pool.go`
@@ -267,7 +275,7 @@ Movies like "(500) Days of Summer" and "3 Idiots" appear in wrong positions in t
 - **Impact:** ~5x fewer DB queries during enrichment
 - **Effort:** 4 hours
 
-#### 2.3 Post-Enrichment Re-prioritization
+#### 2.3 Post-Enrichment Re-prioritization ✅
 
 - **Files:**
   - `internal/application/enrichment/pipeline/job_processor.go`
@@ -876,12 +884,12 @@ interface EnrichmentBadgeProps {
 |-------|-------------|--------|--------|--------|
 | 0 | Sort title bug fix | ~1h | Bug fix | ✅ Complete |
 | 1 | Pipeline cache, rate limiter, worker tuning | 4-6h | Medium | ✅ Complete |
-| 2 | Batch enqueue, external ID prefetch, re-prioritization | 10-14h | High | Pending |
+| 2 | Batch enqueue, external ID prefetch, re-prioritization | 10-14h | High | ✅ Complete |
 | 3 | Entity cache (TV/Music deduplication) | 8-12h | High | Pending |
 | 4 | Priority boost, circuit breaker | 6-8h | UX + Resilience | Pending |
 | 5 | UX improvements (unified UI, badges, dialogs) | 10-14h | UX | Pending |
 
-**Total Remaining Effort:** 34-48 hours
+**Total Remaining Effort:** 24-34 hours
 
 ---
 

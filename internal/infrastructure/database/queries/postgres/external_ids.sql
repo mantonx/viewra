@@ -30,6 +30,12 @@ SELECT * FROM media_external_ids
 WHERE media_id = $1
 ORDER BY provider;
 
+-- name: GetExternalIDsByMediaIDBatch :many
+-- Batch fetch: gets external IDs for multiple media IDs
+SELECT * FROM media_external_ids
+WHERE media_id = ANY($1::int[])
+ORDER BY media_id, provider;
+
 -- name: GetMediaByExternalID :one
 -- Returns entity_id for the given provider/external_id combination
 SELECT entity_id FROM media_external_ids
