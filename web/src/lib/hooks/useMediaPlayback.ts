@@ -3,7 +3,7 @@ import { getProgressSeconds } from '../utils'
 import { API_BASE_URL } from '@/lib/config'
 import { logger } from '@/lib/utils/logger'
 import { authFetch } from '@/lib/utils/authFetch'
-import { detectCodecSupportSync, getSupportedCodecsHeader, detectHDRDisplaySync } from '@/lib/capabilities'
+import { detectCodecSupportSync, getSupportedCodecsHeader, detectHDRDisplaySync, getDeviceProfileHash } from '@/lib/capabilities'
 import type { GithubComMantonxViewraInternalApplicationMediaMediaResponse as Media } from '@/lib/api/generated/models'
 
 type TranscodeState = 'idle' | 'checking' | 'ready' | 'direct'
@@ -91,8 +91,12 @@ const buildManifestUrl = (
   params.set('screenHeight', String(screenHeight))
 
   // Bandwidth estimate from Navigator Connection API
+  // Only send if the value seems reliable (>= 5 Mbps). The navigator.connection API
+  // often reports unrealistically low values (e.g., 1.3 Mbps on fast connections),
+  // especially in automated browsers. When bandwidth is not sent, the backend assumes
+  // a reasonable default (50 Mbps) and picks quality based on screen size.
   const connection = (navigator as { connection?: { downlink?: number } }).connection
-  if (connection?.downlink && connection.downlink > 0) {
+  if (connection?.downlink && connection.downlink >= 5) {
     const bandwidthBps = Math.round(connection.downlink * 1_000_000)
     params.set('bandwidth', String(bandwidthBps))
   }
@@ -176,8 +180,9 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
     if (urlTime !== undefined && urlTime > 0) {
       resumePosition = urlTime
     } else {
-      // Fetch progress with preferences
-      const progressResult = await authFetch(`/api/progress/${id}`)
+      // Fetch progress with preferences (include device profile for device-specific preferences)
+      const deviceProfile = getDeviceProfileHash()
+      const progressResult = await authFetch(`/api/progress/${id}?device_profile=${encodeURIComponent(deviceProfile)}`)
         .then(async (response) => {
           const progressData = response.ok ? await response.json() : null
           if (!progressData) {return { position: 0, preferences: null }}

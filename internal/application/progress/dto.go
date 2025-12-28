@@ -13,6 +13,10 @@ type UpdateProgressRequest struct {
 	ProgressSeconds float64 `json:"progress_seconds"`
 	DurationSeconds float64 `json:"duration_seconds"`
 
+	// Device profile for device-specific preferences (e.g., "chrome-h264-sdr", "firefox-h264h265-hdr")
+	// If provided, preferences are stored per-device; otherwise stored globally
+	DeviceProfile string `json:"device_profile,omitempty"`
+
 	// Playback preferences (omitted or null means don't update)
 	SelectedQuality       *string `json:"selected_quality,omitempty"`
 	SelectedAudioTrack    *int    `json:"selected_audio_track,omitempty"`

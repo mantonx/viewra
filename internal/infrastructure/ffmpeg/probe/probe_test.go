@@ -647,6 +647,16 @@ func TestDetectHDRFormat(t *testing.T) {
 			},
 			expected: "Dolby Vision",
 		},
+		{
+			name: "Dolby Vision by DOVI configuration record side_data",
+			stream: videoStream{
+				SideDataList: []sideData{
+					{SideDataType: "DOVI configuration record"},
+				},
+				ColorTransfer: "smpte2084",
+			},
+			expected: "Dolby Vision",
+		},
 	}
 
 	for _, tt := range tests {
@@ -672,12 +682,12 @@ func TestMetadataParsingFromJSON(t *testing.T) {
 
 	// Test JSON parsing logic by creating a mock ffprobe output
 	tests := []struct {
-		name           string
-		ffprobeJSON    string
-		expectDuration time.Duration
-		expectWidth    int
-		expectHeight   int
-		expectCodec    string
+		name            string
+		ffprobeJSON     string
+		expectDuration  time.Duration
+		expectWidth     int
+		expectHeight    int
+		expectCodec     string
 		expectFrameRate float64
 	}{
 		{
@@ -1037,11 +1047,11 @@ func TestFrameRateParsing(t *testing.T) {
 // TestColorSpaceAndHDRMetadata tests color space and HDR metadata handling.
 func TestColorSpaceAndHDRMetadata(t *testing.T) {
 	tests := []struct {
-		name           string
-		stream         videoStream
-		expectedHDR    string
-		expectedSpace  string
-		expectedPrim   string
+		name          string
+		stream        videoStream
+		expectedHDR   string
+		expectedSpace string
+		expectedPrim  string
 	}{
 		{
 			name: "BT.709 SDR",

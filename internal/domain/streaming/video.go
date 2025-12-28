@@ -30,6 +30,7 @@ type VideoInfo struct {
 	ColorTransfer  string
 	BitDepth       int
 	IsHDR          bool
+	IsDolbyVision  bool // True if content has Dolby Vision metadata (requires special decoder support)
 }
 
 // VideoCodec represents supported video codecs for transcoding.

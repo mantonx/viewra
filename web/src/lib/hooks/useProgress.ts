@@ -16,6 +16,7 @@ import type {
   GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse as WatchProgressResponse,
 } from '../api/generated/models';
 import { extractProgressData, extractListProgressData } from '../utils/progress';
+import { getDeviceProfileHash } from '../capabilities';
 
 // Query keys for progress
 export const progressKeys = {
@@ -188,7 +189,7 @@ export const useProgressUpdater = (
   const currentTimeRef = useRef<number>(0);
   const preferencesRef = useRef<PlaybackPreferences>({});
 
-  // Build the progress update payload including preferences
+  // Build the progress update payload including preferences and device profile
   const buildPayload = useCallback(() => {
     const prefs = preferencesRef.current;
     return {
@@ -196,6 +197,8 @@ export const useProgressUpdater = (
       user_id: 1, // Default user
       progress_seconds: currentTimeRef.current,
       duration_seconds: durationSeconds,
+      // Device profile for device-specific playback preferences
+      device_profile: getDeviceProfileHash(),
       // Only include preferences if they have values (undefined means don't update)
       ...(prefs.selectedQuality !== undefined && { selected_quality: prefs.selectedQuality ?? undefined }),
       ...(prefs.selectedAudioTrack !== undefined && { selected_audio_track: prefs.selectedAudioTrack ?? undefined }),

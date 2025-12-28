@@ -75,8 +75,8 @@ type ServeMasterPlaylistResponse struct {
 
 // QualityOption represents a selectable quality for the frontend picker.
 type QualityOption struct {
-	ID                string `json:"id"`                // Quality ID (e.g., "1080p-10m", "4k-25m")
-	DisplayName       string `json:"displayName"`       // Human-readable name (e.g., "1080p (10 Mbps)")
+	ID                string `json:"id"`          // Quality ID (e.g., "1080p-10m", "4k-25m")
+	DisplayName       string `json:"displayName"` // Human-readable name (e.g., "1080p (10 Mbps)")
 	Width             int    `json:"width"`
 	Height            int    `json:"height"`
 	Bandwidth         int    `json:"bandwidth"`         // Video bitrate in bps
@@ -507,8 +507,13 @@ func buildVideoInfoFromDatabase(mediaItem *media.Media, audioTracks []*media.Aud
 	}
 
 	// Determine HDR status from stored HDRFormat or color metadata
+	hdrFormatLower := strings.ToLower(mediaItem.HDRFormat)
 	if mediaItem.HDRFormat != "" && mediaItem.HDRFormat != "SDR" {
 		info.IsHDR = true
+		// Check for Dolby Vision specifically
+		if strings.Contains(hdrFormatLower, "dolby") || strings.Contains(hdrFormatLower, "dovi") {
+			info.IsDolbyVision = true
+		}
 	} else if mediaItem.ColorPrimaries == "bt2020" {
 		// BT.2020 with no explicit HDR format - check if it might be HDR
 		// This is a conservative check; if in doubt, we'll transcode
@@ -755,4 +760,3 @@ func getLanguageName(iso6392 string) string {
 	}
 	return "Unknown"
 }
-

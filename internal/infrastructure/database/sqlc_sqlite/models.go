@@ -343,6 +343,18 @@ type Person struct {
 	UpdatedAt sql.NullTime   `json:"updated_at"`
 }
 
+type PlaybackPreference struct {
+	ID                    int64          `json:"id"`
+	UserID                int64          `json:"user_id"`
+	MediaID               int64          `json:"media_id"`
+	DeviceProfile         string         `json:"device_profile"`
+	SelectedQuality       sql.NullString `json:"selected_quality"`
+	SelectedAudioTrack    sql.NullInt64  `json:"selected_audio_track"`
+	SelectedSubtitleTrack sql.NullInt64  `json:"selected_subtitle_track"`
+	CreatedAt             sql.NullTime   `json:"created_at"`
+	UpdatedAt             sql.NullTime   `json:"updated_at"`
+}
+
 type PlaybackQualityEvent struct {
 	ID               int64           `json:"id"`
 	TranscodeJobID   sql.NullInt64   `json:"transcode_job_id"`

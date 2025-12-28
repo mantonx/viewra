@@ -25,6 +25,7 @@ import { StatsPanel } from '../StatsPanel'
 import { SubtitleOverlay } from '../SubtitleOverlay'
 import type { VideoPlayerProps } from './VideoPlayer.types'
 import { useGetApiMediaIdTracks } from '@/lib/api/generated/media/media'
+import { getDeviceProfileHash } from '@/lib/capabilities'
 
 export const VideoPlayer = ({
   mediaId,
@@ -284,7 +285,7 @@ export const VideoPlayer = ({
     onToggleDebug: () => setShowDebugOverlay((prev) => !prev),
   })
 
-  // Browser close progress save (includes preferences)
+  // Browser close progress save (includes preferences and device profile)
   // Note: -1 is used as a sentinel value for "subtitles off" to distinguish from null (don't update)
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -294,6 +295,7 @@ export const VideoPlayer = ({
           user_id: 1,
           progress_seconds: currentTime,
           duration_seconds: videoDuration,
+          device_profile: getDeviceProfileHash(),
           selected_quality: selectedQualityId,
           selected_audio_track: currentAudioStreamIndex > 0 ? currentAudioStreamIndex : null,
           // Use -1 to indicate "subtitles off" (null means don't update due to COALESCE in SQL)

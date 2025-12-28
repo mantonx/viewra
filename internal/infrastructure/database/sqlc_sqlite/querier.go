@@ -140,6 +140,9 @@ type Querier interface {
 	DeletePerson(ctx context.Context, id int64) error
 	DeletePipelineStage(ctx context.Context, id int64) error
 	DeletePipelineStagesByMediaType(ctx context.Context, mediaType string) error
+	DeletePlaybackPreferences(ctx context.Context, arg DeletePlaybackPreferencesParams) error
+	DeletePlaybackPreferencesByMediaID(ctx context.Context, mediaID int64) error
+	DeletePlaybackPreferencesByUserID(ctx context.Context, userID int64) error
 	DeletePlugin(ctx context.Context, id string) error
 	DeletePluginAPIKey(ctx context.Context, id string) error
 	DeletePluginAPIKeysByPlugin(ctx context.Context, pluginID string) error
@@ -288,6 +291,7 @@ type Querier interface {
 	GetPipelineStage(ctx context.Context, id int64) (EnrichmentPipeline, error)
 	GetPipelineStageByName(ctx context.Context, arg GetPipelineStageByNameParams) (EnrichmentPipeline, error)
 	GetPipelineStageByPlugin(ctx context.Context, arg GetPipelineStageByPluginParams) (EnrichmentPipeline, error)
+	GetPlaybackPreferences(ctx context.Context, arg GetPlaybackPreferencesParams) (PlaybackPreference, error)
 	GetPlaybackSessionByID(ctx context.Context, sessionID string) (PlaybackSession, error)
 	GetPlaybackSummaryByMediaID(ctx context.Context, mediaID int64) (GetPlaybackSummaryByMediaIDRow, error)
 	GetPlugin(ctx context.Context, id string) (GetPluginRow, error)
@@ -523,6 +527,7 @@ type Querier interface {
 	// Uses media_type + entity_id for polymorphic lookup
 	UpsertExternalID(ctx context.Context, arg UpsertExternalIDParams) error
 	UpsertMetadataSource(ctx context.Context, arg UpsertMetadataSourceParams) error
+	UpsertPlaybackPreferences(ctx context.Context, arg UpsertPlaybackPreferencesParams) (PlaybackPreference, error)
 	UpsertPlaybackSession(ctx context.Context, arg UpsertPlaybackSessionParams) (PlaybackSession, error)
 	UpsertPlugin(ctx context.Context, arg UpsertPluginParams) error
 	UpsertScanState(ctx context.Context, arg UpsertScanStateParams) error

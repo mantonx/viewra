@@ -3,6 +3,7 @@ package repositories
 import (
 	"database/sql"
 
+	"github.com/mantonx/viewra/internal/infrastructure/database"
 	aiRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/ai"
 	analyticsRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/analytics"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
@@ -30,22 +31,23 @@ import (
 // Repositories holds all data access layer implementations.
 // Groups all persistence repositories for dependency injection.
 type Repositories struct {
-	Library        *libraryRepo.Repository
-	Media          *mediaRepo.Repository
-	Progress       *progressRepo.Repository
-	ScanJob        *scanJobRepo.Repository
-	Checkpoint     *scanJobRepo.CheckpointRepo
-	ScanState      *scanStateRepo.Repository
-	Transcode      *transcodeRepo.Repository
-	Movie          *movieRepo.Repository
-	TV             *tvRepo.Repository
-	Music          *musicRepo.Repository
-	Image          *imageRepo.Repository
-	Analytics      *analyticsRepo.Repository
-	User           *userRepo.UserRepository
-	Session        *userRepo.SessionRepository
-	SystemSettings *settingsRepo.SystemRepository
-	UserSettings   *settingsRepo.UserRepository
+	Library             *libraryRepo.Repository
+	Media               *mediaRepo.Repository
+	Progress            *progressRepo.Repository
+	PlaybackPreferences *database.PlaybackPreferencesRepository
+	ScanJob             *scanJobRepo.Repository
+	Checkpoint          *scanJobRepo.CheckpointRepo
+	ScanState           *scanStateRepo.Repository
+	Transcode           *transcodeRepo.Repository
+	Movie               *movieRepo.Repository
+	TV                  *tvRepo.Repository
+	Music               *musicRepo.Repository
+	Image               *imageRepo.Repository
+	Analytics           *analyticsRepo.Repository
+	User                *userRepo.UserRepository
+	Session             *userRepo.SessionRepository
+	SystemSettings      *settingsRepo.SystemRepository
+	UserSettings        *settingsRepo.UserRepository
 
 	// Enrichment repositories
 	EnrichmentQueue          *enrichmentRepo.QueueRepository
@@ -134,10 +136,14 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	// Create AI embedding repository
 	embeddingRepository := aiRepo.NewEmbeddingRepository(db, driver)
 
+	// Create playback preferences repository
+	playbackPreferencesRepository := database.NewPlaybackPreferencesRepository(db)
+
 	return &Repositories{
 		Library:                  libraryRepository,
 		Media:                    mediaRepository,
 		Progress:                 progressRepository,
+		PlaybackPreferences:      playbackPreferencesRepository,
 		ScanJob:                  scanJobRepository,
 		Checkpoint:               checkpointRepository,
 		ScanState:                scanStateRepository,

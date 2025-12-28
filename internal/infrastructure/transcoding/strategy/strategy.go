@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding/videoinfo"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/videoinfo"
 )
 
 // StreamStrategy represents the type of streaming operation needed.
@@ -60,6 +60,10 @@ type ClientCapabilities struct {
 	// SupportsHDRDisplay indicates the client has an HDR-capable display that can show HDR content
 	// If true and video codec is supported, HDR content can be remuxed without tone mapping
 	SupportsHDRDisplay bool
+	// SupportsDolbyVision indicates the client can decode Dolby Vision content
+	// This requires both hardware decoder support and display support for DV metadata
+	// Most browsers do NOT support DV even if they claim HEVC support
+	SupportsDolbyVision bool
 }
 
 // DetermineStrategy analyzes video metadata and determines the optimal streaming strategy.
@@ -127,12 +131,28 @@ func DetermineStrategyWithCapabilities(videoInfo *VideoInfo, clientCaps *ClientC
 	// - If client has HDR display (SupportsHDRDisplay=true), HDR content can be remuxed directly
 	// - If client does NOT have HDR display, HDR content must be transcoded with tone mapping
 	//
+	// Dolby Vision handling:
+	// - Dolby Vision requires explicit decoder support beyond basic HEVC
+	// - Most browsers claim HEVC support but CANNOT decode Dolby Vision
+	// - If content is DV and client doesn't explicitly support DV, must transcode
+	//
 	// NOTE: HEVC remux now uses -noaccurate_seek which seeks to the nearest keyframe,
 	// avoiding the previous "green blocky video" corruption issue from seeking between keyframes.
 	clientHasHDRDisplay := clientCaps != nil && clientCaps.SupportsHDRDisplay
+	clientSupportsDV := clientCaps != nil && clientCaps.SupportsDolbyVision
+
+	// Dolby Vision content requires explicit DV support - cannot remux if client doesn't support it
+	if videoInfo.IsDolbyVision && !clientSupportsDV {
+		return Transcode, fmt.Sprintf("Dolby Vision content requires transcoding (client does not support DV decoding)")
+	}
+
 	canRemuxHDR := !videoInfo.IsHDR || clientHasHDRDisplay
 
 	if isHEVC && isVideoCodecSupported && canRemuxHDR {
+		if videoInfo.IsDolbyVision && clientSupportsDV {
+			return RemuxHEVC, fmt.Sprintf("HEVC Dolby Vision video remuxing to HLS (client supports DV) with %s audio transcode to AAC",
+				videoInfo.AudioCodec)
+		}
 		if videoInfo.IsHDR && clientHasHDRDisplay {
 			return RemuxHEVC, fmt.Sprintf("HEVC HDR video remuxing to HLS (client has HDR display) with %s audio transcode to AAC",
 				videoInfo.AudioCodec)

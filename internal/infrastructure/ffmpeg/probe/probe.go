@@ -450,20 +450,36 @@ func determineScanType(fieldOrder string) string {
 
 // detectHDRFormat detects the HDR format from video stream metadata.
 func detectHDRFormat(stream videoStream) string {
+	// Check side_data_list first - most reliable source
+	var hasHDR10Metadata bool
 	for _, sideData := range stream.SideDataList {
 		switch sideData.SideDataType {
+		case "DOVI configuration record":
+			// Dolby Vision detected via side_data - this is the most reliable method
+			return "Dolby Vision"
 		case "HDR10+ Application SEI":
 			return "HDR10+"
 		case "Mastering display metadata", "Content light level metadata":
-			if stream.ColorTransfer == "smpte2084" {
-				return "HDR10"
-			}
+			hasHDR10Metadata = true
 		}
 	}
 
+	// Check profile for Dolby Vision indicators
 	if strings.Contains(strings.ToLower(stream.Profile), "dolby") ||
 		strings.Contains(strings.ToLower(stream.Profile), "dovi") {
 		return "Dolby Vision"
+	}
+
+	// Check tags for Dolby Vision
+	if tags := stream.Tags; tags != nil {
+		if dolbyVision, ok := tags["DOVI_CONFIGURATION_RECORD"]; ok && dolbyVision != "" {
+			return "Dolby Vision"
+		}
+	}
+
+	// HDR10 detection - requires SMPTE 2084 (PQ) transfer function
+	if hasHDR10Metadata && stream.ColorTransfer == "smpte2084" {
+		return "HDR10"
 	}
 
 	if stream.ColorTransfer == "arib-std-b67" {
@@ -472,12 +488,6 @@ func detectHDRFormat(stream videoStream) string {
 
 	if stream.ColorTransfer == "smpte2084" {
 		return "HDR10"
-	}
-
-	if tags := stream.Tags; tags != nil {
-		if dolbyVision, ok := tags["DOVI_CONFIGURATION_RECORD"]; ok && dolbyVision != "" {
-			return "Dolby Vision"
-		}
 	}
 
 	return ""

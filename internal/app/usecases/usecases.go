@@ -26,14 +26,14 @@ import (
 // UseCases holds all application use cases organized by domain.
 // Groups related use cases for each major feature area of the application.
 type UseCases struct {
-	Library   *LibraryUseCases
-	Media     *MediaUseCases
-	Movies    *MovieUseCases
-	TV        *TVUseCases
-	Music     *MusicUseCases
-	People    *PeopleUseCases
-	Images    *ImageUseCases
-	Transcode *TranscodeUseCases
+	Library            *LibraryUseCases
+	Media              *MediaUseCases
+	Movies             *MovieUseCases
+	TV                 *TVUseCases
+	Music              *MusicUseCases
+	People             *PeopleUseCases
+	Images             *ImageUseCases
+	Transcode          *TranscodeUseCases
 	Progress           *progress.Service
 	Analytics          *analytics.Service
 	ScanJob            *scanjob.Service
@@ -94,11 +94,11 @@ type PeopleUseCases struct {
 // ImageUseCases holds image-related use cases
 // Note: Image extraction is now handled by the enrichment pipeline (local_images enricher)
 type ImageUseCases struct {
-	Get      *images.GetImageUseCase
-	GetMedia *images.GetMediaImagesUseCase
+	Get       *images.GetImageUseCase
+	GetMedia  *images.GetMediaImagesUseCase
 	GetEntity *images.GetEntityImagesUseCase
-	GetBatch *images.GetBatchMediaImagesUseCase
-	Cleanup  *images.CleanupUseCase
+	GetBatch  *images.GetBatchMediaImagesUseCase
+	Cleanup   *images.CleanupUseCase
 }
 
 // TranscodeUseCases holds transcoding-related use cases
@@ -119,15 +119,15 @@ func BuildUseCases(
 	logger *slog.Logger,
 ) *UseCases {
 	return &UseCases{
-		Library:   buildLibraryUseCases(repos, svcs, txManager, logger, cfg),
-		Media:     buildMediaUseCases(repos, svcs, txManager, logger, cfg.Images.CacheDir),
-		Movies:    buildMovieUseCases(repos),
-		TV:        buildTVUseCases(repos),
-		Music:     buildMusicUseCases(repos),
-		People:    buildPeopleUseCases(repos),
-		Images:    buildImageUseCases(repos, svcs, logger, cfg.Images.CacheDir),
-		Transcode: buildTranscodeUseCases(repos, svcs, logger),
-		Progress:           progress.NewService(repos.Progress),
+		Library:            buildLibraryUseCases(repos, svcs, txManager, logger, cfg),
+		Media:              buildMediaUseCases(repos, svcs, txManager, logger, cfg.Images.CacheDir),
+		Movies:             buildMovieUseCases(repos),
+		TV:                 buildTVUseCases(repos),
+		Music:              buildMusicUseCases(repos),
+		People:             buildPeopleUseCases(repos),
+		Images:             buildImageUseCases(repos, svcs, logger, cfg.Images.CacheDir),
+		Transcode:          buildTranscodeUseCases(repos, svcs, logger),
+		Progress:           progress.NewServiceWithPreferences(repos.Progress, repos.PlaybackPreferences),
 		Analytics:          analytics.NewService(repos.Analytics, logger),
 		ScanJob:            scanjob.NewService(repos.ScanJob, repos.Checkpoint, repos.ScanState, logger),
 		TranscodeAnalytics: transcodeanalytics.NewService(repos.TranscodeAnalytics, svcs.EventBus, logger),

@@ -254,20 +254,23 @@ export const useHlsPlayer = ({
       return
     }
 
-    // Check for native HLS support (Safari/iOS)
-    const canPlayHls = video.canPlayType('application/vnd.apple.mpegurl')
-    if (canPlayHls) {
-      video.src = streamUrl
-      initializeStreamOffset(streamOffsetRef, initialPosition)
-      video.muted = true
-      video.play()
-        .then(() => ensureVideoUnmuted(video))
-        .catch(() => { /* Autoplay blocked */ })
-      return
-    }
-
-    // Use hls.js for browsers without native HLS support
-    if (!Hls.isSupported()) {
+    // Use hls.js for browsers that support MSE (Chrome, Firefox, Edge, etc.)
+    // Only fall back to native HLS for browsers without MSE support (Safari/iOS)
+    if (Hls.isSupported()) {
+      // Continue to HLS.js initialization below
+    } else {
+      // Check for native HLS support (Safari/iOS only)
+      // Note: Chrome returns "maybe" for canPlayType but can't actually play HLS natively
+      const canPlayHls = video.canPlayType('application/vnd.apple.mpegurl')
+      if (canPlayHls === 'probably' || canPlayHls === 'maybe') {
+        video.src = streamUrl
+        initializeStreamOffset(streamOffsetRef, initialPosition)
+        video.muted = true
+        video.play()
+          .then(() => ensureVideoUnmuted(video))
+          .catch(() => { /* Autoplay blocked */ })
+        return
+      }
       onErrorRef.current('Browser does not support HLS streaming')
       return
     }

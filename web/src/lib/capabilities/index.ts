@@ -40,6 +40,15 @@ export {
 // Shared utilities
 export { getConnectionType, isMeteredConnection, getSupportedCodecsHeader, getHDRCapabilityHeader } from './utils'
 
+// Device profile (for device-specific preferences)
+export {
+  getDeviceProfileData,
+  getDeviceProfileHash,
+  generateDeviceProfileHash,
+  clearDeviceProfileCache,
+} from './DeviceProfile'
+export type { DeviceProfileData } from './DeviceProfile'
+
 // Types
 export type {
   ClientCapabilities,

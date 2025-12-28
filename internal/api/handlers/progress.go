@@ -67,10 +67,11 @@ func (h *ProgressHandler) UpdateProgress(c *gin.Context) {
 // GetProgress retrieves watch progress for a media item.
 //
 // @Summary Get watch progress
-// @Description Gets watch progress for a specific media item
+// @Description Gets watch progress for a specific media item. If device_profile is provided, returns device-specific playback preferences (quality, audio track, subtitle track) if available.
 // @Tags progress
 // @Produce json
 // @Param media_id path int true "Media ID"
+// @Param device_profile query string false "Device profile hash (e.g., 'chrome-h264-sdr') for device-specific preferences"
 // @Success 200 {object} progress.WatchProgressResponse
 // @Failure 404 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse
@@ -84,8 +85,15 @@ func (h *ProgressHandler) GetProgress(c *gin.Context) {
 	}
 
 	userID := getCurrentUserID()
+	deviceProfile := c.Query("device_profile")
 
-	response, err := h.service.GetProgress(c.Request.Context(), mediaID, userID)
+	var response *progress.WatchProgressResponse
+	if deviceProfile != "" {
+		response, err = h.service.GetProgressWithDeviceProfile(c.Request.Context(), mediaID, userID, deviceProfile)
+	} else {
+		response, err = h.service.GetProgress(c.Request.Context(), mediaID, userID)
+	}
+
 	if err != nil {
 		if err == progressDomain.ErrProgressNotFound {
 			c.JSON(http.StatusNotFound, ErrorResponse{Error: "Progress not found"})
