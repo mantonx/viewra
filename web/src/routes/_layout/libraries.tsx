@@ -2,15 +2,19 @@ import { createFileRoute } from '@tanstack/react-router'
 import { getGetApiLibrariesQueryOptions } from '@/lib/api'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Button, Card, CardHeader, CardContent } from '@/components/ui'
+import { Button } from '@/components/ui'
 import { LibraryCard, LibraryForm } from '@/components/library'
 import { StageStatus } from '@/components/enrichment/StageStatus'
-import { PageHeader, EmptyState, LoadingPage, ErrorPage } from '@/components/common'
+import { SettingsPage, LoadingPage, ErrorPage, EmptyState } from '@/components/common'
 import { extractLibraries } from '@/lib/utils/api'
 
 const Libraries = () => {
   const [showCreateForm, setShowCreateForm] = useState(false)
-  const { data: libraries, isLoading, error } = useQuery(getGetApiLibrariesQueryOptions())
+  const {
+    data: libraries,
+    isLoading,
+    error,
+  } = useQuery(getGetApiLibrariesQueryOptions())
 
   if (isLoading) {
     return <LoadingPage text="Loading libraries..." />
@@ -23,52 +27,43 @@ const Libraries = () => {
   const libraryList = extractLibraries(libraries)
 
   return (
-    <div className="p-8 page-enter">
-      <PageHeader
+    <SettingsPage>
+      <SettingsPage.Header
         title="Libraries"
         description="Manage your media libraries. Add folders to scan for movies, TV shows, and music."
         actions={<Button onClick={() => setShowCreateForm(true)}>+ Add Library</Button>}
       />
 
       {/* Circuit breaker status - shows only when there are problems */}
-      <div className="mb-6">
-        <StageStatus showOnlyProblems />
-      </div>
+      <StageStatus showOnlyProblems />
 
+      {/* Create library form */}
       {showCreateForm && (
-        <Card className="mb-6">
-          <CardContent>
-            <h2 className="text-lg font-semibold mb-4 text-neutral-900 dark:text-neutral-50">Create New Library</h2>
-            <LibraryForm
-              onCancel={() => setShowCreateForm(false)}
-              onSuccess={() => setShowCreateForm(false)}
-            />
-          </CardContent>
-        </Card>
+        <SettingsPage.Card title="Create New Library" className="mb-6">
+          <LibraryForm
+            onCancel={() => setShowCreateForm(false)}
+            onSuccess={() => setShowCreateForm(false)}
+          />
+        </SettingsPage.Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">Your Libraries</h2>
-        </CardHeader>
-
+      {/* Libraries list */}
+      <SettingsPage.Card title="Your Libraries">
         {libraryList.length === 0 ? (
-          <CardContent>
-            <EmptyState
-              icon="📚"
-              title="No libraries yet"
-              description='Click the "+ Add Library" button to get started.'
-            />
-          </CardContent>
+          <EmptyState
+            icon="library"
+            title="No libraries yet"
+            description='Click the "+ Add Library" button to get started.'
+          />
         ) : (
-          <div className="divide-y">
+          <SettingsPage.List>
             {libraryList.map((library) => (
               <LibraryCard key={library.id} library={library} />
             ))}
-          </div>
+          </SettingsPage.List>
         )}
-      </Card>
-    </div>
+      </SettingsPage.Card>
+    </SettingsPage>
   )
 }
 

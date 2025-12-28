@@ -8,7 +8,7 @@ export const AccountInfo = ({ className }: AccountInfoProps) => {
   const { user } = useAuth()
 
   return (
-    <Card className={className}>
+    <Card variant="glass" className={className}>
       <CardHeader>
         <h2 className={cn('text-lg font-semibold', text.primary)}>Account Information</h2>
       </CardHeader>

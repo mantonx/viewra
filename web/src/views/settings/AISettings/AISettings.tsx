@@ -1,23 +1,20 @@
-import { useEffect } from 'react'
 import { Alert, Loading } from '@/components/ui'
-import { FormSettingsFooter } from '@/components/ui/Form'
-import { FormToggle, FormSelect } from '@/components/ui/Form'
-import { PageHeader } from '@/components/common'
+import { SettingsPage } from '@/components/common'
+import { SettingRow } from '@/components/settings/ui'
 import { useToast } from '@/lib/hooks/useToast'
-import { useSettingsForm } from '@/lib/hooks'
 import {
-  AIFeaturesCard,
   EmbeddingProviderCard,
   ChatProviderCard,
   SearchSettingsCard,
 } from './components'
 import { useAISettingsData } from './hooks'
-import { AI_SETTINGS_DEFAULT_VALUES } from './AISettings.schema'
+import { Sparkles } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 /**
  * AI Settings page component.
  * Manages AI features, embedding/chat providers, and search settings.
- * Note: Admin access is enforced by AdminRoute wrapper in the route file.
+ * Auto-saves on field change.
  */
 export const AISettings = () => {
   const toast = useToast()
@@ -36,166 +33,152 @@ export const AISettings = () => {
     refetchSettings,
   } = useAISettingsData()
 
-  const { form, hasChanges, saveCategory, discardCategory, isSaving, resetOriginalValues } =
-    useSettingsForm({
-      defaultValues: AI_SETTINGS_DEFAULT_VALUES as Record<string, unknown>,
-      categories: [
-        {
-          id: 'ai',
-          fields: ['enabled', 'embeddingProvider', 'chatProvider'],
-          onSave: async (values) => {
-            const response = await updateSettings.mutateAsync({ data: values })
-            if (response.status === 200) {
-              toast.success('AI settings saved successfully')
-              refetchSettings()
-            }
-          },
-        },
-      ],
-    })
-
-  // Initialize form with API data
-  useEffect(() => {
-    if (currentSettings) {
-      resetOriginalValues(currentSettings)
+  // Auto-save a single setting
+  const saveSetting = async (key: string, value: unknown) => {
+    try {
+      const response = await updateSettings.mutateAsync({
+        data: { ...currentSettings, [key]: value },
+      })
+      if (response.status === 200) {
+        toast.success('Setting saved')
+        refetchSettings()
+      }
+    } catch {
+      toast.error('Failed to save setting')
     }
-  }, [currentSettings, resetOriginalValues])
+  }
 
   if (isLoading) {
     return (
-      <div className="h-full overflow-auto">
-        <div className="p-8 page-enter">
+      <SettingsPage>
+        <SettingsPage.Header
+          title="AI Settings"
+          description="Configure AI-powered features like semantic search and content analysis"
+        />
+        <SettingsPage.Card>
           <Loading text="Loading AI settings..." />
-        </div>
-      </div>
+        </SettingsPage.Card>
+      </SettingsPage>
     )
   }
 
   if (error) {
     return (
-      <div className="h-full overflow-auto">
-        <div className="p-8 page-enter">
-          <Alert variant="error">Failed to load AI settings. Please try again later.</Alert>
-        </div>
-      </div>
-    )
-  }
-
-  const handleSave = async () => {
-    try {
-      await saveCategory('ai')
-    } catch {
-      toast.error('Failed to save AI settings')
-    }
-  }
-
-  const handleDiscard = () => {
-    discardCategory('ai')
-    toast.info('Changes discarded')
-  }
-
-  const aiHasChanges = hasChanges('ai')
-  const aiIsSaving = isSaving('ai')
-
-  return (
-    <div className="h-full overflow-auto">
-      <div className="p-8 page-enter">
-        <PageHeader
+      <SettingsPage>
+        <SettingsPage.Header
           title="AI Settings"
           description="Configure AI-powered features like semantic search and content analysis"
         />
+        <SettingsPage.Card>
+          <Alert variant="error">Failed to load AI settings. Please try again later.</Alert>
+        </SettingsPage.Card>
+      </SettingsPage>
+    )
+  }
 
-        <div className="mt-6 space-y-6 max-w-3xl">
-          {/* Enable AI Card */}
-          <AIFeaturesCard>
-            <form.Field name="enabled">
-              {(field) => (
-                <FormToggle
-                  field={field}
-                  label="Enable AI Features"
-                  description="When enabled, media content will be analyzed and indexed for semantic search capabilities."
-                />
-              )}
-            </form.Field>
-          </AIFeaturesCard>
+  const enabled = currentSettings?.enabled === true
+  const embeddingProvider = String(currentSettings?.embeddingProvider ?? '')
+  const chatProvider = String(currentSettings?.chatProvider ?? '')
 
-          {/* Provider cards - conditionally rendered based on enabled state */}
-          <form.Subscribe
-            selector={
-              (state) =>
-                [state.values.enabled, state.values.embeddingProvider, state.values.chatProvider] as const
-            }
-          >
-            {([enabled, embeddingProvider, chatProvider]) => {
-              if (!enabled) {
-                return null
-              }
+  const selectedEmbeddingProvider = getEmbeddingProvider(embeddingProvider)
+  const selectedChatProvider = getChatProvider(chatProvider)
 
-              const selectedEmbeddingProvider = getEmbeddingProvider(embeddingProvider as string)
-              const selectedChatProvider = getChatProvider(chatProvider as string)
+  return (
+    <SettingsPage>
+      <SettingsPage.Header
+        title="AI Settings"
+        description="Configure AI-powered features like semantic search and content analysis"
+      />
 
-              return (
-                <>
-                  {/* Embedding Provider */}
-                  <EmbeddingProviderCard
-                    options={embeddingProviderOptions}
-                    selectedProvider={selectedEmbeddingProvider}
-                    pluginId={
-                      selectedEmbeddingProvider
-                        ? providerPluginMap[String(selectedEmbeddingProvider.type)]
-                        : undefined
-                    }
-                    meta={
-                      selectedEmbeddingProvider
-                        ? providerMetaMap[String(selectedEmbeddingProvider.type)]
-                        : undefined
-                    }
-                  >
-                    <form.Field name="embeddingProvider">
-                      {(field) => (
-                        <FormSelect field={field} label="Provider" options={embeddingProviderOptions} />
-                      )}
-                    </form.Field>
-                  </EmbeddingProviderCard>
-
-                  {/* Chat Provider */}
-                  <ChatProviderCard
-                    options={chatProviderOptions}
-                    selectedProvider={selectedChatProvider}
-                    pluginId={
-                      selectedChatProvider
-                        ? providerPluginMap[String(selectedChatProvider.type)]
-                        : undefined
-                    }
-                    meta={
-                      selectedChatProvider
-                        ? providerMetaMap[String(selectedChatProvider.type)]
-                        : undefined
-                    }
-                  >
-                    <form.Field name="chatProvider">
-                      {(field) => (
-                        <FormSelect field={field} label="Provider" options={chatProviderOptions} />
-                      )}
-                    </form.Field>
-                  </ChatProviderCard>
-
-                  {/* Search Settings - from ai-search plugin */}
-                  <SearchSettingsCard />
-                </>
-              )
-            }}
-          </form.Subscribe>
-
-          {/* Save/Discard Footer */}
-          <FormSettingsFooter
-            hasChanges={aiHasChanges}
-            isSaving={aiIsSaving}
-            onSave={handleSave}
-            onDiscard={handleDiscard}
-          />
+      {/* AI Features Info Banner */}
+      <div
+        className={cn(
+          'flex items-start gap-3 p-4 rounded-xl mb-6',
+          'bg-primary-50/50 dark:bg-primary-500/10',
+          'border border-primary-200/50 dark:border-primary-500/20'
+        )}
+      >
+        <Sparkles className="w-5 h-5 text-primary-500 shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-medium text-primary-700 dark:text-primary-300">
+            About AI Features
+          </p>
+          <p className="text-xs mt-1 text-primary-600/80 dark:text-primary-400/80">
+            ViewRA uses AI to provide intelligent recommendations, semantic search, and
+            personalized collections. All processing happens securely and your data remains
+            private.
+          </p>
         </div>
       </div>
-    </div>
+
+      {/* AI Enable Toggle */}
+      <SettingsPage.Card className="mb-6">
+        <SettingRow
+          type="toggle"
+          label="Enable AI Features"
+          description="When enabled, media content will be analyzed and indexed for semantic search capabilities"
+          value={enabled}
+          onChange={(newValue) => saveSetting('enabled', newValue)}
+        />
+      </SettingsPage.Card>
+
+      {/* Provider cards - conditionally rendered based on enabled state */}
+      {enabled && (
+        <div className="space-y-6">
+          {/* Embedding Provider */}
+          <EmbeddingProviderCard
+            options={embeddingProviderOptions}
+            selectedProvider={selectedEmbeddingProvider}
+            pluginId={
+              selectedEmbeddingProvider
+                ? providerPluginMap[String(selectedEmbeddingProvider.type)]
+                : undefined
+            }
+            meta={
+              selectedEmbeddingProvider
+                ? providerMetaMap[String(selectedEmbeddingProvider.type)]
+                : undefined
+            }
+          >
+            <SettingRow
+              type="select"
+              label="Provider"
+              description="Select the provider for generating text embeddings"
+              value={embeddingProvider}
+              onChange={(newValue) => saveSetting('embeddingProvider', newValue)}
+              options={embeddingProviderOptions}
+            />
+          </EmbeddingProviderCard>
+
+          {/* Chat Provider */}
+          <ChatProviderCard
+            options={chatProviderOptions}
+            selectedProvider={selectedChatProvider}
+            pluginId={
+              selectedChatProvider
+                ? providerPluginMap[String(selectedChatProvider.type)]
+                : undefined
+            }
+            meta={
+              selectedChatProvider
+                ? providerMetaMap[String(selectedChatProvider.type)]
+                : undefined
+            }
+          >
+            <SettingRow
+              type="select"
+              label="Provider"
+              description="Select the provider for AI chat and recommendations"
+              value={chatProvider}
+              onChange={(newValue) => saveSetting('chatProvider', newValue)}
+              options={chatProviderOptions}
+            />
+          </ChatProviderCard>
+
+          {/* Search Settings - from ai-search plugin */}
+          <SearchSettingsCard />
+        </div>
+      )}
+    </SettingsPage>
   )
 }

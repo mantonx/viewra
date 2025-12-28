@@ -10,3 +10,10 @@ export { ViewToggle, type ViewToggleProps, type ViewMode } from './ViewToggle'
 export { HoverPlayButton, type HoverPlayButtonProps } from './HoverPlayButton'
 export { VirtualMediaGrid } from './VirtualMediaGrid'
 export { AdminRoute } from './AdminRoute'
+export {
+  SettingsPage,
+  type SettingsPageProps,
+  type SettingsPageHeaderProps,
+  type SettingsPageCardProps,
+  type SettingsPageListProps,
+} from './Page'

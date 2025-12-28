@@ -9,7 +9,7 @@ import { Settings2 } from 'lucide-react'
  */
 export const SearchSettingsCard = () => {
   return (
-    <Card>
+    <Card variant="glass">
       <CardHeader className="border-b border-neutral-100 dark:border-neutral-800">
         <div className="flex items-center gap-3">
           <div

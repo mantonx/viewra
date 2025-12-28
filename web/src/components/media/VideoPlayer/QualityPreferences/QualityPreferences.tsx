@@ -191,11 +191,11 @@ export const QualityPreferences = ({
                   onChange={(e) => updatePreference('maxAutoQuality', e.target.value || null)}
                   className="w-full bg-white/10 border border-white/20 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
                 >
-                  <option value="" className="bg-gray-900">No limit</option>
-                  <option value="720p" className="bg-gray-900">720p</option>
-                  <option value="1080p" className="bg-gray-900">1080p</option>
-                  <option value="1440p" className="bg-gray-900">1440p (2K)</option>
-                  <option value="4k" className="bg-gray-900">4K</option>
+                  <option value="" className="bg-neutral-800 text-neutral-50">No limit</option>
+                  <option value="720p" className="bg-neutral-800 text-neutral-50">720p</option>
+                  <option value="1080p" className="bg-neutral-800 text-neutral-50">1080p</option>
+                  <option value="1440p" className="bg-neutral-800 text-neutral-50">1440p (2K)</option>
+                  <option value="4k" className="bg-neutral-800 text-neutral-50">4K</option>
                 </select>
               </div>
 
@@ -206,11 +206,11 @@ export const QualityPreferences = ({
                   onChange={(e) => updatePreference('minAutoQuality', e.target.value || null)}
                   className="w-full bg-white/10 border border-white/20 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
                 >
-                  <option value="" className="bg-gray-900">No limit</option>
-                  <option value="360p" className="bg-gray-900">360p</option>
-                  <option value="480p" className="bg-gray-900">480p</option>
-                  <option value="720p" className="bg-gray-900">720p</option>
-                  <option value="1080p" className="bg-gray-900">1080p</option>
+                  <option value="" className="bg-neutral-800 text-neutral-50">No limit</option>
+                  <option value="360p" className="bg-neutral-800 text-neutral-50">360p</option>
+                  <option value="480p" className="bg-neutral-800 text-neutral-50">480p</option>
+                  <option value="720p" className="bg-neutral-800 text-neutral-50">720p</option>
+                  <option value="1080p" className="bg-neutral-800 text-neutral-50">1080p</option>
                 </select>
               </div>
             </div>

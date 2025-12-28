@@ -13,7 +13,7 @@ export const SystemInfoCard = () => {
 
   if (isLoading) {
     return (
-      <Card className="relative overflow-hidden">
+      <Card variant="glass" className="relative overflow-hidden">
         <div className="absolute inset-0 bg-linear-to-br from-primary-500/5 via-transparent to-primary-500/10" />
         <CardContent className="py-8">
           <Loading text="Detecting hardware..." />
@@ -32,7 +32,7 @@ export const SystemInfoCard = () => {
   const gpuInfo = info.gpu
 
   return (
-    <Card className="relative overflow-hidden">
+    <Card variant="glass" className="relative overflow-hidden">
       <div className="absolute inset-0 bg-linear-to-br from-primary-500/5 via-transparent to-primary-500/10" />
 
       <CardHeader className="relative border-b border-neutral-100 dark:border-neutral-800">

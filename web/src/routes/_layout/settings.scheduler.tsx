@@ -2,11 +2,12 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { schedulerApi } from '@/lib/api'
-import { Button, Card, CardHeader, CardContent } from '@/components/ui'
-import { PageHeader, LoadingPage, ErrorPage, EmptyState } from '@/components/common'
+import { Button } from '@/components/ui'
+import { SettingsPage, LoadingPage, ErrorPage, EmptyState } from '@/components/common'
 import { useToast } from '@/lib/hooks/useToast'
 import { ScheduleEditor } from '@/components/scheduler'
 import { cronToReadable } from '@/lib/utils/cron'
+import { cn } from '@/lib/utils'
 import type { TaskStatus, TaskExecution } from '@/lib/types/scheduler'
 
 const SchedulerSettings = () => {
@@ -109,39 +110,43 @@ const SchedulerSettings = () => {
   const tasks = tasksData?.tasks || []
 
   const formatDate = (dateStr?: string) => {
-    if (!dateStr || dateStr === '0001-01-01T00:00:00Z') {return 'Never'}
+    if (!dateStr || dateStr === '0001-01-01T00:00:00Z') {
+      return 'Never'
+    }
     return new Date(dateStr).toLocaleString()
   }
 
   const formatDuration = (ms: number) => {
-    if (ms < 1000) {return `${ms}ms`}
-    if (ms < 60000) {return `${(ms / 1000).toFixed(1)}s`}
+    if (ms < 1000) {
+      return `${ms}ms`
+    }
+    if (ms < 60000) {
+      return `${(ms / 1000).toFixed(1)}s`
+    }
     return `${(ms / 60000).toFixed(1)}m`
   }
 
   const TaskCard = ({ task }: { task: TaskStatus }) => (
     <div
-      className={`
-        p-4 border-b last:border-b-0 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all duration-200
-        ${!task.enabled ? 'bg-neutral-50/50 dark:bg-neutral-900/50' : ''}
-      `}
+      className={cn(
+        'p-4 bg-white/50 dark:bg-white/[0.02] hover:bg-white dark:hover:bg-white/5 transition-colors',
+        !task.enabled && 'opacity-60'
+      )}
     >
       <div className="flex items-start justify-between">
-        <div
-          className={`flex-1 ${!task.enabled ? 'opacity-50' : ''}`}
-        >
+        <div className={`flex-1 ${!task.enabled ? 'opacity-50' : ''}`}>
           <div className="flex items-center gap-2">
             <h3
               className={`text-lg font-semibold ${
-                !task.enabled ? 'text-neutral-500 dark:text-neutral-500' : 'text-neutral-900 dark:text-neutral-50'
+                !task.enabled
+                  ? 'text-neutral-500 dark:text-neutral-500'
+                  : 'text-neutral-900 dark:text-neutral-50'
               }`}
             >
               {task.name}
             </h3>
             {task.is_running && (
-              <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                Running
-              </span>
+              <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">Running</span>
             )}
             {!task.enabled && (
               <span className="px-2 py-1 text-xs bg-neutral-200 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 rounded">
@@ -156,7 +161,9 @@ const SchedulerSettings = () => {
           </div>
           <p
             className={`text-sm mt-1 ${
-              !task.enabled ? 'text-neutral-400 dark:text-neutral-600' : 'text-neutral-600 dark:text-neutral-400'
+              !task.enabled
+                ? 'text-neutral-400 dark:text-neutral-600'
+                : 'text-neutral-600 dark:text-neutral-400'
             }`}
           >
             {task.description}
@@ -166,7 +173,9 @@ const SchedulerSettings = () => {
               <span className="text-neutral-500 dark:text-neutral-500">Schedule:</span>
               <span
                 className={`ml-2 font-medium ${
-                  !task.enabled ? 'text-neutral-400 dark:text-neutral-600' : 'text-neutral-900 dark:text-neutral-50'
+                  !task.enabled
+                    ? 'text-neutral-400 dark:text-neutral-600'
+                    : 'text-neutral-900 dark:text-neutral-50'
                 }`}
               >
                 {cronToReadable(task.schedule)}
@@ -177,13 +186,17 @@ const SchedulerSettings = () => {
             </div>
             <div>
               <span className="text-neutral-500 dark:text-neutral-500">Next run:</span>
-              <span className={`ml-2 ${!task.enabled ? 'text-neutral-400 dark:text-neutral-600' : 'text-neutral-900 dark:text-neutral-50'}`}>
+              <span
+                className={`ml-2 ${!task.enabled ? 'text-neutral-400 dark:text-neutral-600' : 'text-neutral-900 dark:text-neutral-50'}`}
+              >
                 {!task.enabled ? 'N/A' : formatDate(task.next_run)}
               </span>
             </div>
             <div>
               <span className="text-neutral-500 dark:text-neutral-500">Last run:</span>
-              <span className={`ml-2 ${!task.enabled ? 'text-neutral-400 dark:text-neutral-600' : 'text-neutral-900 dark:text-neutral-50'}`}>
+              <span
+                className={`ml-2 ${!task.enabled ? 'text-neutral-400 dark:text-neutral-600' : 'text-neutral-900 dark:text-neutral-50'}`}
+              >
                 {formatDate(task.last_run)}
               </span>
             </div>
@@ -209,11 +222,7 @@ const SchedulerSettings = () => {
                 {triggerMutation.isPending ? 'Triggering...' : 'Run Now'}
               </Button>
 
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setEditingSchedule(task.id)}
-              >
+              <Button size="sm" variant="secondary" onClick={() => setEditingSchedule(task.id)}>
                 Edit Schedule
               </Button>
 
@@ -266,7 +275,9 @@ const SchedulerSettings = () => {
   )
 
   const HistoryModal = () => {
-    if (!showHistory || !selectedTask) {return null}
+    if (!showHistory || !selectedTask) {
+      return null
+    }
 
     const task = tasks.find((t) => t.id === selectedTask)
     const executions = historyData?.history || []
@@ -288,7 +299,7 @@ const SchedulerSettings = () => {
               onClick={() => setShowHistory(false)}
               className="absolute top-6 right-6 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-400"
             >
-              ✕
+              x
             </button>
           </div>
 
@@ -356,57 +367,52 @@ const SchedulerSettings = () => {
   }
 
   return (
-    <div className="p-8 page-enter">
-      <PageHeader
+    <SettingsPage>
+      <SettingsPage.Header
         title="Scheduler"
         description="View and manage scheduled tasks. Tasks run automatically on their configured schedule."
       />
 
-      <Card className="mt-6">
-        <CardHeader>
-          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
-            Scheduled Tasks ({tasks.length})
-          </h2>
-        </CardHeader>
-
+      <SettingsPage.Card title={`Scheduled Tasks (${tasks.length})`}>
         {tasks.length === 0 ? (
-          <CardContent>
-            <EmptyState
-              icon="⏰"
-              title="No scheduled tasks"
-              description="No tasks are currently registered with the scheduler."
-            />
-          </CardContent>
+          <EmptyState
+            icon="clock"
+            title="No scheduled tasks"
+            description="No tasks are currently registered with the scheduler."
+          />
         ) : (
-          <div className="divide-y">
+          <SettingsPage.List>
             {tasks.map((task) => (
               <TaskCard key={task.id} task={task} />
             ))}
-          </div>
+          </SettingsPage.List>
         )}
-      </Card>
+      </SettingsPage.Card>
 
       <HistoryModal />
 
       {/* Schedule Editor Modal */}
-      {editingSchedule && (() => {
-        const task = tasks.find((t) => t.id === editingSchedule)
-        if (!task) {return null}
+      {editingSchedule &&
+        (() => {
+          const task = tasks.find((t) => t.id === editingSchedule)
+          if (!task) {
+            return null
+          }
 
-        return (
-          <ScheduleEditor
-            taskId={task.id}
-            taskName={task.name}
-            currentSchedule={task.schedule}
-            onSave={(schedule) => {
-              updateScheduleMutation.mutate({ taskId: task.id, schedule })
-            }}
-            onCancel={() => setEditingSchedule(null)}
-            isSubmitting={updateScheduleMutation.isPending}
-          />
-        )
-      })()}
-    </div>
+          return (
+            <ScheduleEditor
+              taskId={task.id}
+              taskName={task.name}
+              currentSchedule={task.schedule}
+              onSave={(schedule) => {
+                updateScheduleMutation.mutate({ taskId: task.id, schedule })
+              }}
+              onCancel={() => setEditingSchedule(null)}
+              isSubmitting={updateScheduleMutation.isPending}
+            />
+          )
+        })()}
+    </SettingsPage>
   )
 }
 

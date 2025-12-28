@@ -1,6 +1,5 @@
 // Badges
-export { SourceBadge, RestartBadge, LocalBadge } from './badges'
-export type { SourceBadgeProps } from './badges'
+export { LocalBadge } from './badges'
 
 // Cards (Account-related)
 export {
@@ -15,14 +14,6 @@ export type {
   ChangePasswordProps,
   LocationSettingsProps,
 } from './cards'
-
-// Dynamic setting rows
-export { DynamicSettingRow, ReadOnlySettingRow } from './DynamicSettingRow'
-export type {
-  DynamicSettingRowProps,
-  ReadOnlySettingRowProps,
-  BaseSettingRowProps,
-} from './DynamicSettingRow'
 
 // Info cards
 export { SystemInfoCard } from './SystemInfoCard'

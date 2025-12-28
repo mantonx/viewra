@@ -37,7 +37,7 @@ export const ServerRestartCard = () => {
   }
 
   return (
-    <Card>
+    <Card variant="glass">
       <CardHeader className="border-b border-neutral-100 dark:border-neutral-800">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">

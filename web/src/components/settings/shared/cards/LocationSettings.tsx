@@ -15,7 +15,7 @@ export const LocationSettings = ({ className }: LocationSettingsProps) => {
   }
 
   return (
-    <Card className={className}>
+    <Card variant="glass" className={className}>
       <CardHeader>
         <h2 className={cn('text-lg font-semibold', text.primary)}>Location</h2>
         <p className={cn('text-sm mt-1', text.secondary)}>

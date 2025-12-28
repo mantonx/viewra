@@ -33,7 +33,6 @@ export { FormSettingToggle } from './FormSettingToggle'
 // Form-level components
 export { FormSubmitButton } from './FormSubmitButton'
 export { FormModalFooter } from './FormModalFooter'
-export { FormSettingsFooter, type FormSettingsFooterProps } from './FormSettingsFooter'
 export { FormApiError } from './FormApiError'
 export { FormSectionTitle } from './FormSectionTitle'
 

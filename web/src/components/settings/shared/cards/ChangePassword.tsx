@@ -52,7 +52,7 @@ export const ChangePassword = ({ className }: ChangePasswordProps) => {
   })
 
   return (
-    <Card className={className}>
+    <Card variant="glass" className={className}>
       <CardHeader>
         <h2 className={cn('text-lg font-semibold', text.primary)}>Change Password</h2>
         <p className={cn('text-sm mt-1', text.secondary)}>

@@ -37,12 +37,16 @@ export const SelectWidget = ({
       )}
     >
       {placeholder && (
-        <option value="" disabled>
+        <option value="" disabled className="bg-white dark:bg-neutral-800">
           {placeholder}
         </option>
       )}
       {enumOptions.map((opt) => (
-        <option key={String(opt.value)} value={String(opt.value)}>
+        <option
+          key={String(opt.value)}
+          value={String(opt.value)}
+          className="bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-50"
+        >
           {opt.label}
         </option>
       ))}

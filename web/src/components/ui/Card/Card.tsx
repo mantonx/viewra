@@ -25,10 +25,9 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
         'rounded-xl'
       ),
       glass: cn(
-        'bg-white/50 dark:bg-white/5',
+        'bg-white/50 dark:bg-white/[0.02]',
         'border border-neutral-200/50 dark:border-white/10',
-        'rounded-xl backdrop-blur-md',
-        'shadow-lg shadow-neutral-500/5 dark:shadow-neutral-950/20'
+        'rounded-xl'
       ),
     }
 

@@ -1,4 +1,4 @@
-import { PageHeader } from '@/components/common'
+import { SettingsPage } from '@/components/common'
 import {
   AccountInfo,
   ActiveSessions,
@@ -8,15 +8,18 @@ import {
 
 export const AccountSettings = () => {
   return (
-    <div className="p-8 page-enter">
-      <PageHeader
+    <SettingsPage>
+      <SettingsPage.Header
         title="Account Settings"
         description="Manage your account security and preferences"
       />
-      <AccountInfo className="mt-6" />
-      <LocationSettings className="mt-6" />
-      <ChangePassword className="mt-6" />
-      <ActiveSessions className="mt-6" />
-    </div>
+
+      <div className="space-y-6">
+        <AccountInfo />
+        <LocationSettings />
+        <ChangePassword />
+        <ActiveSessions />
+      </div>
+    </SettingsPage>
   )
 }

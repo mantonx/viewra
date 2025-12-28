@@ -184,7 +184,11 @@ export const ScheduleEditor = ({
                       className="w-full px-4 py-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50"
                     >
                       {weekDays.map((day) => (
-                        <option key={day.value} value={day.value}>
+                        <option
+                          key={day.value}
+                          value={day.value}
+                          className="bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-50"
+                        >
                           {day.label}
                         </option>
                       ))}
@@ -204,7 +208,11 @@ export const ScheduleEditor = ({
                       className="w-full px-4 py-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50"
                     >
                       {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                        <option key={day} value={day}>
+                        <option
+                          key={day}
+                          value={day}
+                          className="bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-50"
+                        >
                           {day}
                           {day === 1
                             ? 'st'
