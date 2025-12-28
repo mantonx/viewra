@@ -178,36 +178,12 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                     )}
                   </span>
                 )}
-                {hasErrors && scanStatus && (
+                {(hasIssues || enrichmentFailureCount > 0) && (
                   <button
                     onClick={() => setShowErrorsDialog(true)}
-                    className="cursor-pointer text-red-600 dark:text-red-500 font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 rounded-sm flex items-center gap-1.5 transition-colors"
-                    title={isScanning ? 'View errors (scan in progress)' : 'View scan errors'}
-                    aria-label={`View ${pluralize(scanStatus.errorCount, 'error')}${isScanning ? ' from ongoing scan' : ''}`}
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    <span>{pluralize(scanStatus.errorCount, 'error')}</span>
-                  </button>
-                )}
-                {hasWarnings && scanStatus && (
-                  <button
-                    onClick={() => setShowErrorsDialog(true)}
-                    className="cursor-pointer text-yellow-600 dark:text-yellow-500 font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-1 rounded-sm flex items-center gap-1.5 transition-colors"
-                    title={isScanning ? 'View warnings (scan in progress)' : 'View scan warnings'}
-                    aria-label={`View ${pluralize(scanStatus.warningCount, 'warning')}${isScanning ? ' from ongoing scan' : ''}`}
+                    className="cursor-pointer text-amber-600 dark:text-amber-500 font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-1 rounded-sm flex items-center gap-1.5 transition-colors"
+                    title="View library issues"
+                    aria-label={`View ${pluralize((scanStatus?.errorCount ?? 0) + (scanStatus?.warningCount ?? 0) + enrichmentFailureCount, 'issue')}`}
                   >
                     <svg
                       className="w-4 h-4"
@@ -223,31 +199,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                         d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                       />
                     </svg>
-                    <span>{pluralize(scanStatus.warningCount, 'warning')}</span>
-                  </button>
-                )}
-                {enrichmentFailureCount > 0 && (
-                  <button
-                    onClick={() => setShowErrorsDialog(true)}
-                    className="cursor-pointer text-orange-600 dark:text-orange-500 font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-1 rounded-sm flex items-center gap-1.5 transition-colors"
-                    title="View enrichment failures"
-                    aria-label={`View ${pluralize(enrichmentFailureCount, 'enrichment failure')}`}
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
-                      />
-                    </svg>
-                    <span>{pluralize(enrichmentFailureCount, 'enrichment failure')}</span>
+                    <span>{pluralize((scanStatus?.errorCount ?? 0) + (scanStatus?.warningCount ?? 0) + enrichmentFailureCount, 'issue')}</span>
                   </button>
                 )}
               </div>
