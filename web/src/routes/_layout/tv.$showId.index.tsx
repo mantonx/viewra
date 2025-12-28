@@ -5,6 +5,7 @@ import { Card, CardContent, Button } from '@/components/ui'
 import { SeasonCard } from '@/components/tv'
 import { PageHeader, LoadingPage, ErrorPage, EmptyState } from '@/components/common'
 import { tvApi } from '@/lib/api/tv'
+import { useAutoEnrich } from '@/lib/hooks'
 import type { SeasonGroup } from '@/lib/types/tv'
 import type { GithubComMantonxViewraInternalApplicationTvTVEpisodeResponse } from '@/lib/api/generated/models'
 
@@ -34,7 +35,17 @@ const ShowDetail = () => {
   const allEpisodes = useMemo(() => (episodesData?.data && 'episodes' in episodesData.data) ? episodesData.data.episodes || [] : [], [episodesData])
   const isLoading = isLoadingShow || isLoadingEpisodes
   const error = showError || episodesError
-  const showTitle = (showData?.data && 'title' in showData.data) ? showData.data.title || '' : ''
+  const show = showData?.data && 'title' in showData.data ? showData.data : null
+  const showTitle = show?.title || ''
+
+  // Auto-prioritize enrichment when viewing unenriched shows
+  useAutoEnrich({
+    mediaId: showIdNumber,
+    mediaType: 'tv_show',
+    libraryId: show?.library_id ?? 0,
+    isEnriched: !!show?.plot, // Has plot = enriched
+    enabled: !isLoading && !!show,
+  })
 
   // Group episodes by season
   const seasons = useMemo(() => {
