@@ -596,7 +596,7 @@ func TestManager_EnqueueFirstStage_Movie(t *testing.T) {
 	m := NewManager(deps, nil)
 	ctx := context.Background()
 
-	err := m.EnqueueFirstStage(ctx, 42, 1, enrichment.MediaTypeMovie)
+	err := m.EnqueueFirstStage(ctx, 42, 1, enrichment.MediaTypeMovie, 0)
 	if err != nil {
 		t.Fatalf("EnqueueFirstStage failed: %v", err)
 	}
@@ -638,7 +638,7 @@ func TestManager_EnqueueFirstStage_NoPipeline(t *testing.T) {
 	ctx := context.Background()
 
 	// Enqueue for music type which has no pipeline configured
-	err := m.EnqueueFirstStage(ctx, 42, 1, enrichment.MediaTypeMusic)
+	err := m.EnqueueFirstStage(ctx, 42, 1, enrichment.MediaTypeMusic, 0)
 	if err != nil {
 		t.Fatalf("EnqueueFirstStage should not fail for unconfigured media type: %v", err)
 	}

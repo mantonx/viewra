@@ -8,6 +8,8 @@ package sqlc_postgres
 import (
 	"context"
 	"database/sql"
+
+	"github.com/lib/pq"
 )
 
 const deleteExternalID = `-- name: DeleteExternalID :exec
@@ -189,6 +191,45 @@ ORDER BY provider
 // Legacy query: gets external IDs by media table ID (for backward compatibility)
 func (q *Queries) GetExternalIDsByMediaID(ctx context.Context, mediaID sql.NullInt32) ([]MediaExternalID, error) {
 	rows, err := q.db.QueryContext(ctx, getExternalIDsByMediaID, mediaID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MediaExternalID{}
+	for rows.Next() {
+		var i MediaExternalID
+		if err := rows.Scan(
+			&i.ID,
+			&i.MediaID,
+			&i.MediaType,
+			&i.EntityID,
+			&i.Provider,
+			&i.ExternalID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getExternalIDsByMediaIDBatch = `-- name: GetExternalIDsByMediaIDBatch :many
+SELECT id, media_id, media_type, entity_id, provider, external_id, created_at, updated_at FROM media_external_ids
+WHERE media_id = ANY($1::int[])
+ORDER BY media_id, provider
+`
+
+// Batch fetch: gets external IDs for multiple media IDs
+func (q *Queries) GetExternalIDsByMediaIDBatch(ctx context.Context, dollar_1 []int32) ([]MediaExternalID, error) {
+	rows, err := q.db.QueryContext(ctx, getExternalIDsByMediaIDBatch, pq.Array(dollar_1))
 	if err != nil {
 		return nil, err
 	}

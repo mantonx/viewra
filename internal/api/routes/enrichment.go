@@ -17,5 +17,8 @@ func RegisterEnrichmentRoutes(router *gin.RouterGroup, handler *handlers.Enrichm
 
 		// Bulk enqueue all media of a type for re-enrichment
 		enrichment.POST("/bulk-enqueue", handler.BulkEnqueue)
+
+		// Priority boost for interactive use (user viewing an item)
+		enrichment.POST("/prioritize", handler.Prioritize)
 	}
 }

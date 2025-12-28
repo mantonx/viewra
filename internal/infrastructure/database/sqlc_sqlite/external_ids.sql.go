@@ -8,6 +8,7 @@ package sqlc_sqlite
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 const deleteExternalID = `-- name: DeleteExternalID :exec
@@ -189,6 +190,57 @@ ORDER BY provider
 // Legacy query: gets external IDs by media table ID (for backward compatibility)
 func (q *Queries) GetExternalIDsByMediaID(ctx context.Context, mediaID sql.NullInt64) ([]MediaExternalID, error) {
 	rows, err := q.db.QueryContext(ctx, getExternalIDsByMediaID, mediaID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MediaExternalID{}
+	for rows.Next() {
+		var i MediaExternalID
+		if err := rows.Scan(
+			&i.ID,
+			&i.MediaID,
+			&i.MediaType,
+			&i.EntityID,
+			&i.Provider,
+			&i.ExternalID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getExternalIDsByMediaIDBatch = `-- name: GetExternalIDsByMediaIDBatch :many
+SELECT id, media_id, media_type, entity_id, provider, external_id, created_at, updated_at FROM media_external_ids
+WHERE media_id IN (/*SLICE:media_ids*/?)
+ORDER BY media_id, provider
+`
+
+// Batch fetch: gets external IDs for multiple media IDs
+// Note: sqlc doesn't support array params in SQLite, so this is implemented
+// in the repository using a dynamic query or multiple calls
+func (q *Queries) GetExternalIDsByMediaIDBatch(ctx context.Context, mediaIds []sql.NullInt64) ([]MediaExternalID, error) {
+	query := getExternalIDsByMediaIDBatch
+	var queryParams []interface{}
+	if len(mediaIds) > 0 {
+		for _, v := range mediaIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:media_ids*/?", strings.Repeat(",?", len(mediaIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:media_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err
 	}

@@ -185,6 +185,13 @@ UPDATE enrichment_queue
 SET priority = $1, updated_at = NOW()
 WHERE media_id = $2 AND media_type = $3 AND status IN ('pending', 'processing');
 
+-- name: BoostPriority :execrows
+-- Boosts priority for pending/processing jobs and returns the number of affected rows.
+-- Used for interactive priority boost when user views an item.
+UPDATE enrichment_queue
+SET priority = $1, updated_at = NOW()
+WHERE media_id = $2 AND media_type = $3 AND status IN ('pending', 'processing');
+
 -- name: GetOrphanedPipelineStates :many
 -- Find enrichment statuses where a stage completed but the next stage was never enqueued.
 -- This happens when the server crashes between marking a stage complete and enqueuing the next.

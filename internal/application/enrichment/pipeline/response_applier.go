@@ -129,10 +129,10 @@ func (a *ResponseApplier) updatePriorityFromMetadata(ctx context.Context, mediaI
 	switch mediaType {
 	case enrichment.MediaTypeMovie:
 		dateStr = metadata.GetReleaseDate()
-	case enrichment.MediaTypeTVShow, enrichment.MediaTypeTVEpisode:
+	case enrichment.MediaTypeTVShow, enrichment.MediaTypeTV:
 		// TV uses "premiered" (first_air_date) for the show/episode air date
 		dateStr = metadata.GetPremiered()
-	case enrichment.MediaTypeAlbum:
+	case enrichment.MediaTypeMusicAlbum:
 		// Albums have release dates but they come through AlbumMetadata, not EnrichedMetadata
 		// For now, skip album re-prioritization here; it would need separate handling
 		return

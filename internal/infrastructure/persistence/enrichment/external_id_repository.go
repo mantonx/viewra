@@ -121,7 +121,12 @@ func (r *ExternalIDRepository) GetByMediaBatch(ctx context.Context, mediaIDs []i
 			return r.postgres.GetExternalIDsByMediaIDBatch(ctx, pgIDs)
 		},
 		func() (any, error) {
-			return r.sqlite.GetExternalIDsByMediaIDBatch(ctx, mediaIDs)
+			// Convert to []sql.NullInt64 for SQLite
+			sqliteIDs := make([]sql.NullInt64, len(mediaIDs))
+			for i, id := range mediaIDs {
+				sqliteIDs[i] = sql.NullInt64{Int64: id, Valid: true}
+			}
+			return r.sqlite.GetExternalIDsByMediaIDBatch(ctx, sqliteIDs)
 		},
 	)
 	if err != nil {

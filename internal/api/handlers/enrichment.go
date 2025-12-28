@@ -129,6 +129,95 @@ func (h *EnrichmentHandler) EnqueueMedia(c *gin.Context) {
 	})
 }
 
+// Prioritize boosts the enrichment priority for a media item to process it immediately.
+// If the item has pending/processing jobs, their priority is updated to 1000 (interactive).
+// If the item has no jobs, it is enqueued for the first stage with priority 1000.
+//
+// @Summary Prioritize media for immediate enrichment
+// @Description Boosts enrichment priority for a media item so it processes immediately
+// @Tags enrichment
+// @Accept json
+// @Produce json
+// @Param request body PrioritizeRequest true "Prioritize request"
+// @Success 200 {object} PrioritizeResponse
+// @Failure 400 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.ErrorResponse
+// @Router /api/enrichment/prioritize [post]
+func (h *EnrichmentHandler) Prioritize(c *gin.Context) {
+	var req PrioritizeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request body"})
+		return
+	}
+
+	if req.MediaID <= 0 {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "media_id is required"})
+		return
+	}
+
+	if req.MediaType == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "media_type is required"})
+		return
+	}
+
+	if req.LibraryID <= 0 {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "library_id is required"})
+		return
+	}
+
+	ctx := c.Request.Context()
+	mediaType := enrichment.MediaType(req.MediaType)
+
+	// Try to boost priority for existing pending/processing jobs
+	updated, err := h.queueRepo.BoostPriority(ctx, req.MediaID, mediaType, pipeline.PriorityInteractive)
+	if err != nil {
+		h.logger.Error("Failed to boost priority",
+			"media_id", req.MediaID,
+			"media_type", req.MediaType,
+			"error", err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to boost priority"})
+		return
+	}
+
+	if updated {
+		// Jobs existed and were updated
+		h.logger.Info("Boosted enrichment priority",
+			"media_id", req.MediaID,
+			"media_type", req.MediaType,
+			"priority", pipeline.PriorityInteractive)
+
+		c.JSON(http.StatusOK, PrioritizeResponse{
+			MediaID:  req.MediaID,
+			Priority: pipeline.PriorityInteractive,
+			Status:   "boosted",
+		})
+		return
+	}
+
+	// No pending/processing jobs - check if already fully enriched or never queued
+	// Enqueue for first stage with interactive priority
+	err = h.manager.EnqueueFirstStage(ctx, req.MediaID, req.LibraryID, mediaType, pipeline.PriorityInteractive)
+	if err != nil {
+		h.logger.Error("Failed to enqueue for prioritized enrichment",
+			"media_id", req.MediaID,
+			"media_type", req.MediaType,
+			"error", err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to enqueue media"})
+		return
+	}
+
+	h.logger.Info("Enqueued media for prioritized enrichment",
+		"media_id", req.MediaID,
+		"media_type", req.MediaType,
+		"priority", pipeline.PriorityInteractive)
+
+	c.JSON(http.StatusOK, PrioritizeResponse{
+		MediaID:  req.MediaID,
+		Priority: pipeline.PriorityInteractive,
+		Status:   "enqueued",
+	})
+}
+
 // EnqueueMediaRequest represents a request to enqueue media for enrichment.
 type EnqueueMediaRequest struct {
 	MediaID   int64  `json:"media_id" binding:"required"`
@@ -336,6 +425,20 @@ func (h *EnrichmentHandler) buildProgressResponse(libraryID int64, progress map[
 		CurrentItem:     currentItemResp,
 		OverallProgress: overallProgressResp,
 	}
+}
+
+// PrioritizeRequest represents a request to boost enrichment priority for a media item.
+type PrioritizeRequest struct {
+	MediaID   int64  `json:"media_id" binding:"required"`
+	MediaType string `json:"media_type" binding:"required"` // movie, tv, tv_show, music, etc.
+	LibraryID int64  `json:"library_id" binding:"required"`
+}
+
+// PrioritizeResponse represents the response after prioritizing a media item.
+type PrioritizeResponse struct {
+	MediaID  int64  `json:"media_id"`
+	Priority int    `json:"priority"`
+	Status   string `json:"status"` // "boosted", "enqueued", or "already_complete"
 }
 
 // BulkEnqueueRequest represents a request to enqueue all media items of a type for enrichment.

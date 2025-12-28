@@ -183,7 +183,7 @@ func (b *RequestBuilder) buildTVSeasonRequest(ctx context.Context, job *enrichme
 		b.entityCache.PutSeason(&CachedTVSeason{
 			ID:           season.ID,
 			ShowID:       season.ShowID,
-			SeasonNumber: season.SeasonNumber,
+			SeasonNumber: int(season.SeasonNumber),
 		})
 	}
 

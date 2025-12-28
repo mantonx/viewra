@@ -12,6 +12,9 @@ import (
 
 type Querier interface {
 	AddMediaStudio(ctx context.Context, arg AddMediaStudioParams) error
+	// Boosts priority for pending/processing jobs and returns the number of affected rows.
+	// Used for interactive priority boost when user views an item.
+	BoostPriority(ctx context.Context, arg BoostPriorityParams) (int64, error)
 	ClaimEnrichmentJobs(ctx context.Context, arg ClaimEnrichmentJobsParams) ([]EnrichmentQueue, error)
 	ClearScanStateError(ctx context.Context, arg ClearScanStateErrorParams) error
 	ClearScanStateWarning(ctx context.Context, arg ClearScanStateWarningParams) error
@@ -220,6 +223,10 @@ type Querier interface {
 	GetExternalIDsByMedia(ctx context.Context, arg GetExternalIDsByMediaParams) ([]MediaExternalID, error)
 	// Legacy query: gets external IDs by media table ID (for backward compatibility)
 	GetExternalIDsByMediaID(ctx context.Context, mediaID sql.NullInt64) ([]MediaExternalID, error)
+	// Batch fetch: gets external IDs for multiple media IDs
+	// Note: sqlc doesn't support array params in SQLite, so this is implemented
+	// in the repository using a dynamic query or multiple calls
+	GetExternalIDsByMediaIDBatch(ctx context.Context, mediaIds []sql.NullInt64) ([]MediaExternalID, error)
 	GetExternalSubtitlesByMediaID(ctx context.Context, mediaID int64) ([]MediaSubtitleTrack, error)
 	GetFilePathCache(ctx context.Context, libraryID int64) ([]GetFilePathCacheRow, error)
 	GetFirstPipelineStage(ctx context.Context, mediaType string) (EnrichmentPipeline, error)
@@ -476,6 +483,9 @@ type Querier interface {
 	UpdatePluginHealth(ctx context.Context, arg UpdatePluginHealthParams) error
 	UpdatePluginSettings(ctx context.Context, arg UpdatePluginSettingsParams) error
 	UpdatePluginSettingsSchema(ctx context.Context, arg UpdatePluginSettingsSchemaParams) error
+	// Updates priority for all pending/processing jobs for a media item.
+	// Used to boost priority after enrichment discovers actual release date.
+	UpdatePriorityByMedia(ctx context.Context, arg UpdatePriorityByMediaParams) error
 	UpdateScanCheckpointRetryCount(ctx context.Context, arg UpdateScanCheckpointRetryCountParams) error
 	UpdateScanCheckpointStatus(ctx context.Context, arg UpdateScanCheckpointStatusParams) error
 	UpdateScanJobProgress(ctx context.Context, arg UpdateScanJobProgressParams) error

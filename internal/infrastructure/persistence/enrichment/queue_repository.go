@@ -455,6 +455,33 @@ func (r *QueueRepository) UpdatePriorityByMedia(ctx context.Context, mediaID int
 	)
 }
 
+// BoostPriority updates the priority for all pending/processing jobs for a media item
+// and returns true if any jobs were updated. This is used for interactive priority boost.
+func (r *QueueRepository) BoostPriority(ctx context.Context, mediaID int64, mediaType enrichment.MediaType, priority int) (bool, error) {
+	var rowsAffected int64
+	var err error
+
+	if r.router.IsPostgresDB() {
+		rowsAffected, err = r.postgres.BoostPriority(ctx, sqlc_postgres.BoostPriorityParams{
+			Priority:  sql.NullInt32{Int32: int32(priority), Valid: true},
+			MediaID:   int32(mediaID),
+			MediaType: string(mediaType),
+		})
+	} else {
+		rowsAffected, err = r.sqlite.BoostPriority(ctx, sqlc_sqlite.BoostPriorityParams{
+			Priority:  sql.NullInt64{Int64: int64(priority), Valid: true},
+			MediaID:   mediaID,
+			MediaType: string(mediaType),
+		})
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	return rowsAffected > 0, nil
+}
+
 // EnqueueBatch adds multiple jobs to the queue in a single transaction.
 // This is much faster than individual Enqueue calls for bulk operations.
 // Jobs that fail to enqueue are skipped (logged), and the operation continues.

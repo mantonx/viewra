@@ -10,6 +10,28 @@ import (
 	"database/sql"
 )
 
+const boostPriority = `-- name: BoostPriority :execrows
+UPDATE enrichment_queue
+SET priority = ?, updated_at = datetime('now')
+WHERE media_id = ? AND media_type = ? AND status IN ('pending', 'processing')
+`
+
+type BoostPriorityParams struct {
+	Priority  sql.NullInt64 `json:"priority"`
+	MediaID   int64         `json:"media_id"`
+	MediaType string        `json:"media_type"`
+}
+
+// Boosts priority for pending/processing jobs and returns the number of affected rows.
+// Used for interactive priority boost when user views an item.
+func (q *Queries) BoostPriority(ctx context.Context, arg BoostPriorityParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, boostPriority, arg.Priority, arg.MediaID, arg.MediaType)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const claimEnrichmentJobs = `-- name: ClaimEnrichmentJobs :many
 UPDATE enrichment_queue
 SET
@@ -612,5 +634,24 @@ WHERE id = ?
 
 func (q *Queries) SkipEnrichmentJob(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, skipEnrichmentJob, id)
+	return err
+}
+
+const updatePriorityByMedia = `-- name: UpdatePriorityByMedia :exec
+UPDATE enrichment_queue
+SET priority = ?, updated_at = datetime('now')
+WHERE media_id = ? AND media_type = ? AND status IN ('pending', 'processing')
+`
+
+type UpdatePriorityByMediaParams struct {
+	Priority  sql.NullInt64 `json:"priority"`
+	MediaID   int64         `json:"media_id"`
+	MediaType string        `json:"media_type"`
+}
+
+// Updates priority for all pending/processing jobs for a media item.
+// Used to boost priority after enrichment discovers actual release date.
+func (q *Queries) UpdatePriorityByMedia(ctx context.Context, arg UpdatePriorityByMediaParams) error {
+	_, err := q.db.ExecContext(ctx, updatePriorityByMedia, arg.Priority, arg.MediaID, arg.MediaType)
 	return err
 }
