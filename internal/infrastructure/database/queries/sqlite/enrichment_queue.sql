@@ -191,6 +191,69 @@ UPDATE enrichment_queue
 SET priority = ?, updated_at = datetime('now')
 WHERE media_id = ? AND media_type = ? AND status IN ('pending', 'processing');
 
+-- name: GetLibraryEnrichmentFailures :many
+-- Get failed enrichment jobs for a library with titles for display.
+-- Joins with media/tv_shows/tv_seasons/music tables to get the title.
+SELECT
+    eq.id,
+    eq.media_id,
+    eq.library_id,
+    eq.media_type,
+    eq.stage,
+    eq.attempts,
+    eq.max_attempts,
+    eq.error_message,
+    eq.error_category,
+    eq.updated_at as last_attempt_at,
+    COALESCE(
+        m.title,
+        ts.title,
+        tsn.name,
+        ma.title,
+        mart.name,
+        ''
+    ) as title
+FROM enrichment_queue eq
+LEFT JOIN media m ON eq.media_type IN ('movie', 'tv', 'music') AND eq.media_id = m.id
+LEFT JOIN tv_shows ts ON eq.media_type = 'tv_show' AND eq.media_id = ts.id
+LEFT JOIN tv_seasons tsn ON eq.media_type = 'tv_season' AND eq.media_id = tsn.id
+LEFT JOIN music_albums ma ON eq.media_type = 'music_album' AND eq.media_id = ma.id
+LEFT JOIN music_artists mart ON eq.media_type = 'music_artist' AND eq.media_id = mart.id
+WHERE eq.library_id = ?
+  AND eq.status = 'failed'
+ORDER BY eq.updated_at DESC
+LIMIT ? OFFSET ?;
+
+-- name: CountLibraryEnrichmentFailures :one
+-- Count total failed enrichment jobs for a library.
+SELECT COUNT(*) as total
+FROM enrichment_queue
+WHERE library_id = ? AND status = 'failed';
+
+-- name: RetryEnrichmentJobsByLibrary :execrows
+-- Reset all failed jobs for a library to pending for retry.
+UPDATE enrichment_queue
+SET
+    status = 'pending',
+    attempts = 0,
+    error_message = NULL,
+    error_category = NULL,
+    next_retry_at = NULL,
+    updated_at = datetime('now')
+WHERE library_id = ? AND status = 'failed';
+
+-- name: RetryEnrichmentJob :exec
+-- Reset a single failed job to pending for retry.
+UPDATE enrichment_queue
+SET
+    status = 'pending',
+    attempts = 0,
+    error_message = NULL,
+    error_category = NULL,
+    next_retry_at = NULL,
+    updated_at = datetime('now')
+WHERE id = ? AND status = 'failed';
+
 -- name: GetOrphanedPipelineStates :many
 -- Find enrichment statuses where a stage completed but the next stage was never enqueued.
 -- This happens when the server crashes between marking a stage complete and enqueuing the next.

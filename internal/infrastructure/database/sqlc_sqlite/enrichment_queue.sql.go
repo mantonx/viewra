@@ -109,6 +109,20 @@ func (q *Queries) CompleteEnrichmentJob(ctx context.Context, id int64) error {
 	return err
 }
 
+const countLibraryEnrichmentFailures = `-- name: CountLibraryEnrichmentFailures :one
+SELECT COUNT(*) as total
+FROM enrichment_queue
+WHERE library_id = ? AND status = 'failed'
+`
+
+// Count total failed enrichment jobs for a library.
+func (q *Queries) CountLibraryEnrichmentFailures(ctx context.Context, libraryID sql.NullInt64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countLibraryEnrichmentFailures, libraryID)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 const deleteEnrichmentJobsByMedia = `-- name: DeleteEnrichmentJobsByMedia :exec
 DELETE FROM enrichment_queue WHERE media_id = ? AND media_type = ?
 `
@@ -428,6 +442,95 @@ func (q *Queries) GetEnrichmentQueueStatsByMedia(ctx context.Context, mediaID in
 	return items, nil
 }
 
+const getLibraryEnrichmentFailures = `-- name: GetLibraryEnrichmentFailures :many
+SELECT
+    eq.id,
+    eq.media_id,
+    eq.library_id,
+    eq.media_type,
+    eq.stage,
+    eq.attempts,
+    eq.max_attempts,
+    eq.error_message,
+    eq.error_category,
+    eq.updated_at as last_attempt_at,
+    COALESCE(
+        m.title,
+        ts.title,
+        tsn.name,
+        ma.title,
+        mart.name,
+        ''
+    ) as title
+FROM enrichment_queue eq
+LEFT JOIN media m ON eq.media_type IN ('movie', 'tv', 'music') AND eq.media_id = m.id
+LEFT JOIN tv_shows ts ON eq.media_type = 'tv_show' AND eq.media_id = ts.id
+LEFT JOIN tv_seasons tsn ON eq.media_type = 'tv_season' AND eq.media_id = tsn.id
+LEFT JOIN music_albums ma ON eq.media_type = 'music_album' AND eq.media_id = ma.id
+LEFT JOIN music_artists mart ON eq.media_type = 'music_artist' AND eq.media_id = mart.id
+WHERE eq.library_id = ?
+  AND eq.status = 'failed'
+ORDER BY eq.updated_at DESC
+LIMIT ? OFFSET ?
+`
+
+type GetLibraryEnrichmentFailuresParams struct {
+	LibraryID sql.NullInt64 `json:"library_id"`
+	Limit     int64         `json:"limit"`
+	Offset    int64         `json:"offset"`
+}
+
+type GetLibraryEnrichmentFailuresRow struct {
+	ID            int64          `json:"id"`
+	MediaID       int64          `json:"media_id"`
+	LibraryID     sql.NullInt64  `json:"library_id"`
+	MediaType     string         `json:"media_type"`
+	Stage         string         `json:"stage"`
+	Attempts      sql.NullInt64  `json:"attempts"`
+	MaxAttempts   sql.NullInt64  `json:"max_attempts"`
+	ErrorMessage  sql.NullString `json:"error_message"`
+	ErrorCategory sql.NullString `json:"error_category"`
+	LastAttemptAt sql.NullString `json:"last_attempt_at"`
+	Title         string         `json:"title"`
+}
+
+// Get failed enrichment jobs for a library with titles for display.
+// Joins with media/tv_shows/tv_seasons/music tables to get the title.
+func (q *Queries) GetLibraryEnrichmentFailures(ctx context.Context, arg GetLibraryEnrichmentFailuresParams) ([]GetLibraryEnrichmentFailuresRow, error) {
+	rows, err := q.db.QueryContext(ctx, getLibraryEnrichmentFailures, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetLibraryEnrichmentFailuresRow{}
+	for rows.Next() {
+		var i GetLibraryEnrichmentFailuresRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.MediaID,
+			&i.LibraryID,
+			&i.MediaType,
+			&i.Stage,
+			&i.Attempts,
+			&i.MaxAttempts,
+			&i.ErrorMessage,
+			&i.ErrorCategory,
+			&i.LastAttemptAt,
+			&i.Title,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getOrphanedPipelineStates = `-- name: GetOrphanedPipelineStates :many
 SELECT
     es.media_type,
@@ -620,6 +723,45 @@ WHERE id = ?
 func (q *Queries) ResetEnrichmentJobForRetry(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, resetEnrichmentJobForRetry, id)
 	return err
+}
+
+const retryEnrichmentJob = `-- name: RetryEnrichmentJob :exec
+UPDATE enrichment_queue
+SET
+    status = 'pending',
+    attempts = 0,
+    error_message = NULL,
+    error_category = NULL,
+    next_retry_at = NULL,
+    updated_at = datetime('now')
+WHERE id = ? AND status = 'failed'
+`
+
+// Reset a single failed job to pending for retry.
+func (q *Queries) RetryEnrichmentJob(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, retryEnrichmentJob, id)
+	return err
+}
+
+const retryEnrichmentJobsByLibrary = `-- name: RetryEnrichmentJobsByLibrary :execrows
+UPDATE enrichment_queue
+SET
+    status = 'pending',
+    attempts = 0,
+    error_message = NULL,
+    error_category = NULL,
+    next_retry_at = NULL,
+    updated_at = datetime('now')
+WHERE library_id = ? AND status = 'failed'
+`
+
+// Reset all failed jobs for a library to pending for retry.
+func (q *Queries) RetryEnrichmentJobsByLibrary(ctx context.Context, libraryID sql.NullInt64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, retryEnrichmentJobsByLibrary, libraryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const skipEnrichmentJob = `-- name: SkipEnrichmentJob :exec

@@ -23,15 +23,19 @@ import type {
 
 import type {
   GetApiEnrichmentStats200,
+  GetApiLibrariesIdEnrichmentFailuresParams,
   GithubComMantonxViewraInternalApplicationEnrichmentPipelineCircuitBreakerStatus,
   InternalApiHandlersBulkEnqueueRequest,
   InternalApiHandlersBulkEnqueueResponse,
   InternalApiHandlersEnqueueMediaRequest,
   InternalApiHandlersEnqueueMediaResponse,
   InternalApiHandlersErrorResponse,
+  InternalApiHandlersLibraryEnrichmentFailuresResponse,
   InternalApiHandlersLibraryEnrichmentProgressResponse,
   InternalApiHandlersPrioritizeRequest,
   InternalApiHandlersPrioritizeResponse,
+  InternalApiHandlersRetryJobRequest,
+  InternalApiHandlersRetryLibraryFailuresResponse,
 } from '.././models'
 
 import { customInstance } from '../../mutator/index'
@@ -393,6 +397,124 @@ export const usePostApiEnrichmentPrioritize = <
   TContext
 > => {
   const mutationOptions = getPostApiEnrichmentPrioritizeMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Resets a single failed enrichment job to pending status
+ * @summary Retry a single failed enrichment job
+ */
+export type postApiEnrichmentRetryResponse204 = {
+  data: void
+  status: 204
+}
+
+export type postApiEnrichmentRetryResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type postApiEnrichmentRetryResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type postApiEnrichmentRetryResponseSuccess = postApiEnrichmentRetryResponse204 & {
+  headers: Headers
+}
+export type postApiEnrichmentRetryResponseError = (
+  | postApiEnrichmentRetryResponse400
+  | postApiEnrichmentRetryResponse500
+) & {
+  headers: Headers
+}
+
+export type postApiEnrichmentRetryResponse =
+  | postApiEnrichmentRetryResponseSuccess
+  | postApiEnrichmentRetryResponseError
+
+export const getPostApiEnrichmentRetryUrl = () => {
+  return `/api/enrichment/retry`
+}
+
+export const postApiEnrichmentRetry = async (
+  internalApiHandlersRetryJobRequest: InternalApiHandlersRetryJobRequest,
+  options?: RequestInit
+): Promise<postApiEnrichmentRetryResponse> => {
+  return customInstance<postApiEnrichmentRetryResponse>(getPostApiEnrichmentRetryUrl(), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(internalApiHandlersRetryJobRequest),
+  })
+}
+
+export const getPostApiEnrichmentRetryMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiEnrichmentRetry>>,
+    TError,
+    { data: InternalApiHandlersRetryJobRequest },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiEnrichmentRetry>>,
+  TError,
+  { data: InternalApiHandlersRetryJobRequest },
+  TContext
+> => {
+  const mutationKey = ['postApiEnrichmentRetry']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiEnrichmentRetry>>,
+    { data: InternalApiHandlersRetryJobRequest }
+  > = (props) => {
+    const { data } = props ?? {}
+
+    return postApiEnrichmentRetry(data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiEnrichmentRetryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiEnrichmentRetry>>
+>
+export type PostApiEnrichmentRetryMutationBody = InternalApiHandlersRetryJobRequest
+export type PostApiEnrichmentRetryMutationError = InternalApiHandlersErrorResponse
+
+/**
+ * @summary Retry a single failed enrichment job
+ */
+export const usePostApiEnrichmentRetry = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiEnrichmentRetry>>,
+      TError,
+      { data: InternalApiHandlersRetryJobRequest },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiEnrichmentRetry>>,
+  TError,
+  { data: InternalApiHandlersRetryJobRequest },
+  TContext
+> => {
+  const mutationOptions = getPostApiEnrichmentRetryMutationOptions(options)
 
   return useMutation(mutationOptions, queryClient)
 }
@@ -780,6 +902,342 @@ export function useGetApiEnrichmentStats<
   return query
 }
 
+/**
+ * Returns failed enrichment jobs for a specific library with pagination
+ * @summary Get library enrichment failures
+ */
+export type getApiLibrariesIdEnrichmentFailuresResponse200 = {
+  data: InternalApiHandlersLibraryEnrichmentFailuresResponse
+  status: 200
+}
+
+export type getApiLibrariesIdEnrichmentFailuresResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type getApiLibrariesIdEnrichmentFailuresResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type getApiLibrariesIdEnrichmentFailuresResponseSuccess =
+  getApiLibrariesIdEnrichmentFailuresResponse200 & {
+    headers: Headers
+  }
+export type getApiLibrariesIdEnrichmentFailuresResponseError = (
+  | getApiLibrariesIdEnrichmentFailuresResponse400
+  | getApiLibrariesIdEnrichmentFailuresResponse500
+) & {
+  headers: Headers
+}
+
+export type getApiLibrariesIdEnrichmentFailuresResponse =
+  | getApiLibrariesIdEnrichmentFailuresResponseSuccess
+  | getApiLibrariesIdEnrichmentFailuresResponseError
+
+export const getGetApiLibrariesIdEnrichmentFailuresUrl = (
+  id: number,
+  params?: GetApiLibrariesIdEnrichmentFailuresParams
+) => {
+  const normalizedParams = new URLSearchParams()
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  })
+
+  const stringifiedParams = normalizedParams.toString()
+
+  return stringifiedParams.length > 0
+    ? `/api/libraries/${id}/enrichment/failures?${stringifiedParams}`
+    : `/api/libraries/${id}/enrichment/failures`
+}
+
+export const getApiLibrariesIdEnrichmentFailures = async (
+  id: number,
+  params?: GetApiLibrariesIdEnrichmentFailuresParams,
+  options?: RequestInit
+): Promise<getApiLibrariesIdEnrichmentFailuresResponse> => {
+  return customInstance<getApiLibrariesIdEnrichmentFailuresResponse>(
+    getGetApiLibrariesIdEnrichmentFailuresUrl(id, params),
+    {
+      ...options,
+      method: 'GET',
+    }
+  )
+}
+
+export const getGetApiLibrariesIdEnrichmentFailuresQueryKey = (
+  id?: number,
+  params?: GetApiLibrariesIdEnrichmentFailuresParams
+) => {
+  return [`/api/libraries/${id}/enrichment/failures`, ...(params ? [params] : [])] as const
+}
+
+export const getGetApiLibrariesIdEnrichmentFailuresQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  params?: GetApiLibrariesIdEnrichmentFailuresParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetApiLibrariesIdEnrichmentFailuresQueryKey(id, params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>> = ({
+    signal,
+  }) => getApiLibrariesIdEnrichmentFailures(id, params, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiLibrariesIdEnrichmentFailuresQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>
+>
+export type GetApiLibrariesIdEnrichmentFailuresQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiLibrariesIdEnrichmentFailures<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  params: undefined | GetApiLibrariesIdEnrichmentFailuresParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
+          TError,
+          Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiLibrariesIdEnrichmentFailures<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  params?: GetApiLibrariesIdEnrichmentFailuresParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
+          TError,
+          Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiLibrariesIdEnrichmentFailures<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  params?: GetApiLibrariesIdEnrichmentFailuresParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get library enrichment failures
+ */
+
+export function useGetApiLibrariesIdEnrichmentFailures<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  params?: GetApiLibrariesIdEnrichmentFailuresParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiLibrariesIdEnrichmentFailuresQueryOptions(id, params, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Resets all failed enrichment jobs for a library to pending status
+ * @summary Retry all failed enrichment jobs for a library
+ */
+export type postApiLibrariesIdEnrichmentFailuresRetryResponse200 = {
+  data: InternalApiHandlersRetryLibraryFailuresResponse
+  status: 200
+}
+
+export type postApiLibrariesIdEnrichmentFailuresRetryResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type postApiLibrariesIdEnrichmentFailuresRetryResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type postApiLibrariesIdEnrichmentFailuresRetryResponseSuccess =
+  postApiLibrariesIdEnrichmentFailuresRetryResponse200 & {
+    headers: Headers
+  }
+export type postApiLibrariesIdEnrichmentFailuresRetryResponseError = (
+  | postApiLibrariesIdEnrichmentFailuresRetryResponse400
+  | postApiLibrariesIdEnrichmentFailuresRetryResponse500
+) & {
+  headers: Headers
+}
+
+export type postApiLibrariesIdEnrichmentFailuresRetryResponse =
+  | postApiLibrariesIdEnrichmentFailuresRetryResponseSuccess
+  | postApiLibrariesIdEnrichmentFailuresRetryResponseError
+
+export const getPostApiLibrariesIdEnrichmentFailuresRetryUrl = (id: number) => {
+  return `/api/libraries/${id}/enrichment/failures/retry`
+}
+
+export const postApiLibrariesIdEnrichmentFailuresRetry = async (
+  id: number,
+  options?: RequestInit
+): Promise<postApiLibrariesIdEnrichmentFailuresRetryResponse> => {
+  return customInstance<postApiLibrariesIdEnrichmentFailuresRetryResponse>(
+    getPostApiLibrariesIdEnrichmentFailuresRetryUrl(id),
+    {
+      ...options,
+      method: 'POST',
+    }
+  )
+}
+
+export const getPostApiLibrariesIdEnrichmentFailuresRetryMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiLibrariesIdEnrichmentFailuresRetry>>,
+    TError,
+    { id: number },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiLibrariesIdEnrichmentFailuresRetry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ['postApiLibrariesIdEnrichmentFailuresRetry']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiLibrariesIdEnrichmentFailuresRetry>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {}
+
+    return postApiLibrariesIdEnrichmentFailuresRetry(id, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiLibrariesIdEnrichmentFailuresRetryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiLibrariesIdEnrichmentFailuresRetry>>
+>
+
+export type PostApiLibrariesIdEnrichmentFailuresRetryMutationError =
+  InternalApiHandlersErrorResponse
+
+/**
+ * @summary Retry all failed enrichment jobs for a library
+ */
+export const usePostApiLibrariesIdEnrichmentFailuresRetry = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiLibrariesIdEnrichmentFailuresRetry>>,
+      TError,
+      { id: number },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiLibrariesIdEnrichmentFailuresRetry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationOptions = getPostApiLibrariesIdEnrichmentFailuresRetryMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
 /**
  * Returns enrichment progress for a specific library
  * @summary Get library enrichment progress

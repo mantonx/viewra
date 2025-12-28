@@ -27,9 +27,11 @@ func RegisterLibraryRoutes(rg *gin.RouterGroup, handler *handlers.LibraryHandler
 	// Library-level persistent issues (warnings/errors from scan_state)
 	libraries.GET("/:id/issues", scanHandler.GetLibraryIssues)
 
-	// Enrichment progress (per-library)
+	// Enrichment progress and failures (per-library)
 	if enrichmentHandler != nil {
 		libraries.GET("/:id/enrichment/progress", enrichmentHandler.GetLibraryProgress)
 		libraries.GET("/:id/enrichment/stream", enrichmentHandler.StreamLibraryProgress)
+		libraries.GET("/:id/enrichment/failures", enrichmentHandler.GetLibraryFailures)
+		libraries.POST("/:id/enrichment/failures/retry", enrichmentHandler.RetryLibraryFailures)
 	}
 }

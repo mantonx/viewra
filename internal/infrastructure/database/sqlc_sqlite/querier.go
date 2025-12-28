@@ -35,6 +35,8 @@ type Querier interface {
 	CountImagesByMediaID(ctx context.Context, mediaID sql.NullInt64) (int64, error)
 	CountLibraries(ctx context.Context) (int64, error)
 	CountLibrariesByType(ctx context.Context, type_ string) (int64, error)
+	// Count total failed enrichment jobs for a library.
+	CountLibraryEnrichmentFailures(ctx context.Context, libraryID sql.NullInt64) (int64, error)
 	CountLibraryErrors(ctx context.Context, libraryID int64) (int64, error)
 	CountLibraryIssues(ctx context.Context, libraryID int64) (CountLibraryIssuesRow, error)
 	CountLibraryScanState(ctx context.Context, libraryID int64) (int64, error)
@@ -241,6 +243,9 @@ type Querier interface {
 	GetLatestScanJobByLibrary(ctx context.Context, libraryID int64) (ScanJob, error)
 	GetLibraryByID(ctx context.Context, id int64) (Library, error)
 	GetLibraryByPath(ctx context.Context, path string) (Library, error)
+	// Get failed enrichment jobs for a library with titles for display.
+	// Joins with media/tv_shows/tv_seasons/music tables to get the title.
+	GetLibraryEnrichmentFailures(ctx context.Context, arg GetLibraryEnrichmentFailuresParams) ([]GetLibraryEnrichmentFailuresRow, error)
 	// Get overall enrichment progress for a library.
 	// Returns: items that completed all stages / total unique items that entered enrichment.
 	// "Fully enriched" means an item has completed the last stage in the pipeline.
@@ -449,6 +454,10 @@ type Querier interface {
 	// Reset all 'processing' status records to 'pending'.
 	// Called at startup to recover from crashed workers.
 	ResetStuckEnrichmentStatus(ctx context.Context) (int64, error)
+	// Reset a single failed job to pending for retry.
+	RetryEnrichmentJob(ctx context.Context, id int64) error
+	// Reset all failed jobs for a library to pending for retry.
+	RetryEnrichmentJobsByLibrary(ctx context.Context, libraryID sql.NullInt64) (int64, error)
 	SearchArtistsByName(ctx context.Context, arg SearchArtistsByNameParams) ([]MusicArtist, error)
 	SearchArtistsWithCountsByNamePaginated(ctx context.Context, arg SearchArtistsWithCountsByNamePaginatedParams) ([]SearchArtistsWithCountsByNamePaginatedRow, error)
 	SearchByKeyword(ctx context.Context, keyword string) ([]SearchByKeywordRow, error)

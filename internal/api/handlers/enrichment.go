@@ -594,3 +594,172 @@ func (h *EnrichmentHandler) BulkEnqueue(c *gin.Context) {
 		Status:        "queued",
 	})
 }
+
+// EnrichmentFailureResponse represents a single failed enrichment job.
+type EnrichmentFailureResponse struct {
+	ID            int64  `json:"id"`
+	MediaID       int64  `json:"media_id"`
+	MediaType     string `json:"media_type"`
+	Title         string `json:"title"`
+	Stage         string `json:"stage"`
+	Attempts      int    `json:"attempts"`
+	MaxAttempts   int    `json:"max_attempts"`
+	ErrorMessage  string `json:"error_message"`
+	ErrorCategory string `json:"error_category"`
+	LastAttemptAt string `json:"last_attempt_at"`
+}
+
+// LibraryEnrichmentFailuresResponse represents the list of failed enrichment jobs.
+type LibraryEnrichmentFailuresResponse struct {
+	Failures []EnrichmentFailureResponse `json:"failures"`
+	Total    int64                       `json:"total"`
+}
+
+// GetLibraryFailures returns failed enrichment jobs for a library.
+//
+// @Summary Get library enrichment failures
+// @Description Returns failed enrichment jobs for a specific library with pagination
+// @Tags enrichment
+// @Produce json
+// @Param id path int true "Library ID"
+// @Param limit query int false "Maximum results (default 50, max 200)"
+// @Param offset query int false "Results offset (default 0)"
+// @Success 200 {object} LibraryEnrichmentFailuresResponse
+// @Failure 400 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.ErrorResponse
+// @Router /api/libraries/{id}/enrichment/failures [get]
+func (h *EnrichmentHandler) GetLibraryFailures(c *gin.Context) {
+	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid library ID"})
+		return
+	}
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if offset < 0 {
+		offset = 0
+	}
+
+	// Get failures
+	failures, err := h.queueRepo.GetLibraryFailures(c.Request.Context(), libraryID, limit, offset)
+	if err != nil {
+		h.logger.Error("Failed to get library enrichment failures", "library_id", libraryID, "error", err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get failures"})
+		return
+	}
+
+	// Get total count
+	total, err := h.queueRepo.CountLibraryFailures(c.Request.Context(), libraryID)
+	if err != nil {
+		h.logger.Error("Failed to count library enrichment failures", "library_id", libraryID, "error", err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to count failures"})
+		return
+	}
+
+	// Convert to response
+	resp := LibraryEnrichmentFailuresResponse{
+		Failures: make([]EnrichmentFailureResponse, len(failures)),
+		Total:    total,
+	}
+
+	for i, f := range failures {
+		resp.Failures[i] = EnrichmentFailureResponse{
+			ID:            f.ID,
+			MediaID:       f.MediaID,
+			MediaType:     string(f.MediaType),
+			Title:         f.Title,
+			Stage:         f.Stage,
+			Attempts:      f.Attempts,
+			MaxAttempts:   f.MaxAttempts,
+			ErrorMessage:  f.ErrorMessage,
+			ErrorCategory: string(f.ErrorCategory),
+			LastAttemptAt: f.LastAttemptAt.Format("2006-01-02T15:04:05Z07:00"),
+		}
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// RetryLibraryFailuresResponse represents the result of retrying all failures.
+type RetryLibraryFailuresResponse struct {
+	RetriedCount int64  `json:"retried_count"`
+	Status       string `json:"status"`
+}
+
+// RetryLibraryFailures resets all failed enrichment jobs for a library to pending.
+//
+// @Summary Retry all failed enrichment jobs for a library
+// @Description Resets all failed enrichment jobs for a library to pending status
+// @Tags enrichment
+// @Produce json
+// @Param id path int true "Library ID"
+// @Success 200 {object} RetryLibraryFailuresResponse
+// @Failure 400 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.ErrorResponse
+// @Router /api/libraries/{id}/enrichment/failures/retry [post]
+func (h *EnrichmentHandler) RetryLibraryFailures(c *gin.Context) {
+	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid library ID"})
+		return
+	}
+
+	retriedCount, err := h.queueRepo.RetryLibraryFailures(c.Request.Context(), libraryID)
+	if err != nil {
+		h.logger.Error("Failed to retry library enrichment failures", "library_id", libraryID, "error", err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to retry failures"})
+		return
+	}
+
+	h.logger.Info("Retried library enrichment failures", "library_id", libraryID, "count", retriedCount)
+
+	c.JSON(http.StatusOK, RetryLibraryFailuresResponse{
+		RetriedCount: retriedCount,
+		Status:       "queued",
+	})
+}
+
+// RetryJobRequest represents a request to retry a single failed job.
+type RetryJobRequest struct {
+	JobID int64 `json:"job_id" binding:"required"`
+}
+
+// RetryJob resets a single failed enrichment job to pending.
+//
+// @Summary Retry a single failed enrichment job
+// @Description Resets a single failed enrichment job to pending status
+// @Tags enrichment
+// @Accept json
+// @Produce json
+// @Param request body RetryJobRequest true "Retry request"
+// @Success 204 "No Content"
+// @Failure 400 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.ErrorResponse
+// @Router /api/enrichment/retry [post]
+func (h *EnrichmentHandler) RetryJob(c *gin.Context) {
+	var req RetryJobRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request body"})
+		return
+	}
+
+	if req.JobID <= 0 {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "job_id is required"})
+		return
+	}
+
+	err := h.queueRepo.RetryJob(c.Request.Context(), req.JobID)
+	if err != nil {
+		h.logger.Error("Failed to retry enrichment job", "job_id", req.JobID, "error", err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to retry job"})
+		return
+	}
+
+	h.logger.Info("Retried enrichment job", "job_id", req.JobID)
+	c.Status(http.StatusNoContent)
+}

@@ -539,6 +539,125 @@ func (r *QueueRepository) EnqueueBatch(ctx context.Context, jobs []*enrichment.Q
 	return successCount, nil
 }
 
+// EnrichmentFailure represents a failed enrichment job with its title for display.
+type EnrichmentFailure struct {
+	ID            int64
+	MediaID       int64
+	LibraryID     int64
+	MediaType     enrichment.MediaType
+	Title         string
+	Stage         string
+	Attempts      int
+	MaxAttempts   int
+	ErrorMessage  string
+	ErrorCategory enrichment.ErrorCategory
+	LastAttemptAt time.Time
+}
+
+// GetLibraryFailures returns failed enrichment jobs for a library.
+func (r *QueueRepository) GetLibraryFailures(ctx context.Context, libraryID int64, limit, offset int) ([]*EnrichmentFailure, error) {
+	result, err := r.router.Route(
+		func() (any, error) {
+			return r.postgres.GetLibraryEnrichmentFailures(ctx, sqlc_postgres.GetLibraryEnrichmentFailuresParams{
+				LibraryID: sql.NullInt32{Int32: int32(libraryID), Valid: true},
+				Limit:     int32(limit),
+				Offset:    int32(offset),
+			})
+		},
+		func() (any, error) {
+			return r.sqlite.GetLibraryEnrichmentFailures(ctx, sqlc_sqlite.GetLibraryEnrichmentFailuresParams{
+				LibraryID: sql.NullInt64{Int64: libraryID, Valid: true},
+				Limit:     int64(limit),
+				Offset:    int64(offset),
+			})
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.router.IsPostgresDB() {
+		pgRows := result.([]sqlc_postgres.GetLibraryEnrichmentFailuresRow)
+		failures := make([]*EnrichmentFailure, len(pgRows))
+		for i, row := range pgRows {
+			failures[i] = &EnrichmentFailure{
+				ID:            int64(row.ID),
+				MediaID:       int64(row.MediaID),
+				LibraryID:     int64(row.LibraryID.Int32),
+				MediaType:     enrichment.MediaType(row.MediaType),
+				Title:         row.Title,
+				Stage:         row.Stage,
+				Attempts:      int(row.Attempts.Int32),
+				MaxAttempts:   int(row.MaxAttempts.Int32),
+				ErrorMessage:  common.ParseNullString(row.ErrorMessage),
+				ErrorCategory: enrichment.ErrorCategory(common.ParseNullString(row.ErrorCategory)),
+				LastAttemptAt: common.ParseNullTime(row.LastAttemptAt),
+			}
+		}
+		return failures, nil
+	}
+
+	sqRows := result.([]sqlc_sqlite.GetLibraryEnrichmentFailuresRow)
+	failures := make([]*EnrichmentFailure, len(sqRows))
+	for i, row := range sqRows {
+		failures[i] = &EnrichmentFailure{
+			ID:            row.ID,
+			MediaID:       row.MediaID,
+			LibraryID:     row.LibraryID.Int64,
+			MediaType:     enrichment.MediaType(row.MediaType),
+			Title:         row.Title,
+			Stage:         row.Stage,
+			Attempts:      int(row.Attempts.Int64),
+			MaxAttempts:   int(row.MaxAttempts.Int64),
+			ErrorMessage:  common.ParseNullString(row.ErrorMessage),
+			ErrorCategory: enrichment.ErrorCategory(common.ParseNullString(row.ErrorCategory)),
+			LastAttemptAt: parseTimeString(row.LastAttemptAt),
+		}
+	}
+	return failures, nil
+}
+
+// CountLibraryFailures returns the total count of failed enrichment jobs for a library.
+func (r *QueueRepository) CountLibraryFailures(ctx context.Context, libraryID int64) (int64, error) {
+	result, err := r.router.Route(
+		func() (any, error) {
+			return r.postgres.CountLibraryEnrichmentFailures(ctx, sql.NullInt32{Int32: int32(libraryID), Valid: true})
+		},
+		func() (any, error) {
+			return r.sqlite.CountLibraryEnrichmentFailures(ctx, sql.NullInt64{Int64: libraryID, Valid: true})
+		},
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	if r.router.IsPostgresDB() {
+		return result.(int64), nil
+	}
+	return result.(int64), nil
+}
+
+// RetryLibraryFailures resets all failed jobs for a library to pending.
+// Returns the number of jobs that were reset.
+func (r *QueueRepository) RetryLibraryFailures(ctx context.Context, libraryID int64) (int64, error) {
+	if r.router.IsPostgresDB() {
+		return r.postgres.RetryEnrichmentJobsByLibrary(ctx, sql.NullInt32{Int32: int32(libraryID), Valid: true})
+	}
+	return r.sqlite.RetryEnrichmentJobsByLibrary(ctx, sql.NullInt64{Int64: libraryID, Valid: true})
+}
+
+// RetryJob resets a single failed job to pending.
+func (r *QueueRepository) RetryJob(ctx context.Context, jobID int64) error {
+	return r.router.RouteVoid(
+		func() error {
+			return r.postgres.RetryEnrichmentJob(ctx, int32(jobID))
+		},
+		func() error {
+			return r.sqlite.RetryEnrichmentJob(ctx, jobID)
+		},
+	)
+}
+
 // GetOrphanedPipelineStates finds media items where a stage completed but
 // the next stage was never enqueued. This happens when the server crashes
 // between marking a stage complete and enqueuing the next.

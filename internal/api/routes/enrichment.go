@@ -24,5 +24,8 @@ func RegisterEnrichmentRoutes(router *gin.RouterGroup, handler *handlers.Enrichm
 
 		// Priority boost for interactive use (user viewing an item)
 		enrichment.POST("/prioritize", handler.Prioritize)
+
+		// Retry a single failed job
+		enrichment.POST("/retry", handler.RetryJob)
 	}
 }
