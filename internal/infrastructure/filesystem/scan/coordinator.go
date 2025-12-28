@@ -196,6 +196,7 @@ func (c *Coordinator) ProcessFile(ctx context.Context, fileInfo scanner.FileInfo
 		FilePath:       fileInfo.Path,
 		MediaType:      scanner.MediaTypeUnknown,
 		BytesProcessed: fileInfo.Size,
+		FileMTime:      fileInfo.ModTime, // For enrichment priority calculation
 	}
 
 	select {

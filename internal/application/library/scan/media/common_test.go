@@ -19,16 +19,18 @@ type mockEnrichmentEnqueuer struct {
 		mediaID   int64
 		libraryID int64
 		mediaType enrichment.MediaType
+		priority  int
 	}
 	enqueueErr error
 }
 
-func (m *mockEnrichmentEnqueuer) EnqueueFirstStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType) error {
+func (m *mockEnrichmentEnqueuer) EnqueueFirstStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType, priority int) error {
 	m.enqueueCalls = append(m.enqueueCalls, struct {
 		mediaID   int64
 		libraryID int64
 		mediaType enrichment.MediaType
-	}{mediaID, libraryID, mediaType})
+		priority  int
+	}{mediaID, libraryID, mediaType, priority})
 	return m.enqueueErr
 }
 
@@ -39,7 +41,7 @@ func TestEnqueueForEnrichment_NilEnqueuer(t *testing.T) {
 	}
 
 	// Should not panic with nil enqueuer
-	enqueueForEnrichment(context.Background(), deps, 1, 1, enrichment.MediaTypeMovie)
+	enqueueForEnrichment(context.Background(), deps, 1, 1, enrichment.MediaTypeMovie, 0)
 }
 
 func TestEnqueueForEnrichment_Success(t *testing.T) {
@@ -49,7 +51,7 @@ func TestEnqueueForEnrichment_Success(t *testing.T) {
 		Logger:             testLogger(),
 	}
 
-	enqueueForEnrichment(context.Background(), deps, 123, 1, enrichment.MediaTypeMovie)
+	enqueueForEnrichment(context.Background(), deps, 123, 1, enrichment.MediaTypeMovie, 100)
 
 	// Wait briefly for goroutine to execute
 	time.Sleep(50 * time.Millisecond)
@@ -64,6 +66,9 @@ func TestEnqueueForEnrichment_Success(t *testing.T) {
 		if enqueuer.enqueueCalls[0].mediaType != enrichment.MediaTypeMovie {
 			t.Errorf("Expected MediaTypeMovie, got %v", enqueuer.enqueueCalls[0].mediaType)
 		}
+		if enqueuer.enqueueCalls[0].priority != 100 {
+			t.Errorf("Expected priority 100, got %d", enqueuer.enqueueCalls[0].priority)
+		}
 	}
 }
 
@@ -77,7 +82,7 @@ func TestEnqueueForEnrichment_Error(t *testing.T) {
 	}
 
 	// Should not panic on error (just logs warning)
-	enqueueForEnrichment(context.Background(), deps, 456, 1, enrichment.MediaTypeTV)
+	enqueueForEnrichment(context.Background(), deps, 456, 1, enrichment.MediaTypeTV, 50)
 
 	// Wait briefly for goroutine to execute
 	time.Sleep(50 * time.Millisecond)
@@ -106,7 +111,7 @@ func TestEnqueueForEnrichment_AllMediaTypes(t *testing.T) {
 				Logger:             testLogger(),
 			}
 
-			enqueueForEnrichment(context.Background(), deps, 1, 1, tt.mediaType)
+			enqueueForEnrichment(context.Background(), deps, 1, 1, tt.mediaType, 0)
 
 			// Wait briefly for goroutine
 			time.Sleep(50 * time.Millisecond)

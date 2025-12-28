@@ -77,6 +77,10 @@ type Services struct {
 	// Enrichment pipeline manager
 	PipelineManager *pipeline.Manager
 
+	// EnqueueBuffer batches enrichment enqueue operations during scans.
+	// This wraps PipelineManager and should be passed to ScanLibraryUseCase.
+	EnqueueBuffer *pipeline.EnqueueBuffer
+
 	// Enricher registry for tracking all enrichers
 	EnricherRegistry *enrichment.Registry
 
@@ -325,6 +329,10 @@ func BuildServices(
 		},
 	)
 
+	// Create enqueue buffer that wraps the pipeline manager for batched enqueueing.
+	// This significantly reduces DB round-trips during library scans.
+	enqueueBuffer := pipeline.NewEnqueueBuffer(pipelineManager, pipelineLogger)
+
 	// Create enricher registry and register built-in enrichers
 	enricherRegistry := enrichment.NewRegistry()
 	imageExtractor := infraimages.NewExtractor()
@@ -474,6 +482,7 @@ func BuildServices(
 		Encryptor:         encryptor,
 		EventBus:          eventBus,
 		PipelineManager:   pipelineManager,
+		EnqueueBuffer:     enqueueBuffer,
 		EnricherRegistry:  enricherRegistry,
 		PluginManager:     pluginManager,
 		LocationRepo:      locationRepo,

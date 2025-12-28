@@ -13,7 +13,8 @@ import (
 // This should be called once per episode to ensure parent entities get their images/metadata.
 // Deduplication ensures each show/season is only enqueued once per scan session.
 // libraryID is passed through to enrichment events for SSE filtering.
-func EnqueueTVParentEntities(ctx context.Context, deps *Deps, showTitle string, libraryID int64, episodeFilePath string, seasonNumber int) {
+// priority is inherited from the child episode for consistent ordering.
+func EnqueueTVParentEntities(ctx context.Context, deps *Deps, showTitle string, libraryID int64, episodeFilePath string, seasonNumber int, priority int) {
 	// Determine show directory from episode file path
 	// TV shows can have two different directory structures:
 	// 1. Episodes in show directory: /tv/ShowName (Year)/ShowName - S01E01.mkv
@@ -39,7 +40,7 @@ func EnqueueTVParentEntities(ctx context.Context, deps *Deps, showTitle string, 
 	// Enqueue show for enrichment (once per show per scan session)
 	// The enrichment pipeline will extract images and metadata via the LocalImagesEnricher
 	if deps.ProcessedShows != nil && deps.ProcessedShows.TryMark(showTitle) {
-		enqueueForEnrichment(ctx, deps, show.ID, libraryID, enrichment.MediaTypeTVShow)
+		enqueueForEnrichment(ctx, deps, show.ID, libraryID, enrichment.MediaTypeTVShow, priority)
 	}
 
 	// Get season and enqueue for enrichment
@@ -56,7 +57,7 @@ func EnqueueTVParentEntities(ctx context.Context, deps *Deps, showTitle string, 
 	// Use show:season as the key for deduplication
 	seasonKey := showTitle + ":" + filepath.Base(showDir) + ":" + string(rune(seasonNumber+'0'))
 	if deps.ProcessedShows != nil && deps.ProcessedShows.TryMark(seasonKey) {
-		enqueueForEnrichment(ctx, deps, season.ID, libraryID, enrichment.MediaTypeTVSeason)
+		enqueueForEnrichment(ctx, deps, season.ID, libraryID, enrichment.MediaTypeTVSeason, priority)
 	}
 }
 
@@ -64,20 +65,21 @@ func EnqueueTVParentEntities(ctx context.Context, deps *Deps, showTitle string, 
 // This should be called once per track to ensure parent entities get their images/metadata.
 // Deduplication ensures each album/artist is only enqueued once per scan session.
 // libraryID is passed through to enrichment events for SSE filtering.
-func EnqueueMusicParentEntities(ctx context.Context, deps *Deps, track *media.MusicTrack, libraryID int64, filePath string) {
+// priority is inherited from the child track for consistent ordering.
+func EnqueueMusicParentEntities(ctx context.Context, deps *Deps, track *media.MusicTrack, libraryID int64, filePath string, priority int) {
 	// Enqueue album for enrichment (if exists)
 	if track.Album != "" && track.AlbumID > 0 {
 		// Use album name + artist as key for deduplication
 		albumKey := track.Album + ":" + track.Artist
 		if deps.ProcessedArtists != nil && deps.ProcessedArtists.TryMark(albumKey) {
-			enqueueForEnrichment(ctx, deps, track.AlbumID, libraryID, enrichment.MediaTypeMusicAlbum)
+			enqueueForEnrichment(ctx, deps, track.AlbumID, libraryID, enrichment.MediaTypeMusicAlbum, priority)
 		}
 	}
 
 	// Enqueue artist for enrichment (once per artist per scan session)
 	if track.Artist != "" && track.ArtistID > 0 {
 		if deps.ProcessedArtists != nil && deps.ProcessedArtists.TryMark(track.Artist) {
-			enqueueForEnrichment(ctx, deps, track.ArtistID, libraryID, enrichment.MediaTypeMusicArtist)
+			enqueueForEnrichment(ctx, deps, track.ArtistID, libraryID, enrichment.MediaTypeMusicArtist, priority)
 		}
 	}
 }

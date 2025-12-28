@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mantonx/viewra/internal/application/enrichment/pipeline"
 	"github.com/mantonx/viewra/internal/application/library/scan/scanutil"
 	domainCommon "github.com/mantonx/viewra/internal/domain/common"
 	"github.com/mantonx/viewra/internal/domain/enrichment"
@@ -97,8 +98,10 @@ func ProcessMovie(
 		},
 		PostSave: func(ctx context.Context) {
 			PersistMediaTracks(ctx, deps, movie.Media.ID, result)
+			// Calculate enrichment priority from release date estimate
+			priority := pipeline.CalculatePriorityFromMetadata(result.Year, result.FileMTime)
 			// Enqueue for enrichment - images are now extracted via the enrichment pipeline
-			enqueueForEnrichment(ctx, deps, movie.Media.ID, libraryID, enrichment.MediaTypeMovie)
+			enqueueForEnrichment(ctx, deps, movie.Media.ID, libraryID, enrichment.MediaTypeMovie, priority)
 		},
 		EventMeta: &EventMetadata{Type: "movie", Title: movie.Media.Title},
 	})

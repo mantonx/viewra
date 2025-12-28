@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -13,14 +14,17 @@ import (
 // Instead of individual INSERT per media item, it collects jobs and flushes
 // them in batches, reducing DB round-trips by ~100x during library scans.
 //
+// EnqueueBuffer implements the scanmedia.EnrichmentEnqueuer interface, so it
+// can be used as a drop-in replacement for the pipeline Manager during scans.
+//
 // Usage:
 //
 //	buffer := NewEnqueueBuffer(manager, logger, WithBatchSize(500), WithFlushInterval(2*time.Second))
 //	buffer.Start(ctx)
 //	defer buffer.Stop()
 //
-//	// Enqueue jobs - these are batched automatically
-//	buffer.Enqueue(mediaID, libraryID, mediaType, priority)
+//	// Use as EnrichmentEnqueuer - calls are batched automatically
+//	buffer.EnqueueFirstStage(ctx, mediaID, libraryID, mediaType, priority)
 type EnqueueBuffer struct {
 	manager       EnqueueManager
 	logger        *slog.Logger
@@ -45,7 +49,7 @@ type enqueueJob struct {
 // EnqueueManager defines the interface for enqueueing jobs.
 // This is typically the pipeline Manager.
 type EnqueueManager interface {
-	EnqueueFirstStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType) error
+	EnqueueFirstStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType, priority int) error
 	EnqueueFirstStageBatch(ctx context.Context, items []EnqueueItem) (int, error)
 }
 
@@ -110,15 +114,19 @@ func (b *EnqueueBuffer) Stop() {
 	b.wg.Wait()
 }
 
-// Enqueue adds a job to the buffer for batched processing.
-// This is non-blocking and safe to call from multiple goroutines.
-func (b *EnqueueBuffer) Enqueue(mediaID int64, libraryID int64, mediaType enrichment.MediaType, priority int) {
+// EnqueueFirstStage adds a job to the buffer for batched processing.
+// This implements the EnrichmentEnqueuer interface from the scan/media package.
+// It is non-blocking and safe to call from multiple goroutines.
+//
+// Note: The context is not used for the enqueue operation itself (which is async),
+// but is accepted to satisfy the interface contract.
+func (b *EnqueueBuffer) EnqueueFirstStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType, priority int) error {
 	b.mu.Lock()
 	stopped := b.stopped
 	b.mu.Unlock()
 
 	if stopped {
-		return
+		return fmt.Errorf("enqueue buffer is stopped")
 	}
 
 	select {
@@ -128,11 +136,14 @@ func (b *EnqueueBuffer) Enqueue(mediaID int64, libraryID int64, mediaType enrich
 		MediaType: mediaType,
 		Priority:  priority,
 	}:
+		return nil
 	default:
-		// Channel full - log and drop (scan can still proceed)
+		// Channel full - this is a warning condition but not a hard error
+		// The scan can still proceed, the item just won't be enriched immediately
 		b.logger.Warn("enqueue buffer full, dropping job",
 			slog.Int64("media_id", mediaID),
 			slog.String("media_type", string(mediaType)))
+		return fmt.Errorf("enqueue buffer full")
 	}
 }
 
@@ -172,7 +183,7 @@ func (b *EnqueueBuffer) worker(ctx context.Context) {
 			// Fallback to individual enqueues
 			successCount = 0
 			for _, job := range batch {
-				if err := b.manager.EnqueueFirstStage(ctx, job.MediaID, job.LibraryID, job.MediaType); err == nil {
+				if err := b.manager.EnqueueFirstStage(ctx, job.MediaID, job.LibraryID, job.MediaType, job.Priority); err == nil {
 					successCount++
 				}
 			}

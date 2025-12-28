@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 	"github.com/mantonx/viewra/internal/domain/enrichment"
@@ -43,6 +44,11 @@ func (a *ResponseApplier) Apply(ctx context.Context, job *enrichment.QueueJob, m
 		if err := a.metadataApplier.Apply(ctx, mediaID, mediaType, resp.Metadata); err != nil {
 			return fmt.Errorf("apply metadata: %w", err)
 		}
+
+		// After applying metadata, update priority based on actual release date.
+		// This replaces the initial estimate (from filename year or file mtime)
+		// with the authoritative date from the metadata provider.
+		a.updatePriorityFromMetadata(ctx, mediaID, mediaType, resp.Metadata)
 	}
 
 	// Apply credits (cast, directors, writers, creators)
@@ -112,4 +118,59 @@ func (a *ResponseApplier) Apply(ctx context.Context, job *enrichment.QueueJob, m
 	}
 
 	return nil
+}
+
+// updatePriorityFromMetadata recalculates and updates priority based on the actual
+// release date discovered during enrichment. This replaces the initial estimate
+// (from filename year or file mtime) with the authoritative date.
+func (a *ResponseApplier) updatePriorityFromMetadata(ctx context.Context, mediaID int64, mediaType enrichment.MediaType, metadata *pluginv1.EnrichedMetadata) {
+	// Extract the appropriate date field based on media type
+	var dateStr string
+	switch mediaType {
+	case enrichment.MediaTypeMovie:
+		dateStr = metadata.GetReleaseDate()
+	case enrichment.MediaTypeTVShow, enrichment.MediaTypeTVEpisode:
+		// TV uses "premiered" (first_air_date) for the show/episode air date
+		dateStr = metadata.GetPremiered()
+	case enrichment.MediaTypeAlbum:
+		// Albums have release dates but they come through AlbumMetadata, not EnrichedMetadata
+		// For now, skip album re-prioritization here; it would need separate handling
+		return
+	default:
+		// Other types (tracks, artists, seasons) don't have release dates to update
+		return
+	}
+
+	if dateStr == "" {
+		return
+	}
+
+	// Parse the date string (expected format: YYYY-MM-DD)
+	releaseDate, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		a.logger.Debug("could not parse release date for priority update",
+			slog.Int64("media_id", mediaID),
+			slog.String("media_type", string(mediaType)),
+			slog.String("date_str", dateStr),
+			slog.Any("error", err))
+		return
+	}
+
+	// Calculate priority based on actual release date
+	newPriority := CalculatePriority(releaseDate)
+
+	// Update priority for all pending/processing jobs for this media item
+	if err := a.deps.QueueRepo.UpdatePriorityByMedia(ctx, mediaID, mediaType, newPriority); err != nil {
+		a.logger.Warn("failed to update priority after enrichment",
+			slog.Int64("media_id", mediaID),
+			slog.String("media_type", string(mediaType)),
+			slog.Int("new_priority", newPriority),
+			slog.Any("error", err))
+	} else {
+		a.logger.Debug("updated priority based on actual release date",
+			slog.Int64("media_id", mediaID),
+			slog.String("media_type", string(mediaType)),
+			slog.String("release_date", dateStr),
+			slog.Int("priority", newPriority))
+	}
 }

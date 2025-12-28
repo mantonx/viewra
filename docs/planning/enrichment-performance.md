@@ -48,10 +48,10 @@ Optimize enrichment pipeline performance for 100K+ item libraries. Current enric
 | 0 | Sort title bug fix (prerequisite) | ~1h | **COMPLETED** |
 | 1 | Pipeline cache, rate limiter, worker tuning | 4-6h | **COMPLETED** |
 | 2 | Batch enqueue, external ID prefetch, re-prioritization | 10-14h | **COMPLETED** |
-| 3 | Entity cache (TV/Music deduplication) | 8-12h | Pending |
+| 3 | Entity cache (TV/Music deduplication) | 8-12h | **COMPLETED** |
 | 4 | Priority boost, circuit breaker | 6-8h | Pending |
 | 5 | UX improvements (unified UI, badges, dialogs) | 10-14h | Pending |
-| **Total Remaining** | | **24-34h** | |
+| **Total Remaining** | | **16-22h** | |
 
 ---
 
@@ -235,11 +235,16 @@ Movies like "(500) Days of Summer" and "3 Idiots" appear in wrong positions in t
 
 > **Status:** ✅ **COMPLETED** (2024-12-27)
 >
-> All tasks implemented:
+> All tasks implemented and wired:
 > - `enqueue_buffer.go` - Channel-based async buffer with batch flush (500 items or 2s)
+> - `EnqueueBuffer` created in `services.go`, started/stopped in `container.go`
+> - `EnqueueBuffer` passed to `ScanLibraryUseCase` (replaces direct Manager usage)
 > - `EnqueueBatch` - Repository method for transactional batch inserts
-> - `GetByMediaBatch` - Batch external ID prefetch for claimed jobs
-> - `UpdatePriorityByMedia` - SQL query for priority updates after metadata discovery
+> - `GetByMediaBatch` - Batch external ID prefetch called in `worker_pool.go`
+> - `priority.go` - Priority calculation from release dates/file timestamps
+> - `UpdatePriorityByMedia` - Called in `response_applier.go` after metadata applied
+> - Priority passed through entire scan flow (movie.go, tv.go, music.go, common.go)
+> - `EnrichmentEnqueuer` interface updated to accept priority parameter
 
 **Goal:** Reduce DB round-trips by batching related operations.
 
@@ -289,7 +294,15 @@ Movies like "(500) Days of Summer" and "3 Idiots" appear in wrong positions in t
 
 ---
 
-## Phase 3: Entity Deduplication (Priority: HIGH)
+## Phase 3: Entity Deduplication (Priority: HIGH) - COMPLETED
+
+> **Status:** ✅ **COMPLETED** (2024-12-27)
+>
+> All tasks implemented:
+> - `entity_cache.go` - LRU cache with 10,000 entries per entity type (shows, seasons, albums, artists)
+> - `EntityCache` integrated into Manager and WorkerPool
+> - `RequestBuilder` updated to check cache before DB lookups, populate cache on miss
+> - Cache used for TV seasons (parent show lookup) and all parent entity types
 
 **Goal:** Cache parent entity metadata to avoid redundant API calls.
 
@@ -297,7 +310,7 @@ Movies like "(500) Days of Summer" and "3 Idiots" appear in wrong positions in t
 
 ### Tasks
 
-#### 3.1 Entity Cache with LRU Eviction
+#### 3.1 Entity Cache with LRU Eviction ✅
 
 - **Files:**
   - `internal/application/enrichment/pipeline/entity_cache.go` (new)
@@ -316,7 +329,7 @@ Movies like "(500) Days of Summer" and "3 Idiots" appear in wrong positions in t
   - 200-track album: 200 lookups → 1 lookup (200x reduction)
 - **Effort:** 6 hours
 
-#### 3.2 Request Builder Integration
+#### 3.2 Request Builder Integration ✅
 
 - **Files:**
   - `internal/application/enrichment/pipeline/request_builder.go`
@@ -885,11 +898,11 @@ interface EnrichmentBadgeProps {
 | 0 | Sort title bug fix | ~1h | Bug fix | ✅ Complete |
 | 1 | Pipeline cache, rate limiter, worker tuning | 4-6h | Medium | ✅ Complete |
 | 2 | Batch enqueue, external ID prefetch, re-prioritization | 10-14h | High | ✅ Complete |
-| 3 | Entity cache (TV/Music deduplication) | 8-12h | High | Pending |
+| 3 | Entity cache (TV/Music deduplication) | 8-12h | High | ✅ Complete |
 | 4 | Priority boost, circuit breaker | 6-8h | UX + Resilience | Pending |
 | 5 | UX improvements (unified UI, badges, dialogs) | 10-14h | UX | Pending |
 
-**Total Remaining Effort:** 24-34 hours
+**Total Remaining Effort:** 16-22 hours
 
 ---
 

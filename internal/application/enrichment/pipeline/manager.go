@@ -19,6 +19,7 @@ type Manager struct {
 	deps          *Deps
 	typedRepos    *TypedMediaRepos
 	pipelineCache *PipelineCache
+	entityCache   *EntityCache
 	workerPools   map[string]*WorkerPool
 	enrichers     map[string]appenrich.Enricher
 	mu            sync.RWMutex
@@ -32,12 +33,16 @@ type Manager struct {
 // 5 minutes provides good balance between freshness and performance.
 const PipelineCacheTTL = 5 * time.Minute
 
+// EntityCacheMaxSize is the default max entries per entity type in the cache.
+const EntityCacheMaxSize = 10000
+
 // NewManager creates a new pipeline manager.
 func NewManager(deps *Deps, typedRepos *TypedMediaRepos) *Manager {
 	return &Manager{
 		deps:          deps,
 		typedRepos:    typedRepos,
 		pipelineCache: NewPipelineCache(deps.PipelineRepo, PipelineCacheTTL),
+		entityCache:   NewEntityCache(EntityCacheMaxSize),
 		workerPools:   make(map[string]*WorkerPool),
 		enrichers:     make(map[string]appenrich.Enricher),
 	}
@@ -144,7 +149,7 @@ func (m *Manager) Start(ctx context.Context) error {
 	// Start worker pools for each registered enricher
 	for stage, enricher := range m.enrichers {
 		config := m.getStageConfig(stage, enricher.Capabilities())
-		pool := NewWorkerPool(m.deps, enricher, m.typedRepos, m.pipelineCache, config)
+		pool := NewWorkerPool(m.deps, enricher, m.typedRepos, m.pipelineCache, m.entityCache, config)
 		pool.SetEnqueueNext(m.EnqueueNextStage)
 		m.workerPools[stage] = pool
 
@@ -241,7 +246,8 @@ func (m *Manager) recoverStuckJobs(ctx context.Context) error {
 // EnqueueFirstStage enqueues a media item for the first stage of its pipeline.
 // Called after media is discovered/saved during scanning.
 // libraryID is used for SSE event filtering so clients can subscribe to a specific library's progress.
-func (m *Manager) EnqueueFirstStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType) error {
+// priority determines processing order (higher = processed sooner). Use CalculatePriorityFromMetadata().
+func (m *Manager) EnqueueFirstStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType, priority int) error {
 	// Get the first enabled stage for this media type (cached)
 	firstStage, err := m.pipelineCache.GetFirstStage(ctx, mediaType)
 	if err != nil {
@@ -262,7 +268,7 @@ func (m *Manager) EnqueueFirstStage(ctx context.Context, mediaID int64, libraryI
 		LibraryID:   libraryID,
 		MediaType:   mediaType,
 		Stage:       firstStage.StageName,
-		Priority:    0, // Default priority
+		Priority:    priority,
 		Status:      enrichment.JobStatusPending,
 		MaxAttempts: 3,
 	}

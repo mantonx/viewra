@@ -16,7 +16,10 @@ import (
 // EnrichmentEnqueuer enqueues media for enrichment after scanning.
 // This is an optional dependency - if nil, enrichment is skipped.
 type EnrichmentEnqueuer interface {
-	EnqueueFirstStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType) error
+	// EnqueueFirstStage enqueues a media item for the first enrichment stage.
+	// priority is calculated from estimated release date (higher = processed sooner).
+	// Use pipeline.CalculatePriorityFromMetadata() to compute priority.
+	EnqueueFirstStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType, priority int) error
 }
 
 // Deps bundles all dependencies needed by media processing functions.

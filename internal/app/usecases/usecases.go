@@ -173,7 +173,7 @@ func buildLibraryUseCases(
 		scanRepos,
 		repos.Image,
 		imageCleanup,
-		svcs.PipelineManager, // Enrichment pipeline handles image extraction
+		svcs.EnqueueBuffer, // Batched enrichment enqueue for performance
 		scanConfig,
 		cfg.SystemProfile,
 		logger,

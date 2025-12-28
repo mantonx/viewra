@@ -20,7 +20,7 @@ type mockEnqueueManager struct {
 	enqueuedItems    []EnqueueItem
 }
 
-func (m *mockEnqueueManager) EnqueueFirstStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType) error {
+func (m *mockEnqueueManager) EnqueueFirstStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType, priority int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.singleCalls++
@@ -31,6 +31,7 @@ func (m *mockEnqueueManager) EnqueueFirstStage(ctx context.Context, mediaID int6
 		MediaID:   mediaID,
 		LibraryID: libraryID,
 		MediaType: mediaType,
+		Priority:  priority,
 	})
 	return nil
 }
@@ -82,7 +83,7 @@ func TestEnqueueBuffer_BatchFlush(t *testing.T) {
 
 	// Enqueue 5 items (should trigger batch flush)
 	for i := 0; i < 5; i++ {
-		buffer.Enqueue(int64(i+1), 1, enrichment.MediaTypeMovie, 0)
+		_ = buffer.EnqueueFirstStage(ctx, int64(i+1), 1, enrichment.MediaTypeMovie, 0)
 	}
 
 	// Wait for flush
@@ -110,7 +111,7 @@ func TestEnqueueBuffer_TimeFlush(t *testing.T) {
 
 	// Enqueue just 3 items (won't hit batch size)
 	for i := 0; i < 3; i++ {
-		buffer.Enqueue(int64(i+1), 1, enrichment.MediaTypeMovie, 0)
+		_ = buffer.EnqueueFirstStage(ctx, int64(i+1), 1, enrichment.MediaTypeMovie, 0)
 	}
 
 	// Wait for time-based flush
@@ -138,7 +139,7 @@ func TestEnqueueBuffer_StopFlushesRemaining(t *testing.T) {
 
 	// Enqueue items
 	for i := 0; i < 7; i++ {
-		buffer.Enqueue(int64(i+1), 1, enrichment.MediaTypeMovie, 0)
+		_ = buffer.EnqueueFirstStage(ctx, int64(i+1), 1, enrichment.MediaTypeMovie, 0)
 	}
 
 	// Stop should flush remaining items
@@ -160,7 +161,7 @@ func TestEnqueueBuffer_MultipleBatches(t *testing.T) {
 
 	// Enqueue 10 items (should trigger 3 batch flushes + 1 final)
 	for i := 0; i < 10; i++ {
-		buffer.Enqueue(int64(i+1), 1, enrichment.MediaTypeMovie, 0)
+		_ = buffer.EnqueueFirstStage(ctx, int64(i+1), 1, enrichment.MediaTypeMovie, 0)
 		time.Sleep(5 * time.Millisecond) // Small delay to allow processing
 	}
 
@@ -178,9 +179,11 @@ func TestEnqueueBuffer_Pending(t *testing.T) {
 		WithBatchSize(100),
 		WithFlushInterval(10*time.Second))
 
+	ctx := context.Background()
+
 	// Don't start - just check pending count
-	buffer.Enqueue(1, 1, enrichment.MediaTypeMovie, 0)
-	buffer.Enqueue(2, 1, enrichment.MediaTypeMovie, 0)
+	_ = buffer.EnqueueFirstStage(ctx, 1, 1, enrichment.MediaTypeMovie, 0)
+	_ = buffer.EnqueueFirstStage(ctx, 2, 1, enrichment.MediaTypeMovie, 0)
 
 	if buffer.Pending() != 2 {
 		t.Errorf("expected 2 pending, got %d", buffer.Pending())
@@ -197,8 +200,8 @@ func TestEnqueueBuffer_Priority(t *testing.T) {
 	buffer.Start(ctx)
 
 	// Enqueue with different priorities
-	buffer.Enqueue(1, 1, enrichment.MediaTypeMovie, 10)
-	buffer.Enqueue(2, 1, enrichment.MediaTypeMovie, 5)
+	_ = buffer.EnqueueFirstStage(ctx, 1, 1, enrichment.MediaTypeMovie, 10)
+	_ = buffer.EnqueueFirstStage(ctx, 2, 1, enrichment.MediaTypeMovie, 5)
 
 	// Wait for flush
 	time.Sleep(50 * time.Millisecond)

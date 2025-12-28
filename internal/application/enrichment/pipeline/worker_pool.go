@@ -29,7 +29,7 @@ type WorkerPool struct {
 }
 
 // NewWorkerPool creates a new worker pool for a stage.
-func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMediaRepos, pipelineCache *PipelineCache, config StageWorkerConfig) *WorkerPool {
+func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMediaRepos, pipelineCache *PipelineCache, entityCache *EntityCache, config StageWorkerConfig) *WorkerPool {
 	var limiter *rate.Limiter
 	if config.RateLimit > 0 {
 		// Burst size matches concurrency to allow all workers to acquire tokens in parallel.
@@ -61,7 +61,7 @@ func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMed
 	}
 	imageProcessor := NewImageProcessor(deps.ImageRepo, logger, imgOpts...)
 
-	requestBuilder := NewRequestBuilder(deps, typedRepos, logger)
+	requestBuilder := NewRequestBuilder(deps, typedRepos, entityCache, logger)
 	responseApplier := NewResponseApplier(deps, metadataApplier, creditsApplier, studiosApplier, keywordsApplier, imageProcessor, logger)
 	jobProcessor := NewJobProcessor(deps, enricher, requestBuilder, responseApplier, pipelineCache, config, logger)
 

@@ -30,8 +30,8 @@ func TestDefaultRemoteStageConfig(t *testing.T) {
 	if config.Stage != "tmdb" {
 		t.Errorf("Stage = %s, want tmdb", config.Stage)
 	}
-	if config.Concurrency != 2 {
-		t.Errorf("Concurrency = %d, want 2", config.Concurrency)
+	if config.Concurrency != 4 {
+		t.Errorf("Concurrency = %d, want 4", config.Concurrency)
 	}
 	if config.RateLimit != 5 {
 		t.Errorf("RateLimit = %f, want 5", config.RateLimit)

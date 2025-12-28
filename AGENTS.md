@@ -41,6 +41,7 @@ make build-plugins                     # Build all plugins
 - **NEVER** delete user data or run `rm -rf` on user directories
 - **NEVER** run `make dev` or restart the server - user manages it
 - **NO** stub code, TODOs, example files, or extra documentation
+- **NO** adapter/wrapper patterns - implement interfaces directly. Adapters add tech debt and indirection.
 - Use `~/go/bin/air` for auto-reload instead of manual rebuilds
 
 ## MCP Tools

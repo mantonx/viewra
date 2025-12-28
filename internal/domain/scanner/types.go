@@ -93,6 +93,9 @@ type ScanResult struct {
 	Warning         error  // Non-fatal warning message
 	WarningCategory string // Category of warning (e.g., "ffmpeg", "metadata")
 
+	// File metadata for enrichment priority calculation
+	FileMTime time.Time // File modification time
+
 	// Technical video metadata (from FFmpeg)
 	FileSize        int64
 	Width           int

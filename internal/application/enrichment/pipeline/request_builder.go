@@ -11,17 +11,19 @@ import (
 
 // RequestBuilder constructs EnrichRequest from queue jobs.
 type RequestBuilder struct {
-	deps       *Deps
-	typedRepos *TypedMediaRepos
-	logger     *slog.Logger
+	deps        *Deps
+	typedRepos  *TypedMediaRepos
+	entityCache *EntityCache
+	logger      *slog.Logger
 }
 
 // NewRequestBuilder creates a new RequestBuilder.
-func NewRequestBuilder(deps *Deps, typedRepos *TypedMediaRepos, logger *slog.Logger) *RequestBuilder {
+func NewRequestBuilder(deps *Deps, typedRepos *TypedMediaRepos, entityCache *EntityCache, logger *slog.Logger) *RequestBuilder {
 	return &RequestBuilder{
-		deps:       deps,
-		typedRepos: typedRepos,
-		logger:     logger,
+		deps:        deps,
+		typedRepos:  typedRepos,
+		entityCache: entityCache,
+		logger:      logger,
 	}
 }
 
@@ -142,6 +144,17 @@ func (b *RequestBuilder) buildTVShowRequest(ctx context.Context, job *enrichment
 		return nil, "", fmt.Errorf("TV show ID %d not found: %w", job.MediaID, err)
 	}
 
+	// Cache the show for future episode/season lookups
+	if b.entityCache != nil {
+		b.entityCache.PutShow(&CachedTVShow{
+			ID:          show.ID,
+			Title:       show.Title,
+			Year:        show.Year,
+			Directory:   show.Directory,
+			ExternalIDs: existingIDs,
+		})
+	}
+
 	return &pluginv1.EnrichRequest{
 		MediaId:     job.MediaID,
 		MediaType:   string(enrichment.MediaTypeTVShow),
@@ -165,21 +178,56 @@ func (b *RequestBuilder) buildTVSeasonRequest(ctx context.Context, job *enrichme
 		return nil, "", fmt.Errorf("TV season ID %d not found: %w", job.MediaID, err)
 	}
 
-	// Get the parent show for directory and title info
-	show, err := b.typedRepos.TV.GetTVShowByID(ctx, season.ShowID)
-	if err != nil {
-		return nil, "", fmt.Errorf("TV show ID %d not found for season %d: %w", season.ShowID, season.SeasonNumber, err)
+	// Cache the season for future lookups
+	if b.entityCache != nil {
+		b.entityCache.PutSeason(&CachedTVSeason{
+			ID:           season.ID,
+			ShowID:       season.ShowID,
+			SeasonNumber: season.SeasonNumber,
+		})
+	}
+
+	// Try to get the parent show from cache first
+	var showTitle, showDirectory string
+	var showYear int
+	if b.entityCache != nil {
+		if cached := b.entityCache.GetShow(season.ShowID); cached != nil {
+			showTitle = cached.Title
+			showDirectory = cached.Directory
+			showYear = cached.Year
+		}
+	}
+
+	// If not cached, fetch from database
+	if showTitle == "" {
+		show, err := b.typedRepos.TV.GetTVShowByID(ctx, season.ShowID)
+		if err != nil {
+			return nil, "", fmt.Errorf("TV show ID %d not found for season %d: %w", season.ShowID, season.SeasonNumber, err)
+		}
+		showTitle = show.Title
+		showDirectory = show.Directory
+		showYear = show.Year
+
+		// Cache the show for future lookups
+		if b.entityCache != nil {
+			b.entityCache.PutShow(&CachedTVShow{
+				ID:        show.ID,
+				Title:     show.Title,
+				Year:      show.Year,
+				Directory: show.Directory,
+			})
+		}
 	}
 
 	return &pluginv1.EnrichRequest{
 		MediaId:     job.MediaID,
 		MediaType:   string(enrichment.MediaTypeTVSeason),
-		FilePath:    show.Directory, // Show directory - enricher finds season subdirs
-		Title:       show.Title,
-		Year:        int32(show.Year),
+		FilePath:    showDirectory, // Show directory - enricher finds season subdirs
+		Title:       showTitle,
+		Year:        int32(showYear),
 		ExistingIds: existingIDs,
 		Tv: &pluginv1.TVMetadata{
-			ShowTitle:    show.Title,
+			ShowTitle:    showTitle,
 			SeasonNumber: int32(season.SeasonNumber),
 		},
 	}, enrichment.MediaTypeTVSeason, nil
@@ -201,6 +249,17 @@ func (b *RequestBuilder) buildMusicAlbumRequest(ctx context.Context, job *enrich
 	filePath := album.Directory
 	if filePath == "" {
 		return nil, "", fmt.Errorf("album ID %d has no directory path", job.MediaID)
+	}
+
+	// Cache the album for future track lookups
+	if b.entityCache != nil {
+		b.entityCache.PutAlbum(&CachedAlbum{
+			ID:          album.ID,
+			Title:       album.Title,
+			AlbumArtist: album.AlbumArtist,
+			Directory:   album.Directory,
+			ExternalIDs: existingIDs,
+		})
 	}
 
 	return &pluginv1.EnrichRequest{
@@ -232,6 +291,15 @@ func (b *RequestBuilder) buildMusicArtistRequest(ctx context.Context, job *enric
 	filePath := artist.Directory
 	if filePath == "" {
 		return nil, "", fmt.Errorf("artist ID %d has no directory path", job.MediaID)
+	}
+
+	// Cache the artist for future lookups
+	if b.entityCache != nil {
+		b.entityCache.PutArtist(&CachedArtist{
+			ID:          artist.ID,
+			Name:        artist.Name,
+			ExternalIDs: existingIDs,
+		})
 	}
 
 	return &pluginv1.EnrichRequest{

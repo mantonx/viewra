@@ -112,6 +112,12 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 		}
 	}
 
+	// Start the enqueue buffer (batches enrichment requests during scans)
+	if svcs.EnqueueBuffer != nil {
+		svcs.EnqueueBuffer.Start(context.Background())
+		logger.Info("Enrichment enqueue buffer started")
+	}
+
 	// Start transcode analytics service (event bus subscription)
 	if cases.TranscodeAnalytics != nil {
 		cases.TranscodeAnalytics.Start()
@@ -140,6 +146,11 @@ func (c *Container) Shutdown(ctx context.Context) error {
 	// Stop transcode analytics service
 	if c.UseCases != nil && c.UseCases.TranscodeAnalytics != nil {
 		c.UseCases.TranscodeAnalytics.Stop()
+	}
+
+	// Stop enqueue buffer first (flushes remaining jobs to pipeline)
+	if c.Services != nil && c.Services.EnqueueBuffer != nil {
+		c.Services.EnqueueBuffer.Stop()
 	}
 
 	// Stop enrichment pipeline manager

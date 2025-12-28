@@ -20,6 +20,14 @@ backend/test-*
 # Plugin binaries (never commit - distributed via releases)
 # Source lives in plugins/, binaries in data/plugins/
 data/plugins/
+# Plugin binaries in source directories (built by make build-plugin)
+# These are Go binaries with no extension, matching their directory name
+plugins/*/*
+!plugins/*/*.go
+!plugins/*/*.md
+!plugins/*/*.json
+!plugins/*/*.yaml
+!plugins/*/*.toml
 
 # Test binary, built with `go test -c`
 *.test

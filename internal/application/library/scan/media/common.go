@@ -86,18 +86,20 @@ func ProcessMediaWithCache(
 
 // enqueueForEnrichment fires off enrichment for newly saved/updated media.
 // This is fire-and-forget - errors are logged but don't fail the scan.
-func enqueueForEnrichment(ctx context.Context, deps *Deps, mediaID int64, libraryID int64, mediaType enrichment.MediaType) {
+// priority determines processing order (higher = processed sooner).
+func enqueueForEnrichment(ctx context.Context, deps *Deps, mediaID int64, libraryID int64, mediaType enrichment.MediaType, priority int) {
 	if deps.EnrichmentEnqueuer == nil {
 		return // Enrichment not configured
 	}
 
 	// Use background context to avoid cancellation from scan context
 	go func() {
-		if err := deps.EnrichmentEnqueuer.EnqueueFirstStage(context.Background(), mediaID, libraryID, mediaType); err != nil {
+		if err := deps.EnrichmentEnqueuer.EnqueueFirstStage(context.Background(), mediaID, libraryID, mediaType, priority); err != nil {
 			deps.Logger.Warn("failed to enqueue for enrichment",
 				slog.Int64("media_id", mediaID),
 				slog.Int64("library_id", libraryID),
 				slog.String("media_type", string(mediaType)),
+				slog.Int("priority", priority),
 				slog.Any("error", err))
 		}
 	}()

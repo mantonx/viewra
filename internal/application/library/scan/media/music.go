@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mantonx/viewra/internal/application/enrichment/pipeline"
 	"github.com/mantonx/viewra/internal/application/library/scan/scanutil"
 	"github.com/mantonx/viewra/internal/domain/enrichment"
 	"github.com/mantonx/viewra/internal/domain/media"
@@ -265,10 +266,12 @@ func ProcessMusicTrack(
 			return nil
 		},
 		PostSave: func(ctx context.Context) {
+			// Calculate enrichment priority from release date estimate
+			priority := pipeline.CalculatePriorityFromMetadata(result.Year, result.FileMTime)
 			// Enqueue track for enrichment - images are now extracted via the enrichment pipeline
-			enqueueForEnrichment(ctx, deps, track.Media.ID, libraryID, enrichment.MediaTypeMusic)
+			enqueueForEnrichment(ctx, deps, track.Media.ID, libraryID, enrichment.MediaTypeMusic, priority)
 			// Enqueue parent entities (album/artist) for enrichment
-			EnqueueMusicParentEntities(ctx, deps, track, libraryID, result.FilePath)
+			EnqueueMusicParentEntities(ctx, deps, track, libraryID, result.FilePath, priority)
 		},
 		EventMeta: &EventMetadata{Type: "music", Title: track.Media.Title},
 	})
