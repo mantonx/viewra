@@ -7,6 +7,7 @@ package sqlc_sqlite
 
 import (
 	"context"
+	"database/sql"
 )
 
 const countLibraries = `-- name: CountLibraries :one
@@ -36,7 +37,7 @@ const createLibrary = `-- name: CreateLibrary :one
 
 INSERT INTO libraries (name, path, type, created_at, updated_at)
 VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-RETURNING id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles
+RETURNING id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config
 `
 
 type CreateLibraryParams struct {
@@ -59,6 +60,8 @@ func (q *Queries) CreateLibrary(ctx context.Context, arg CreateLibraryParams) (L
 		&i.PreferredAudioLang,
 		&i.PreferredSubtitleLang,
 		&i.AutoEnableSubtitles,
+		&i.MonitoringEnabled,
+		&i.MonitoringConfig,
 	)
 	return i, err
 }
@@ -74,7 +77,7 @@ func (q *Queries) DeleteLibrary(ctx context.Context, id int64) error {
 }
 
 const getLibraryByID = `-- name: GetLibraryByID :one
-SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles FROM libraries
+SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config FROM libraries
 WHERE id = ?
 LIMIT 1
 `
@@ -92,12 +95,14 @@ func (q *Queries) GetLibraryByID(ctx context.Context, id int64) (Library, error)
 		&i.PreferredAudioLang,
 		&i.PreferredSubtitleLang,
 		&i.AutoEnableSubtitles,
+		&i.MonitoringEnabled,
+		&i.MonitoringConfig,
 	)
 	return i, err
 }
 
 const getLibraryByPath = `-- name: GetLibraryByPath :one
-SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles FROM libraries
+SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config FROM libraries
 WHERE path = ?
 LIMIT 1
 `
@@ -115,6 +120,8 @@ func (q *Queries) GetLibraryByPath(ctx context.Context, path string) (Library, e
 		&i.PreferredAudioLang,
 		&i.PreferredSubtitleLang,
 		&i.AutoEnableSubtitles,
+		&i.MonitoringEnabled,
+		&i.MonitoringConfig,
 	)
 	return i, err
 }
@@ -146,7 +153,7 @@ func (q *Queries) LibraryExistsByPath(ctx context.Context, path string) (int64, 
 }
 
 const listLibraries = `-- name: ListLibraries :many
-SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles FROM libraries
+SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config FROM libraries
 ORDER BY name
 `
 
@@ -169,6 +176,8 @@ func (q *Queries) ListLibraries(ctx context.Context) ([]Library, error) {
 			&i.PreferredAudioLang,
 			&i.PreferredSubtitleLang,
 			&i.AutoEnableSubtitles,
+			&i.MonitoringEnabled,
+			&i.MonitoringConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -184,7 +193,7 @@ func (q *Queries) ListLibraries(ctx context.Context) ([]Library, error) {
 }
 
 const listLibrariesByType = `-- name: ListLibrariesByType :many
-SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles FROM libraries
+SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config FROM libraries
 WHERE type = ?
 ORDER BY name
 `
@@ -208,6 +217,49 @@ func (q *Queries) ListLibrariesByType(ctx context.Context, type_ string) ([]Libr
 			&i.PreferredAudioLang,
 			&i.PreferredSubtitleLang,
 			&i.AutoEnableSubtitles,
+			&i.MonitoringEnabled,
+			&i.MonitoringConfig,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMonitoredLibraries = `-- name: ListMonitoredLibraries :many
+SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config FROM libraries
+WHERE monitoring_enabled = 1
+ORDER BY name
+`
+
+func (q *Queries) ListMonitoredLibraries(ctx context.Context) ([]Library, error) {
+	rows, err := q.db.QueryContext(ctx, listMonitoredLibraries)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Library{}
+	for rows.Next() {
+		var i Library
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Path,
+			&i.Type,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PreferredAudioLang,
+			&i.PreferredSubtitleLang,
+			&i.AutoEnableSubtitles,
+			&i.MonitoringEnabled,
+			&i.MonitoringConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -229,7 +281,7 @@ SET name = ?,
     type = ?,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
-RETURNING id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles
+RETURNING id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config
 `
 
 type UpdateLibraryParams struct {
@@ -257,6 +309,42 @@ func (q *Queries) UpdateLibrary(ctx context.Context, arg UpdateLibraryParams) (L
 		&i.PreferredAudioLang,
 		&i.PreferredSubtitleLang,
 		&i.AutoEnableSubtitles,
+		&i.MonitoringEnabled,
+		&i.MonitoringConfig,
+	)
+	return i, err
+}
+
+const updateLibraryMonitoring = `-- name: UpdateLibraryMonitoring :one
+UPDATE libraries
+SET monitoring_enabled = ?,
+    monitoring_config = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config
+`
+
+type UpdateLibraryMonitoringParams struct {
+	MonitoringEnabled int64          `json:"monitoring_enabled"`
+	MonitoringConfig  sql.NullString `json:"monitoring_config"`
+	ID                int64          `json:"id"`
+}
+
+func (q *Queries) UpdateLibraryMonitoring(ctx context.Context, arg UpdateLibraryMonitoringParams) (Library, error) {
+	row := q.db.QueryRowContext(ctx, updateLibraryMonitoring, arg.MonitoringEnabled, arg.MonitoringConfig, arg.ID)
+	var i Library
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Path,
+		&i.Type,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PreferredAudioLang,
+		&i.PreferredSubtitleLang,
+		&i.AutoEnableSubtitles,
+		&i.MonitoringEnabled,
+		&i.MonitoringConfig,
 	)
 	return i, err
 }

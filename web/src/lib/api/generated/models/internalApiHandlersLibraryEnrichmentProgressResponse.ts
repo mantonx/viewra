@@ -13,6 +13,8 @@ import type { InternalApiHandlersLibraryEnrichmentProgressResponseStageProgress 
 export interface InternalApiHandlersLibraryEnrichmentProgressResponse {
   circuit_breakers?: InternalApiHandlersCircuitBreakerStatusResponse[]
   current_item?: InternalApiHandlersCurrentItemResponse
+  /** Estimated time to completion in seconds, 0 if unknown */
+  eta_seconds?: number
   is_active?: boolean
   library_id?: number
   overall_progress?: InternalApiHandlersOverallProgressResponse

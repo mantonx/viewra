@@ -1,4 +1,5 @@
 import { ScanErrorsDialog, type IssueTab } from '@/components/library/ScanErrorsDialog'
+import { LibrarySettingsModal } from '@/components/library/LibrarySettingsModal'
 import { Button, Progress } from '@/components/ui'
 import {
   useDeleteApiLibrariesId,
@@ -13,7 +14,7 @@ import { useInvalidateLibraries } from '@/lib/hooks/useInvalidateLibraries'
 import { useScanProgress } from '@/lib/hooks/useScanProgress'
 import { useToast } from '@/lib/hooks/useToast'
 import { getErrorMessage } from '@/lib/utils/error'
-import { pluralize, formatETA } from '@/lib/utils/format'
+import { formatETA } from '@/lib/utils/format'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import type { LibraryCardProps } from './LibraryCard.types'
@@ -35,6 +36,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   const [dialogInitialTab, setDialogInitialTab] = useState<IssueTab | undefined>(undefined)
   const [isExpanded, setIsExpanded] = useState(false)
   const invalidateLibraries = useInvalidateLibraries()
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
   const deleteMutation = useDeleteApiLibrariesId()
   const scanMutation = usePostApiLibrariesIdScan()
   const pauseMutation = usePostApiLibrariesIdScanJobIdPause()
@@ -114,7 +116,8 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   const isCompleted = scanStatus?.isCompleted ?? false
   const scanIssueCount = (scanStatus?.errorCount ?? 0) + (scanStatus?.warningCount ?? 0)
   const totalIssueCount = scanIssueCount + enrichmentFailureCount
-  const etaDisplay = scanStatus?.etaSeconds ? formatETA(scanStatus.etaSeconds) : null
+  const scanEtaDisplay = scanStatus?.etaSeconds ? formatETA(scanStatus.etaSeconds) : null
+  const enrichmentEtaDisplay = enrichmentProgress?.etaSeconds ? formatETA(enrichmentProgress.etaSeconds) : null
 
   // Helper to open issues dialog to a specific tab
   const openIssuesDialog = (tab?: IssueTab) => {
@@ -133,13 +136,17 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
         // This is more stable than comparing completed+skipped+failed >= total
         // because total can increase as new items are discovered during scanning
         const isComplete = total > 0 && pending === 0 && processing === 0
+        // Stage is active if it has work remaining (pending or processing)
+        // Using pending > 0 || processing > 0 prevents flickering because pending
+        // stays non-zero even when processing fluctuates between 0 and 1
+        const isActive = pending > 0 || processing > 0
         return {
           name,
           completed: stats.completedCount ?? 0,
           total,
           failed: stats.failedCount ?? 0,
-          processing,
           isComplete,
+          isActive,
         }
       })
     : []
@@ -182,6 +189,15 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                 <span className="text-xs px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400">
                   {library.type}
                 </span>
+                {library.monitoring_enabled && (
+                  <span
+                    className="flex items-center gap-1.5 text-xs px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
+                    title="Filesystem monitoring active - changes are detected automatically"
+                  >
+                    <span className="inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                    Monitoring
+                  </span>
+                )}
                 {totalIssueCount > 0 && (
                   <button
                     onClick={(e) => {
@@ -233,6 +249,17 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                 <Button
                   size="sm"
                   variant="ghost"
+                  onClick={() => setShowSettingsModal(true)}
+                  title="Library settings"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
                   onClick={handleDelete}
                   isLoading={deleteMutation.isPending}
                   disabled={isScanning}
@@ -272,7 +299,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                 {(isScanning || isPaused) && scanStatus && (
                   <>
                     {scanStatus.filesProcessed.toLocaleString()}/{scanStatus.filesFound.toLocaleString()} files
-                    {etaDisplay && <span className="text-neutral-400 dark:text-neutral-500"> · {etaDisplay}</span>}
+                    {scanEtaDisplay && <span className="text-neutral-400 dark:text-neutral-500"> · {scanEtaDisplay}</span>}
                     {isEnriching && enrichmentProgress?.currentItem && (
                       <span className="text-neutral-400 dark:text-neutral-500">
                         {' · '}{formatStageName(enrichmentProgress.currentItem.stage)}: {enrichmentProgress.currentItem.title}
@@ -280,9 +307,14 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                     )}
                   </>
                 )}
-                {isEnriching && !isScanning && !isPaused && enrichmentProgress?.currentItem && (
+                {isEnriching && !isScanning && !isPaused && (
                   <>
-                    {formatStageName(enrichmentProgress.currentItem.stage)}: {enrichmentProgress.currentItem.title}
+                    {enrichmentProgress?.currentItem && (
+                      <span>{formatStageName(enrichmentProgress.currentItem.stage)}: {enrichmentProgress.currentItem.title}</span>
+                    )}
+                    {enrichmentEtaDisplay && (
+                      <span className="text-neutral-400 dark:text-neutral-500"> · {enrichmentEtaDisplay}</span>
+                    )}
                   </>
                 )}
               </p>
@@ -331,7 +363,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                 />
                 <p className="text-xs text-neutral-500 mt-1">
                   {scanStatus.filesProcessed.toLocaleString()} / {scanStatus.filesFound.toLocaleString()} files
-                  {etaDisplay && ` - ${etaDisplay} remaining`}
+                  {scanEtaDisplay && ` - ${scanEtaDisplay} remaining`}
                 </p>
               </div>
             )}
@@ -351,11 +383,17 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                   value={enrichmentProgress.overallProgress.percentage}
                   size="sm"
                 />
-                {enrichmentProgress.currentItem && (
-                  <p className="text-xs text-neutral-500 mt-1">
-                    {formatStageName(enrichmentProgress.currentItem.stage)}: {enrichmentProgress.currentItem.title}
-                  </p>
-                )}
+                <p className="text-xs text-neutral-500 mt-1">
+                  {enrichmentProgress.currentItem && (
+                    <span>{formatStageName(enrichmentProgress.currentItem.stage)}: {enrichmentProgress.currentItem.title}</span>
+                  )}
+                  {enrichmentEtaDisplay && (
+                    <span className="text-neutral-400 dark:text-neutral-500">
+                      {enrichmentProgress.currentItem && ' · '}
+                      {enrichmentEtaDisplay} remaining
+                    </span>
+                  )}
+                </p>
               </div>
             )}
 
@@ -373,7 +411,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                         <span className={cn(
                           'w-2 h-2 rounded-full',
                           stage.isComplete ? 'bg-green-500' :
-                          stage.processing > 0 ? 'bg-blue-500' :
+                          stage.isActive ? 'bg-blue-500' :
                           'bg-neutral-300 dark:bg-neutral-600'
                         )} />
                         <span className="text-neutral-700 dark:text-neutral-300">
@@ -401,6 +439,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                 </div>
               </div>
             )}
+
           </div>
         )}
       </div>
@@ -421,6 +460,13 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
           initialTab={dialogInitialTab}
         />
       )}
+
+      <LibrarySettingsModal
+        library={library}
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        onSave={() => invalidateLibraries()}
+      />
     </>
   )
 }

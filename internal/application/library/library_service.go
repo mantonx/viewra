@@ -126,6 +126,12 @@ func (s *LibraryService) Update(ctx context.Context, id int64, req UpdateLibrary
 	if req.Type != "" {
 		lib.Type = library.LibraryType(req.Type)
 	}
+	if req.MonitoringEnabled != nil {
+		lib.MonitoringEnabled = *req.MonitoringEnabled
+	}
+	if req.MonitoringConfig != nil {
+		lib.MonitoringConfig = req.MonitoringConfig
+	}
 
 	lib.UpdatedAt = time.Now()
 
@@ -150,9 +156,16 @@ func (s *LibraryService) Update(ctx context.Context, id int64, req UpdateLibrary
 		}
 	}
 
-	// Update the library
+	// Update the library (name, path, type)
 	if err := s.repo.Update(ctx, lib); err != nil {
 		return LibraryResponse{}, fmt.Errorf("failed to update library: %w", err)
+	}
+
+	// Update monitoring settings separately if they were changed
+	if req.MonitoringEnabled != nil || req.MonitoringConfig != nil {
+		if err := s.repo.UpdateMonitoring(ctx, id, lib.MonitoringEnabled, lib.MonitoringConfig); err != nil {
+			return LibraryResponse{}, fmt.Errorf("failed to update monitoring settings: %w", err)
+		}
 	}
 
 	return ToLibraryResponse(lib), nil

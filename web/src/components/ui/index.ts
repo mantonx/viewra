@@ -22,3 +22,23 @@ export { Toggle, type ToggleProps } from './Toggle'
 export { ToastContainer, type Toast, type ToastVariant } from './Toast'
 export { Tabs, TabPanel, type TabsProps, type TabPanelProps, type Tab } from './Tabs'
 export { Tooltip, type TooltipProps } from './Tooltip'
+
+// Form adapters and components for TanStack Form
+export {
+  // Field adapters
+  FormInput,
+  FormNumberInput,
+  FormPasswordInput,
+  FormToggle,
+  FormSelect,
+  FormSettingToggle,
+  // Form-level components
+  FormSubmitButton,
+  FormModalFooter,
+  FormApiError,
+  FormSectionTitle,
+  // Types and utilities
+  getFieldError,
+  type FieldComponentProps,
+  type AnyFormApi,
+} from './Form'

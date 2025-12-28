@@ -30,7 +30,7 @@ type WorkerPool struct {
 }
 
 // NewWorkerPool creates a new worker pool for a stage.
-func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMediaRepos, pipelineCache *PipelineCache, entityCache *EntityCache, circuitBreaker *CircuitBreaker, config StageWorkerConfig) *WorkerPool {
+func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMediaRepos, pipelineCache *PipelineCache, entityCache *EntityCache, circuitBreaker *CircuitBreaker, throughputTracker *ThroughputTracker, config StageWorkerConfig) *WorkerPool {
 	var limiter *rate.Limiter
 	if config.RateLimit > 0 {
 		// Burst size matches concurrency to allow all workers to acquire tokens in parallel.
@@ -83,6 +83,11 @@ func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMed
 			circuitBreaker.RecordSuccess,
 			circuitBreaker.RecordFailure,
 		)
+	}
+
+	// Wire up throughput tracker
+	if throughputTracker != nil {
+		jobProcessor.SetThroughputTracker(throughputTracker)
 	}
 
 	return pool

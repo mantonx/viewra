@@ -52,6 +52,8 @@ export interface EnrichmentProgressState {
   total: number
   /** Progress as percentage (0-100) - DEPRECATED: use overallProgress.percentage instead */
   progressPercent: number
+  /** Estimated time to completion in seconds, 0 if unknown */
+  etaSeconds: number
   /** Per-stage breakdown if available */
   stageProgress?: InternalApiHandlersLibraryEnrichmentProgressResponse['stage_progress']
   /** Currently processing item */
@@ -162,6 +164,7 @@ export const useEnrichmentProgress = (
         progressPercent: overallProgress
           ? Math.round(overallProgress.percentage)
           : total > 0 ? Math.round((completed / total) * 100) : 0,
+        etaSeconds: data.eta_seconds ?? 0,
         stageProgress: data.stage_progress,
         currentItem,
         overallProgress,

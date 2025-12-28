@@ -5,10 +5,13 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
+import type { GithubComMantonxViewraInternalDomainLibraryMonitoringConfig } from './githubComMantonxViewraInternalDomainLibraryMonitoringConfig'
 import type { GithubComMantonxViewraInternalApplicationLibraryUpdateLibraryRequestType } from './githubComMantonxViewraInternalApplicationLibraryUpdateLibraryRequestType'
 
 export interface GithubComMantonxViewraInternalApplicationLibraryUpdateLibraryRequest {
   id: number
+  monitoring_config?: GithubComMantonxViewraInternalDomainLibraryMonitoringConfig
+  monitoring_enabled?: boolean
   /**
    * @minLength 1
    * @maxLength 100

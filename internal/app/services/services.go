@@ -14,6 +14,7 @@ import (
 	"github.com/mantonx/viewra/internal/application/enrichment"
 	"github.com/mantonx/viewra/internal/application/enrichment/builtin"
 	"github.com/mantonx/viewra/internal/application/enrichment/pipeline"
+	"github.com/mantonx/viewra/internal/application/library/monitor"
 	"github.com/mantonx/viewra/internal/application/settings"
 	"github.com/mantonx/viewra/internal/application/transcode"
 	domaintranscode "github.com/mantonx/viewra/internal/domain/transcode"
@@ -90,6 +91,9 @@ type Services struct {
 	// Location services for weather context
 	LocationRepo   *location.Repository
 	WeatherService *weather.Service
+
+	// File system monitoring service
+	FileMonitor *monitor.Service
 }
 
 // BuildServices creates and initializes all infrastructure services.
@@ -464,6 +468,16 @@ func BuildServices(
 		}
 	}
 
+	// Initialize file monitor service for real-time library monitoring
+	fileMonitorLogger := logger.With("component", "file-monitor")
+	fileMonitor := monitor.NewService(
+		repos.Library,
+		repos.Media,
+		pipelineManager, // EnrichmentEnqueuer interface
+		eventBus,
+		fileMonitorLogger,
+	)
+
 	// Create AI services
 	// Embedding provider is nil initially - configured later via settings UI
 	return &Services{
@@ -487,6 +501,7 @@ func BuildServices(
 		PluginManager:     pluginManager,
 		LocationRepo:      locationRepo,
 		WeatherService:    weatherService,
+		FileMonitor:       fileMonitor,
 	}, nil
 }
 

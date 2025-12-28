@@ -95,9 +95,10 @@ type MediaConfig struct {
 	// Scan job cleanup
 	ScanJobRetentionMinutes int // How many minutes to keep completed/failed scan jobs before cleanup
 
-	// Automatic periodic scanning
-	AutoScanEnabled  bool   // Enable automatic periodic library scanning
-	AutoScanInterval string // Cron expression for scan interval (e.g., "*/15 * * * *" for every 15 minutes)
+	// NOTE: Automatic periodic scanning has been replaced by real-time filesystem monitoring.
+	// See ADR-026: Library Filesystem Monitoring. These fields are deprecated and will be removed.
+	AutoScanEnabled  bool   // Deprecated: Use filesystem monitoring instead
+	AutoScanInterval string // Deprecated: Use filesystem monitoring instead
 }
 
 // TranscodeConfig holds transcode cleanup policies and thresholds.
@@ -266,11 +267,6 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("JWT_SECRET environment variable is required in production mode")
 	}
 
-	// Auto scan validation
-	if c.Media.AutoScanEnabled && c.Media.AutoScanInterval == "" {
-		return fmt.Errorf("auto scan interval is required when auto scan is enabled")
-	}
-
 	return nil
 }
 
@@ -352,8 +348,9 @@ func loadMediaConfig(logger *slog.Logger, dataDir string) MediaConfig {
 		ScanParallelWalkers:     getEnvIntWithLog(logger, "SCAN_PARALLEL_WALKERS", 10),       // 10 concurrent directory walkers for network storage
 		ScanProgressInterval:    getEnvIntWithLog(logger, "SCAN_PROGRESS_INTERVAL", 1000),    // Log every 1000 files discovered
 		ScanJobRetentionMinutes: getEnvIntWithLog(logger, "SCAN_JOB_RETENTION_MINUTES", 30),  // Keep scan jobs for 30 minutes by default
-		AutoScanEnabled:         getEnvBool("AUTO_SCAN_ENABLED", true),                       // Enable automatic scanning by default
-		AutoScanInterval:        getEnv("AUTO_SCAN_INTERVAL", "*/15 * * * *"),                // Default: every 15 minutes
+		// Deprecated: Filesystem monitoring is now the primary discovery mechanism (ADR-026)
+		AutoScanEnabled:  false,
+		AutoScanInterval: "",
 	}
 }
 

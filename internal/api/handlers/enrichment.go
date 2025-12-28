@@ -293,16 +293,17 @@ type CircuitBreakerStatusResponse struct {
 
 // LibraryEnrichmentProgressResponse represents enrichment progress for a library.
 type LibraryEnrichmentProgressResponse struct {
-	LibraryID        int64                             `json:"library_id"`
-	StageProgress    map[string]*enrichment.QueueStats `json:"stage_progress"`
-	TotalPending     int64                             `json:"total_pending"`
-	TotalProcessing  int64                             `json:"total_processing"`
-	TotalCompleted   int64                             `json:"total_completed"`
-	TotalFailed      int64                             `json:"total_failed"`
-	IsActive         bool                              `json:"is_active"`
-	CurrentItem      *CurrentItemResponse              `json:"current_item,omitempty"`
-	OverallProgress  *OverallProgressResponse          `json:"overall_progress,omitempty"`
-	CircuitBreakers  []CircuitBreakerStatusResponse    `json:"circuit_breakers,omitempty"`
+	LibraryID       int64                             `json:"library_id"`
+	StageProgress   map[string]*enrichment.QueueStats `json:"stage_progress"`
+	TotalPending    int64                             `json:"total_pending"`
+	TotalProcessing int64                             `json:"total_processing"`
+	TotalCompleted  int64                             `json:"total_completed"`
+	TotalFailed     int64                             `json:"total_failed"`
+	IsActive        bool                              `json:"is_active"`
+	ETASeconds      int64                             `json:"eta_seconds,omitempty"` // Estimated time to completion in seconds, 0 if unknown
+	CurrentItem     *CurrentItemResponse              `json:"current_item,omitempty"`
+	OverallProgress *OverallProgressResponse          `json:"overall_progress,omitempty"`
+	CircuitBreakers []CircuitBreakerStatusResponse    `json:"circuit_breakers,omitempty"`
 }
 
 // GetLibraryProgress returns current enrichment progress snapshot for a library.
@@ -470,6 +471,14 @@ func (h *EnrichmentHandler) buildProgressResponse(libraryID int64, progress map[
 		}
 	}
 
+	// Calculate ETA based on throughput and total remaining items
+	var etaSeconds int64
+	if h.manager != nil && overallProgress != nil && overallProgress.RemainingItems > 0 {
+		if tracker := h.manager.GetThroughputTracker(); tracker != nil {
+			etaSeconds = tracker.CalculateOverallETA(overallProgress.RemainingItems)
+		}
+	}
+
 	return &LibraryEnrichmentProgressResponse{
 		LibraryID:       libraryID,
 		StageProgress:   progress,
@@ -478,6 +487,7 @@ func (h *EnrichmentHandler) buildProgressResponse(libraryID int64, progress map[
 		TotalCompleted:  totalCompleted,
 		TotalFailed:     totalFailed,
 		IsActive:        totalPending > 0 || totalProcessing > 0,
+		ETASeconds:      etaSeconds,
 		CurrentItem:     currentItemResp,
 		OverallProgress: overallProgressResp,
 		CircuitBreakers: circuitBreakers,

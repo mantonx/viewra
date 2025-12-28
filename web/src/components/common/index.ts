@@ -9,3 +9,4 @@ export { AdvancedFilters, type AdvancedFiltersProps, type FilterState, type Year
 export { ViewToggle, type ViewToggleProps, type ViewMode } from './ViewToggle'
 export { HoverPlayButton, type HoverPlayButtonProps } from './HoverPlayButton'
 export { VirtualMediaGrid } from './VirtualMediaGrid'
+export { AdminRoute } from './AdminRoute'

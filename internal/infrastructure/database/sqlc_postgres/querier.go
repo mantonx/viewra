@@ -380,6 +380,7 @@ type Querier interface {
 	ListLibrariesByType(ctx context.Context, type_ string) ([]Library, error)
 	ListMediaByLibrary(ctx context.Context, libraryID int32) ([]Medium, error)
 	ListMediaByType(ctx context.Context, arg ListMediaByTypeParams) ([]Medium, error)
+	ListMonitoredLibraries(ctx context.Context) ([]Library, error)
 	ListMovieIDsByLibraryPaginated(ctx context.Context, arg ListMovieIDsByLibraryPaginatedParams) ([]int32, error)
 	ListMovieIDsByLibraryPaginatedDesc(ctx context.Context, arg ListMovieIDsByLibraryPaginatedDescParams) ([]int32, error)
 	ListMoviesByGenre(ctx context.Context, arg ListMoviesByGenreParams) ([]ListMoviesByGenreRow, error)
@@ -477,6 +478,7 @@ type Querier interface {
 	UpdateArtist(ctx context.Context, arg UpdateArtistParams) error
 	UpdateImage(ctx context.Context, arg UpdateImageParams) error
 	UpdateLibrary(ctx context.Context, arg UpdateLibraryParams) (Library, error)
+	UpdateLibraryMonitoring(ctx context.Context, arg UpdateLibraryMonitoringParams) (Library, error)
 	UpdateMedia(ctx context.Context, arg UpdateMediaParams) (Medium, error)
 	UpdateMovie(ctx context.Context, arg UpdateMovieParams) error
 	UpdateMusicTrack(ctx context.Context, arg UpdateMusicTrackParams) error

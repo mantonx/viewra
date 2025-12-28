@@ -1,38 +1,32 @@
 import { useState } from 'react'
+import { useForm } from '@tanstack/react-form'
 import { Button } from '@/components/ui/Button/Button'
+import { FormInput } from '@/components/ui/Form'
 import type { PathInputProps } from './PathInput.types'
+import { pathInputSchema, type PathInputValues } from './PathInput.schema'
+
+const DEFAULT_VALUES: PathInputValues = {
+  path: '',
+}
 
 const PathInput = ({ onNavigate, isLoading }: PathInputProps) => {
   const [showInput, setShowInput] = useState(false)
-  const [pathInput, setPathInput] = useState('')
-  const [pathInputError, setPathInputError] = useState('')
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    const trimmedPath = pathInput.trim()
-
-    if (!trimmedPath) {
-      setPathInputError('Please enter a path')
-      return
-    }
-
-    if (!trimmedPath.startsWith('/')) {
-      setPathInputError('Path must start with /')
-      return
-    }
-
-    onNavigate(trimmedPath)
-    setPathInput('')
-    setPathInputError('')
-    setShowInput(false)
-  }
+  const form = useForm({
+    defaultValues: DEFAULT_VALUES,
+    validators: {
+      onChange: pathInputSchema,
+    },
+    onSubmit: ({ value }) => {
+      onNavigate(value.path.trim())
+      form.reset()
+      setShowInput(false)
+    },
+  })
 
   const handleCancel = () => {
     setShowInput(false)
-    setPathInput('')
-    setPathInputError('')
+    form.reset()
   }
 
   if (!showInput) {
@@ -49,33 +43,39 @@ const PathInput = ({ onNavigate, isLoading }: PathInputProps) => {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mb-4">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        form.handleSubmit()
+      }}
+      className="mb-4"
+    >
       <div className="flex gap-2">
         <div className="flex-1">
-          <input
-            type="text"
-            value={pathInput}
-            onChange={(e) => {
-              setPathInput(e.target.value)
-              setPathInputError('')
-            }}
-            placeholder="Type a path (e.g., /home/user/Videos)"
-            disabled={isLoading}
-            autoFocus
-            className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-700 rounded-md text-sm bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 placeholder:text-neutral-500 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-neutral-100 dark:disabled:bg-neutral-900 disabled:cursor-not-allowed"
-          />
-          {pathInputError && (
-            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{pathInputError}</p>
-          )}
+          <form.Field name="path">
+            {(field) => (
+              <FormInput
+                field={field}
+                placeholder="Type a path (e.g., /home/user/Videos)"
+                disabled={isLoading}
+                autoFocus
+              />
+            )}
+          </form.Field>
         </div>
-        <Button
-          type="submit"
-          variant="secondary"
-          size="sm"
-          disabled={isLoading || !pathInput.trim()}
-        >
-          Go
-        </Button>
+        <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
+          {([canSubmit, isSubmitting]) => (
+            <Button
+              type="submit"
+              variant="secondary"
+              size="sm"
+              disabled={isLoading || !canSubmit || isSubmitting}
+            >
+              Go
+            </Button>
+          )}
+        </form.Subscribe>
         <Button
           type="button"
           variant="secondary"

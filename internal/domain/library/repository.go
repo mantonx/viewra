@@ -33,4 +33,8 @@ type Repository interface {
 	GetByIDWithTx(ctx context.Context, tx *sql.Tx, id int64) (*Library, error)
 	DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error
 	ExistsWithTx(ctx context.Context, tx *sql.Tx, path string) (bool, error)
+
+	// Monitoring methods
+	UpdateMonitoring(ctx context.Context, id int64, enabled bool, config *MonitoringConfig) error
+	ListMonitored(ctx context.Context) ([]*Library, error)
 }

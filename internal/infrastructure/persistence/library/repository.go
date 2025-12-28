@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 
 	"github.com/mantonx/viewra/internal/domain/library"
@@ -10,7 +11,84 @@ import (
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/adapters"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
+	"github.com/sqlc-dev/pqtype"
 )
+
+// parseMonitoringConfig parses JSON monitoring config from a nullable string (SQLite).
+func parseMonitoringConfig(configJSON sql.NullString) *library.MonitoringConfig {
+	if !configJSON.Valid || configJSON.String == "" {
+		return nil
+	}
+	var config library.MonitoringConfig
+	if err := json.Unmarshal([]byte(configJSON.String), &config); err != nil {
+		return nil
+	}
+	return &config
+}
+
+// parseMonitoringConfigPG parses JSON monitoring config from a PostgreSQL JSONB type.
+func parseMonitoringConfigPG(configJSON pqtype.NullRawMessage) *library.MonitoringConfig {
+	if !configJSON.Valid || len(configJSON.RawMessage) == 0 {
+		return nil
+	}
+	var config library.MonitoringConfig
+	if err := json.Unmarshal(configJSON.RawMessage, &config); err != nil {
+		return nil
+	}
+	return &config
+}
+
+// serializeMonitoringConfig converts monitoring config to a nullable JSON string (SQLite).
+func serializeMonitoringConfig(config *library.MonitoringConfig) sql.NullString {
+	if config == nil {
+		return sql.NullString{Valid: false}
+	}
+	data, err := json.Marshal(config)
+	if err != nil {
+		return sql.NullString{Valid: false}
+	}
+	return sql.NullString{String: string(data), Valid: true}
+}
+
+// serializeMonitoringConfigPG converts monitoring config to PostgreSQL JSONB type.
+func serializeMonitoringConfigPG(config *library.MonitoringConfig) pqtype.NullRawMessage {
+	if config == nil {
+		return pqtype.NullRawMessage{Valid: false}
+	}
+	data, err := json.Marshal(config)
+	if err != nil {
+		return pqtype.NullRawMessage{Valid: false}
+	}
+	return pqtype.NullRawMessage{RawMessage: data, Valid: true}
+}
+
+// sqliteLibraryToDomain converts a SQLite library to domain model.
+func sqliteLibraryToDomain(sq sqlc_sqlite.Library) *library.Library {
+	return &library.Library{
+		ID:                sq.ID,
+		Name:              sq.Name,
+		Path:              sq.Path,
+		Type:              library.LibraryType(sq.Type),
+		CreatedAt:         common.ParseNullTime(sq.CreatedAt),
+		UpdatedAt:         common.ParseNullTime(sq.UpdatedAt),
+		MonitoringEnabled: sq.MonitoringEnabled != 0,
+		MonitoringConfig:  parseMonitoringConfig(sq.MonitoringConfig),
+	}
+}
+
+// postgresLibraryToDomain converts a PostgreSQL library to domain model.
+func postgresLibraryToDomain(pg sqlc_postgres.Library) *library.Library {
+	return &library.Library{
+		ID:                int64(pg.ID),
+		Name:              pg.Name,
+		Path:              pg.Path,
+		Type:              library.LibraryType(pg.Type),
+		CreatedAt:         common.ParseNullTime(pg.CreatedAt),
+		UpdatedAt:         common.ParseNullTime(pg.UpdatedAt),
+		MonitoringEnabled: pg.MonitoringEnabled,
+		MonitoringConfig:  parseMonitoringConfigPG(pg.MonitoringConfig),
+	}
+}
 
 // NewRepository creates a new library repository with the appropriate database driver.
 // The driver parameter should be "sqlite", "sqlite3", "postgres", or "postgresql".
@@ -89,25 +167,11 @@ func (r *Repository) GetByID(ctx context.Context, id int64) (*library.Library, e
 	// Convert to domain library
 	if r.router.IsPostgresDB() {
 		pgResult := result.(sqlc_postgres.Library)
-		return &library.Library{
-			ID:        int64(pgResult.ID),
-			Name:      pgResult.Name,
-			Path:      pgResult.Path,
-			Type:      library.LibraryType(pgResult.Type),
-			CreatedAt: common.ParseNullTime(pgResult.CreatedAt),
-			UpdatedAt: common.ParseNullTime(pgResult.UpdatedAt),
-		}, nil
+		return postgresLibraryToDomain(pgResult), nil
 	}
 
 	sqResult := result.(sqlc_sqlite.Library)
-	return &library.Library{
-		ID:        sqResult.ID,
-		Name:      sqResult.Name,
-		Path:      sqResult.Path,
-		Type:      library.LibraryType(sqResult.Type),
-		CreatedAt: common.ParseNullTime(sqResult.CreatedAt),
-		UpdatedAt: common.ParseNullTime(sqResult.UpdatedAt),
-	}, nil
+	return sqliteLibraryToDomain(sqResult), nil
 }
 
 // GetByPath retrieves a library by its path.
@@ -130,25 +194,11 @@ func (r *Repository) GetByPath(ctx context.Context, path string) (*library.Libra
 	// Convert to domain library
 	if r.router.IsPostgresDB() {
 		pgResult := result.(sqlc_postgres.Library)
-		return &library.Library{
-			ID:        int64(pgResult.ID),
-			Name:      pgResult.Name,
-			Path:      pgResult.Path,
-			Type:      library.LibraryType(pgResult.Type),
-			CreatedAt: common.ParseNullTime(pgResult.CreatedAt),
-			UpdatedAt: common.ParseNullTime(pgResult.UpdatedAt),
-		}, nil
+		return postgresLibraryToDomain(pgResult), nil
 	}
 
 	sqResult := result.(sqlc_sqlite.Library)
-	return &library.Library{
-		ID:        sqResult.ID,
-		Name:      sqResult.Name,
-		Path:      sqResult.Path,
-		Type:      library.LibraryType(sqResult.Type),
-		CreatedAt: common.ParseNullTime(sqResult.CreatedAt),
-		UpdatedAt: common.ParseNullTime(sqResult.UpdatedAt),
-	}, nil
+	return sqliteLibraryToDomain(sqResult), nil
 }
 
 // List retrieves all libraries.
@@ -170,14 +220,7 @@ func (r *Repository) List(ctx context.Context) ([]*library.Library, error) {
 		pgResults := result.([]sqlc_postgres.Library)
 		libraries := make([]*library.Library, len(pgResults))
 		for i, pgResult := range pgResults {
-			libraries[i] = &library.Library{
-				ID:        int64(pgResult.ID),
-				Name:      pgResult.Name,
-				Path:      pgResult.Path,
-				Type:      library.LibraryType(pgResult.Type),
-				CreatedAt: common.ParseNullTime(pgResult.CreatedAt),
-				UpdatedAt: common.ParseNullTime(pgResult.UpdatedAt),
-			}
+			libraries[i] = postgresLibraryToDomain(pgResult)
 		}
 		return libraries, nil
 	}
@@ -185,14 +228,7 @@ func (r *Repository) List(ctx context.Context) ([]*library.Library, error) {
 	sqResults := result.([]sqlc_sqlite.Library)
 	libraries := make([]*library.Library, len(sqResults))
 	for i, sqResult := range sqResults {
-		libraries[i] = &library.Library{
-			ID:        sqResult.ID,
-			Name:      sqResult.Name,
-			Path:      sqResult.Path,
-			Type:      library.LibraryType(sqResult.Type),
-			CreatedAt: common.ParseNullTime(sqResult.CreatedAt),
-			UpdatedAt: common.ParseNullTime(sqResult.UpdatedAt),
-		}
+		libraries[i] = sqliteLibraryToDomain(sqResult)
 	}
 	return libraries, nil
 }
@@ -269,6 +305,71 @@ func (r *Repository) Exists(ctx context.Context, path string) (bool, error) {
 	return result.(bool), nil
 }
 
+// UpdateMonitoring updates the monitoring configuration for a library.
+func (r *Repository) UpdateMonitoring(ctx context.Context, id int64, enabled bool, config *library.MonitoringConfig) error {
+	result, err := r.router.Route(
+		func() (any, error) {
+			return r.postgres.UpdateLibraryMonitoring(ctx, sqlc_postgres.UpdateLibraryMonitoringParams{
+				MonitoringEnabled: enabled,
+				MonitoringConfig:  serializeMonitoringConfigPG(config),
+				ID:                int32(id),
+			})
+		},
+		func() (any, error) {
+			var enabledInt int64
+			if enabled {
+				enabledInt = 1
+			}
+			return r.sqlite.UpdateLibraryMonitoring(ctx, sqlc_sqlite.UpdateLibraryMonitoringParams{
+				MonitoringEnabled: enabledInt,
+				MonitoringConfig:  serializeMonitoringConfig(config),
+				ID:                id,
+			})
+		},
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return library.ErrLibraryNotFound
+		}
+		return err
+	}
+
+	_ = result // Result is the updated library, but we don't need to return it
+	return nil
+}
+
+// ListMonitored retrieves all libraries with monitoring enabled.
+func (r *Repository) ListMonitored(ctx context.Context) ([]*library.Library, error) {
+	result, err := r.router.Route(
+		func() (any, error) {
+			return r.postgres.ListMonitoredLibraries(ctx)
+		},
+		func() (any, error) {
+			return r.sqlite.ListMonitoredLibraries(ctx)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to domain libraries
+	if r.router.IsPostgresDB() {
+		pgResults := result.([]sqlc_postgres.Library)
+		libraries := make([]*library.Library, len(pgResults))
+		for i, pgResult := range pgResults {
+			libraries[i] = postgresLibraryToDomain(pgResult)
+		}
+		return libraries, nil
+	}
+
+	sqResults := result.([]sqlc_sqlite.Library)
+	libraries := make([]*library.Library, len(sqResults))
+	for i, sqResult := range sqResults {
+		libraries[i] = sqliteLibraryToDomain(sqResult)
+	}
+	return libraries, nil
+}
+
 // CreateWithTx adds a new library to the database within a transaction.
 func (r *Repository) CreateWithTx(ctx context.Context, tx *sql.Tx, lib *library.Library) error {
 	result, err := r.router.Route(
@@ -297,11 +398,15 @@ func (r *Repository) CreateWithTx(ctx context.Context, tx *sql.Tx, lib *library.
 		lib.ID = int64(pgResult.ID)
 		lib.CreatedAt = common.ParseNullTime(pgResult.CreatedAt)
 		lib.UpdatedAt = common.ParseNullTime(pgResult.UpdatedAt)
+		lib.MonitoringEnabled = pgResult.MonitoringEnabled
+		lib.MonitoringConfig = parseMonitoringConfigPG(pgResult.MonitoringConfig)
 	} else {
 		sqResult := result.(sqlc_sqlite.Library)
 		lib.ID = sqResult.ID
 		lib.CreatedAt = common.ParseNullTime(sqResult.CreatedAt)
 		lib.UpdatedAt = common.ParseNullTime(sqResult.UpdatedAt)
+		lib.MonitoringEnabled = sqResult.MonitoringEnabled != 0
+		lib.MonitoringConfig = parseMonitoringConfig(sqResult.MonitoringConfig)
 	}
 
 	return nil
@@ -327,25 +432,11 @@ func (r *Repository) GetByIDWithTx(ctx context.Context, tx *sql.Tx, id int64) (*
 	// Convert to domain library
 	if r.router.IsPostgresDB() {
 		pgResult := result.(sqlc_postgres.Library)
-		return &library.Library{
-			ID:        int64(pgResult.ID),
-			Name:      pgResult.Name,
-			Path:      pgResult.Path,
-			Type:      library.LibraryType(pgResult.Type),
-			CreatedAt: common.ParseNullTime(pgResult.CreatedAt),
-			UpdatedAt: common.ParseNullTime(pgResult.UpdatedAt),
-		}, nil
+		return postgresLibraryToDomain(pgResult), nil
 	}
 
 	sqResult := result.(sqlc_sqlite.Library)
-	return &library.Library{
-		ID:        sqResult.ID,
-		Name:      sqResult.Name,
-		Path:      sqResult.Path,
-		Type:      library.LibraryType(sqResult.Type),
-		CreatedAt: common.ParseNullTime(sqResult.CreatedAt),
-		UpdatedAt: common.ParseNullTime(sqResult.UpdatedAt),
-	}, nil
+	return sqliteLibraryToDomain(sqResult), nil
 }
 
 // DeleteWithTx deletes a library by its ID within a transaction.

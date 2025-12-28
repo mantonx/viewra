@@ -1,127 +1,141 @@
 import { useState } from 'react'
+import { useForm } from '@tanstack/react-form'
 import { usePostApiLibraries } from '@/lib/api'
 import { useInvalidateLibraries } from '@/lib/hooks/useInvalidateLibraries'
-import { Button, Input, Select, Alert } from '@/components/ui'
+import { Button } from '@/components/ui'
+import { FormInput, FormSelect, FormApiError, FormSubmitButton } from '@/components/ui/Form'
 import { FilesystemBrowser } from '@/components/library/FilesystemBrowser'
+import { getErrorMessage } from '@/lib/utils/error'
 import type { LibraryFormProps } from './LibraryForm.types'
+import { libraryFormSchema, type LibraryFormValues } from './LibraryForm.schema'
+
+const DEFAULT_VALUES: LibraryFormValues = {
+  name: '',
+  path: '',
+  type: 'movies',
+}
+
+const LIBRARY_TYPE_OPTIONS = [
+  { value: 'movies', label: 'Movies' },
+  { value: 'tv', label: 'TV Shows' },
+  { value: 'music', label: 'Music' },
+]
 
 const LibraryForm = ({ onCancel, onSuccess }: LibraryFormProps) => {
   const invalidateLibraries = useInvalidateLibraries()
-  const [name, setName] = useState('')
-  const [path, setPath] = useState('')
-  const [type, setType] = useState<'movies' | 'tv' | 'music'>('movies')
-  const [error, setError] = useState<string | null>(null)
+  const createMutation = usePostApiLibraries()
+  const [apiError, setApiError] = useState<string | null>(null)
   const [isBrowserOpen, setIsBrowserOpen] = useState(false)
 
-  const createMutation = usePostApiLibraries()
+  const form = useForm({
+    defaultValues: DEFAULT_VALUES,
+    validators: {
+      onChange: libraryFormSchema,
+    },
+    onSubmit: async ({ value }) => {
+      setApiError(null)
 
-  const handleBrowseClick = () => {
-    setIsBrowserOpen(true)
-  }
+      try {
+        await createMutation.mutateAsync({
+          data: {
+            name: value.name,
+            path: value.path,
+            type: value.type,
+          },
+        })
+
+        invalidateLibraries()
+        form.reset()
+        onSuccess()
+      } catch (error) {
+        setApiError(getErrorMessage(error, 'Failed to create library'))
+      }
+    },
+  })
 
   const handlePathSelect = (selectedPath: string) => {
-    setPath(selectedPath)
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-
-    try {
-      await createMutation.mutateAsync({
-        data: {
-          name,
-          path,
-          type,
-        },
-      })
-
-      invalidateLibraries()
-
-      // Reset form
-      setName('')
-      setPath('')
-      setType('movies')
-
-      // Close form
-      onSuccess()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create library'
-      setError(message)
-    }
+    form.setFieldValue('path', selectedPath)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {error && <Alert variant="error">{error}</Alert>}
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        form.handleSubmit()
+      }}
+      className="space-y-4"
+    >
+      <FormApiError error={apiError} />
 
-      <Input
-        label="Library Name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="My Movies"
-        required
-        disabled={createMutation.isPending}
-      />
+      <form.Field name="name">
+        {(field) => (
+          <FormInput field={field} label="Library Name" placeholder="My Movies" />
+        )}
+      </form.Field>
 
-      <div>
-        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-          Folder Path
-        </label>
-        <div className="flex gap-2">
-          <Input
-            value={path}
-            onChange={(e) => setPath(e.target.value)}
-            placeholder="/media/movies"
-            required
-            disabled={createMutation.isPending}
-            className="flex-1"
-          />
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={handleBrowseClick}
-            disabled={createMutation.isPending}
-          >
-            Browse...
-          </Button>
-        </div>
-        <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-500">
-          Full path to the folder containing your media files
-        </p>
-      </div>
+      {/* Path field with Browse button */}
+      <form.Field name="path">
+        {(field) => (
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Folder Path
+            </label>
+            <div className="flex gap-2">
+              <FormInput
+                field={field}
+                placeholder="/media/movies"
+                className="flex-1"
+              />
+              <form.Subscribe selector={(state) => state.isSubmitting}>
+                {(isSubmitting) => (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setIsBrowserOpen(true)}
+                    disabled={isSubmitting as boolean}
+                  >
+                    Browse...
+                  </Button>
+                )}
+              </form.Subscribe>
+            </div>
+            <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-500">
+              Full path to the folder containing your media files
+            </p>
+          </div>
+        )}
+      </form.Field>
 
-      <Select
-        label="Library Type"
-        value={type}
-        onChange={(e) => setType(e.target.value as 'movies' | 'tv' | 'music')}
-        options={[
-          { value: 'movies', label: 'Movies' },
-          { value: 'tv', label: 'TV Shows' },
-          { value: 'music', label: 'Music' },
-        ]}
-        disabled={createMutation.isPending}
-      />
+      <form.Field name="type">
+        {(field) => (
+          <FormSelect field={field} label="Library Type" options={LIBRARY_TYPE_OPTIONS} />
+        )}
+      </form.Field>
 
       <div className="flex gap-2 justify-end">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={onCancel}
-          disabled={createMutation.isPending}
-        >
-          Cancel
-        </Button>
-        <Button type="submit" isLoading={createMutation.isPending}>
+        <form.Subscribe selector={(state) => state.isSubmitting}>
+          {(isSubmitting) => (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onCancel}
+              disabled={isSubmitting as boolean}
+            >
+              Cancel
+            </Button>
+          )}
+        </form.Subscribe>
+        <FormSubmitButton form={form} requireDirty={false}>
           Create Library
-        </Button>
+        </FormSubmitButton>
       </div>
 
       <FilesystemBrowser
         isOpen={isBrowserOpen}
         onClose={() => setIsBrowserOpen(false)}
         onSelect={handlePathSelect}
-        initialPath={path || undefined}
+        initialPath={form.getFieldValue('path') || undefined}
       />
     </form>
   )

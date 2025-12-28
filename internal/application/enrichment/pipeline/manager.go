@@ -16,18 +16,19 @@ import (
 // Manager orchestrates the enrichment pipeline.
 // It manages job queuing and coordinates worker pools for each stage.
 type Manager struct {
-	deps             *Deps
-	typedRepos       *TypedMediaRepos
-	pipelineCache    *PipelineCache
-	entityCache      *EntityCache
-	circuitBreakers  *CircuitBreakerRegistry
-	workerPools      map[string]*WorkerPool
-	enrichers        map[string]appenrich.Enricher
-	mu               sync.RWMutex
-	running          bool
-	ctx              context.Context
-	cancel           context.CancelFunc
-	wg               sync.WaitGroup
+	deps              *Deps
+	typedRepos        *TypedMediaRepos
+	pipelineCache     *PipelineCache
+	entityCache       *EntityCache
+	circuitBreakers   *CircuitBreakerRegistry
+	throughputTracker *ThroughputTracker
+	workerPools       map[string]*WorkerPool
+	enrichers         map[string]appenrich.Enricher
+	mu                sync.RWMutex
+	running           bool
+	ctx               context.Context
+	cancel            context.CancelFunc
+	wg                sync.WaitGroup
 }
 
 // PipelineCacheTTL is the default TTL for pipeline configuration cache.
@@ -40,14 +41,20 @@ const EntityCacheMaxSize = 10000
 // NewManager creates a new pipeline manager.
 func NewManager(deps *Deps, typedRepos *TypedMediaRepos) *Manager {
 	return &Manager{
-		deps:            deps,
-		typedRepos:      typedRepos,
-		pipelineCache:   NewPipelineCache(deps.PipelineRepo, PipelineCacheTTL),
-		entityCache:     NewEntityCache(EntityCacheMaxSize),
-		circuitBreakers: NewCircuitBreakerRegistry(),
-		workerPools:     make(map[string]*WorkerPool),
-		enrichers:       make(map[string]appenrich.Enricher),
+		deps:              deps,
+		typedRepos:        typedRepos,
+		pipelineCache:     NewPipelineCache(deps.PipelineRepo, PipelineCacheTTL),
+		entityCache:       NewEntityCache(EntityCacheMaxSize),
+		circuitBreakers:   NewCircuitBreakerRegistry(),
+		throughputTracker: NewThroughputTracker(60*time.Second, 5*time.Second),
+		workerPools:       make(map[string]*WorkerPool),
+		enrichers:         make(map[string]appenrich.Enricher),
 	}
+}
+
+// GetThroughputTracker returns the throughput tracker for calculating ETAs.
+func (m *Manager) GetThroughputTracker() *ThroughputTracker {
+	return m.throughputTracker
 }
 
 // RegisterEnricher registers an enricher for a stage.
@@ -165,7 +172,7 @@ func (m *Manager) Start(ctx context.Context) error {
 	for stage, enricher := range m.enrichers {
 		config := m.getStageConfig(stage, enricher.Capabilities())
 		circuitBreaker := m.circuitBreakers.Get(stage)
-		pool := NewWorkerPool(m.deps, enricher, m.typedRepos, m.pipelineCache, m.entityCache, circuitBreaker, config)
+		pool := NewWorkerPool(m.deps, enricher, m.typedRepos, m.pipelineCache, m.entityCache, circuitBreaker, m.throughputTracker, config)
 		pool.SetEnqueueNext(m.EnqueueNextStage)
 		m.workerPools[stage] = pool
 

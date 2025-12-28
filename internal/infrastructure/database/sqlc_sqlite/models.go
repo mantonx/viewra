@@ -97,6 +97,8 @@ type Library struct {
 	PreferredAudioLang    sql.NullString `json:"preferred_audio_lang"`
 	PreferredSubtitleLang sql.NullString `json:"preferred_subtitle_lang"`
 	AutoEnableSubtitles   sql.NullString `json:"auto_enable_subtitles"`
+	MonitoringEnabled     int64          `json:"monitoring_enabled"`
+	MonitoringConfig      sql.NullString `json:"monitoring_config"`
 }
 
 type MediaAudioTrack struct {

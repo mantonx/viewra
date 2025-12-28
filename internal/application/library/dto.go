@@ -19,20 +19,24 @@ type CreateLibraryRequest struct {
 
 // UpdateLibraryRequest represents the input for updating a library
 type UpdateLibraryRequest struct {
-	ID   int64  `json:"id" validate:"required"`
-	Name string `json:"name" validate:"omitempty,min=1,max=100"`
-	Path string `json:"path" validate:"omitempty"`
-	Type string `json:"type" validate:"omitempty,oneof=movies tv music"`
+	ID                int64                     `json:"id" validate:"required"`
+	Name              string                    `json:"name" validate:"omitempty,min=1,max=100"`
+	Path              string                    `json:"path" validate:"omitempty"`
+	Type              string                    `json:"type" validate:"omitempty,oneof=movies tv music"`
+	MonitoringEnabled *bool                     `json:"monitoring_enabled,omitempty"`
+	MonitoringConfig  *library.MonitoringConfig `json:"monitoring_config,omitempty"`
 }
 
 // LibraryResponse represents a single library in responses
 type LibraryResponse struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	Path      string    `json:"path"`
-	Type      string    `json:"type"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                int64                     `json:"id"`
+	Name              string                    `json:"name"`
+	Path              string                    `json:"path"`
+	Type              string                    `json:"type"`
+	CreatedAt         time.Time                 `json:"created_at"`
+	UpdatedAt         time.Time                 `json:"updated_at"`
+	MonitoringEnabled bool                      `json:"monitoring_enabled"`
+	MonitoringConfig  *library.MonitoringConfig `json:"monitoring_config,omitempty"`
 }
 
 // ListLibrariesResponse represents a list of libraries
@@ -74,12 +78,14 @@ type ScanLibraryResponse struct {
 // which were identical duplicates
 func ToLibraryResponse(lib *library.Library) LibraryResponse {
 	return LibraryResponse{
-		ID:        lib.ID,
-		Name:      lib.Name,
-		Path:      lib.Path,
-		Type:      string(lib.Type),
-		CreatedAt: lib.CreatedAt,
-		UpdatedAt: lib.UpdatedAt,
+		ID:                lib.ID,
+		Name:              lib.Name,
+		Path:              lib.Path,
+		Type:              string(lib.Type),
+		CreatedAt:         lib.CreatedAt,
+		UpdatedAt:         lib.UpdatedAt,
+		MonitoringEnabled: lib.MonitoringEnabled,
+		MonitoringConfig:  lib.MonitoringConfig,
 	}
 }
 

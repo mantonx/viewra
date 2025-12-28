@@ -53,3 +53,16 @@ SELECT COUNT(*) FROM libraries;
 -- name: CountLibrariesByType :one
 SELECT COUNT(*) FROM libraries
 WHERE type = ?;
+
+-- name: UpdateLibraryMonitoring :one
+UPDATE libraries
+SET monitoring_enabled = ?,
+    monitoring_config = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING *;
+
+-- name: ListMonitoredLibraries :many
+SELECT * FROM libraries
+WHERE monitoring_enabled = 1
+ORDER BY name;

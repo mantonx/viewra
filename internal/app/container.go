@@ -124,6 +124,15 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 		logger.Info("Transcode analytics service started")
 	}
 
+	// Start file system monitor (real-time library monitoring)
+	if svcs.FileMonitor != nil {
+		if err := svcs.FileMonitor.Start(context.Background()); err != nil {
+			logger.Error("Failed to start file monitor service", "error", err)
+		} else {
+			logger.Info("File monitor service started")
+		}
+	}
+
 	return &Container{
 		Server:         server,
 		Scheduler:      taskScheduler,
@@ -137,6 +146,11 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 // Shutdown gracefully shuts down all container services
 func (c *Container) Shutdown(ctx context.Context) error {
 	var firstErr error
+
+	// Stop file monitor first (before enrichment pipeline)
+	if c.Services != nil && c.Services.FileMonitor != nil {
+		c.Services.FileMonitor.Stop()
+	}
 
 	// Stop transcode queue first
 	if c.TranscodeQueue != nil {
@@ -243,58 +257,10 @@ func registerTasks(
 		logger.Info("Registered image cleanup task with scheduler")
 	}
 
-	// Register automatic library scanning task
-	if cfg.Media.AutoScanEnabled {
-		err = taskScheduler.RegisterTask(scheduler.Task{
-			ID:          "auto-library-scan",
-			Name:        "Automatic Library Scan",
-			Description: "Automatically scan all libraries for new, modified, or deleted files",
-			Schedule:    cfg.Media.AutoScanInterval,
-			Enabled:     true,
-			Handler: func(ctx context.Context) error {
-				logger.Info("Starting automatic library scan")
-
-				// Get all libraries via use case
-				resp, err := cases.Library.Service.List(ctx)
-				if err != nil {
-					logger.Error("Failed to list libraries for auto scan", "error", err)
-					return err
-				}
-
-				// Scan each library (incremental scan will detect changes efficiently)
-				for _, lib := range resp.Libraries {
-					logger.Info("Auto-scanning library",
-						"library_id", lib.ID,
-						"name", lib.Name,
-						"path", lib.Path)
-
-					// Trigger scan using the scan use case
-					if _, err := cases.Library.Scan.StartScan(ctx, lib.ID); err != nil {
-						logger.Error("Auto scan failed for library",
-							"library_id", lib.ID,
-							"library_name", lib.Name,
-							"error", err)
-						// Continue scanning other libraries even if one fails
-						continue
-					}
-
-					logger.Info("Auto scan triggered for library",
-						"library_id", lib.ID,
-						"library_name", lib.Name)
-				}
-
-				logger.Info("Automatic library scan completed", "libraries_scanned", len(resp.Libraries))
-				return nil
-			},
-		})
-		if err != nil {
-			logger.Error("Failed to register auto library scan task", "error", err)
-		} else {
-			logger.Info("Registered automatic library scan task",
-				"interval", cfg.Media.AutoScanInterval,
-				"enabled", cfg.Media.AutoScanEnabled)
-		}
-	}
+	// NOTE: Automatic library scanning has been replaced by real-time filesystem monitoring.
+	// See ADR-026: Library Filesystem Monitoring. The FileMonitorService now watches
+	// library directories and triggers enrichment when files change.
+	// Manual scans are still available via the API for initial imports or recovery.
 
 	// Register transcode cleanup tasks (if transcode is enabled)
 	if svcs.CleanupService != nil {

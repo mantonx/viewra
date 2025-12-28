@@ -91,15 +91,17 @@ type EnrichmentStatus struct {
 }
 
 type Library struct {
-	ID                    int32          `json:"id"`
-	Name                  string         `json:"name"`
-	Path                  string         `json:"path"`
-	Type                  string         `json:"type"`
-	CreatedAt             sql.NullTime   `json:"created_at"`
-	UpdatedAt             sql.NullTime   `json:"updated_at"`
-	PreferredAudioLang    sql.NullString `json:"preferred_audio_lang"`
-	PreferredSubtitleLang sql.NullString `json:"preferred_subtitle_lang"`
-	AutoEnableSubtitles   sql.NullString `json:"auto_enable_subtitles"`
+	ID                    int32                 `json:"id"`
+	Name                  string                `json:"name"`
+	Path                  string                `json:"path"`
+	Type                  string                `json:"type"`
+	CreatedAt             sql.NullTime          `json:"created_at"`
+	UpdatedAt             sql.NullTime          `json:"updated_at"`
+	PreferredAudioLang    sql.NullString        `json:"preferred_audio_lang"`
+	PreferredSubtitleLang sql.NullString        `json:"preferred_subtitle_lang"`
+	AutoEnableSubtitles   sql.NullString        `json:"auto_enable_subtitles"`
+	MonitoringEnabled     bool                  `json:"monitoring_enabled"`
+	MonitoringConfig      pqtype.NullRawMessage `json:"monitoring_config"`
 }
 
 type MediaAudioTrack struct {

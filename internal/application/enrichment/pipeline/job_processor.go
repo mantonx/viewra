@@ -14,13 +14,14 @@ import (
 
 // JobProcessor handles the execution of a single enrichment job.
 type JobProcessor struct {
-	deps            *Deps
-	enricher        appenrich.Enricher
-	requestBuilder  *RequestBuilder
-	responseApplier *ResponseApplier
-	pipelineCache   *PipelineCache
-	config          StageWorkerConfig
-	logger          *slog.Logger
+	deps              *Deps
+	enricher          appenrich.Enricher
+	requestBuilder    *RequestBuilder
+	responseApplier   *ResponseApplier
+	pipelineCache     *PipelineCache
+	throughputTracker *ThroughputTracker
+	config            StageWorkerConfig
+	logger            *slog.Logger
 
 	// enqueueNext is called to enqueue the next stage after successful completion.
 	enqueueNext func(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType, currentPosition int) error
@@ -61,6 +62,11 @@ func (p *JobProcessor) SetEnqueueNext(fn func(ctx context.Context, mediaID int64
 func (p *JobProcessor) SetCircuitBreakerCallbacks(onSuccess, onFailure func()) {
 	p.onEnricherSuccess = onSuccess
 	p.onEnricherFailure = onFailure
+}
+
+// SetThroughputTracker sets the throughput tracker for recording completion metrics.
+func (p *JobProcessor) SetThroughputTracker(tracker *ThroughputTracker) {
+	p.throughputTracker = tracker
 }
 
 // Process handles a single enrichment job with timeout and error handling.
@@ -148,6 +154,11 @@ func (p *JobProcessor) handleSuccess(ctx context.Context, logger *slog.Logger, j
 		slog.Bool("matched", resp != nil && resp.GetMatched()),
 		slog.Bool("skipped", resp != nil && resp.GetSkipped()))
 
+	// Record throughput for ETA calculation
+	if p.throughputTracker != nil {
+		p.throughputTracker.RecordCompletion(job.Stage)
+	}
+
 	// Mark job as completed
 	if err := p.deps.QueueRepo.Complete(ctx, job.ID); err != nil {
 		logger.Error("failed to mark job complete", slog.Any("error", err))
@@ -189,6 +200,11 @@ func (p *JobProcessor) handleSkipped(ctx context.Context, logger *slog.Logger, j
 	logger.Debug("job skipped",
 		slog.Duration("duration", duration),
 		slog.String("reason", resp.GetSkipReason()))
+
+	// Record throughput for ETA calculation (skipped jobs still count as completed)
+	if p.throughputTracker != nil {
+		p.throughputTracker.RecordCompletion(job.Stage)
+	}
 
 	// Mark job as completed (skipped jobs are considered complete)
 	if err := p.deps.QueueRepo.Complete(ctx, job.ID); err != nil {
