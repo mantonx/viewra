@@ -171,12 +171,15 @@ func DefaultLocalStageConfig(stage string) StageWorkerConfig {
 }
 
 // DefaultRemoteStageConfig returns config for remote (API) stages.
-// Lower concurrency, rate limited to respect API limits.
+// Concurrency is tuned for typical API latency (~500ms) and rate limits:
+//   - 4 workers × 500ms avg latency = 8 req/sec capacity
+//   - Rate limiter ensures we stay within API limits (e.g., TMDB: 4/sec)
+//   - More workers than needed handles latency variance without wasting rate limit
 func DefaultRemoteStageConfig(stage string) StageWorkerConfig {
 	return StageWorkerConfig{
 		Stage:       stage,
-		Concurrency: 2,
-		RateLimit:   5, // 5 requests per second
+		Concurrency: 4,  // Tuned for ~500ms latency APIs (4 workers = up to 8 req/sec capacity)
+		RateLimit:   5,  // Default 5 req/sec, overridden by enricher capabilities
 		Timeout:     30,
 		BatchSize:   5,
 	}

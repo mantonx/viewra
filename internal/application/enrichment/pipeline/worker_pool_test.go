@@ -27,7 +27,8 @@ func TestNewWorkerPool(t *testing.T) {
 		BatchSize:   5,
 	}
 
-	pool := NewWorkerPool(deps, enricher, nil, config)
+	pipelineCache := NewPipelineCache(deps.PipelineRepo, 5*time.Minute)
+	pool := NewWorkerPool(deps, enricher, nil, pipelineCache, config)
 	if pool == nil {
 		t.Fatal("NewWorkerPool returned nil")
 	}
@@ -54,7 +55,8 @@ func TestNewWorkerPool_WithRateLimit(t *testing.T) {
 		BatchSize:   5,
 	}
 
-	pool := NewWorkerPool(deps, enricher, nil, config)
+	pipelineCache := NewPipelineCache(deps.PipelineRepo, 5*time.Minute)
+	pool := NewWorkerPool(deps, enricher, nil, pipelineCache, config)
 	if pool == nil {
 		t.Fatal("NewWorkerPool returned nil")
 	}
@@ -74,7 +76,8 @@ func TestWorkerPool_Run_ContextCancellation(t *testing.T) {
 
 	enricher := newMockEnricher("test")
 	config := DefaultLocalStageConfig("test")
-	pool := NewWorkerPool(deps, enricher, nil, config)
+	pipelineCache := NewPipelineCache(deps.PipelineRepo, 5*time.Minute)
+	pool := NewWorkerPool(deps, enricher, nil, pipelineCache, config)
 
 	ctx, cancel := context.WithCancel(context.Background())
 

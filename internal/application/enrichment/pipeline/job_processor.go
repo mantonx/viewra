@@ -18,6 +18,7 @@ type JobProcessor struct {
 	enricher        appenrich.Enricher
 	requestBuilder  *RequestBuilder
 	responseApplier *ResponseApplier
+	pipelineCache   *PipelineCache
 	config          StageWorkerConfig
 	logger          *slog.Logger
 
@@ -31,6 +32,7 @@ func NewJobProcessor(
 	enricher appenrich.Enricher,
 	requestBuilder *RequestBuilder,
 	responseApplier *ResponseApplier,
+	pipelineCache *PipelineCache,
 	config StageWorkerConfig,
 	logger *slog.Logger,
 ) *JobProcessor {
@@ -39,6 +41,7 @@ func NewJobProcessor(
 		enricher:        enricher,
 		requestBuilder:  requestBuilder,
 		responseApplier: responseApplier,
+		pipelineCache:   pipelineCache,
 		config:          config,
 		logger:          logger,
 	}
@@ -137,9 +140,9 @@ func (p *JobProcessor) handleSuccess(ctx context.Context, logger *slog.Logger, j
 
 	// Enqueue next stage if callback is set
 	if p.enqueueNext != nil && mediaType != "" {
-		// Get current stage position from pipeline config
+		// Get current stage position from pipeline config (cached)
 		currentPosition := 0
-		if stage, err := p.deps.PipelineRepo.GetStageByName(ctx, mediaType, job.Stage); err != nil {
+		if stage, err := p.pipelineCache.GetStageByName(ctx, mediaType, job.Stage); err != nil {
 			logger.Warn("failed to get stage position, using 0",
 				slog.String("stage", job.Stage),
 				slog.Any("error", err))
@@ -180,8 +183,9 @@ func (p *JobProcessor) handleSkipped(ctx context.Context, logger *slog.Logger, j
 
 	// Enqueue next stage if callback is set (skipped jobs still advance the pipeline)
 	if p.enqueueNext != nil && mediaType != "" {
+		// Get current stage position from pipeline config (cached)
 		currentPosition := 0
-		if stage, err := p.deps.PipelineRepo.GetStageByName(ctx, mediaType, job.Stage); err != nil {
+		if stage, err := p.pipelineCache.GetStageByName(ctx, mediaType, job.Stage); err != nil {
 			logger.Warn("failed to get stage position, using 0",
 				slog.String("stage", job.Stage),
 				slog.Any("error", err))

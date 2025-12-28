@@ -14,13 +14,14 @@ import (
 
 // WorkerPool manages concurrent workers for a single enrichment stage.
 type WorkerPool struct {
-	deps         *Deps
-	enricher     appenrich.Enricher
-	typedRepos   *TypedMediaRepos
-	config       StageWorkerConfig
-	limiter      *rate.Limiter
-	jobProcessor *JobProcessor
-	wg           sync.WaitGroup
+	deps          *Deps
+	enricher      appenrich.Enricher
+	typedRepos    *TypedMediaRepos
+	pipelineCache *PipelineCache
+	config        StageWorkerConfig
+	limiter       *rate.Limiter
+	jobProcessor  *JobProcessor
+	wg            sync.WaitGroup
 
 	// enqueueNext is called to enqueue the next stage after successful completion.
 	// Set by Manager after creation.
@@ -28,10 +29,16 @@ type WorkerPool struct {
 }
 
 // NewWorkerPool creates a new worker pool for a stage.
-func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMediaRepos, config StageWorkerConfig) *WorkerPool {
+func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMediaRepos, pipelineCache *PipelineCache, config StageWorkerConfig) *WorkerPool {
 	var limiter *rate.Limiter
 	if config.RateLimit > 0 {
-		limiter = rate.NewLimiter(rate.Limit(config.RateLimit), 1)
+		// Burst size matches concurrency to allow all workers to acquire tokens in parallel.
+		// This prevents idle workers when the rate limit hasn't been exceeded.
+		burst := config.Concurrency
+		if burst < 1 {
+			burst = 1
+		}
+		limiter = rate.NewLimiter(rate.Limit(config.RateLimit), burst)
 	}
 
 	// Create the component chain
@@ -56,15 +63,16 @@ func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMed
 
 	requestBuilder := NewRequestBuilder(deps, typedRepos, logger)
 	responseApplier := NewResponseApplier(deps, metadataApplier, creditsApplier, studiosApplier, keywordsApplier, imageProcessor, logger)
-	jobProcessor := NewJobProcessor(deps, enricher, requestBuilder, responseApplier, config, logger)
+	jobProcessor := NewJobProcessor(deps, enricher, requestBuilder, responseApplier, pipelineCache, config, logger)
 
 	return &WorkerPool{
-		deps:         deps,
-		enricher:     enricher,
-		typedRepos:   typedRepos,
-		config:       config,
-		limiter:      limiter,
-		jobProcessor: jobProcessor,
+		deps:          deps,
+		enricher:      enricher,
+		typedRepos:    typedRepos,
+		pipelineCache: pipelineCache,
+		config:        config,
+		limiter:       limiter,
+		jobProcessor:  jobProcessor,
 	}
 }
 

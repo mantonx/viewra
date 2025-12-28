@@ -451,6 +451,9 @@ func TestNewManager(t *testing.T) {
 	if m.enrichers == nil {
 		t.Error("enrichers map is nil")
 	}
+	if m.pipelineCache == nil {
+		t.Error("pipelineCache should be initialized")
+	}
 	if m.running {
 		t.Error("manager should not be running initially")
 	}
@@ -799,8 +802,8 @@ func TestManager_getStageConfig_RemoteEnrichers(t *testing.T) {
 		if config.RateLimit != 5 {
 			t.Errorf("remote stage %s should have RateLimit=5, got %f", stage, config.RateLimit)
 		}
-		if config.Concurrency != 2 {
-			t.Errorf("remote stage %s should have Concurrency=2, got %d", stage, config.Concurrency)
+		if config.Concurrency != 4 {
+			t.Errorf("remote stage %s should have Concurrency=4, got %d", stage, config.Concurrency)
 		}
 	}
 }

@@ -1,13 +1,13 @@
 # Enrichment Pipeline Performance Optimization Plan
 
 Generated: 2024-12-21  
-Last Updated: 2024-12-21
+Last Updated: 2024-12-27
 
 ## Table of Contents
 
 1. [Overview](#overview)
 2. [Priority System](#priority-system)
-3. [Phase 0: Bug Fixes (Prerequisite)](#phase-0-bug-fixes-prerequisite) - Sort title fix
+3. [Phase 0: Bug Fixes (Prerequisite)](#phase-0-bug-fixes-prerequisite) - **COMPLETED**
 4. [Phase 1: Quick Wins](#phase-1-quick-wins-priority-high) - Pipeline cache, rate limiter, worker tuning
 5. [Phase 2: Batch Operations](#phase-2-batch-operations-priority-high) - Batch enqueue, external ID prefetch
 6. [Phase 3: Entity Deduplication](#phase-3-entity-deduplication-priority-high) - LRU cache for TV/Music
@@ -43,15 +43,15 @@ Optimize enrichment pipeline performance for 100K+ item libraries. Current enric
 
 ### Total Effort
 
-| Phase | Description | Effort |
-|-------|-------------|--------|
-| 0 | Sort title bug fix (prerequisite) | 1-2h |
-| 1 | Pipeline cache, rate limiter, worker tuning | 4-6h |
-| 2 | Batch enqueue, external ID prefetch, re-prioritization | 10-14h |
-| 3 | Entity cache (TV/Music deduplication) | 8-12h |
-| 4 | Priority boost, circuit breaker | 6-8h |
-| 5 | UX improvements (unified UI, badges, dialogs) | 10-14h |
-| **Total** | | **39-56h** |
+| Phase | Description | Effort | Status |
+|-------|-------------|--------|--------|
+| 0 | Sort title bug fix (prerequisite) | ~1h | **COMPLETED** |
+| 1 | Pipeline cache, rate limiter, worker tuning | 4-6h | **COMPLETED** |
+| 2 | Batch enqueue, external ID prefetch, re-prioritization | 10-14h | Pending |
+| 3 | Entity cache (TV/Music deduplication) | 8-12h | Pending |
+| 4 | Priority boost, circuit breaker | 6-8h | Pending |
+| 5 | UX improvements (unified UI, badges, dialogs) | 10-14h | Pending |
+| **Total Remaining** | | **34-48h** | |
 
 ---
 
@@ -97,7 +97,17 @@ After NFO or TMDB enrichment discovers actual release date, update priority for 
 
 ---
 
-## Phase 0: Bug Fixes (Prerequisite)
+## Phase 0: Bug Fixes (Prerequisite) - COMPLETED
+
+> **Status:** ✅ **COMPLETED** (2024-12-27)
+>
+> All tasks in this phase have been implemented:
+> - `metadata_applier.go:97` has empty string check: `*metadata.SortTitle != ""`
+> - SQL queries use `COALESCE(NULLIF(m.sort_title, ''), med.title)`
+> - `normalize_sort_titles.go` supports both SQLite and PostgreSQL
+
+<details>
+<summary>Original Phase 0 Details (click to expand)</summary>
 
 **Goal:** Fix sort title handling that causes incorrect alphabetical ordering in movie and TV show lists.
 
@@ -167,9 +177,19 @@ Movies like "(500) Days of Summer" and "3 Idiots" appear in wrong positions in t
 - Test UI sorting to ensure alphabetical order is correct
 - **Effort:** 15 minutes
 
+</details>
+
 ---
 
-## Phase 1: Quick Wins (Priority: HIGH)
+## Phase 1: Quick Wins (Priority: HIGH) - COMPLETED
+
+> **Status:** ✅ **COMPLETED** (2024-12-27)
+>
+> All tasks implemented:
+> - `pipeline_cache.go` - In-memory cache with 5-minute TTL for pipeline stage lookups
+> - Rate limiter burst size matches concurrency for better throughput
+> - Default remote stage concurrency increased from 2 to 4 workers
+> - Tests updated and new cache tests added
 
 **Goal:** Reduce DB operations and improve rate limit utilization with minimal changes.
 
@@ -177,7 +197,7 @@ Movies like "(500) Days of Summer" and "3 Idiots" appear in wrong positions in t
 
 ### Tasks
 
-#### 1.1 Pipeline Configuration Cache
+#### 1.1 Pipeline Configuration Cache ✅
 
 - **Files:** 
   - `internal/application/enrichment/pipeline/pipeline_cache.go` (new)
@@ -188,17 +208,17 @@ Movies like "(500) Days of Summer" and "3 Idiots" appear in wrong positions in t
 - **Impact:** Eliminate ~200K queries for 100K items
 - **Effort:** 2 hours
 
-#### 1.2 Centralized Stage Rate Limiter
+#### 1.2 Centralized Stage Rate Limiter ✅
 
 - **Files:**
   - `internal/application/enrichment/pipeline/worker_pool.go`
   - `internal/application/enrichment/pipeline/deps.go`
 - **Issue:** Rate limiter is per-worker, not per-stage. Polling overhead wastes capacity.
-- **Fix:** Single shared `rate.Limiter` across all workers in a pool
+- **Fix:** Single shared `rate.Limiter` across all workers in a pool with burst = concurrency
 - **Impact:** More predictable rate limiting, better throughput
 - **Effort:** 1 hour
 
-#### 1.3 Tuned Worker Count
+#### 1.3 Tuned Worker Count ✅
 
 - **Files:**
   - `internal/application/enrichment/pipeline/deps.go`
@@ -852,15 +872,16 @@ interface EnrichmentBadgeProps {
 
 ## Phase Summary (Updated)
 
-| Phase | Description | Effort | Impact |
-|-------|-------------|--------|--------|
-| 1 | Pipeline cache, rate limiter, worker tuning | 4-6h | Medium |
-| 2 | Batch enqueue, external ID prefetch, re-prioritization | 10-14h | High |
-| 3 | Entity cache (TV/Music deduplication) | 8-12h | High |
-| 4 | Priority boost, circuit breaker | 6-8h | UX + Resilience |
-| 5 | UX improvements (unified UI, badges, dialogs) | 10-14h | UX |
+| Phase | Description | Effort | Impact | Status |
+|-------|-------------|--------|--------|--------|
+| 0 | Sort title bug fix | ~1h | Bug fix | ✅ Complete |
+| 1 | Pipeline cache, rate limiter, worker tuning | 4-6h | Medium | ✅ Complete |
+| 2 | Batch enqueue, external ID prefetch, re-prioritization | 10-14h | High | Pending |
+| 3 | Entity cache (TV/Music deduplication) | 8-12h | High | Pending |
+| 4 | Priority boost, circuit breaker | 6-8h | UX + Resilience | Pending |
+| 5 | UX improvements (unified UI, badges, dialogs) | 10-14h | UX | Pending |
 
-**Total Estimated Effort:** 38-54 hours
+**Total Remaining Effort:** 34-48 hours
 
 ---
 

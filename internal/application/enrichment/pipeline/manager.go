@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	appenrich "github.com/mantonx/viewra/internal/application/enrichment"
 	"github.com/mantonx/viewra/internal/domain/enrichment"
@@ -15,24 +16,30 @@ import (
 // Manager orchestrates the enrichment pipeline.
 // It manages job queuing and coordinates worker pools for each stage.
 type Manager struct {
-	deps        *Deps
-	typedRepos  *TypedMediaRepos
-	workerPools map[string]*WorkerPool
-	enrichers   map[string]appenrich.Enricher
-	mu          sync.RWMutex
-	running     bool
-	ctx         context.Context
-	cancel      context.CancelFunc
-	wg          sync.WaitGroup
+	deps          *Deps
+	typedRepos    *TypedMediaRepos
+	pipelineCache *PipelineCache
+	workerPools   map[string]*WorkerPool
+	enrichers     map[string]appenrich.Enricher
+	mu            sync.RWMutex
+	running       bool
+	ctx           context.Context
+	cancel        context.CancelFunc
+	wg            sync.WaitGroup
 }
+
+// PipelineCacheTTL is the default TTL for pipeline configuration cache.
+// 5 minutes provides good balance between freshness and performance.
+const PipelineCacheTTL = 5 * time.Minute
 
 // NewManager creates a new pipeline manager.
 func NewManager(deps *Deps, typedRepos *TypedMediaRepos) *Manager {
 	return &Manager{
-		deps:        deps,
-		typedRepos:  typedRepos,
-		workerPools: make(map[string]*WorkerPool),
-		enrichers:   make(map[string]appenrich.Enricher),
+		deps:          deps,
+		typedRepos:    typedRepos,
+		pipelineCache: NewPipelineCache(deps.PipelineRepo, PipelineCacheTTL),
+		workerPools:   make(map[string]*WorkerPool),
+		enrichers:     make(map[string]appenrich.Enricher),
 	}
 }
 
@@ -137,7 +144,7 @@ func (m *Manager) Start(ctx context.Context) error {
 	// Start worker pools for each registered enricher
 	for stage, enricher := range m.enrichers {
 		config := m.getStageConfig(stage, enricher.Capabilities())
-		pool := NewWorkerPool(m.deps, enricher, m.typedRepos, config)
+		pool := NewWorkerPool(m.deps, enricher, m.typedRepos, m.pipelineCache, config)
 		pool.SetEnqueueNext(m.EnqueueNextStage)
 		m.workerPools[stage] = pool
 
@@ -235,8 +242,8 @@ func (m *Manager) recoverStuckJobs(ctx context.Context) error {
 // Called after media is discovered/saved during scanning.
 // libraryID is used for SSE event filtering so clients can subscribe to a specific library's progress.
 func (m *Manager) EnqueueFirstStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType) error {
-	// Get the first enabled stage for this media type
-	firstStage, err := m.deps.PipelineRepo.GetFirstStage(ctx, mediaType)
+	// Get the first enabled stage for this media type (cached)
+	firstStage, err := m.pipelineCache.GetFirstStage(ctx, mediaType)
 	if err != nil {
 		return fmt.Errorf("get first stage: %w", err)
 	}
@@ -278,8 +285,8 @@ func (m *Manager) EnqueueFirstStage(ctx context.Context, mediaID int64, libraryI
 // Called after a stage completes successfully.
 // libraryID is passed through from the completing job for SSE event filtering.
 func (m *Manager) EnqueueNextStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType, currentPosition int) error {
-	// Get the next enabled stage after the current position
-	nextStage, err := m.deps.PipelineRepo.GetNextStage(ctx, mediaType, currentPosition)
+	// Get the next enabled stage after the current position (cached)
+	nextStage, err := m.pipelineCache.GetNextStage(ctx, mediaType, currentPosition)
 	if err != nil {
 		return fmt.Errorf("get next stage: %w", err)
 	}
@@ -363,6 +370,12 @@ func (m *Manager) GetStats(ctx context.Context) (map[string]*enrichment.QueueSta
 	}
 
 	return stats, nil
+}
+
+// InvalidatePipelineCache forces a refresh of the pipeline configuration cache.
+// Call this after modifying pipeline stages via the API.
+func (m *Manager) InvalidatePipelineCache() {
+	m.pipelineCache.Invalidate()
 }
 
 // getStageConfig returns worker configuration for a stage based on enricher capabilities.
