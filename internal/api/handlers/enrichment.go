@@ -72,6 +72,39 @@ func (h *EnrichmentHandler) GetStats(c *gin.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
+// GetStages returns the status of all enrichment stages including circuit breaker state.
+//
+// @Summary Get enrichment stage statuses
+// @Description Returns status for all enrichment stages including circuit breaker state
+// @Tags enrichment
+// @Produce json
+// @Success 200 {array} pipeline.CircuitBreakerStatus
+// @Router /api/enrichment/stages [get]
+func (h *EnrichmentHandler) GetStages(c *gin.Context) {
+	statuses := h.manager.GetCircuitBreakerStatuses()
+	c.JSON(http.StatusOK, statuses)
+}
+
+// ResetStageCircuitBreaker resets the circuit breaker for a specific stage.
+//
+// @Summary Reset stage circuit breaker
+// @Description Manually resets the circuit breaker for a stage, allowing requests to flow again
+// @Tags enrichment
+// @Param stage path string true "Stage name"
+// @Success 204 "No Content"
+// @Router /api/enrichment/stages/{stage}/reset [post]
+func (h *EnrichmentHandler) ResetStageCircuitBreaker(c *gin.Context) {
+	stage := c.Param("stage")
+	if stage == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "stage is required"})
+		return
+	}
+
+	h.manager.ResetCircuitBreaker(stage)
+	h.logger.Info("Circuit breaker reset", "stage", stage)
+	c.Status(http.StatusNoContent)
+}
+
 // EnqueueMedia manually enqueues a media item for enrichment.
 // This can be used to re-process failed items or force enrichment.
 //

@@ -12,6 +12,10 @@ func RegisterEnrichmentRoutes(router *gin.RouterGroup, handler *handlers.Enrichm
 		// Queue statistics
 		enrichment.GET("/stats", handler.GetStats)
 
+		// Stage status including circuit breaker state
+		enrichment.GET("/stages", handler.GetStages)
+		enrichment.POST("/stages/:stage/reset", handler.ResetStageCircuitBreaker)
+
 		// Manual enqueue
 		enrichment.POST("/enqueue", handler.EnqueueMedia)
 

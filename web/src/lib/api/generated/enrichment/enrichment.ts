@@ -23,12 +23,15 @@ import type {
 
 import type {
   GetApiEnrichmentStats200,
+  GithubComMantonxViewraInternalApplicationEnrichmentPipelineCircuitBreakerStatus,
   InternalApiHandlersBulkEnqueueRequest,
   InternalApiHandlersBulkEnqueueResponse,
   InternalApiHandlersEnqueueMediaRequest,
   InternalApiHandlersEnqueueMediaResponse,
   InternalApiHandlersErrorResponse,
   InternalApiHandlersLibraryEnrichmentProgressResponse,
+  InternalApiHandlersPrioritizeRequest,
+  InternalApiHandlersPrioritizeResponse,
 } from '.././models'
 
 import { customInstance } from '../../mutator/index'
@@ -272,6 +275,361 @@ export const usePostApiEnrichmentEnqueue = <
   TContext
 > => {
   const mutationOptions = getPostApiEnrichmentEnqueueMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Boosts enrichment priority for a media item so it processes immediately
+ * @summary Prioritize media for immediate enrichment
+ */
+export type postApiEnrichmentPrioritizeResponse200 = {
+  data: InternalApiHandlersPrioritizeResponse
+  status: 200
+}
+
+export type postApiEnrichmentPrioritizeResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type postApiEnrichmentPrioritizeResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type postApiEnrichmentPrioritizeResponseSuccess = postApiEnrichmentPrioritizeResponse200 & {
+  headers: Headers
+}
+export type postApiEnrichmentPrioritizeResponseError = (
+  | postApiEnrichmentPrioritizeResponse400
+  | postApiEnrichmentPrioritizeResponse500
+) & {
+  headers: Headers
+}
+
+export type postApiEnrichmentPrioritizeResponse =
+  | postApiEnrichmentPrioritizeResponseSuccess
+  | postApiEnrichmentPrioritizeResponseError
+
+export const getPostApiEnrichmentPrioritizeUrl = () => {
+  return `/api/enrichment/prioritize`
+}
+
+export const postApiEnrichmentPrioritize = async (
+  internalApiHandlersPrioritizeRequest: InternalApiHandlersPrioritizeRequest,
+  options?: RequestInit
+): Promise<postApiEnrichmentPrioritizeResponse> => {
+  return customInstance<postApiEnrichmentPrioritizeResponse>(getPostApiEnrichmentPrioritizeUrl(), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(internalApiHandlersPrioritizeRequest),
+  })
+}
+
+export const getPostApiEnrichmentPrioritizeMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiEnrichmentPrioritize>>,
+    TError,
+    { data: InternalApiHandlersPrioritizeRequest },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiEnrichmentPrioritize>>,
+  TError,
+  { data: InternalApiHandlersPrioritizeRequest },
+  TContext
+> => {
+  const mutationKey = ['postApiEnrichmentPrioritize']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiEnrichmentPrioritize>>,
+    { data: InternalApiHandlersPrioritizeRequest }
+  > = (props) => {
+    const { data } = props ?? {}
+
+    return postApiEnrichmentPrioritize(data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiEnrichmentPrioritizeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiEnrichmentPrioritize>>
+>
+export type PostApiEnrichmentPrioritizeMutationBody = InternalApiHandlersPrioritizeRequest
+export type PostApiEnrichmentPrioritizeMutationError = InternalApiHandlersErrorResponse
+
+/**
+ * @summary Prioritize media for immediate enrichment
+ */
+export const usePostApiEnrichmentPrioritize = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiEnrichmentPrioritize>>,
+      TError,
+      { data: InternalApiHandlersPrioritizeRequest },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiEnrichmentPrioritize>>,
+  TError,
+  { data: InternalApiHandlersPrioritizeRequest },
+  TContext
+> => {
+  const mutationOptions = getPostApiEnrichmentPrioritizeMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Returns status for all enrichment stages including circuit breaker state
+ * @summary Get enrichment stage statuses
+ */
+export type getApiEnrichmentStagesResponse200 = {
+  data: GithubComMantonxViewraInternalApplicationEnrichmentPipelineCircuitBreakerStatus[]
+  status: 200
+}
+
+export type getApiEnrichmentStagesResponseSuccess = getApiEnrichmentStagesResponse200 & {
+  headers: Headers
+}
+export type getApiEnrichmentStagesResponse = getApiEnrichmentStagesResponseSuccess
+
+export const getGetApiEnrichmentStagesUrl = () => {
+  return `/api/enrichment/stages`
+}
+
+export const getApiEnrichmentStages = async (
+  options?: RequestInit
+): Promise<getApiEnrichmentStagesResponse> => {
+  return customInstance<getApiEnrichmentStagesResponse>(getGetApiEnrichmentStagesUrl(), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiEnrichmentStagesQueryKey = () => {
+  return [`/api/enrichment/stages`] as const
+}
+
+export const getGetApiEnrichmentStagesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiEnrichmentStages>>,
+  TError = unknown,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof getApiEnrichmentStages>>, TError, TData>
+  >
+  request?: SecondParameter<typeof customInstance>
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiEnrichmentStagesQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiEnrichmentStages>>> = ({ signal }) =>
+    getApiEnrichmentStages({ signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiEnrichmentStages>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiEnrichmentStagesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiEnrichmentStages>>
+>
+export type GetApiEnrichmentStagesQueryError = unknown
+
+export function useGetApiEnrichmentStages<
+  TData = Awaited<ReturnType<typeof getApiEnrichmentStages>>,
+  TError = unknown,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiEnrichmentStages>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiEnrichmentStages>>,
+          TError,
+          Awaited<ReturnType<typeof getApiEnrichmentStages>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiEnrichmentStages<
+  TData = Awaited<ReturnType<typeof getApiEnrichmentStages>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiEnrichmentStages>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiEnrichmentStages>>,
+          TError,
+          Awaited<ReturnType<typeof getApiEnrichmentStages>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiEnrichmentStages<
+  TData = Awaited<ReturnType<typeof getApiEnrichmentStages>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiEnrichmentStages>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get enrichment stage statuses
+ */
+
+export function useGetApiEnrichmentStages<
+  TData = Awaited<ReturnType<typeof getApiEnrichmentStages>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiEnrichmentStages>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiEnrichmentStagesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Manually resets the circuit breaker for a stage, allowing requests to flow again
+ * @summary Reset stage circuit breaker
+ */
+export type postApiEnrichmentStagesStageResetResponse204 = {
+  data: void
+  status: 204
+}
+
+export type postApiEnrichmentStagesStageResetResponseSuccess =
+  postApiEnrichmentStagesStageResetResponse204 & {
+    headers: Headers
+  }
+export type postApiEnrichmentStagesStageResetResponse =
+  postApiEnrichmentStagesStageResetResponseSuccess
+
+export const getPostApiEnrichmentStagesStageResetUrl = (stage: string) => {
+  return `/api/enrichment/stages/${stage}/reset`
+}
+
+export const postApiEnrichmentStagesStageReset = async (
+  stage: string,
+  options?: RequestInit
+): Promise<postApiEnrichmentStagesStageResetResponse> => {
+  return customInstance<postApiEnrichmentStagesStageResetResponse>(
+    getPostApiEnrichmentStagesStageResetUrl(stage),
+    {
+      ...options,
+      method: 'POST',
+    }
+  )
+}
+
+export const getPostApiEnrichmentStagesStageResetMutationOptions = <
+  TError = unknown,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiEnrichmentStagesStageReset>>,
+    TError,
+    { stage: string },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiEnrichmentStagesStageReset>>,
+  TError,
+  { stage: string },
+  TContext
+> => {
+  const mutationKey = ['postApiEnrichmentStagesStageReset']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiEnrichmentStagesStageReset>>,
+    { stage: string }
+  > = (props) => {
+    const { stage } = props ?? {}
+
+    return postApiEnrichmentStagesStageReset(stage, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiEnrichmentStagesStageResetMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiEnrichmentStagesStageReset>>
+>
+
+export type PostApiEnrichmentStagesStageResetMutationError = unknown
+
+/**
+ * @summary Reset stage circuit breaker
+ */
+export const usePostApiEnrichmentStagesStageReset = <TError = unknown, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiEnrichmentStagesStageReset>>,
+      TError,
+      { stage: string },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiEnrichmentStagesStageReset>>,
+  TError,
+  { stage: string },
+  TContext
+> => {
+  const mutationOptions = getPostApiEnrichmentStagesStageResetMutationOptions(options)
 
   return useMutation(mutationOptions, queryClient)
 }

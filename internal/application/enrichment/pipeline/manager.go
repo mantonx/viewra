@@ -16,17 +16,18 @@ import (
 // Manager orchestrates the enrichment pipeline.
 // It manages job queuing and coordinates worker pools for each stage.
 type Manager struct {
-	deps          *Deps
-	typedRepos    *TypedMediaRepos
-	pipelineCache *PipelineCache
-	entityCache   *EntityCache
-	workerPools   map[string]*WorkerPool
-	enrichers     map[string]appenrich.Enricher
-	mu            sync.RWMutex
-	running       bool
-	ctx           context.Context
-	cancel        context.CancelFunc
-	wg            sync.WaitGroup
+	deps             *Deps
+	typedRepos       *TypedMediaRepos
+	pipelineCache    *PipelineCache
+	entityCache      *EntityCache
+	circuitBreakers  *CircuitBreakerRegistry
+	workerPools      map[string]*WorkerPool
+	enrichers        map[string]appenrich.Enricher
+	mu               sync.RWMutex
+	running          bool
+	ctx              context.Context
+	cancel           context.CancelFunc
+	wg               sync.WaitGroup
 }
 
 // PipelineCacheTTL is the default TTL for pipeline configuration cache.
@@ -39,12 +40,13 @@ const EntityCacheMaxSize = 10000
 // NewManager creates a new pipeline manager.
 func NewManager(deps *Deps, typedRepos *TypedMediaRepos) *Manager {
 	return &Manager{
-		deps:          deps,
-		typedRepos:    typedRepos,
-		pipelineCache: NewPipelineCache(deps.PipelineRepo, PipelineCacheTTL),
-		entityCache:   NewEntityCache(EntityCacheMaxSize),
-		workerPools:   make(map[string]*WorkerPool),
-		enrichers:     make(map[string]appenrich.Enricher),
+		deps:            deps,
+		typedRepos:      typedRepos,
+		pipelineCache:   NewPipelineCache(deps.PipelineRepo, PipelineCacheTTL),
+		entityCache:     NewEntityCache(EntityCacheMaxSize),
+		circuitBreakers: NewCircuitBreakerRegistry(),
+		workerPools:     make(map[string]*WorkerPool),
+		enrichers:       make(map[string]appenrich.Enricher),
 	}
 }
 
@@ -146,10 +148,24 @@ func (m *Manager) Start(ctx context.Context) error {
 	m.ctx, m.cancel = context.WithCancel(ctx)
 	m.running = true
 
+	// Wire circuit breaker state change callback to event bus
+	m.circuitBreakers.SetOnStateChange(func(stage string, oldState, newState CircuitState) {
+		m.deps.EventBus.Publish(events.NewEvent("enrichment.circuit_state", "pipeline").
+			WithData("stage", stage).
+			WithData("old_state", string(oldState)).
+			WithData("new_state", string(newState)).
+			Build())
+		m.deps.Logger.Info("circuit breaker state changed",
+			slog.String("stage", stage),
+			slog.String("old_state", string(oldState)),
+			slog.String("new_state", string(newState)))
+	})
+
 	// Start worker pools for each registered enricher
 	for stage, enricher := range m.enrichers {
 		config := m.getStageConfig(stage, enricher.Capabilities())
-		pool := NewWorkerPool(m.deps, enricher, m.typedRepos, m.pipelineCache, m.entityCache, config)
+		circuitBreaker := m.circuitBreakers.Get(stage)
+		pool := NewWorkerPool(m.deps, enricher, m.typedRepos, m.pipelineCache, m.entityCache, circuitBreaker, config)
 		pool.SetEnqueueNext(m.EnqueueNextStage)
 		m.workerPools[stage] = pool
 
@@ -454,6 +470,17 @@ func (m *Manager) GetStats(ctx context.Context) (map[string]*enrichment.QueueSta
 // Call this after modifying pipeline stages via the API.
 func (m *Manager) InvalidatePipelineCache() {
 	m.pipelineCache.Invalidate()
+}
+
+// GetCircuitBreakerStatuses returns the current status of all circuit breakers.
+func (m *Manager) GetCircuitBreakerStatuses() []CircuitBreakerStatus {
+	return m.circuitBreakers.GetAll()
+}
+
+// ResetCircuitBreaker resets a circuit breaker for a specific stage.
+func (m *Manager) ResetCircuitBreaker(stage string) {
+	cb := m.circuitBreakers.Get(stage)
+	cb.Reset()
 }
 
 // getStageConfig returns worker configuration for a stage based on enricher capabilities.

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Button, Card, CardHeader, CardContent } from '@/components/ui'
 import { LibraryCard, LibraryForm } from '@/components/library'
+import { StageStatus } from '@/components/enrichment/StageStatus'
 import { PageHeader, EmptyState, LoadingPage, ErrorPage } from '@/components/common'
 import { extractLibraries } from '@/lib/utils/api'
 
@@ -28,6 +29,11 @@ const Libraries = () => {
         description="Manage your media libraries. Add folders to scan for movies, TV shows, and music."
         actions={<Button onClick={() => setShowCreateForm(true)}>+ Add Library</Button>}
       />
+
+      {/* Circuit breaker status - shows only when there are problems */}
+      <div className="mb-6">
+        <StageStatus showOnlyProblems />
+      </div>
 
       {showCreateForm && (
         <Card className="mb-6">

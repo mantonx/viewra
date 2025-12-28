@@ -62,3 +62,5 @@ export type {
   UseDeleteActionOptions,
   UseDeleteActionReturn,
 } from './useDeleteAction.types'
+export { useStageStatus } from './useStageStatus'
+export type { StageStatus } from './useStageStatus'

@@ -24,6 +24,11 @@ type JobProcessor struct {
 
 	// enqueueNext is called to enqueue the next stage after successful completion.
 	enqueueNext func(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType, currentPosition int) error
+
+	// Circuit breaker callbacks for recording enricher results.
+	// These are called after enricher.Enrich() returns.
+	onEnricherSuccess func()
+	onEnricherFailure func()
 }
 
 // NewJobProcessor creates a new JobProcessor.
@@ -50,6 +55,12 @@ func NewJobProcessor(
 // SetEnqueueNext sets the callback for enqueueing the next pipeline stage.
 func (p *JobProcessor) SetEnqueueNext(fn func(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType, currentPosition int) error) {
 	p.enqueueNext = fn
+}
+
+// SetCircuitBreakerCallbacks sets callbacks for recording success/failure to the circuit breaker.
+func (p *JobProcessor) SetCircuitBreakerCallbacks(onSuccess, onFailure func()) {
+	p.onEnricherSuccess = onSuccess
+	p.onEnricherFailure = onFailure
 }
 
 // Process handles a single enrichment job with timeout and error handling.
@@ -101,8 +112,17 @@ func (p *JobProcessor) ProcessWithExternalIDs(ctx context.Context, job *enrichme
 	duration := time.Since(startTime)
 
 	if err != nil {
+		// Record failure for circuit breaker (only for enricher errors, not build errors)
+		if p.onEnricherFailure != nil {
+			p.onEnricherFailure()
+		}
 		p.handleFailure(ctx, logger, job, mediaType, err, duration)
 		return
+	}
+
+	// Record success for circuit breaker
+	if p.onEnricherSuccess != nil {
+		p.onEnricherSuccess()
 	}
 
 	// Handle skipped jobs (not an error, just nothing to do)

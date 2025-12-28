@@ -14,14 +14,15 @@ import (
 
 // WorkerPool manages concurrent workers for a single enrichment stage.
 type WorkerPool struct {
-	deps          *Deps
-	enricher      appenrich.Enricher
-	typedRepos    *TypedMediaRepos
-	pipelineCache *PipelineCache
-	config        StageWorkerConfig
-	limiter       *rate.Limiter
-	jobProcessor  *JobProcessor
-	wg            sync.WaitGroup
+	deps           *Deps
+	enricher       appenrich.Enricher
+	typedRepos     *TypedMediaRepos
+	pipelineCache  *PipelineCache
+	config         StageWorkerConfig
+	limiter        *rate.Limiter
+	circuitBreaker *CircuitBreaker
+	jobProcessor   *JobProcessor
+	wg             sync.WaitGroup
 
 	// enqueueNext is called to enqueue the next stage after successful completion.
 	// Set by Manager after creation.
@@ -29,7 +30,7 @@ type WorkerPool struct {
 }
 
 // NewWorkerPool creates a new worker pool for a stage.
-func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMediaRepos, pipelineCache *PipelineCache, entityCache *EntityCache, config StageWorkerConfig) *WorkerPool {
+func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMediaRepos, pipelineCache *PipelineCache, entityCache *EntityCache, circuitBreaker *CircuitBreaker, config StageWorkerConfig) *WorkerPool {
 	var limiter *rate.Limiter
 	if config.RateLimit > 0 {
 		// Burst size matches concurrency to allow all workers to acquire tokens in parallel.
@@ -65,15 +66,26 @@ func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMed
 	responseApplier := NewResponseApplier(deps, metadataApplier, creditsApplier, studiosApplier, keywordsApplier, imageProcessor, logger)
 	jobProcessor := NewJobProcessor(deps, enricher, requestBuilder, responseApplier, pipelineCache, config, logger)
 
-	return &WorkerPool{
-		deps:          deps,
-		enricher:      enricher,
-		typedRepos:    typedRepos,
-		pipelineCache: pipelineCache,
-		config:        config,
-		limiter:       limiter,
-		jobProcessor:  jobProcessor,
+	pool := &WorkerPool{
+		deps:           deps,
+		enricher:       enricher,
+		typedRepos:     typedRepos,
+		pipelineCache:  pipelineCache,
+		config:         config,
+		limiter:        limiter,
+		circuitBreaker: circuitBreaker,
+		jobProcessor:   jobProcessor,
 	}
+
+	// Wire up circuit breaker callbacks
+	if circuitBreaker != nil {
+		jobProcessor.SetCircuitBreakerCallbacks(
+			circuitBreaker.RecordSuccess,
+			circuitBreaker.RecordFailure,
+		)
+	}
+
+	return pool
 }
 
 // SetEnqueueNext sets the callback for enqueueing the next pipeline stage.
@@ -112,6 +124,21 @@ func (p *WorkerPool) worker(ctx context.Context, workerID int) {
 			logger.Debug("worker shutting down")
 			return
 		default:
+		}
+
+		// Check circuit breaker before attempting to claim jobs
+		if p.circuitBreaker != nil && !p.circuitBreaker.Allow() {
+			// Circuit is open - wait before retrying
+			status := p.circuitBreaker.Status()
+			logger.Debug("circuit breaker open, waiting",
+				slog.Duration("retry_after", status.RetryAfter))
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(min(status.RetryAfter, 30*time.Second)):
+				// Check again after waiting
+			}
+			continue
 		}
 
 		// Apply rate limiting if configured
