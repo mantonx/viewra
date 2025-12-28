@@ -23,6 +23,16 @@ export interface OverallProgress {
 }
 
 /**
+ * Circuit breaker status for a stage
+ */
+export interface CircuitBreakerStatus {
+  stage: string
+  state: 'closed' | 'open' | 'half_open'
+  consecutiveFailures: number
+  failureThreshold: number
+}
+
+/**
  * Enrichment progress state with computed fields
  */
 export interface EnrichmentProgressState {
@@ -48,6 +58,8 @@ export interface EnrichmentProgressState {
   currentItem?: CurrentEnrichmentItem
   /** Overall progress based on unique items (accurate, not inflated by stages) */
   overallProgress?: OverallProgress
+  /** Circuit breaker statuses for each stage */
+  circuitBreakers?: CircuitBreakerStatus[]
 }
 
 export interface UseEnrichmentProgressOptions {
@@ -130,6 +142,14 @@ export const useEnrichmentProgress = (
         }
       }
 
+      // Parse circuit breaker statuses
+      const circuitBreakers: CircuitBreakerStatus[] | undefined = data.circuit_breakers?.map((cb) => ({
+        stage: cb.stage ?? '',
+        state: (cb.state as 'closed' | 'open' | 'half_open') ?? 'closed',
+        consecutiveFailures: cb.consecutive_failures ?? 0,
+        failureThreshold: cb.failure_threshold ?? 0,
+      }))
+
       const state: EnrichmentProgressState = {
         libraryId,
         pending,
@@ -145,6 +165,7 @@ export const useEnrichmentProgress = (
         stageProgress: data.stage_progress,
         currentItem,
         overallProgress,
+        circuitBreakers,
       }
 
       setProgress(state)

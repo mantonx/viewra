@@ -82,13 +82,13 @@ func (c ErrorCategory) IsRetryable() bool {
 
 // QueueStats provides aggregate statistics for a queue stage.
 type QueueStats struct {
-	Stage           string
-	PendingCount    int64
-	ProcessingCount int64
-	CompletedCount  int64
-	FailedCount     int64
-	SkippedCount    int64
-	TotalCount      int64
+	Stage           string `json:"stage"`
+	PendingCount    int64  `json:"pendingCount"`
+	ProcessingCount int64  `json:"processingCount"`
+	CompletedCount  int64  `json:"completedCount"`
+	FailedCount     int64  `json:"failedCount"`
+	SkippedCount    int64  `json:"skippedCount"`
+	TotalCount      int64  `json:"totalCount"`
 }
 
 // Status represents the enrichment status for a media item at a specific stage.

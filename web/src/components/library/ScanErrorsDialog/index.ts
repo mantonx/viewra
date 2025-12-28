@@ -1,2 +1,2 @@
 export { ScanErrorsDialog } from './ScanErrorsDialog'
-export type { ScanErrorsDialogProps } from './ScanErrorsDialog.types'
+export type { ScanErrorsDialogProps, IssueTab } from './ScanErrorsDialog.types'

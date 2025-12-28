@@ -283,17 +283,26 @@ type OverallProgressResponse struct {
 	Percentage     float64 `json:"percentage"`
 }
 
+// CircuitBreakerStatusResponse represents the status of a circuit breaker.
+type CircuitBreakerStatusResponse struct {
+	Stage               string `json:"stage"`
+	State               string `json:"state"`
+	ConsecutiveFailures int    `json:"consecutive_failures"`
+	FailureThreshold    int    `json:"failure_threshold"`
+}
+
 // LibraryEnrichmentProgressResponse represents enrichment progress for a library.
 type LibraryEnrichmentProgressResponse struct {
-	LibraryID       int64                             `json:"library_id"`
-	StageProgress   map[string]*enrichment.QueueStats `json:"stage_progress"`
-	TotalPending    int64                             `json:"total_pending"`
-	TotalProcessing int64                             `json:"total_processing"`
-	TotalCompleted  int64                             `json:"total_completed"`
-	TotalFailed     int64                             `json:"total_failed"`
-	IsActive        bool                              `json:"is_active"`
-	CurrentItem     *CurrentItemResponse              `json:"current_item,omitempty"`
-	OverallProgress *OverallProgressResponse          `json:"overall_progress,omitempty"`
+	LibraryID        int64                             `json:"library_id"`
+	StageProgress    map[string]*enrichment.QueueStats `json:"stage_progress"`
+	TotalPending     int64                             `json:"total_pending"`
+	TotalProcessing  int64                             `json:"total_processing"`
+	TotalCompleted   int64                             `json:"total_completed"`
+	TotalFailed      int64                             `json:"total_failed"`
+	IsActive         bool                              `json:"is_active"`
+	CurrentItem      *CurrentItemResponse              `json:"current_item,omitempty"`
+	OverallProgress  *OverallProgressResponse          `json:"overall_progress,omitempty"`
+	CircuitBreakers  []CircuitBreakerStatusResponse    `json:"circuit_breakers,omitempty"`
 }
 
 // GetLibraryProgress returns current enrichment progress snapshot for a library.
@@ -447,6 +456,20 @@ func (h *EnrichmentHandler) buildProgressResponse(libraryID int64, progress map[
 		}
 	}
 
+	// Get circuit breaker statuses
+	var circuitBreakers []CircuitBreakerStatusResponse
+	if h.manager != nil {
+		statuses := h.manager.GetCircuitBreakerStatuses()
+		for _, status := range statuses {
+			circuitBreakers = append(circuitBreakers, CircuitBreakerStatusResponse{
+				Stage:               status.Stage,
+				State:               string(status.State),
+				ConsecutiveFailures: status.ConsecutiveFailures,
+				FailureThreshold:    status.FailureThreshold,
+			})
+		}
+	}
+
 	return &LibraryEnrichmentProgressResponse{
 		LibraryID:       libraryID,
 		StageProgress:   progress,
@@ -457,6 +480,7 @@ func (h *EnrichmentHandler) buildProgressResponse(libraryID int64, progress map[
 		IsActive:        totalPending > 0 || totalProcessing > 0,
 		CurrentItem:     currentItemResp,
 		OverallProgress: overallProgressResp,
+		CircuitBreakers: circuitBreakers,
 	}
 }
 

@@ -1,9 +1,7 @@
-import { EnrichmentIndicator } from '@/components/library/EnrichmentIndicator'
-import { ScanErrorsDialog } from '@/components/library/ScanErrorsDialog'
+import { ScanErrorsDialog, type IssueTab } from '@/components/library/ScanErrorsDialog'
 import { Button, Progress } from '@/components/ui'
 import {
   useDeleteApiLibrariesId,
-  useGetApiMedia,
   usePostApiLibrariesIdScan,
   usePostApiLibrariesIdScanJobIdPause,
   usePostApiLibrariesIdScanJobIdResume,
@@ -16,11 +14,26 @@ import { useScanProgress } from '@/lib/hooks/useScanProgress'
 import { useToast } from '@/lib/hooks/useToast'
 import { getErrorMessage } from '@/lib/utils/error'
 import { pluralize, formatETA } from '@/lib/utils/format'
+import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import type { LibraryCardProps } from './LibraryCard.types'
 
+/** Format stage name for display */
+const formatStageName = (stage: string): string => {
+  const specialCases: Record<string, string> = {
+    'nfo': 'NFO',
+    'tmdb': 'TMDB',
+    'musicbrainz': 'MusicBrainz',
+    'ai-search': 'AI Search',
+    'local-images': 'Local Images',
+  }
+  return specialCases[stage.toLowerCase()] ?? stage.charAt(0).toUpperCase() + stage.slice(1)
+}
+
 const LibraryCard = ({ library }: LibraryCardProps) => {
   const [showErrorsDialog, setShowErrorsDialog] = useState(false)
+  const [dialogInitialTab, setDialogInitialTab] = useState<IssueTab | undefined>(undefined)
+  const [isExpanded, setIsExpanded] = useState(false)
   const invalidateLibraries = useInvalidateLibraries()
   const deleteMutation = useDeleteApiLibrariesId()
   const scanMutation = usePostApiLibrariesIdScan()
@@ -29,44 +42,26 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   const toast = useToast()
   const { confirm } = useConfirm()
 
-  // Safe library ID with fallback (hooks require a number, but ID is optional in generated type)
   const libraryId = library.id ?? 0
 
-  // Get real-time scan status via SSE
   const { scanStatus, isScanning, isPaused } = useScanProgress(libraryId, {
     enabled: libraryId > 0,
   })
 
-  // Get enrichment progress to know if enrichment is still running
   const { isActive: isEnriching, progress: enrichmentProgress } = useEnrichmentProgress(libraryId, {
     enabled: libraryId > 0,
   })
-  // Only show "Complete" if we've received enrichment data and it's not active
-  // If we haven't received data yet (enrichmentProgress is null), don't claim completion
-  const enrichmentConfirmedComplete = enrichmentProgress !== null && !isEnriching
 
-  // Get enrichment failures count (only when not actively scanning/enriching)
+  const enrichmentComplete = enrichmentProgress !== null && !isEnriching
+
   const { total: enrichmentFailureCount } = useEnrichmentFailures({
     libraryId,
-    enabled: libraryId > 0 && !isScanning && enrichmentConfirmedComplete,
-    limit: 1, // Only need count
+    enabled: libraryId > 0 && !isScanning && enrichmentComplete,
+    limit: 1,
   })
 
-  // Get total media count for this library
-  const { data: mediaCount } = useGetApiMedia(
-    { library_id: library.id, limit: 1 },
-    {
-      query: {
-        enabled: !!library.id,
-      },
-    }
-  )
-
   const handleDelete = async () => {
-    if (!library.id || !library.name) {
-      return
-    }
-
+    if (!library.id || !library.name) return
     const confirmed = await confirm({
       title: 'Delete Library',
       message: `Are you sure you want to delete "${library.name}"? This action cannot be undone.`,
@@ -74,11 +69,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
       cancelText: 'Cancel',
       variant: 'danger',
     })
-
-    if (!confirmed) {
-      return
-    }
-
+    if (!confirmed) return
     try {
       await deleteMutation.mutateAsync({ id: library.id })
       invalidateLibraries()
@@ -89,12 +80,10 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   }
 
   const handleScan = async () => {
-    if (!library.id) {
-      return
-    }
+    if (!library.id) return
     try {
       await scanMutation.mutateAsync({ id: library.id })
-      toast.success('Scan started successfully! The library will be updated shortly.')
+      toast.success('Scan started')
       invalidateLibraries()
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to start scan'))
@@ -102,246 +91,334 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   }
 
   const handlePause = async () => {
-    if (!library.id || !scanStatus?.jobId) {
-      return
-    }
+    if (!library.id || !scanStatus?.jobId) return
     try {
       await pauseMutation.mutateAsync({ id: library.id, jobId: scanStatus.jobId })
       toast.success('Scan paused')
-      invalidateLibraries()
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to pause scan'))
     }
   }
 
   const handleResume = async () => {
-    if (!library.id || !scanStatus?.jobId) {
-      return
-    }
+    if (!library.id || !scanStatus?.jobId) return
     try {
       await resumeMutation.mutateAsync({ id: library.id, jobId: scanStatus.jobId })
       toast.success('Scan resumed')
-      invalidateLibraries()
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to resume scan'))
     }
   }
 
-  // Derive display states from SSE scan status (using camelCase from hook)
-  const hasErrors = scanStatus && scanStatus.errorCount > 0
-  const hasWarnings = scanStatus && scanStatus.warningCount > 0
-  const hasIssues = hasErrors || hasWarnings
+  // Derived state
   const isCompleted = scanStatus?.isCompleted ?? false
-  const totalMediaCount =
-    mediaCount?.data && 'total' in mediaCount.data ? (mediaCount.data.total ?? 0) : 0
-
-  // Discovery health checks
-  const hasDiscoveryIssues =
-    scanStatus &&
-    (scanStatus.dirsSkipped > 0 ||
-      scanStatus.discoveryErrors > 0 ||
-      scanStatus.filesSkipped > 0)
-  const discoveryWarningsCount =
-    (scanStatus?.discoveryWarnings ?? 0) + (scanStatus?.discoveryErrors ?? 0)
-
-  // Calculate ETA display
+  const scanIssueCount = (scanStatus?.errorCount ?? 0) + (scanStatus?.warningCount ?? 0)
+  const totalIssueCount = scanIssueCount + enrichmentFailureCount
   const etaDisplay = scanStatus?.etaSeconds ? formatETA(scanStatus.etaSeconds) : null
+
+  // Helper to open issues dialog to a specific tab
+  const openIssuesDialog = (tab?: IssueTab) => {
+    setDialogInitialTab(tab)
+    setShowErrorsDialog(true)
+  }
+
+  // Get enrichment stage data
+  const stageProgress = enrichmentProgress?.stageProgress
+  const stages = stageProgress
+    ? Object.entries(stageProgress).map(([name, stats]) => {
+        const pending = stats.pendingCount ?? 0
+        const processing = stats.processingCount ?? 0
+        const total = stats.totalCount ?? 0
+        // Stage is complete when there's nothing left to process
+        // This is more stable than comparing completed+skipped+failed >= total
+        // because total can increase as new items are discovered during scanning
+        const isComplete = total > 0 && pending === 0 && processing === 0
+        return {
+          name,
+          completed: stats.completedCount ?? 0,
+          total,
+          failed: stats.failedCount ?? 0,
+          processing,
+          isComplete,
+        }
+      })
+    : []
+
+  // Status summary for collapsed view
+  const getStatusSummary = () => {
+    if (isScanning) return 'Scanning...'
+    if (isPaused) return 'Paused'
+    if (isEnriching) {
+      const pct = Math.round(enrichmentProgress?.overallProgress?.percentage ?? 0)
+      return `Enriching ${pct}%`
+    }
+    if (isCompleted && enrichmentComplete) return 'Complete'
+    if (isCompleted) return 'Scanned'
+    return 'Not scanned'
+  }
 
   return (
     <>
-      <div className="hover:bg-neutral-50 dark:hover:bg-neutral-800">
-        <div className="p-4">
-          <div className="flex justify-between items-start">
+      <div className="border-b border-neutral-200 dark:border-neutral-700 last:border-b-0">
+        {/* Header - clickable to expand */}
+        <div
+          className={cn(
+            'p-4 cursor-pointer select-none transition-colors',
+            'hover:bg-neutral-50 dark:hover:bg-neutral-800/50'
+          )}
+          onClick={() => setIsExpanded(!isExpanded)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === 'Enter' && setIsExpanded(!isExpanded)}
+          aria-expanded={isExpanded}
+        >
+          <div className="flex items-start justify-between gap-4">
+            {/* Left: Library info */}
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-lg text-neutral-900 dark:text-neutral-50">{library.name}</h3>
-              <p className="text-sm text-neutral-600 dark:text-neutral-400">{library.path}</p>
-              <div className="mt-2 flex gap-4 items-center text-sm text-neutral-500 dark:text-neutral-500 flex-wrap">
-                <span>Type: {library.type}</span>
-                {isCompleted && scanStatus && (
-                  <span
-                    className={
-                      hasIssues
-                        ? 'text-yellow-600 dark:text-yellow-500 font-medium'
-                        : enrichmentConfirmedComplete
-                          ? 'text-green-600 dark:text-green-500 font-medium'
-                          : 'text-blue-600 dark:text-blue-400 font-medium'
-                    }
-                    title={`${scanStatus.filesProcessed.toLocaleString()} files processed, ${totalMediaCount.toLocaleString()} total media items in library`}
-                  >
-                    {enrichmentConfirmedComplete ? (
-                      <>
-                        ✓ Complete ({scanStatus.filesProcessed.toLocaleString()}{' '}
-                        {scanStatus.filesProcessed === 1 ? 'file' : 'files'})
-                      </>
-                    ) : (
-                      <>Enriching ({scanStatus.filesProcessed.toLocaleString()} files scanned)</>
-                    )}
-                  </span>
-                )}
-                {(hasIssues || enrichmentFailureCount > 0) && (
+              <div className="flex items-center gap-3">
+                <h3 className="font-medium text-neutral-900 dark:text-neutral-100 truncate">
+                  {library.name}
+                </h3>
+                <span className="text-xs px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400">
+                  {library.type}
+                </span>
+                {totalIssueCount > 0 && (
                   <button
-                    onClick={() => setShowErrorsDialog(true)}
-                    className="cursor-pointer text-amber-600 dark:text-amber-500 font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-1 rounded-sm flex items-center gap-1.5 transition-colors"
-                    title="View library issues"
-                    aria-label={`View ${pluralize((scanStatus?.errorCount ?? 0) + (scanStatus?.warningCount ?? 0) + enrichmentFailureCount, 'issue')}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openIssuesDialog()
+                    }}
+                    className="cursor-pointer text-xs px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
                   >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                      />
-                    </svg>
-                    <span>{pluralize((scanStatus?.errorCount ?? 0) + (scanStatus?.warningCount ?? 0) + enrichmentFailureCount, 'issue')}</span>
+                    {totalIssueCount} {totalIssueCount === 1 ? 'issue' : 'issues'}
                   </button>
                 )}
               </div>
+              <p className="text-sm text-neutral-500 dark:text-neutral-500 truncate mt-0.5">
+                {library.path}
+              </p>
             </div>
-            <div className="flex gap-2 ml-4">
-              {isPaused ? (
+
+            {/* Right: Status + Actions */}
+            <div className="flex items-center gap-4 shrink-0">
+              <span className={cn(
+                'text-sm flex items-center gap-1.5',
+                isCompleted && enrichmentComplete
+                  ? 'text-green-600 dark:text-green-500'
+                  : 'text-neutral-500 dark:text-neutral-400'
+              )}>
+                {isCompleted && enrichmentComplete && (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                {getStatusSummary()}
+              </span>
+
+              {/* Action buttons */}
+              <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                {isPaused ? (
+                  <Button size="sm" variant="primary" onClick={handleResume} isLoading={resumeMutation.isPending}>
+                    Resume
+                  </Button>
+                ) : isScanning ? (
+                  <Button size="sm" variant="secondary" onClick={handlePause} isLoading={pauseMutation.isPending}>
+                    Pause
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="secondary" onClick={handleScan} isLoading={scanMutation.isPending}>
+                    {isCompleted ? 'Rescan' : 'Scan'}
+                  </Button>
+                )}
                 <Button
-                  variant="primary"
                   size="sm"
-                  onClick={handleResume}
-                  isLoading={resumeMutation.isPending}
+                  variant="ghost"
+                  onClick={handleDelete}
+                  isLoading={deleteMutation.isPending}
+                  disabled={isScanning}
                 >
-                  Resume
+                  Delete
                 </Button>
-              ) : isScanning ? (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handlePause}
-                  isLoading={pauseMutation.isPending}
-                >
-                  Pause
-                </Button>
-              ) : (
-                <Button
-                  variant="success"
-                  size="sm"
-                  onClick={handleScan}
-                  isLoading={scanMutation.isPending}
-                >
-                  {isCompleted ? 'Rescan' : 'Scan'}
-                </Button>
-              )}
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={handleDelete}
-                isLoading={deleteMutation.isPending}
-                disabled={isScanning}
+              </div>
+
+              {/* Expand indicator */}
+              <svg
+                className={cn(
+                  'w-5 h-5 text-neutral-400 transition-transform',
+                  isExpanded && 'rotate-180'
+                )}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
-                Delete
-              </Button>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
+              </svg>
             </div>
           </div>
-        </div>
-        {(isScanning || isPaused) && scanStatus && (
-          <div className="px-4 pb-4 space-y-2">
-            <Progress
-              value={
-                scanStatus.phase === 'discovering' && !scanStatus.discoveryDone ? 0 : scanStatus.progress
-              }
-              label={
-                isPaused
-                  ? 'Scan paused'
-                  : scanStatus.phase === 'discovering' && !scanStatus.discoveryDone
-                    ? `Discovering files... ${scanStatus.filesFound.toLocaleString()} found${
-                        scanStatus.estimatedTotal > 0
-                          ? ` (est. ${scanStatus.estimatedTotal.toLocaleString()} total)`
-                          : ''
-                      }`
-                    : `${scanStatus.filesProcessed.toLocaleString()} / ${scanStatus.filesFound.toLocaleString()} files scanned${
-                        etaDisplay ? ` • ETA ${etaDisplay}` : ''
-                      }`
-              }
-              variant={isPaused ? 'warning' : 'default'}
-              size="sm"
-              showPercentage={scanStatus.phase !== 'discovering' || scanStatus.discoveryDone}
-            />
-            {/* Compact enrichment indicator during scan */}
-            {libraryId > 0 && <EnrichmentIndicator libraryId={libraryId} compact />}
-          </div>
-        )}
-        {/* Full enrichment progress when scan is not active */}
-        {!isScanning && !isPaused && libraryId > 0 && (
-          <EnrichmentIndicator libraryId={libraryId} />
-        )}
-        {isCompleted && hasDiscoveryIssues && scanStatus && (
-          <div className="px-4 pb-4">
-            <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-md p-3">
-              <div className="flex items-start gap-2">
-                <svg
-                  className="w-5 h-5 text-yellow-600 dark:text-yellow-500 shrink-0 mt-0.5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                  />
-                </svg>
-                <div className="flex-1">
-                  <h4 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Incomplete File Discovery</h4>
-                  <div className="mt-2 flex items-center gap-4 text-sm">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-green-700 dark:text-green-400 font-semibold text-lg">
-                        {scanStatus.filesFound.toLocaleString()}
-                      </span>
-                      <span className="text-yellow-700 dark:text-yellow-300">files found</span>
-                    </div>
-                    <span className="text-yellow-400 dark:text-yellow-600">•</span>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-red-600 dark:text-red-400 font-semibold text-lg">
-                        {scanStatus.filesSkipped.toLocaleString()}
-                      </span>
-                      <span className="text-yellow-700 dark:text-yellow-300">skipped</span>
-                    </div>
-                  </div>
-                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-2">
-                    {scanStatus.dirsSkipped > 0 && (
-                      <span>
-                        Could not read {scanStatus.dirsSkipped.toLocaleString()}{' '}
-                        {pluralize(scanStatus.dirsSkipped, 'directory', 'directories')}.{' '}
+
+          {/* Inline progress bar when scanning/enriching (collapsed view) */}
+          {!isExpanded && (isScanning || isPaused || isEnriching) && (
+            <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+              <Progress
+                value={
+                  isScanning || isPaused
+                    ? scanStatus?.progress ?? 0
+                    : enrichmentProgress?.overallProgress?.percentage ?? 0
+                }
+                size="sm"
+                variant={isPaused ? 'warning' : 'default'}
+              />
+              <p className="mt-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+                {(isScanning || isPaused) && scanStatus && (
+                  <>
+                    {scanStatus.filesProcessed.toLocaleString()}/{scanStatus.filesFound.toLocaleString()} files
+                    {etaDisplay && <span className="text-neutral-400 dark:text-neutral-500"> · {etaDisplay}</span>}
+                    {isEnriching && enrichmentProgress?.currentItem && (
+                      <span className="text-neutral-400 dark:text-neutral-500">
+                        {' · '}{formatStageName(enrichmentProgress.currentItem.stage)}: {enrichmentProgress.currentItem.title}
                       </span>
                     )}
-                    Check permissions and network connectivity.
+                  </>
+                )}
+                {isEnriching && !isScanning && !isPaused && enrichmentProgress?.currentItem && (
+                  <>
+                    {formatStageName(enrichmentProgress.currentItem.stage)}: {enrichmentProgress.currentItem.title}
+                  </>
+                )}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Expanded details */}
+        {isExpanded && (
+          <div className="px-4 pb-4 border-t border-neutral-100 dark:border-neutral-800">
+            {/* Stats row */}
+            <div className="flex gap-8 py-3 text-sm">
+              {isCompleted && scanStatus && (
+                <div className="flex flex-col">
+                  <span className="text-xs text-neutral-500 dark:text-neutral-500 uppercase tracking-wide">Files</span>
+                  <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                    {scanStatus.filesProcessed.toLocaleString()}
+                  </span>
+                </div>
+              )}
+              {enrichmentProgress?.overallProgress && (
+                <div className="flex flex-col">
+                  <span className="text-xs text-neutral-500 dark:text-neutral-500 uppercase tracking-wide">Enriched</span>
+                  <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                    {enrichmentProgress.overallProgress.completedItems.toLocaleString()}/{enrichmentProgress.overallProgress.totalItems.toLocaleString()}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Active progress */}
+            {(isScanning || isPaused) && scanStatus && (
+              <div className="py-3 border-t border-neutral-100 dark:border-neutral-800">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                    {isPaused ? 'Scan Paused' : 'Scanning'}
+                  </span>
+                  <span className="text-sm text-neutral-500">
+                    {Math.round(scanStatus.progress)}%
+                  </span>
+                </div>
+                <Progress
+                  value={scanStatus.progress}
+                  size="sm"
+                  variant={isPaused ? 'warning' : 'default'}
+                />
+                <p className="text-xs text-neutral-500 mt-1">
+                  {scanStatus.filesProcessed.toLocaleString()} / {scanStatus.filesFound.toLocaleString()} files
+                  {etaDisplay && ` - ${etaDisplay} remaining`}
+                </p>
+              </div>
+            )}
+
+            {/* Enrichment progress */}
+            {isEnriching && enrichmentProgress?.overallProgress && (
+              <div className="py-3 border-t border-neutral-100 dark:border-neutral-800">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                    Enriching
+                  </span>
+                  <span className="text-sm text-neutral-500">
+                    {Math.round(enrichmentProgress.overallProgress.percentage)}%
+                  </span>
+                </div>
+                <Progress
+                  value={enrichmentProgress.overallProgress.percentage}
+                  size="sm"
+                />
+                {enrichmentProgress.currentItem && (
+                  <p className="text-xs text-neutral-500 mt-1">
+                    {formatStageName(enrichmentProgress.currentItem.stage)}: {enrichmentProgress.currentItem.title}
                   </p>
-                  {discoveryWarningsCount > 0 && (
-                    <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
-                      {discoveryWarningsCount} {pluralize(discoveryWarningsCount, 'warning')}{' '}
-                      detected during discovery
-                    </p>
-                  )}
+                )}
+              </div>
+            )}
+
+            {/* Stage breakdown */}
+            {stages.length > 0 && (
+              <div className="py-3 border-t border-neutral-100 dark:border-neutral-800">
+                <h4 className="text-xs font-medium text-neutral-500 dark:text-neutral-500 uppercase tracking-wide mb-2">
+                  Enrichment Stages
+                </h4>
+                <div className="space-y-1.5">
+                  {stages.sort((a, b) => a.name.localeCompare(b.name)).map((stage) => (
+                    <div key={stage.name} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        {/* Status dot */}
+                        <span className={cn(
+                          'w-2 h-2 rounded-full',
+                          stage.isComplete ? 'bg-green-500' :
+                          stage.processing > 0 ? 'bg-blue-500' :
+                          'bg-neutral-300 dark:bg-neutral-600'
+                        )} />
+                        <span className="text-neutral-700 dark:text-neutral-300">
+                          {formatStageName(stage.name)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-neutral-500 dark:text-neutral-500 tabular-nums">
+                          {stage.completed.toLocaleString()}/{stage.total.toLocaleString()}
+                        </span>
+                        {stage.failed > 0 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openIssuesDialog('enrichment')
+                            }}
+                            className="text-xs text-red-500 hover:text-red-600 dark:hover:text-red-400 hover:underline cursor-pointer"
+                          >
+                            {stage.failed} failed
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>
 
-      {(hasIssues || enrichmentFailureCount > 0) && library.id && (
+      {totalIssueCount > 0 && library.id && (
         <ScanErrorsDialog
           libraryId={library.id}
           jobId={scanStatus?.jobId}
           isOpen={showErrorsDialog}
-          onClose={() => setShowErrorsDialog(false)}
+          onClose={() => {
+            setShowErrorsDialog(false)
+            setDialogInitialTab(undefined)
+          }}
           onRetrySuccess={() => {
             invalidateLibraries()
-            toast.success('Retrying failed files...')
+            toast.success('Retrying failed items...')
           }}
+          initialTab={dialogInitialTab}
         />
       )}
     </>

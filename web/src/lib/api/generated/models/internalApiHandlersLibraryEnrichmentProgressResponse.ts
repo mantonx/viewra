@@ -5,11 +5,13 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
+import type { InternalApiHandlersCircuitBreakerStatusResponse } from './internalApiHandlersCircuitBreakerStatusResponse'
 import type { InternalApiHandlersCurrentItemResponse } from './internalApiHandlersCurrentItemResponse'
 import type { InternalApiHandlersOverallProgressResponse } from './internalApiHandlersOverallProgressResponse'
 import type { InternalApiHandlersLibraryEnrichmentProgressResponseStageProgress } from './internalApiHandlersLibraryEnrichmentProgressResponseStageProgress'
 
 export interface InternalApiHandlersLibraryEnrichmentProgressResponse {
+  circuit_breakers?: InternalApiHandlersCircuitBreakerStatusResponse[]
   current_item?: InternalApiHandlersCurrentItemResponse
   is_active?: boolean
   library_id?: number

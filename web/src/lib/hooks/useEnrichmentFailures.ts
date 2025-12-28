@@ -1,8 +1,9 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   useGetApiLibrariesIdEnrichmentFailures,
   postApiLibrariesIdEnrichmentFailuresRetry,
+  postApiEnrichmentRetry,
   getGetApiLibrariesIdEnrichmentFailuresQueryKey,
 } from '@/lib/api/generated/enrichment/enrichment'
 import type { InternalApiHandlersEnrichmentFailureResponse } from '@/lib/api/generated/models'
@@ -61,6 +62,7 @@ export const useEnrichmentFailures = ({
   offset = 0,
 }: UseEnrichmentFailuresOptions) => {
   const queryClient = useQueryClient()
+  const [retryingIds, setRetryingIds] = useState<Set<number>>(new Set())
 
   const { data, isLoading, error, refetch } = useGetApiLibrariesIdEnrichmentFailures(
     libraryId,
@@ -73,8 +75,28 @@ export const useEnrichmentFailures = ({
     }
   )
 
-  const retryMutation = useMutation({
+  const retryAllMutation = useMutation({
     mutationFn: () => postApiLibrariesIdEnrichmentFailuresRetry(libraryId),
+    onSuccess: () => {
+      // Invalidate failures query to refetch
+      queryClient.invalidateQueries({
+        queryKey: getGetApiLibrariesIdEnrichmentFailuresQueryKey(libraryId),
+      })
+    },
+  })
+
+  const retrySingleMutation = useMutation({
+    mutationFn: (jobId: number) => postApiEnrichmentRetry({ job_id: jobId }),
+    onMutate: (jobId) => {
+      setRetryingIds((prev) => new Set(prev).add(jobId))
+    },
+    onSettled: (_, __, jobId) => {
+      setRetryingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(jobId)
+        return next
+      })
+    },
     onSuccess: () => {
       // Invalidate failures query to refetch
       queryClient.invalidateQueries({
@@ -88,8 +110,20 @@ export const useEnrichmentFailures = ({
   const total = data?.status === 200 ? data.data.total ?? 0 : 0
 
   const retryAll = useCallback(() => {
-    retryMutation.mutate()
-  }, [retryMutation])
+    retryAllMutation.mutate()
+  }, [retryAllMutation])
+
+  const retrySingle = useCallback(
+    (jobId: number) => {
+      retrySingleMutation.mutate(jobId)
+    },
+    [retrySingleMutation]
+  )
+
+  const isRetryingSingle = useCallback(
+    (jobId: number) => retryingIds.has(jobId),
+    [retryingIds]
+  )
 
   return {
     /** List of enrichment failures */
@@ -102,8 +136,12 @@ export const useEnrichmentFailures = ({
     error,
     /** Retry all failed jobs */
     retryAll,
-    /** Whether retry is in progress */
-    isRetrying: retryMutation.isPending,
+    /** Whether retry-all is in progress */
+    isRetrying: retryAllMutation.isPending,
+    /** Retry a single failed job by ID */
+    retrySingle,
+    /** Check if a specific job is being retried */
+    isRetryingSingle,
     /** Refetch failures */
     refetch,
   }
