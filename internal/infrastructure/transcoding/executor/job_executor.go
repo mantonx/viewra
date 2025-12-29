@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -9,10 +10,10 @@ import (
 	"github.com/mantonx/viewra/internal/domain/transcode"
 	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/paths"
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding/videoinfo"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/storage"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/validation"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/videoinfo"
 )
 
 // JobExecutor handles the execution of transcode jobs with validation, progress tracking, and cleanup.
@@ -310,7 +311,7 @@ func (e *JobExecutor) failJob(ctx context.Context, job *transcode.TranscodeJob, 
 			slog.String("error", updateErr.Error()),
 		)
 		// Return combined error
-		return fmt.Errorf("transcode failed: %w (also failed to update job: %v)", err, updateErr)
+		return errors.Join(fmt.Errorf("transcode failed: %w", err), fmt.Errorf("failed to update job: %w", updateErr))
 	}
 
 	e.logger.Error("transcode failed",

@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
@@ -115,7 +116,7 @@ func WithTransaction(repo *BaseRepository, ctx context.Context, fn func(tx *Tran
 	if err := fn(txCtx); err != nil {
 		// Function returned error, rollback
 		if rbErr := txCtx.Rollback(); rbErr != nil {
-			return fmt.Errorf("transaction failed: %w (rollback error: %v)", err, rbErr)
+			return errors.Join(fmt.Errorf("transaction failed: %w", err), fmt.Errorf("rollback error: %w", rbErr))
 		}
 		return err
 	}
