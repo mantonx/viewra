@@ -213,6 +213,65 @@ StereoMode: sql.NullString{}, // TODO: Detect if 3D
 
 ---
 
+## Architectural Improvements (Deferred)
+
+These items were identified during the December 2025 codebase cleanup but deferred due to scope:
+
+### 1. ai-search Plugin SDK Refactoring
+**Location**: `plugins/ai-search/`
+**Effort**: 8-12 hours
+**Risk**: High (plugin-host communication)
+
+**Issue**: The ai-search plugin has ~200 lines of boilerplate in `main.go` that duplicate SDK functionality:
+- Manual gRPC plugin registration (should use `sdk.ServeAISearchEnricher()`)
+- 6 redundant gRPC plugin type definitions (~170 lines)
+- Manual host service connection logic
+- Direct proto type usage instead of SDK types
+
+**Recommended Fix**:
+1. Rewrite `main.go` to use `sdk.ServeAISearchEnricher()` (~200 lines → ~15 lines)
+2. Refactor `internal/plugin.go` to embed `sdk.Base` and implement SDK interfaces
+3. Update method signatures to use SDK types instead of proto types
+
+**Why Deferred**: High-risk change affecting plugin-host communication. Better as dedicated PR with thorough testing.
+
+### 2. Domain Layer Architecture Violations
+**Locations**:
+- `internal/domain/library/repository.go` (lines 5, 32-35)
+- `internal/domain/media/repository.go` (lines 5, 53-54)
+
+**Effort**: 6-10 hours
+**Risk**: Medium (affects 52 call sites)
+
+**Issue**: Domain interfaces import `database/sql` and use `*sql.Tx` in method signatures:
+```go
+CreateWithTx(ctx context.Context, tx *sql.Tx, library *Library) error
+DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error
+```
+
+This violates Clean Architecture - domain should be agnostic of persistence technology.
+
+**Recommended Fix**:
+1. Define abstract `Transaction` interface in domain layer
+2. Update all `*WithTx` method signatures to use the abstract interface
+3. Update infrastructure implementations to satisfy the interface
+4. Update 52 call sites across application and test code
+
+**Why Deferred**: Significant refactoring affecting library, media, and test files. Better as dedicated architectural PR.
+
+### 3. golang.org/x/text in Domain Layer (Accepted Exception)
+**Location**: `internal/domain/common/text.go` (lines 7-9)
+
+**Status**: Documented as accepted exception
+
+**Rationale**:
+- Used for Unicode text normalization (removing diacritics for sort titles)
+- `golang.org/x/text` packages are quasi-stdlib (maintained by Go team)
+- No I/O or external dependencies - purely algorithmic
+- Reimplementing without these packages would be complex and error-prone
+
+---
+
 ## Non-Issues (False Positives)
 
 The following grep matches are **not** technical debt:
@@ -238,4 +297,4 @@ The following grep matches are **not** technical debt:
 
 ---
 
-**Last Updated**: December 2, 2025
+**Last Updated**: December 29, 2025
