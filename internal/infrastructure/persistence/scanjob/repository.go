@@ -9,7 +9,6 @@ import (
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
-	"github.com/mantonx/viewra/internal/infrastructure/persistence/adapters"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
@@ -17,10 +16,9 @@ import (
 // The driver parameter should be "sqlite", "sqlite3", "postgres", or "postgresql".
 func NewRepository(db *sql.DB, driver string) *Repository {
 	r := &Repository{
-		db:      db,
-		dbType:  driver,
-		adapter: adapters.NewTypeAdapter(),
-		router:  common.NewQueryRouter(driver),
+		db:     db,
+		dbType: driver,
+		router: common.NewQueryRouter(driver),
 	}
 
 	if common.IsPostgres(driver) {
@@ -37,32 +35,32 @@ func (r *Repository) Create(ctx context.Context, job *scanner.ScanJob) error {
 	result, err := r.router.Route(
 		func() (any, error) {
 			return r.postgres.CreateScanJob(ctx, sqlc_postgres.CreateScanJobParams{
-				LibraryID:       int32(job.LibraryID),
-				Status:          string(job.Status),
-				Progress:        sql.NullFloat64{Float64: job.Progress, Valid: true},
-				FilesFound:      sql.NullInt64{Int64: job.FilesFound, Valid: true},
-				FilesProcessed:  sql.NullInt64{Int64: job.FilesProcessed, Valid: true},
-				BytesProcessed:  sql.NullInt64{Int64: job.BytesProcessed, Valid: true},
-				ErrorCount:      sql.NullInt64{Int64: job.ErrorCount, Valid: true},
-				StartedAt:       common.NullTime(job.StartedAt),
-				Phase:           common.NullString(string(job.Phase)),
-				EstimatedTotal:  sql.NullInt64{Int64: job.EstimatedTotal, Valid: true},
-				DiscoveryDone:   sql.NullBool{Bool: job.DiscoveryDone, Valid: true},
+				LibraryID:      int32(job.LibraryID),
+				Status:         string(job.Status),
+				Progress:       sql.NullFloat64{Float64: job.Progress, Valid: true},
+				FilesFound:     sql.NullInt64{Int64: job.FilesFound, Valid: true},
+				FilesProcessed: sql.NullInt64{Int64: job.FilesProcessed, Valid: true},
+				BytesProcessed: sql.NullInt64{Int64: job.BytesProcessed, Valid: true},
+				ErrorCount:     sql.NullInt64{Int64: job.ErrorCount, Valid: true},
+				StartedAt:      common.NullTime(job.StartedAt),
+				Phase:          common.NullString(string(job.Phase)),
+				EstimatedTotal: sql.NullInt64{Int64: job.EstimatedTotal, Valid: true},
+				DiscoveryDone:  sql.NullBool{Bool: job.DiscoveryDone, Valid: true},
 			})
 		},
 		func() (any, error) {
 			return r.sqlite.CreateScanJob(ctx, sqlc_sqlite.CreateScanJobParams{
-				LibraryID:       job.LibraryID,
-				Status:          string(job.Status),
-				Progress:        sql.NullFloat64{Float64: job.Progress, Valid: true},
-				FilesFound:      sql.NullInt64{Int64: job.FilesFound, Valid: true},
-				FilesProcessed:  sql.NullInt64{Int64: job.FilesProcessed, Valid: true},
-				BytesProcessed:  sql.NullInt64{Int64: job.BytesProcessed, Valid: true},
-				ErrorCount:      sql.NullInt64{Int64: job.ErrorCount, Valid: true},
-				StartedAt:       common.NullTime(job.StartedAt),
-				Phase:           common.NullString(string(job.Phase)),
-				EstimatedTotal:  sql.NullInt64{Int64: job.EstimatedTotal, Valid: true},
-				DiscoveryDone:   sql.NullBool{Bool: job.DiscoveryDone, Valid: true},
+				LibraryID:      job.LibraryID,
+				Status:         string(job.Status),
+				Progress:       sql.NullFloat64{Float64: job.Progress, Valid: true},
+				FilesFound:     sql.NullInt64{Int64: job.FilesFound, Valid: true},
+				FilesProcessed: sql.NullInt64{Int64: job.FilesProcessed, Valid: true},
+				BytesProcessed: sql.NullInt64{Int64: job.BytesProcessed, Valid: true},
+				ErrorCount:     sql.NullInt64{Int64: job.ErrorCount, Valid: true},
+				StartedAt:      common.NullTime(job.StartedAt),
+				Phase:          common.NullString(string(job.Phase)),
+				EstimatedTotal: sql.NullInt64{Int64: job.EstimatedTotal, Valid: true},
+				DiscoveryDone:  sql.NullBool{Bool: job.DiscoveryDone, Valid: true},
 			})
 		},
 	)
@@ -199,30 +197,30 @@ func (r *Repository) UpdateProgress(ctx context.Context, id int64, progress *sca
 	_, err := r.router.Route(
 		func() (any, error) {
 			return nil, r.postgres.UpdateScanJobProgress(ctx, sqlc_postgres.UpdateScanJobProgressParams{
-				Progress:        sql.NullFloat64{Float64: progress.GetPercentage(), Valid: true},
-				FilesFound:      sql.NullInt64{Int64: progress.FilesFound, Valid: true},
-				FilesProcessed:  sql.NullInt64{Int64: progress.FilesProcessed, Valid: true},
-				BytesProcessed:  sql.NullInt64{Int64: progress.BytesProcessed, Valid: true},
-				ErrorCount:      sql.NullInt64{Int64: progress.ErrorCount, Valid: true},
-				WarningCount:    sql.NullInt32{Int32: int32(progress.WarningCount), Valid: true},
-				Phase:           common.NullString(string(progress.Phase)),
-				EstimatedTotal:  sql.NullInt64{Int64: progress.EstimatedTotal, Valid: true},
-				DiscoveryDone:   sql.NullBool{Bool: progress.DiscoveryDone, Valid: true},
-				ID:              int32(id),
+				Progress:       sql.NullFloat64{Float64: progress.GetPercentage(), Valid: true},
+				FilesFound:     sql.NullInt64{Int64: progress.FilesFound, Valid: true},
+				FilesProcessed: sql.NullInt64{Int64: progress.FilesProcessed, Valid: true},
+				BytesProcessed: sql.NullInt64{Int64: progress.BytesProcessed, Valid: true},
+				ErrorCount:     sql.NullInt64{Int64: progress.ErrorCount, Valid: true},
+				WarningCount:   sql.NullInt32{Int32: int32(progress.WarningCount), Valid: true},
+				Phase:          common.NullString(string(progress.Phase)),
+				EstimatedTotal: sql.NullInt64{Int64: progress.EstimatedTotal, Valid: true},
+				DiscoveryDone:  sql.NullBool{Bool: progress.DiscoveryDone, Valid: true},
+				ID:             int32(id),
 			})
 		},
 		func() (any, error) {
 			return nil, r.sqlite.UpdateScanJobProgress(ctx, sqlc_sqlite.UpdateScanJobProgressParams{
-				Progress:        sql.NullFloat64{Float64: progress.GetPercentage(), Valid: true},
-				FilesFound:      sql.NullInt64{Int64: progress.FilesFound, Valid: true},
-				FilesProcessed:  sql.NullInt64{Int64: progress.FilesProcessed, Valid: true},
-				BytesProcessed:  sql.NullInt64{Int64: progress.BytesProcessed, Valid: true},
-				ErrorCount:      sql.NullInt64{Int64: progress.ErrorCount, Valid: true},
-				WarningCount:    sql.NullInt64{Int64: progress.WarningCount, Valid: true},
-				Phase:           common.NullString(string(progress.Phase)),
-				EstimatedTotal:  sql.NullInt64{Int64: progress.EstimatedTotal, Valid: true},
-				DiscoveryDone:   sql.NullBool{Bool: progress.DiscoveryDone, Valid: true},
-				ID:              id,
+				Progress:       sql.NullFloat64{Float64: progress.GetPercentage(), Valid: true},
+				FilesFound:     sql.NullInt64{Int64: progress.FilesFound, Valid: true},
+				FilesProcessed: sql.NullInt64{Int64: progress.FilesProcessed, Valid: true},
+				BytesProcessed: sql.NullInt64{Int64: progress.BytesProcessed, Valid: true},
+				ErrorCount:     sql.NullInt64{Int64: progress.ErrorCount, Valid: true},
+				WarningCount:   sql.NullInt64{Int64: progress.WarningCount, Valid: true},
+				Phase:          common.NullString(string(progress.Phase)),
+				EstimatedTotal: sql.NullInt64{Int64: progress.EstimatedTotal, Valid: true},
+				DiscoveryDone:  sql.NullBool{Bool: progress.DiscoveryDone, Valid: true},
+				ID:             id,
 			})
 		},
 	)
@@ -253,34 +251,34 @@ func (r *Repository) Complete(ctx context.Context, job *scanner.ScanJob) error {
 	_, err := r.router.Route(
 		func() (any, error) {
 			return nil, r.postgres.CompleteScanJob(ctx, sqlc_postgres.CompleteScanJobParams{
-				Status:          string(job.Status),
-				Progress:        sql.NullFloat64{Float64: job.Progress, Valid: true},
-				FilesFound:      sql.NullInt64{Int64: job.FilesFound, Valid: true},
-				FilesProcessed:  sql.NullInt64{Int64: job.FilesProcessed, Valid: true},
-				BytesProcessed:  sql.NullInt64{Int64: job.BytesProcessed, Valid: true},
-				ErrorCount:      sql.NullInt64{Int64: job.ErrorCount, Valid: true},
-				WarningCount:    sql.NullInt32{Int32: int32(job.WarningCount), Valid: true},
-				CompletedAt:     common.NullTimePtr(job.CompletedAt),
-				ErrorMessage:    common.NullString(job.ErrorMessage),
-				Phase:           common.NullString(string(job.Phase)),
-				DiscoveryDone:   sql.NullBool{Bool: job.DiscoveryDone, Valid: true},
-				ID:              int32(job.ID),
+				Status:         string(job.Status),
+				Progress:       sql.NullFloat64{Float64: job.Progress, Valid: true},
+				FilesFound:     sql.NullInt64{Int64: job.FilesFound, Valid: true},
+				FilesProcessed: sql.NullInt64{Int64: job.FilesProcessed, Valid: true},
+				BytesProcessed: sql.NullInt64{Int64: job.BytesProcessed, Valid: true},
+				ErrorCount:     sql.NullInt64{Int64: job.ErrorCount, Valid: true},
+				WarningCount:   sql.NullInt32{Int32: int32(job.WarningCount), Valid: true},
+				CompletedAt:    common.NullTimePtr(job.CompletedAt),
+				ErrorMessage:   common.NullString(job.ErrorMessage),
+				Phase:          common.NullString(string(job.Phase)),
+				DiscoveryDone:  sql.NullBool{Bool: job.DiscoveryDone, Valid: true},
+				ID:             int32(job.ID),
 			})
 		},
 		func() (any, error) {
 			return nil, r.sqlite.CompleteScanJob(ctx, sqlc_sqlite.CompleteScanJobParams{
-				Status:          string(job.Status),
-				Progress:        sql.NullFloat64{Float64: job.Progress, Valid: true},
-				FilesFound:      sql.NullInt64{Int64: job.FilesFound, Valid: true},
-				FilesProcessed:  sql.NullInt64{Int64: job.FilesProcessed, Valid: true},
-				BytesProcessed:  sql.NullInt64{Int64: job.BytesProcessed, Valid: true},
-				ErrorCount:      sql.NullInt64{Int64: job.ErrorCount, Valid: true},
-				WarningCount:    sql.NullInt64{Int64: job.WarningCount, Valid: true},
-				CompletedAt:     common.NullTimePtr(job.CompletedAt),
-				ErrorMessage:    common.NullString(job.ErrorMessage),
-				Phase:           common.NullString(string(job.Phase)),
-				DiscoveryDone:   sql.NullBool{Bool: job.DiscoveryDone, Valid: true},
-				ID:              job.ID,
+				Status:         string(job.Status),
+				Progress:       sql.NullFloat64{Float64: job.Progress, Valid: true},
+				FilesFound:     sql.NullInt64{Int64: job.FilesFound, Valid: true},
+				FilesProcessed: sql.NullInt64{Int64: job.FilesProcessed, Valid: true},
+				BytesProcessed: sql.NullInt64{Int64: job.BytesProcessed, Valid: true},
+				ErrorCount:     sql.NullInt64{Int64: job.ErrorCount, Valid: true},
+				WarningCount:   sql.NullInt64{Int64: job.WarningCount, Valid: true},
+				CompletedAt:    common.NullTimePtr(job.CompletedAt),
+				ErrorMessage:   common.NullString(job.ErrorMessage),
+				Phase:          common.NullString(string(job.Phase)),
+				DiscoveryDone:  sql.NullBool{Bool: job.DiscoveryDone, Valid: true},
+				ID:             job.ID,
 			})
 		},
 	)
