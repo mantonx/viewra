@@ -1,4 +1,5 @@
 export { ProviderCard } from './ProviderCard'
+export { ProviderTypeCard } from './ProviderTypeCard'
 export { EmbeddingProviderCard } from './EmbeddingProviderCard'
 export { ChatProviderCard } from './ChatProviderCard'
 export { SearchSettingsCard } from './SearchSettingsCard'
