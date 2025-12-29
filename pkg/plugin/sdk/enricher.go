@@ -292,7 +292,7 @@ func (s *enricherGRPCServer) connectHostServices(req *pluginv1.InitRequest) {
 			logger.Error("failed to dial host storage", "error", err)
 		} else {
 			s.services.Storage = &StorageClient{client: pluginv1.NewHostStorageClient(conn)}
-			logger.Info("connected to host storage service")
+			logger.Debug("connected to host storage service")
 		}
 	}
 
@@ -303,7 +303,7 @@ func (s *enricherGRPCServer) connectHostServices(req *pluginv1.InitRequest) {
 			logger.Error("failed to dial host LLM", "error", err)
 		} else {
 			s.services.LLM = &LLMClient{client: pluginv1.NewHostLLMClient(conn)}
-			logger.Info("connected to host LLM service")
+			logger.Debug("connected to host LLM service")
 		}
 	}
 
@@ -314,7 +314,7 @@ func (s *enricherGRPCServer) connectHostServices(req *pluginv1.InitRequest) {
 			logger.Error("failed to dial host embeddings", "error", err)
 		} else {
 			s.services.Embeddings = &EmbeddingsClient{client: pluginv1.NewHostEmbeddingsClient(conn)}
-			logger.Info("connected to host embeddings service")
+			logger.Debug("connected to host embeddings service")
 		}
 	}
 
@@ -325,7 +325,7 @@ func (s *enricherGRPCServer) connectHostServices(req *pluginv1.InitRequest) {
 			logger.Error("failed to dial host data", "error", err)
 		} else {
 			s.services.Data = &DataClient{client: pluginv1.NewHostDataClient(conn)}
-			logger.Info("connected to host data service")
+			logger.Debug("connected to host data service")
 		}
 	}
 
@@ -336,7 +336,7 @@ func (s *enricherGRPCServer) connectHostServices(req *pluginv1.InitRequest) {
 			logger.Error("failed to dial host weather", "error", err)
 		} else {
 			s.services.Weather = &WeatherClient{client: pluginv1.NewHostWeatherClient(conn)}
-			logger.Info("connected to host weather service")
+			logger.Debug("connected to host weather service")
 		}
 	}
 }

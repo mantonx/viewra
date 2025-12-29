@@ -89,7 +89,7 @@ func (w *pluginCoreWrapper) Initialize(ctx context.Context, req *pluginv1.InitRe
 			w.logger.Error("failed to dial host LLM", "error", err)
 		} else {
 			w.plugin.SetLLMClient(sdk.NewLLMClient(conn))
-			w.logger.Info("connected to host LLM service")
+			w.logger.Debug("connected to host LLM service")
 		}
 	}
 
@@ -101,7 +101,7 @@ func (w *pluginCoreWrapper) Initialize(ctx context.Context, req *pluginv1.InitRe
 			w.logger.Error("failed to dial host embeddings", "error", err)
 		} else {
 			w.plugin.SetEmbeddingsClient(sdk.NewEmbeddingsClient(conn))
-			w.logger.Info("connected to host embeddings service")
+			w.logger.Debug("connected to host embeddings service")
 		}
 	}
 
@@ -113,7 +113,7 @@ func (w *pluginCoreWrapper) Initialize(ctx context.Context, req *pluginv1.InitRe
 			w.logger.Error("failed to dial host data", "error", err)
 		} else {
 			w.plugin.SetDataClient(sdk.NewDataClient(conn))
-			w.logger.Info("connected to host data service")
+			w.logger.Debug("connected to host data service")
 		}
 	}
 
@@ -125,7 +125,7 @@ func (w *pluginCoreWrapper) Initialize(ctx context.Context, req *pluginv1.InitRe
 			w.logger.Error("failed to dial host weather", "error", err)
 		} else {
 			w.plugin.SetWeatherClient(sdk.NewWeatherClient(conn))
-			w.logger.Info("connected to host weather service")
+			w.logger.Debug("connected to host weather service")
 		}
 	}
 

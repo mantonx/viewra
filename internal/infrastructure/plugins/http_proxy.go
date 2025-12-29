@@ -528,7 +528,7 @@ func (p *HTTPProxy) registerPluginRoutes(ctx context.Context, plugin *PluginInst
 	// Register routes
 	p.routeRegistry.RegisterRoutes(plugin.ID, routes.Routes)
 
-	p.logger.Info("registered plugin routes",
+	p.logger.Debug("registered plugin routes",
 		"plugin", plugin.ID,
 		"count", len(routes.Routes))
 
@@ -536,7 +536,7 @@ func (p *HTTPProxy) registerPluginRoutes(ctx context.Context, plugin *PluginInst
 	for _, route := range routes.Routes {
 		if route.Capability != "" {
 			if p.capabilityRegistry.Register(plugin.ID, route.Capability, route.Path) {
-				p.logger.Info("registered capability",
+				p.logger.Debug("registered capability",
 					"plugin", plugin.ID,
 					"capability", route.Capability,
 					"path", route.Path)

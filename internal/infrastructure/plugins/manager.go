@@ -6,14 +6,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/go-plugin"
+	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/renderer"
+	"github.com/olekukonko/tablewriter/tw"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 	domainevents "github.com/mantonx/viewra/internal/domain/events"
@@ -322,7 +328,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		buildTime = info.ModTime()
 	}
 
-	m.logger.Info("loading plugin",
+	m.logger.Debug("loading plugin",
 		"id", manifest.ID,
 		"name", manifest.Name,
 		"version", manifest.Version,
@@ -445,7 +451,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 				"plugin", manifest.ID, "error", err)
 		} else if aiSearchClient, ok := aiSearchRaw.(pluginv1.AISearchClient); ok {
 			instance.AISearchClient = aiSearchClient
-			m.logger.Info("AI search client available", "plugin", manifest.ID)
+			m.logger.Debug("AI search client available", "plugin", manifest.ID)
 		}
 	}
 
@@ -457,7 +463,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 				"plugin", manifest.ID, "error", err)
 		} else if providerClient, ok := providerRaw.(pluginv1.PluginProviderClient); ok {
 			instance.ProviderClient = providerClient
-			m.logger.Info("Provider client available", "plugin", manifest.ID)
+			m.logger.Debug("provider client available", "plugin", manifest.ID)
 		}
 	}
 
@@ -496,7 +502,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 			m.logger.Warn("failed to dispense host_storage", "plugin", manifest.ID, "error", err)
 		} else if brokerInfo, ok := storageRaw.(*HostStorageBrokerInfo); ok && brokerInfo != nil {
 			hostStorageBrokerID = brokerInfo.BrokerID
-			m.logger.Info("host storage available for plugin",
+			m.logger.Debug("host storage available for plugin",
 				"plugin", manifest.ID,
 				"broker_id", hostStorageBrokerID)
 		} else {
@@ -518,7 +524,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 			m.logger.Warn("failed to dispense host_llm", "plugin", manifest.ID, "error", err)
 		} else if brokerInfo, ok := llmRaw.(*HostLLMBrokerInfo); ok && brokerInfo != nil {
 			hostLLMBrokerID = brokerInfo.BrokerID
-			m.logger.Info("host LLM available for plugin",
+			m.logger.Debug("host LLM available for plugin",
 				"plugin", manifest.ID,
 				"broker_id", hostLLMBrokerID)
 		} else {
@@ -540,7 +546,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 			m.logger.Warn("failed to dispense host_embeddings", "plugin", manifest.ID, "error", err)
 		} else if brokerInfo, ok := embeddingsRaw.(*HostEmbeddingsBrokerInfo); ok && brokerInfo != nil {
 			hostEmbeddingsBrokerID = brokerInfo.BrokerID
-			m.logger.Info("host embeddings available for plugin",
+			m.logger.Debug("host embeddings available for plugin",
 				"plugin", manifest.ID,
 				"broker_id", hostEmbeddingsBrokerID)
 		} else {
@@ -562,7 +568,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 			m.logger.Warn("failed to dispense host_data", "plugin", manifest.ID, "error", err)
 		} else if brokerInfo, ok := dataRaw.(*HostDataBrokerInfo); ok && brokerInfo != nil {
 			hostDataBrokerID = brokerInfo.BrokerID
-			m.logger.Info("host data available for plugin",
+			m.logger.Debug("host data available for plugin",
 				"plugin", manifest.ID,
 				"broker_id", hostDataBrokerID)
 		} else {
@@ -584,7 +590,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 			m.logger.Warn("failed to dispense host_weather", "plugin", manifest.ID, "error", err)
 		} else if brokerInfo, ok := weatherRaw.(*HostWeatherBrokerInfo); ok && brokerInfo != nil {
 			hostWeatherBrokerID = brokerInfo.BrokerID
-			m.logger.Info("host weather available for plugin",
+			m.logger.Debug("host weather available for plugin",
 				"plugin", manifest.ID,
 				"broker_id", hostWeatherBrokerID)
 		} else {
@@ -622,7 +628,10 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 	m.plugins[manifest.ID] = instance
 	m.mu.Unlock()
 
-	m.logger.Info("plugin loaded successfully",
+	// Set initial health status to healthy since Initialize succeeded
+	instance.UpdateHealth(pluginv1.HealthStatus_HEALTHY, "initialized")
+
+	m.logger.Debug("plugin loaded successfully",
 		"id", manifest.ID,
 		"name", manifest.Name,
 		"version", manifest.Version,
@@ -645,7 +654,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 				"plugin", manifest.ID,
 				"error", err)
 		} else {
-			m.logger.Info("registered AI provider",
+			m.logger.Debug("registered AI provider",
 				"plugin", manifest.ID,
 				"provider_id", caps.ProviderId,
 				"supports_chat", caps.SupportsChat,
@@ -825,7 +834,7 @@ func (m *Manager) resolveLoadOrder(
 		}
 	}
 
-	m.logger.Info("resolved plugin load order",
+	m.logger.Debug("resolved plugin load order",
 		"order", result,
 		"skipped_count", len(skipped))
 
@@ -915,6 +924,87 @@ func (m *Manager) GetAllPlugins() []*PluginInstance {
 		plugins = append(plugins, p)
 	}
 	return plugins
+}
+
+// PrintTable writes a formatted table of all loaded plugins to the writer.
+func (m *Manager) PrintTable(w io.Writer, title string) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if len(m.plugins) == 0 {
+		fmt.Fprintln(w, "No plugins loaded")
+		return
+	}
+
+	// Print title if provided
+	if title != "" {
+		fmt.Fprintf(w, "\n%s\n", title)
+	}
+
+	// Collect and sort plugins by name
+	plugins := make([]*PluginInstance, 0, len(m.plugins))
+	for _, p := range m.plugins {
+		plugins = append(plugins, p)
+	}
+	sort.Slice(plugins, func(i, j int) bool {
+		return plugins[i].Manifest.Name < plugins[j].Manifest.Name
+	})
+
+	// Create table with Unicode box-drawing style
+	table := tablewriter.NewTable(w,
+		tablewriter.WithRenderer(renderer.NewBlueprint(tw.Rendition{
+			Borders: tw.Border{
+				Left:   tw.On,
+				Right:  tw.On,
+				Top:    tw.On,
+				Bottom: tw.On,
+			},
+			Symbols: tw.NewSymbols(tw.StyleLight),
+			Settings: tw.Settings{
+				Separators: tw.Separators{
+					BetweenColumns: tw.On,
+				},
+				Lines: tw.Lines{
+					ShowHeaderLine: tw.On,
+				},
+			},
+		})),
+	)
+
+	table.Header("Name", "Version", "Categories", "Status", "Built")
+
+	for _, p := range plugins {
+		// Format categories
+		categories := make([]string, 0, len(p.Categories))
+		for _, c := range p.Categories {
+			categories = append(categories, string(c))
+		}
+		catStr := strings.Join(categories, ", ")
+		if catStr == "" {
+			catStr = "-"
+		}
+
+		// Format status
+		p.mu.RLock()
+		status := p.Health.Status.String()
+		p.mu.RUnlock()
+
+		// Format build time
+		buildTimeStr := "-"
+		if !p.BuildTime.IsZero() {
+			buildTimeStr = p.BuildTime.Format("2006-01-02 15:04")
+		}
+
+		table.Append([]string{
+			p.Manifest.Name,
+			p.Manifest.Version,
+			catStr,
+			status,
+			buildTimeStr,
+		})
+	}
+
+	table.Render()
 }
 
 // GetAISearchPlugin returns the first plugin that implements AI search.
@@ -1175,7 +1265,7 @@ func (m *Manager) registerPluginRoutes(ctx context.Context, plugin *PluginInstan
 	// Register routes
 	m.routeRegistry.RegisterRoutes(plugin.ID, routes.Routes)
 
-	m.logger.Info("registered plugin routes",
+	m.logger.Debug("registered plugin routes",
 		"plugin", plugin.ID,
 		"count", len(routes.Routes))
 
@@ -1183,7 +1273,7 @@ func (m *Manager) registerPluginRoutes(ctx context.Context, plugin *PluginInstan
 	for _, route := range routes.Routes {
 		if route.Capability != "" {
 			if m.capabilityRegistry.Register(plugin.ID, route.Capability, route.Path) {
-				m.logger.Info("registered capability",
+				m.logger.Debug("registered capability",
 					"plugin", plugin.ID,
 					"capability", route.Capability,
 					"path", route.Path)

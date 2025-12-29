@@ -330,8 +330,9 @@ func loadExternalPlugins(ctx context.Context, svcs *services.Services, repos *re
 		}
 	}
 
-	// Print plugin summary table
-	if registry.Count() > 0 {
-		registry.PrintTable(os.Stderr, fmt.Sprintf("Plugins (%d loaded)", registry.Count()))
+	// Print plugin summary table (shows ALL plugins, not just enrichers)
+	allPlugins := pm.GetAllPlugins()
+	if len(allPlugins) > 0 {
+		pm.PrintTable(os.Stderr, fmt.Sprintf("Plugins (%d loaded)", len(allPlugins)))
 	}
 }
