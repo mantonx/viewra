@@ -167,6 +167,9 @@ migrate-create: ## Create a new migration (usage: make migrate-create NAME=add_u
 sqlc-gen: ## Generate sqlc code from queries
 	~/go/bin/sqlc generate
 
+taskgen: ## Generate scheduler task registration code
+	go run ./cmd/taskgen
+
 swagger-gen: ## Generate Swagger documentation
 	~/go/bin/swag init -g cmd/viewra/main.go -o docs/swagger --parseDependency --parseInternal
 
