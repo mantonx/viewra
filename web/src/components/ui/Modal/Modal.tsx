@@ -47,21 +47,19 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
 
     return (
       <div
-        className="modal-overlay fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+        className="modal-overlay fixed inset-0 bg-black/30 dark:bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
         onClick={onClose}
       >
         <div
           ref={ref}
           className={cn(
             // Base styles
-            'modal-content w-full max-h-[90vh] flex flex-col overflow-hidden rounded-2xl',
-            // Light mode: clean white with subtle shadow
-            'bg-white/95 backdrop-blur-xl shadow-2xl shadow-neutral-900/10',
-            'border border-neutral-200/50',
-            // Dark mode: glass effect with glow
-            'dark:bg-neutral-900/90 dark:backdrop-blur-xl',
-            'dark:shadow-2xl dark:shadow-primary-500/5',
-            'dark:border dark:border-white/10',
+            'modal-content w-full max-h-[90vh] flex flex-col overflow-hidden rounded-xl',
+            // Glass effect - more transparent to match app aesthetic
+            'bg-white/70 dark:bg-white/[0.06]',
+            'border border-neutral-200/50 dark:border-white/15',
+            'shadow-2xl dark:shadow-black/50',
+            'backdrop-blur-2xl',
             // Animation
             'animate-in',
             sizes[size],

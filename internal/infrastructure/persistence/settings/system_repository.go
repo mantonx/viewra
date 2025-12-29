@@ -38,7 +38,7 @@ func NewSystemRepository(db *sql.DB, dbType string) *SystemRepository {
 
 // Get retrieves a system setting by key.
 func (r *SystemRepository) Get(ctx context.Context, key string) (*settings.SystemSetting, error) {
-	if r.dbType == "sqlite" {
+	if common.IsSQLite(r.dbType) {
 		row, err := r.sqliteQuerier.GetSystemSetting(ctx, key)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -62,7 +62,7 @@ func (r *SystemRepository) Get(ctx context.Context, key string) (*settings.Syste
 
 // GetByCategory retrieves all system settings in a category.
 func (r *SystemRepository) GetByCategory(ctx context.Context, category settings.Category) ([]*settings.SystemSetting, error) {
-	if r.dbType == "sqlite" {
+	if common.IsSQLite(r.dbType) {
 		rows, err := r.sqliteQuerier.GetSystemSettingsByCategory(ctx, string(category))
 		if err != nil {
 			return nil, err
@@ -88,7 +88,7 @@ func (r *SystemRepository) GetByCategory(ctx context.Context, category settings.
 
 // GetAll retrieves all system settings.
 func (r *SystemRepository) GetAll(ctx context.Context) ([]*settings.SystemSetting, error) {
-	if r.dbType == "sqlite" {
+	if common.IsSQLite(r.dbType) {
 		rows, err := r.sqliteQuerier.GetAllSystemSettings(ctx)
 		if err != nil {
 			return nil, err
@@ -114,7 +114,7 @@ func (r *SystemRepository) GetAll(ctx context.Context) ([]*settings.SystemSettin
 
 // Set creates or updates a system setting.
 func (r *SystemRepository) Set(ctx context.Context, setting *settings.SystemSetting) error {
-	if r.dbType == "sqlite" {
+	if common.IsSQLite(r.dbType) {
 		return r.sqliteQuerier.UpsertSystemSetting(ctx, sqlc_sqlite.UpsertSystemSettingParams{
 			Key:         setting.Key,
 			Value:       setting.Value,
@@ -140,7 +140,7 @@ func (r *SystemRepository) Set(ctx context.Context, setting *settings.SystemSett
 
 // Delete removes a system setting.
 func (r *SystemRepository) Delete(ctx context.Context, key string) error {
-	if r.dbType == "sqlite" {
+	if common.IsSQLite(r.dbType) {
 		return r.sqliteQuerier.DeleteSystemSetting(ctx, key)
 	}
 	return r.postgresQuerier.DeleteSystemSetting(ctx, key)

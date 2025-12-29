@@ -38,7 +38,7 @@ func NewUserRepository(db *sql.DB, dbType string) *UserRepository {
 
 // Get retrieves a user setting by user ID and key.
 func (r *UserRepository) Get(ctx context.Context, userID, key string) (*settings.UserSetting, error) {
-	if r.dbType == "sqlite" {
+	if common.IsSQLite(r.dbType) {
 		row, err := r.sqliteQuerier.GetUserSetting(ctx, sqlc_sqlite.GetUserSettingParams{
 			UserID: userID,
 			Key:    key,
@@ -68,7 +68,7 @@ func (r *UserRepository) Get(ctx context.Context, userID, key string) (*settings
 
 // GetAll retrieves all settings for a user.
 func (r *UserRepository) GetAll(ctx context.Context, userID string) ([]*settings.UserSetting, error) {
-	if r.dbType == "sqlite" {
+	if common.IsSQLite(r.dbType) {
 		rows, err := r.sqliteQuerier.GetAllUserSettings(ctx, userID)
 		if err != nil {
 			return nil, err
@@ -94,7 +94,7 @@ func (r *UserRepository) GetAll(ctx context.Context, userID string) ([]*settings
 
 // Set creates or updates a user setting.
 func (r *UserRepository) Set(ctx context.Context, setting *settings.UserSetting) error {
-	if r.dbType == "sqlite" {
+	if common.IsSQLite(r.dbType) {
 		return r.sqliteQuerier.UpsertUserSetting(ctx, sqlc_sqlite.UpsertUserSettingParams{
 			UserID:    setting.UserID,
 			Key:       setting.Key,
@@ -114,7 +114,7 @@ func (r *UserRepository) Set(ctx context.Context, setting *settings.UserSetting)
 
 // Delete removes a user setting.
 func (r *UserRepository) Delete(ctx context.Context, userID, key string) error {
-	if r.dbType == "sqlite" {
+	if common.IsSQLite(r.dbType) {
 		return r.sqliteQuerier.DeleteUserSetting(ctx, sqlc_sqlite.DeleteUserSettingParams{
 			UserID: userID,
 			Key:    key,
@@ -130,7 +130,7 @@ func (r *UserRepository) Delete(ctx context.Context, userID, key string) error {
 
 // DeleteAll removes all settings for a user.
 func (r *UserRepository) DeleteAll(ctx context.Context, userID string) error {
-	if r.dbType == "sqlite" {
+	if common.IsSQLite(r.dbType) {
 		return r.sqliteQuerier.DeleteAllUserSettings(ctx, userID)
 	}
 	return r.postgresQuerier.DeleteAllUserSettings(ctx, userID)

@@ -13,8 +13,8 @@ import (
 	"github.com/mantonx/viewra/internal/app/usecases"
 	appauth "github.com/mantonx/viewra/internal/application/auth"
 	appplugins "github.com/mantonx/viewra/internal/application/plugins"
+	appscheduler "github.com/mantonx/viewra/internal/application/scheduler"
 	infraPlugins "github.com/mantonx/viewra/internal/infrastructure/plugins"
-	"github.com/mantonx/viewra/internal/infrastructure/scheduler"
 	"github.com/mantonx/viewra/internal/infrastructure/streaming"
 )
 
@@ -23,7 +23,7 @@ import (
 // file serving, transcoding) rather than pure business logic.
 type InfrastructureDeps struct {
 	DB                 *sql.DB
-	Scheduler          *scheduler.Scheduler
+	SchedulerService   *appscheduler.Service
 	TranscodeOutputDir string
 	Repos              *repositories.Repositories
 	Config             *config.Config
@@ -40,9 +40,9 @@ func BuildHandlers(
 	logger *slog.Logger,
 ) *api.Handlers {
 	// Infrastructure handlers
-	healthHandler := handlers.NewHealthHandler(infra.DB, infra.Scheduler, svcs.TranscodeQueue)
+	healthHandler := handlers.NewHealthHandler(infra.DB, infra.SchedulerService, svcs.TranscodeQueue)
 	browserHandler := handlers.NewBrowserHandler(svcs.PathBrowser)
-	schedulerHandler := handlers.NewSchedulerHandler(infra.Scheduler)
+	schedulerHandler := handlers.NewSchedulerHandler(infra.SchedulerService)
 	analyticsHandler := handlers.NewAnalyticsHandler(cases.Analytics, cases.TranscodeAnalytics)
 
 	// Library handlers
@@ -147,7 +147,7 @@ func BuildHandlers(
 	var aiSettingsHandler *handlers.AISettingsHandler
 	var locationSettingsHandler *handlers.LocationSettingsHandler
 	if svcs.Settings != nil {
-		settingsHandler = handlers.NewSettingsHandler(svcs.Settings)
+		settingsHandler = handlers.NewSettingsHandler(svcs.Settings, infra.Repos.User)
 		aiSettingsHandler = handlers.NewAISettingsHandler(svcs.Settings, svcs.EventBus)
 		// Wire up provider registry for dynamic provider lookup
 		if svcs.PluginManager != nil {

@@ -11,40 +11,163 @@ import (
 	"time"
 )
 
-const deleteOldTaskExecutions = `-- name: DeleteOldTaskExecutions :exec
-DELETE FROM task_executions
-WHERE started_at < ?
+const cleanExpiredSchedulerLocks = `-- name: CleanExpiredSchedulerLocks :execrows
+DELETE FROM scheduler_locks WHERE expires_at < datetime('now')
 `
 
-func (q *Queries) DeleteOldTaskExecutions(ctx context.Context, startedAt time.Time) error {
-	_, err := q.db.ExecContext(ctx, deleteOldTaskExecutions, startedAt)
+func (q *Queries) CleanExpiredSchedulerLocks(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, cleanExpiredSchedulerLocks)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const countSchedulerExecutionsByTask = `-- name: CountSchedulerExecutionsByTask :one
+SELECT COUNT(*) as count
+FROM scheduler_executions
+WHERE task_id = ?
+`
+
+func (q *Queries) CountSchedulerExecutionsByTask(ctx context.Context, taskID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countSchedulerExecutionsByTask, taskID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const createSchedulerExecution = `-- name: CreateSchedulerExecution :exec
+
+INSERT INTO scheduler_executions (
+    id, task_id, status, scheduled_at, started_at, ended_at, duration_ms,
+    success, error, logs, attempt, parent_execution_id, triggered_by,
+    dependency_exec_id, resumable, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+`
+
+type CreateSchedulerExecutionParams struct {
+	ID                string         `json:"id"`
+	TaskID            string         `json:"task_id"`
+	Status            string         `json:"status"`
+	ScheduledAt       sql.NullTime   `json:"scheduled_at"`
+	StartedAt         sql.NullTime   `json:"started_at"`
+	EndedAt           sql.NullTime   `json:"ended_at"`
+	DurationMs        sql.NullInt64  `json:"duration_ms"`
+	Success           sql.NullInt64  `json:"success"`
+	Error             sql.NullString `json:"error"`
+	Logs              sql.NullString `json:"logs"`
+	Attempt           sql.NullInt64  `json:"attempt"`
+	ParentExecutionID sql.NullString `json:"parent_execution_id"`
+	TriggeredBy       string         `json:"triggered_by"`
+	DependencyExecID  sql.NullString `json:"dependency_exec_id"`
+	Resumable         sql.NullInt64  `json:"resumable"`
+}
+
+// Scheduler Executions Queries
+func (q *Queries) CreateSchedulerExecution(ctx context.Context, arg CreateSchedulerExecutionParams) error {
+	_, err := q.db.ExecContext(ctx, createSchedulerExecution,
+		arg.ID,
+		arg.TaskID,
+		arg.Status,
+		arg.ScheduledAt,
+		arg.StartedAt,
+		arg.EndedAt,
+		arg.DurationMs,
+		arg.Success,
+		arg.Error,
+		arg.Logs,
+		arg.Attempt,
+		arg.ParentExecutionID,
+		arg.TriggeredBy,
+		arg.DependencyExecID,
+		arg.Resumable,
+	)
 	return err
 }
 
-const getAllRecentExecutions = `-- name: GetAllRecentExecutions :many
-SELECT id, task_id, started_at, ended_at, duration_ms, success, error, created_at
-FROM task_executions
-ORDER BY started_at DESC
-LIMIT ?
+const deleteOldSchedulerExecutions = `-- name: DeleteOldSchedulerExecutions :execrows
+DELETE FROM scheduler_executions
+WHERE created_at < ?
 `
 
-func (q *Queries) GetAllRecentExecutions(ctx context.Context, limit int64) ([]TaskExecution, error) {
-	rows, err := q.db.QueryContext(ctx, getAllRecentExecutions, limit)
+func (q *Queries) DeleteOldSchedulerExecutions(ctx context.Context, createdAt time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldSchedulerExecutions, createdAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteScheduledTask = `-- name: DeleteScheduledTask :exec
+DELETE FROM scheduled_tasks WHERE id = ?
+`
+
+func (q *Queries) DeleteScheduledTask(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, deleteScheduledTask, id)
+	return err
+}
+
+const deleteScheduledTasksBySourceID = `-- name: DeleteScheduledTasksBySourceID :exec
+DELETE FROM scheduled_tasks WHERE source_id = ?
+`
+
+func (q *Queries) DeleteScheduledTasksBySourceID(ctx context.Context, sourceID sql.NullString) error {
+	_, err := q.db.ExecContext(ctx, deleteScheduledTasksBySourceID, sourceID)
+	return err
+}
+
+const disableScheduledTask = `-- name: DisableScheduledTask :exec
+UPDATE scheduled_tasks SET enabled = 0, updated_at = datetime('now') WHERE id = ?
+`
+
+func (q *Queries) DisableScheduledTask(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, disableScheduledTask, id)
+	return err
+}
+
+const enableScheduledTask = `-- name: EnableScheduledTask :exec
+UPDATE scheduled_tasks SET enabled = 1, updated_at = datetime('now') WHERE id = ?
+`
+
+func (q *Queries) EnableScheduledTask(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, enableScheduledTask, id)
+	return err
+}
+
+const getInterruptedSchedulerExecutions = `-- name: GetInterruptedSchedulerExecutions :many
+SELECT id, task_id, status, scheduled_at, started_at, ended_at, duration_ms,
+       success, error, logs, attempt, parent_execution_id, triggered_by,
+       dependency_exec_id, resumable, created_at
+FROM scheduler_executions
+WHERE status = 'interrupted' AND resumable = 1
+ORDER BY created_at DESC
+`
+
+func (q *Queries) GetInterruptedSchedulerExecutions(ctx context.Context) ([]SchedulerExecution, error) {
+	rows, err := q.db.QueryContext(ctx, getInterruptedSchedulerExecutions)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []TaskExecution{}
+	items := []SchedulerExecution{}
 	for rows.Next() {
-		var i TaskExecution
+		var i SchedulerExecution
 		if err := rows.Scan(
 			&i.ID,
 			&i.TaskID,
+			&i.Status,
+			&i.ScheduledAt,
 			&i.StartedAt,
 			&i.EndedAt,
 			&i.DurationMs,
 			&i.Success,
 			&i.Error,
+			&i.Logs,
+			&i.Attempt,
+			&i.ParentExecutionID,
+			&i.TriggeredBy,
+			&i.DependencyExecID,
+			&i.Resumable,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -60,60 +183,74 @@ func (q *Queries) GetAllRecentExecutions(ctx context.Context, limit int64) ([]Ta
 	return items, nil
 }
 
-const getLastTaskExecution = `-- name: GetLastTaskExecution :one
-SELECT id, task_id, started_at, ended_at, duration_ms, success, error, created_at
-FROM task_executions
+const getLatestSchedulerExecution = `-- name: GetLatestSchedulerExecution :one
+SELECT id, task_id, status, scheduled_at, started_at, ended_at, duration_ms,
+       success, error, logs, attempt, parent_execution_id, triggered_by,
+       dependency_exec_id, resumable, created_at
+FROM scheduler_executions
 WHERE task_id = ?
-ORDER BY started_at DESC
+ORDER BY created_at DESC
 LIMIT 1
 `
 
-func (q *Queries) GetLastTaskExecution(ctx context.Context, taskID string) (TaskExecution, error) {
-	row := q.db.QueryRowContext(ctx, getLastTaskExecution, taskID)
-	var i TaskExecution
+func (q *Queries) GetLatestSchedulerExecution(ctx context.Context, taskID string) (SchedulerExecution, error) {
+	row := q.db.QueryRowContext(ctx, getLatestSchedulerExecution, taskID)
+	var i SchedulerExecution
 	err := row.Scan(
 		&i.ID,
 		&i.TaskID,
+		&i.Status,
+		&i.ScheduledAt,
 		&i.StartedAt,
 		&i.EndedAt,
 		&i.DurationMs,
 		&i.Success,
 		&i.Error,
+		&i.Logs,
+		&i.Attempt,
+		&i.ParentExecutionID,
+		&i.TriggeredBy,
+		&i.DependencyExecID,
+		&i.Resumable,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
-const getTaskExecutionHistory = `-- name: GetTaskExecutionHistory :many
-SELECT id, task_id, started_at, ended_at, duration_ms, success, error, created_at
-FROM task_executions
-WHERE task_id = ?
-ORDER BY started_at DESC
-LIMIT ?
+const getRunningSchedulerExecutions = `-- name: GetRunningSchedulerExecutions :many
+SELECT id, task_id, status, scheduled_at, started_at, ended_at, duration_ms,
+       success, error, logs, attempt, parent_execution_id, triggered_by,
+       dependency_exec_id, resumable, created_at
+FROM scheduler_executions
+WHERE status IN ('pending', 'running')
+ORDER BY created_at DESC
 `
 
-type GetTaskExecutionHistoryParams struct {
-	TaskID string `json:"task_id"`
-	Limit  int64  `json:"limit"`
-}
-
-func (q *Queries) GetTaskExecutionHistory(ctx context.Context, arg GetTaskExecutionHistoryParams) ([]TaskExecution, error) {
-	rows, err := q.db.QueryContext(ctx, getTaskExecutionHistory, arg.TaskID, arg.Limit)
+func (q *Queries) GetRunningSchedulerExecutions(ctx context.Context) ([]SchedulerExecution, error) {
+	rows, err := q.db.QueryContext(ctx, getRunningSchedulerExecutions)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []TaskExecution{}
+	items := []SchedulerExecution{}
 	for rows.Next() {
-		var i TaskExecution
+		var i SchedulerExecution
 		if err := rows.Scan(
 			&i.ID,
 			&i.TaskID,
+			&i.Status,
+			&i.ScheduledAt,
 			&i.StartedAt,
 			&i.EndedAt,
 			&i.DurationMs,
 			&i.Success,
 			&i.Error,
+			&i.Logs,
+			&i.Attempt,
+			&i.ParentExecutionID,
+			&i.TriggeredBy,
+			&i.DependencyExecID,
+			&i.Resumable,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -129,18 +266,82 @@ func (q *Queries) GetTaskExecutionHistory(ctx context.Context, arg GetTaskExecut
 	return items, nil
 }
 
-const getTaskExecutionStats = `-- name: GetTaskExecutionStats :one
+const getScheduledTask = `-- name: GetScheduledTask :one
+
+SELECT id, name, description, schedule, enabled, source, source_id,
+       depends_on, timeout_seconds, retry_count, retry_delay_seconds,
+       concurrency_key, created_at, updated_at
+FROM scheduled_tasks
+WHERE id = ?
+`
+
+// Scheduled Tasks Queries
+func (q *Queries) GetScheduledTask(ctx context.Context, id string) (ScheduledTask, error) {
+	row := q.db.QueryRowContext(ctx, getScheduledTask, id)
+	var i ScheduledTask
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Schedule,
+		&i.Enabled,
+		&i.Source,
+		&i.SourceID,
+		&i.DependsOn,
+		&i.TimeoutSeconds,
+		&i.RetryCount,
+		&i.RetryDelaySeconds,
+		&i.ConcurrencyKey,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getSchedulerExecution = `-- name: GetSchedulerExecution :one
+SELECT id, task_id, status, scheduled_at, started_at, ended_at, duration_ms,
+       success, error, logs, attempt, parent_execution_id, triggered_by,
+       dependency_exec_id, resumable, created_at
+FROM scheduler_executions
+WHERE id = ?
+`
+
+func (q *Queries) GetSchedulerExecution(ctx context.Context, id string) (SchedulerExecution, error) {
+	row := q.db.QueryRowContext(ctx, getSchedulerExecution, id)
+	var i SchedulerExecution
+	err := row.Scan(
+		&i.ID,
+		&i.TaskID,
+		&i.Status,
+		&i.ScheduledAt,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.DurationMs,
+		&i.Success,
+		&i.Error,
+		&i.Logs,
+		&i.Attempt,
+		&i.ParentExecutionID,
+		&i.TriggeredBy,
+		&i.DependencyExecID,
+		&i.Resumable,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getSchedulerExecutionStats = `-- name: GetSchedulerExecutionStats :one
 SELECT
     COUNT(*) as total_executions,
     SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful_executions,
     SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failed_executions,
     AVG(duration_ms) as avg_duration_ms,
     MAX(started_at) as last_execution
-FROM task_executions
+FROM scheduler_executions
 WHERE task_id = ?
 `
 
-type GetTaskExecutionStatsRow struct {
+type GetSchedulerExecutionStatsRow struct {
 	TotalExecutions      int64           `json:"total_executions"`
 	SuccessfulExecutions sql.NullFloat64 `json:"successful_executions"`
 	FailedExecutions     sql.NullFloat64 `json:"failed_executions"`
@@ -148,9 +349,9 @@ type GetTaskExecutionStatsRow struct {
 	LastExecution        interface{}     `json:"last_execution"`
 }
 
-func (q *Queries) GetTaskExecutionStats(ctx context.Context, taskID string) (GetTaskExecutionStatsRow, error) {
-	row := q.db.QueryRowContext(ctx, getTaskExecutionStats, taskID)
-	var i GetTaskExecutionStatsRow
+func (q *Queries) GetSchedulerExecutionStats(ctx context.Context, taskID string) (GetSchedulerExecutionStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getSchedulerExecutionStats, taskID)
+	var i GetSchedulerExecutionStatsRow
 	err := row.Scan(
 		&i.TotalExecutions,
 		&i.SuccessfulExecutions,
@@ -161,46 +362,518 @@ func (q *Queries) GetTaskExecutionStats(ctx context.Context, taskID string) (Get
 	return i, err
 }
 
-const logTaskExecution = `-- name: LogTaskExecution :one
-INSERT INTO task_executions (
-    task_id,
-    started_at,
-    ended_at,
-    duration_ms,
-    success,
-    error
-) VALUES (?, ?, ?, ?, ?, ?)
-RETURNING id, task_id, started_at, ended_at, duration_ms, success, error, created_at
+const getSchedulerLock = `-- name: GetSchedulerLock :one
+SELECT lock_key, execution_id, acquired_at, expires_at
+FROM scheduler_locks
+WHERE lock_key = ?
 `
 
-type LogTaskExecutionParams struct {
-	TaskID     string         `json:"task_id"`
-	StartedAt  time.Time      `json:"started_at"`
-	EndedAt    time.Time      `json:"ended_at"`
-	DurationMs int64          `json:"duration_ms"`
-	Success    bool           `json:"success"`
-	Error      sql.NullString `json:"error"`
+func (q *Queries) GetSchedulerLock(ctx context.Context, lockKey string) (SchedulerLock, error) {
+	row := q.db.QueryRowContext(ctx, getSchedulerLock, lockKey)
+	var i SchedulerLock
+	err := row.Scan(
+		&i.LockKey,
+		&i.ExecutionID,
+		&i.AcquiredAt,
+		&i.ExpiresAt,
+	)
+	return i, err
 }
 
-func (q *Queries) LogTaskExecution(ctx context.Context, arg LogTaskExecutionParams) (TaskExecution, error) {
-	row := q.db.QueryRowContext(ctx, logTaskExecution,
+const listEnabledScheduledTasks = `-- name: ListEnabledScheduledTasks :many
+SELECT id, name, description, schedule, enabled, source, source_id,
+       depends_on, timeout_seconds, retry_count, retry_delay_seconds,
+       concurrency_key, created_at, updated_at
+FROM scheduled_tasks
+WHERE enabled = 1
+ORDER BY source, name
+`
+
+func (q *Queries) ListEnabledScheduledTasks(ctx context.Context) ([]ScheduledTask, error) {
+	rows, err := q.db.QueryContext(ctx, listEnabledScheduledTasks)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ScheduledTask{}
+	for rows.Next() {
+		var i ScheduledTask
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Schedule,
+			&i.Enabled,
+			&i.Source,
+			&i.SourceID,
+			&i.DependsOn,
+			&i.TimeoutSeconds,
+			&i.RetryCount,
+			&i.RetryDelaySeconds,
+			&i.ConcurrencyKey,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listScheduledTasks = `-- name: ListScheduledTasks :many
+SELECT id, name, description, schedule, enabled, source, source_id,
+       depends_on, timeout_seconds, retry_count, retry_delay_seconds,
+       concurrency_key, created_at, updated_at
+FROM scheduled_tasks
+ORDER BY source, name
+`
+
+func (q *Queries) ListScheduledTasks(ctx context.Context) ([]ScheduledTask, error) {
+	rows, err := q.db.QueryContext(ctx, listScheduledTasks)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ScheduledTask{}
+	for rows.Next() {
+		var i ScheduledTask
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Schedule,
+			&i.Enabled,
+			&i.Source,
+			&i.SourceID,
+			&i.DependsOn,
+			&i.TimeoutSeconds,
+			&i.RetryCount,
+			&i.RetryDelaySeconds,
+			&i.ConcurrencyKey,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listScheduledTasksBySource = `-- name: ListScheduledTasksBySource :many
+SELECT id, name, description, schedule, enabled, source, source_id,
+       depends_on, timeout_seconds, retry_count, retry_delay_seconds,
+       concurrency_key, created_at, updated_at
+FROM scheduled_tasks
+WHERE source = ?
+ORDER BY name
+`
+
+func (q *Queries) ListScheduledTasksBySource(ctx context.Context, source string) ([]ScheduledTask, error) {
+	rows, err := q.db.QueryContext(ctx, listScheduledTasksBySource, source)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ScheduledTask{}
+	for rows.Next() {
+		var i ScheduledTask
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Schedule,
+			&i.Enabled,
+			&i.Source,
+			&i.SourceID,
+			&i.DependsOn,
+			&i.TimeoutSeconds,
+			&i.RetryCount,
+			&i.RetryDelaySeconds,
+			&i.ConcurrencyKey,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listScheduledTasksBySourceID = `-- name: ListScheduledTasksBySourceID :many
+SELECT id, name, description, schedule, enabled, source, source_id,
+       depends_on, timeout_seconds, retry_count, retry_delay_seconds,
+       concurrency_key, created_at, updated_at
+FROM scheduled_tasks
+WHERE source_id = ?
+ORDER BY name
+`
+
+func (q *Queries) ListScheduledTasksBySourceID(ctx context.Context, sourceID sql.NullString) ([]ScheduledTask, error) {
+	rows, err := q.db.QueryContext(ctx, listScheduledTasksBySourceID, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ScheduledTask{}
+	for rows.Next() {
+		var i ScheduledTask
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Schedule,
+			&i.Enabled,
+			&i.Source,
+			&i.SourceID,
+			&i.DependsOn,
+			&i.TimeoutSeconds,
+			&i.RetryCount,
+			&i.RetryDelaySeconds,
+			&i.ConcurrencyKey,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSchedulerExecutions = `-- name: ListSchedulerExecutions :many
+SELECT id, task_id, status, scheduled_at, started_at, ended_at, duration_ms,
+       success, error, logs, attempt, parent_execution_id, triggered_by,
+       dependency_exec_id, resumable, created_at
+FROM scheduler_executions
+WHERE (?1 IS NULL OR task_id = ?1)
+  AND (?2 IS NULL OR status = ?2)
+ORDER BY created_at DESC
+LIMIT ?4 OFFSET ?3
+`
+
+type ListSchedulerExecutionsParams struct {
+	TaskID interface{} `json:"task_id"`
+	Status interface{} `json:"status"`
+	Offset int64       `json:"offset"`
+	Limit  int64       `json:"limit"`
+}
+
+func (q *Queries) ListSchedulerExecutions(ctx context.Context, arg ListSchedulerExecutionsParams) ([]SchedulerExecution, error) {
+	rows, err := q.db.QueryContext(ctx, listSchedulerExecutions,
 		arg.TaskID,
+		arg.Status,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SchedulerExecution{}
+	for rows.Next() {
+		var i SchedulerExecution
+		if err := rows.Scan(
+			&i.ID,
+			&i.TaskID,
+			&i.Status,
+			&i.ScheduledAt,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.DurationMs,
+			&i.Success,
+			&i.Error,
+			&i.Logs,
+			&i.Attempt,
+			&i.ParentExecutionID,
+			&i.TriggeredBy,
+			&i.DependencyExecID,
+			&i.Resumable,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSchedulerExecutionsByTask = `-- name: ListSchedulerExecutionsByTask :many
+SELECT id, task_id, status, scheduled_at, started_at, ended_at, duration_ms,
+       success, error, logs, attempt, parent_execution_id, triggered_by,
+       dependency_exec_id, resumable, created_at
+FROM scheduler_executions
+WHERE task_id = ?
+ORDER BY created_at DESC
+LIMIT ?
+`
+
+type ListSchedulerExecutionsByTaskParams struct {
+	TaskID string `json:"task_id"`
+	Limit  int64  `json:"limit"`
+}
+
+func (q *Queries) ListSchedulerExecutionsByTask(ctx context.Context, arg ListSchedulerExecutionsByTaskParams) ([]SchedulerExecution, error) {
+	rows, err := q.db.QueryContext(ctx, listSchedulerExecutionsByTask, arg.TaskID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SchedulerExecution{}
+	for rows.Next() {
+		var i SchedulerExecution
+		if err := rows.Scan(
+			&i.ID,
+			&i.TaskID,
+			&i.Status,
+			&i.ScheduledAt,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.DurationMs,
+			&i.Success,
+			&i.Error,
+			&i.Logs,
+			&i.Attempt,
+			&i.ParentExecutionID,
+			&i.TriggeredBy,
+			&i.DependencyExecID,
+			&i.Resumable,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markRunningAsInterrupted = `-- name: MarkRunningAsInterrupted :execrows
+UPDATE scheduler_executions
+SET status = 'interrupted',
+    ended_at = datetime('now'),
+    resumable = ?
+WHERE status IN ('pending', 'running')
+`
+
+func (q *Queries) MarkRunningAsInterrupted(ctx context.Context, resumable sql.NullInt64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markRunningAsInterrupted, resumable)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const refreshSchedulerLock = `-- name: RefreshSchedulerLock :exec
+UPDATE scheduler_locks SET expires_at = ? WHERE lock_key = ?
+`
+
+type RefreshSchedulerLockParams struct {
+	ExpiresAt time.Time `json:"expires_at"`
+	LockKey   string    `json:"lock_key"`
+}
+
+func (q *Queries) RefreshSchedulerLock(ctx context.Context, arg RefreshSchedulerLockParams) error {
+	_, err := q.db.ExecContext(ctx, refreshSchedulerLock, arg.ExpiresAt, arg.LockKey)
+	return err
+}
+
+const releaseSchedulerLock = `-- name: ReleaseSchedulerLock :exec
+DELETE FROM scheduler_locks WHERE lock_key = ?
+`
+
+func (q *Queries) ReleaseSchedulerLock(ctx context.Context, lockKey string) error {
+	_, err := q.db.ExecContext(ctx, releaseSchedulerLock, lockKey)
+	return err
+}
+
+const scheduledTaskExists = `-- name: ScheduledTaskExists :one
+SELECT EXISTS(SELECT 1 FROM scheduled_tasks WHERE id = ?) as task_exists
+`
+
+func (q *Queries) ScheduledTaskExists(ctx context.Context, id string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, scheduledTaskExists, id)
+	var task_exists int64
+	err := row.Scan(&task_exists)
+	return task_exists, err
+}
+
+const schedulerLockExists = `-- name: SchedulerLockExists :one
+SELECT EXISTS(SELECT 1 FROM scheduler_locks WHERE lock_key = ? AND expires_at > datetime('now')) as lock_exists
+`
+
+func (q *Queries) SchedulerLockExists(ctx context.Context, lockKey string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, schedulerLockExists, lockKey)
+	var lock_exists int64
+	err := row.Scan(&lock_exists)
+	return lock_exists, err
+}
+
+const tryAcquireSchedulerLock = `-- name: TryAcquireSchedulerLock :exec
+
+INSERT INTO scheduler_locks (lock_key, execution_id, acquired_at, expires_at)
+VALUES (?, ?, datetime('now'), ?)
+ON CONFLICT(lock_key) DO NOTHING
+`
+
+type TryAcquireSchedulerLockParams struct {
+	LockKey     string    `json:"lock_key"`
+	ExecutionID string    `json:"execution_id"`
+	ExpiresAt   time.Time `json:"expires_at"`
+}
+
+// Scheduler Locks Queries
+func (q *Queries) TryAcquireSchedulerLock(ctx context.Context, arg TryAcquireSchedulerLockParams) error {
+	_, err := q.db.ExecContext(ctx, tryAcquireSchedulerLock, arg.LockKey, arg.ExecutionID, arg.ExpiresAt)
+	return err
+}
+
+const updateScheduledTask = `-- name: UpdateScheduledTask :exec
+UPDATE scheduled_tasks SET
+    schedule = COALESCE(?1, schedule),
+    enabled = COALESCE(?2, enabled),
+    updated_at = datetime('now')
+WHERE id = ?3
+`
+
+type UpdateScheduledTaskParams struct {
+	Schedule sql.NullString `json:"schedule"`
+	Enabled  sql.NullInt64  `json:"enabled"`
+	ID       string         `json:"id"`
+}
+
+func (q *Queries) UpdateScheduledTask(ctx context.Context, arg UpdateScheduledTaskParams) error {
+	_, err := q.db.ExecContext(ctx, updateScheduledTask, arg.Schedule, arg.Enabled, arg.ID)
+	return err
+}
+
+const updateSchedulerExecution = `-- name: UpdateSchedulerExecution :exec
+UPDATE scheduler_executions SET
+    status = ?,
+    started_at = ?,
+    ended_at = ?,
+    duration_ms = ?,
+    success = ?,
+    error = ?,
+    logs = ?,
+    resumable = ?
+WHERE id = ?
+`
+
+type UpdateSchedulerExecutionParams struct {
+	Status     string         `json:"status"`
+	StartedAt  sql.NullTime   `json:"started_at"`
+	EndedAt    sql.NullTime   `json:"ended_at"`
+	DurationMs sql.NullInt64  `json:"duration_ms"`
+	Success    sql.NullInt64  `json:"success"`
+	Error      sql.NullString `json:"error"`
+	Logs       sql.NullString `json:"logs"`
+	Resumable  sql.NullInt64  `json:"resumable"`
+	ID         string         `json:"id"`
+}
+
+func (q *Queries) UpdateSchedulerExecution(ctx context.Context, arg UpdateSchedulerExecutionParams) error {
+	_, err := q.db.ExecContext(ctx, updateSchedulerExecution,
+		arg.Status,
 		arg.StartedAt,
 		arg.EndedAt,
 		arg.DurationMs,
 		arg.Success,
 		arg.Error,
+		arg.Logs,
+		arg.Resumable,
+		arg.ID,
 	)
-	var i TaskExecution
-	err := row.Scan(
-		&i.ID,
-		&i.TaskID,
-		&i.StartedAt,
-		&i.EndedAt,
-		&i.DurationMs,
-		&i.Success,
-		&i.Error,
-		&i.CreatedAt,
+	return err
+}
+
+const upsertScheduledTask = `-- name: UpsertScheduledTask :exec
+INSERT INTO scheduled_tasks (
+    id, name, description, schedule, enabled, source, source_id,
+    depends_on, timeout_seconds, retry_count, retry_delay_seconds,
+    concurrency_key, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+ON CONFLICT(id) DO UPDATE SET
+    name = excluded.name,
+    description = excluded.description,
+    schedule = CASE WHEN excluded.source = 'plugin' THEN excluded.schedule ELSE scheduled_tasks.schedule END,
+    enabled = scheduled_tasks.enabled,
+    source = excluded.source,
+    source_id = excluded.source_id,
+    depends_on = excluded.depends_on,
+    timeout_seconds = excluded.timeout_seconds,
+    retry_count = excluded.retry_count,
+    retry_delay_seconds = excluded.retry_delay_seconds,
+    concurrency_key = excluded.concurrency_key,
+    updated_at = datetime('now')
+`
+
+type UpsertScheduledTaskParams struct {
+	ID                string         `json:"id"`
+	Name              string         `json:"name"`
+	Description       sql.NullString `json:"description"`
+	Schedule          sql.NullString `json:"schedule"`
+	Enabled           int64          `json:"enabled"`
+	Source            string         `json:"source"`
+	SourceID          sql.NullString `json:"source_id"`
+	DependsOn         sql.NullString `json:"depends_on"`
+	TimeoutSeconds    sql.NullInt64  `json:"timeout_seconds"`
+	RetryCount        sql.NullInt64  `json:"retry_count"`
+	RetryDelaySeconds sql.NullInt64  `json:"retry_delay_seconds"`
+	ConcurrencyKey    sql.NullString `json:"concurrency_key"`
+}
+
+func (q *Queries) UpsertScheduledTask(ctx context.Context, arg UpsertScheduledTaskParams) error {
+	_, err := q.db.ExecContext(ctx, upsertScheduledTask,
+		arg.ID,
+		arg.Name,
+		arg.Description,
+		arg.Schedule,
+		arg.Enabled,
+		arg.Source,
+		arg.SourceID,
+		arg.DependsOn,
+		arg.TimeoutSeconds,
+		arg.RetryCount,
+		arg.RetryDelaySeconds,
+		arg.ConcurrencyKey,
 	)
-	return i, err
+	return err
 }

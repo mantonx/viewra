@@ -24,6 +24,7 @@ import type {
 import type {
   GetApiProgressBatchParams,
   GetApiProgressInProgressParams,
+  GetApiProgressMediaIdParams,
   GetApiProgressParams,
   GetApiProgressWatchedParams,
   GithubComMantonxViewraInternalApplicationProgressBatchProgressResponse,
@@ -1178,7 +1179,7 @@ export function useGetApiProgressWatched<
 }
 
 /**
- * Gets watch progress for a specific media item
+ * Gets watch progress for a specific media item. If device_profile is provided, returns device-specific playback preferences (quality, audio track, subtitle track) if available.
  * @summary Get watch progress
  */
 export type getApiProgressMediaIdResponse200 = {
@@ -1210,22 +1211,44 @@ export type getApiProgressMediaIdResponse =
   | getApiProgressMediaIdResponseSuccess
   | getApiProgressMediaIdResponseError
 
-export const getGetApiProgressMediaIdUrl = (mediaId: number) => {
-  return `/api/progress/${mediaId}`
+export const getGetApiProgressMediaIdUrl = (
+  mediaId: number,
+  params?: GetApiProgressMediaIdParams
+) => {
+  const normalizedParams = new URLSearchParams()
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  })
+
+  const stringifiedParams = normalizedParams.toString()
+
+  return stringifiedParams.length > 0
+    ? `/api/progress/${mediaId}?${stringifiedParams}`
+    : `/api/progress/${mediaId}`
 }
 
 export const getApiProgressMediaId = async (
   mediaId: number,
+  params?: GetApiProgressMediaIdParams,
   options?: RequestInit
 ): Promise<getApiProgressMediaIdResponse> => {
-  return customInstance<getApiProgressMediaIdResponse>(getGetApiProgressMediaIdUrl(mediaId), {
-    ...options,
-    method: 'GET',
-  })
+  return customInstance<getApiProgressMediaIdResponse>(
+    getGetApiProgressMediaIdUrl(mediaId, params),
+    {
+      ...options,
+      method: 'GET',
+    }
+  )
 }
 
-export const getGetApiProgressMediaIdQueryKey = (mediaId?: number) => {
-  return [`/api/progress/${mediaId}`] as const
+export const getGetApiProgressMediaIdQueryKey = (
+  mediaId?: number,
+  params?: GetApiProgressMediaIdParams
+) => {
+  return [`/api/progress/${mediaId}`, ...(params ? [params] : [])] as const
 }
 
 export const getGetApiProgressMediaIdQueryOptions = <
@@ -1233,6 +1256,7 @@ export const getGetApiProgressMediaIdQueryOptions = <
   TError = InternalApiHandlersErrorResponse,
 >(
   mediaId: number,
+  params?: GetApiProgressMediaIdParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getApiProgressMediaId>>, TError, TData>
@@ -1242,10 +1266,10 @@ export const getGetApiProgressMediaIdQueryOptions = <
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {}
 
-  const queryKey = queryOptions?.queryKey ?? getGetApiProgressMediaIdQueryKey(mediaId)
+  const queryKey = queryOptions?.queryKey ?? getGetApiProgressMediaIdQueryKey(mediaId, params)
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiProgressMediaId>>> = ({ signal }) =>
-    getApiProgressMediaId(mediaId, { signal, ...requestOptions })
+    getApiProgressMediaId(mediaId, params, { signal, ...requestOptions })
 
   return { queryKey, queryFn, enabled: !!mediaId, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getApiProgressMediaId>>,
@@ -1264,6 +1288,7 @@ export function useGetApiProgressMediaId<
   TError = InternalApiHandlersErrorResponse,
 >(
   mediaId: number,
+  params: undefined | GetApiProgressMediaIdParams,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getApiProgressMediaId>>, TError, TData>
@@ -1285,6 +1310,7 @@ export function useGetApiProgressMediaId<
   TError = InternalApiHandlersErrorResponse,
 >(
   mediaId: number,
+  params?: GetApiProgressMediaIdParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getApiProgressMediaId>>, TError, TData>
@@ -1306,6 +1332,7 @@ export function useGetApiProgressMediaId<
   TError = InternalApiHandlersErrorResponse,
 >(
   mediaId: number,
+  params?: GetApiProgressMediaIdParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getApiProgressMediaId>>, TError, TData>
@@ -1323,6 +1350,7 @@ export function useGetApiProgressMediaId<
   TError = InternalApiHandlersErrorResponse,
 >(
   mediaId: number,
+  params?: GetApiProgressMediaIdParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getApiProgressMediaId>>, TError, TData>
@@ -1331,7 +1359,7 @@ export function useGetApiProgressMediaId<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetApiProgressMediaIdQueryOptions(mediaId, options)
+  const queryOptions = getGetApiProgressMediaIdQueryOptions(mediaId, params, options)
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>

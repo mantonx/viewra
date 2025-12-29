@@ -14,13 +14,21 @@ func devModeEnabled() bool {
 	return os.Getenv("VIEWRA_DEV_MODE") == "1"
 }
 
+// DevModePublicID is the public_id placeholder used in dev mode.
+// This is used in dev mode to provide a valid user ID for database operations.
+// In production, the actual JWT token contains the real user's public_id.
+// Exported so handlers can check for this placeholder and look up the real user.
+const DevModePublicID = "usr_dev_mode_placeholder"
+
 // devModeClaims returns mock claims for dev mode
 func devModeClaims() *auth.AccessClaims {
 	claims := &auth.AccessClaims{
 		UserID:  1,
 		IsAdmin: true,
 	}
-	claims.Subject = "dev-user"
+	// Use the dev mode placeholder - handlers should check for this
+	// and either skip user-specific operations or look up the real user
+	claims.Subject = DevModePublicID
 	return claims
 }
 

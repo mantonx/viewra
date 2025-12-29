@@ -123,16 +123,16 @@ func (a *Application) Run() error {
 		}
 	}
 
-	// Start unified task scheduler if available
-	// (includes transcode cleanup and image cleanup tasks)
-	if a.Container.Scheduler != nil {
+	// Start scheduler service if available
+	// (includes transcode cleanup, image cleanup, session cleanup tasks)
+	if a.Container.SchedulerService != nil {
 		ctx := context.Background()
 		go func() {
-			if err := a.Container.Scheduler.Start(ctx); err != nil {
+			if err := a.Container.SchedulerService.Start(ctx); err != nil {
 				a.Logger.Error("Scheduler error", "error", err)
 			}
 		}()
-		a.Logger.Info("Unified task scheduler started")
+		a.Logger.Info("Scheduler service started")
 	}
 
 	// Start server in goroutine
@@ -168,6 +168,6 @@ func (a *Application) Run() error {
 // isAPIPath checks if a path is an API endpoint
 func isAPIPath(path string) bool {
 	return strings.HasPrefix(path, "/api/") ||
-	       strings.HasPrefix(path, "/swagger/") ||
-	       strings.HasPrefix(path, "/health")
+		strings.HasPrefix(path, "/swagger/") ||
+		strings.HasPrefix(path, "/health")
 }

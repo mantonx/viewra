@@ -108,6 +108,16 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*user.User, err
 	return postgresRowToUser(row), nil
 }
 
+// GetPublicIDByInternalID retrieves a user's public ID by their internal database ID.
+// This is used for dev mode where we have the internal ID but need the public_id.
+func (r *UserRepository) GetPublicIDByInternalID(ctx context.Context, id int64) (string, error) {
+	u, err := r.GetByID(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	return u.PublicID, nil
+}
+
 // GetByPublicID retrieves a user by public ID (e.g., "usr_abc123").
 func (r *UserRepository) GetByPublicID(ctx context.Context, publicID string) (*user.User, error) {
 	if r.dbType == "sqlite" {

@@ -7,6 +7,9 @@
  */
 
 export interface GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequest {
+  /** Device profile for device-specific preferences (e.g., "chrome-h264-sdr", "firefox-h264h265-hdr")
+If provided, preferences are stored per-device; otherwise stored globally */
+  device_profile?: string
   duration_seconds?: number
   media_id?: number
   progress_seconds?: number

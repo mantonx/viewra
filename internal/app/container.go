@@ -17,9 +17,9 @@ import (
 	"github.com/mantonx/viewra/internal/application/auth"
 	"github.com/mantonx/viewra/internal/application/common"
 	appplugins "github.com/mantonx/viewra/internal/application/plugins"
+	appscheduler "github.com/mantonx/viewra/internal/application/scheduler"
 	"github.com/mantonx/viewra/internal/application/transcode"
 	"github.com/mantonx/viewra/internal/infrastructure/plugins"
-	"github.com/mantonx/viewra/internal/infrastructure/scheduler"
 )
 
 // Container holds all application dependencies
@@ -28,9 +28,9 @@ type Container struct {
 	Server *api.Server
 
 	// Background services
-	Scheduler      *scheduler.Scheduler
-	TranscodeQueue *transcode.Queue
-	Services       *services.Services
+	SchedulerService *appscheduler.Service
+	TranscodeQueue   *transcode.Queue
+	Services         *services.Services
 
 	// Use cases (exposed for startup tasks)
 	UseCases *usecases.UseCases
@@ -53,20 +53,19 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 
 	cases := usecases.BuildUseCases(cfg, repos, svcs, txManager, logger)
 
-	// Create unified task scheduler
-	execLogger := scheduler.NewDBExecutionLogger(db, logger)
-	taskScheduler, err := scheduler.New(
-		scheduler.DefaultConfig(),
-		logger,
-		execLogger,
-	)
+	// Create scheduler service
+	var schedulerService *appscheduler.Service
+	schedulerService, err = InitScheduler(SchedulerDeps{
+		DB:       db,
+		DBDriver: dbDriver,
+		Config:   cfg,
+		Cases:    cases,
+		Svcs:     svcs,
+		Repos:    repos,
+		Logger:   logger,
+	})
 	if err != nil {
-		logger.Error("Failed to create task scheduler", "error", err)
-	}
-
-	// Register scheduled tasks with unified scheduler
-	if taskScheduler != nil {
-		registerTasks(taskScheduler, cfg, cases, svcs, repos, logger)
+		logger.Error("Failed to create scheduler service", "error", err)
 	}
 
 	// Create lifecycle manager for server restart coordination
@@ -87,7 +86,7 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 	// Build handlers (returns *api.Handlers directly)
 	infra := &apphandlers.InfrastructureDeps{
 		DB:                 db,
-		Scheduler:          taskScheduler,
+		SchedulerService:   schedulerService,
 		TranscodeOutputDir: cfg.Media.TranscodeOutputDir,
 		Repos:              repos,
 		Config:             cfg,
@@ -134,12 +133,12 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 	}
 
 	return &Container{
-		Server:         server,
-		Scheduler:      taskScheduler,
-		TranscodeQueue: svcs.TranscodeQueue,
-		Services:       svcs,
-		UseCases:       cases,
-		LifecycleMgr:   lifecycleMgr,
+		Server:           server,
+		SchedulerService: schedulerService,
+		TranscodeQueue:   svcs.TranscodeQueue,
+		Services:         svcs,
+		UseCases:         cases,
+		LifecycleMgr:     lifecycleMgr,
 	}
 }
 
@@ -173,8 +172,8 @@ func (c *Container) Shutdown(ctx context.Context) error {
 	}
 
 	// Stop scheduler
-	if c.Scheduler != nil {
-		c.Scheduler.Stop()
+	if c.SchedulerService != nil {
+		c.SchedulerService.Stop()
 	}
 
 	// Close event bus (closes all subscriptions)
@@ -190,146 +189,6 @@ func (c *Container) Shutdown(ctx context.Context) error {
 	}
 
 	return firstErr
-}
-
-// registerTasks registers all scheduled tasks with the unified scheduler.
-// Uses use cases for business logic and services for infrastructure operations.
-func registerTasks(
-	taskScheduler *scheduler.Scheduler,
-	cfg *appconfig.Config,
-	cases *usecases.UseCases,
-	svcs *services.Services,
-	repos *repositories.Repositories,
-	logger *slog.Logger,
-) {
-	// Register scan job cleanup task
-	err := taskScheduler.RegisterTask(scheduler.Task{
-		ID:          "scan-job-cleanup",
-		Name:        "Scan Job Cleanup",
-		Description: "Delete old scan jobs and their checkpoints based on retention policy",
-		Schedule:    "*/30 * * * *", // Every 30 minutes
-		Enabled:     true,
-		Handler: func(ctx context.Context) error {
-			retentionMinutes := cfg.Media.ScanJobRetentionMinutes
-			logger.Info("Running scan job cleanup", "retention_minutes", retentionMinutes)
-
-			// Get all libraries via use case
-			resp, err := cases.Library.Service.List(ctx)
-			if err != nil {
-				return err
-			}
-
-			for _, lib := range resp.Libraries {
-				// Clean up old scan jobs via use case
-				if err := cases.ScanJob.DeleteOld(ctx, lib.ID, retentionMinutes); err != nil {
-					logger.Error("Failed to clean scan jobs for library",
-						"library_id", lib.ID,
-						"error", err)
-					// Continue with other libraries even if one fails
-				}
-			}
-
-			logger.Info("Scan job cleanup completed", "libraries_processed", len(resp.Libraries))
-			return nil
-		},
-	})
-	if err != nil {
-		logger.Error("Failed to register scan job cleanup task", "error", err)
-	} else {
-		logger.Info("Registered scan job cleanup task with scheduler")
-	}
-
-	// Register image cache cleanup task
-	err = taskScheduler.RegisterTask(scheduler.Task{
-		ID:          "image-cache-cleanup",
-		Name:        "Image Cache Cleanup",
-		Description: "Remove orphaned image cache files that are no longer referenced in the database",
-		Schedule:    "0 3 * * *", // Daily at 3 AM
-		Enabled:     true,
-		Handler: func(ctx context.Context) error {
-			_, err := cases.Images.Cleanup.CleanOrphanedImages(ctx)
-			return err
-		},
-	})
-	if err != nil {
-		logger.Error("Failed to register image cleanup task", "error", err)
-	} else {
-		logger.Info("Registered image cleanup task with scheduler")
-	}
-
-	// NOTE: Automatic library scanning has been replaced by real-time filesystem monitoring.
-	// See ADR-026: Library Filesystem Monitoring. The FileMonitorService now watches
-	// library directories and triggers enrichment when files change.
-	// Manual scans are still available via the API for initial imports or recovery.
-
-	// Register transcode cleanup tasks (if transcode is enabled)
-	if svcs.CleanupService != nil {
-		cleanupConfig := cfg.Transcode.ToCleanupSchedulerConfig()
-
-		// Task 1: Policy-based cleanup (failed, old, idle, orphans)
-		err = taskScheduler.RegisterTask(scheduler.Task{
-			ID:          "transcode-cleanup-policy",
-			Name:        "Transcode Policy Cleanup",
-			Description: "Clean failed/old/idle/orphaned transcodes based on policy rules",
-			Schedule:    "0 */6 * * *", // Every 6 hours at :00
-			Enabled:     cleanupConfig.Enabled,
-			Handler: func(ctx context.Context) error {
-				return transcode.PerformPolicyCleanup(ctx, svcs.CleanupService, cleanupConfig)
-			},
-		})
-		if err != nil {
-			logger.Error("Failed to register transcode policy cleanup task", "error", err)
-		} else {
-			logger.Info("Registered transcode policy cleanup task with scheduler")
-		}
-
-		// Task 2: Disk threshold monitoring and LRU cleanup
-		err = taskScheduler.RegisterTask(scheduler.Task{
-			ID:          "transcode-cleanup-disk-check",
-			Name:        "Transcode Disk Monitor",
-			Description: "Monitor disk usage and perform LRU cleanup if threshold exceeded",
-			Schedule:    "*/30 * * * *", // Every 30 minutes
-			Enabled:     cleanupConfig.Enabled,
-			Handler: func(ctx context.Context) error {
-				return transcode.PerformDiskMonitoring(
-					ctx,
-					svcs.CleanupService,
-					svcs.TranscodeRepo,
-					cleanupConfig,
-					cfg.Media.TranscodeOutputDir,
-				)
-			},
-		})
-		if err != nil {
-			logger.Error("Failed to register transcode disk monitor task", "error", err)
-		} else {
-			logger.Info("Registered transcode disk monitor task with scheduler")
-		}
-	}
-
-	// Register expired session cleanup task
-	err = taskScheduler.RegisterTask(scheduler.Task{
-		ID:          "session-cleanup",
-		Name:        "Session Cleanup",
-		Description: "Remove expired user sessions from the database",
-		Schedule:    "0 * * * *", // Every hour at :00
-		Enabled:     true,
-		Handler: func(ctx context.Context) error {
-			logger.Info("Running expired session cleanup")
-			deleted, err := repos.Session.DeleteExpired(ctx)
-			if err != nil {
-				logger.Error("Failed to clean expired sessions", "error", err)
-				return err
-			}
-			logger.Info("Expired session cleanup completed", "deleted_count", deleted)
-			return nil
-		},
-	})
-	if err != nil {
-		logger.Error("Failed to register session cleanup task", "error", err)
-	} else {
-		logger.Info("Registered session cleanup task with scheduler")
-	}
 }
 
 // seedDevUser creates a development user if running in development mode and no users exist.

@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"os"
 	"runtime"
@@ -10,21 +11,21 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	appscheduler "github.com/mantonx/viewra/internal/application/scheduler"
 	"github.com/mantonx/viewra/internal/application/transcode"
-	"github.com/mantonx/viewra/internal/infrastructure/scheduler"
 	"github.com/mantonx/viewra/internal/version"
 )
 
 // HealthHandler handles health check requests
 type HealthHandler struct {
 	db             *sql.DB
-	scheduler      *scheduler.Scheduler
+	scheduler      *appscheduler.Service
 	transcodeQueue *transcode.Queue
 	startTime      time.Time
 }
 
 // NewHealthHandler creates a new health check handler
-func NewHealthHandler(db *sql.DB, scheduler *scheduler.Scheduler, transcodeQueue *transcode.Queue) *HealthHandler {
+func NewHealthHandler(db *sql.DB, scheduler *appscheduler.Service, transcodeQueue *transcode.Queue) *HealthHandler {
 	return &HealthHandler{
 		db:             db,
 		scheduler:      scheduler,
@@ -35,12 +36,12 @@ func NewHealthHandler(db *sql.DB, scheduler *scheduler.Scheduler, transcodeQueue
 
 // HealthResponse represents the health check response
 type HealthResponse struct {
-	Status     string            `json:"status"` // "healthy", "degraded", "unhealthy"
-	Version    string            `json:"version"`
-	Uptime     string            `json:"uptime"`
-	Timestamp  time.Time         `json:"timestamp"`
-	Components map[string]Check  `json:"components"`
-	System     *SystemInfo       `json:"system,omitempty"`
+	Status     string           `json:"status"` // "healthy", "degraded", "unhealthy"
+	Version    string           `json:"version"`
+	Uptime     string           `json:"uptime"`
+	Timestamp  time.Time        `json:"timestamp"`
+	Components map[string]Check `json:"components"`
+	System     *SystemInfo      `json:"system,omitempty"`
 }
 
 // Check represents a component health check
@@ -88,7 +89,7 @@ func (h *HealthHandler) Check(c *gin.Context) {
 
 	// Check scheduler (if available)
 	if h.scheduler != nil {
-		schedulerCheck := h.checkScheduler()
+		schedulerCheck := h.checkScheduler(ctx)
 		components["scheduler"] = schedulerCheck
 		if schedulerCheck.Status == "fail" && overallStatus != "unhealthy" {
 			overallStatus = "degraded"
@@ -155,9 +156,7 @@ func (h *HealthHandler) checkDatabase(ctx context.Context) Check {
 }
 
 // checkScheduler checks scheduler status
-func (h *HealthHandler) checkScheduler() Check {
-	// For now, just check if scheduler exists
-	// Could be enhanced to check if tasks are running
+func (h *HealthHandler) checkScheduler(ctx context.Context) Check {
 	if h.scheduler == nil {
 		return Check{
 			Status:  "fail",
@@ -165,9 +164,18 @@ func (h *HealthHandler) checkScheduler() Check {
 		}
 	}
 
+	// Check if scheduler is operational by listing tasks
+	tasks, err := h.scheduler.ListTasks(ctx)
+	if err != nil {
+		return Check{
+			Status:  "warn",
+			Message: "Scheduler error: " + err.Error(),
+		}
+	}
+
 	return Check{
 		Status:  "pass",
-		Message: "Scheduler operational",
+		Message: fmt.Sprintf("Scheduler operational with %d tasks", len(tasks)),
 	}
 }
 

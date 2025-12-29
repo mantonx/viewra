@@ -1,23 +1,32 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/api/middleware"
 	"github.com/mantonx/viewra/internal/application/settings"
 	settingsDomain "github.com/mantonx/viewra/internal/domain/settings"
+	"github.com/mantonx/viewra/internal/infrastructure/auth"
 )
+
+// UserLookup provides user ID resolution for dev mode.
+type UserLookup interface {
+	GetPublicIDByInternalID(ctx context.Context, id int64) (string, error)
+}
 
 // SettingsHandler handles settings HTTP requests.
 type SettingsHandler struct {
-	service *settings.Service
+	service    *settings.Service
+	userLookup UserLookup
 }
 
 // NewSettingsHandler creates a new settings handler.
-func NewSettingsHandler(service *settings.Service) *SettingsHandler {
-	return &SettingsHandler{service: service}
+func NewSettingsHandler(service *settings.Service, userLookup UserLookup) *SettingsHandler {
+	return &SettingsHandler{service: service, userLookup: userLookup}
 }
 
 // GetAllSystem handles GET /api/settings/system
@@ -126,9 +135,11 @@ func (h *SettingsHandler) SetSystem(c *gin.Context) {
 	}
 
 	// Get the user who made the update (use Subject which is the public ID)
+	// Only use the Subject if it looks like a valid public ID (starts with "usr_")
+	// This handles dev mode where Subject might be a placeholder like "dev-user"
 	claims := middleware.GetClaims(c)
 	updatedBy := ""
-	if claims != nil {
+	if claims != nil && strings.HasPrefix(claims.Subject, "usr_") {
 		updatedBy = claims.Subject
 	}
 
@@ -161,7 +172,15 @@ func (h *SettingsHandler) GetAllUser(c *gin.Context) {
 		return
 	}
 
-	allSettings, err := h.service.GetAllUser(c.Request.Context(), claims.Subject)
+	userID := h.getUserID(c.Request.Context(), claims)
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: "Invalid user ID",
+		})
+		return
+	}
+
+	allSettings, err := h.service.GetAllUser(c.Request.Context(), userID)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -199,6 +218,14 @@ func (h *SettingsHandler) GetUser(c *gin.Context) {
 		return
 	}
 
+	userID := h.getUserID(c.Request.Context(), claims)
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: "Invalid user ID",
+		})
+		return
+	}
+
 	key := c.Param("key")
 	if key == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -207,7 +234,7 @@ func (h *SettingsHandler) GetUser(c *gin.Context) {
 		return
 	}
 
-	value, err := h.service.GetUserValue(c.Request.Context(), claims.Subject, key)
+	value, err := h.service.GetUserValue(c.Request.Context(), userID, key)
 	if err != nil {
 		handleSettingsError(c, err)
 		return
@@ -247,6 +274,14 @@ func (h *SettingsHandler) SetUser(c *gin.Context) {
 		return
 	}
 
+	userID := h.getUserID(c.Request.Context(), claims)
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: "Invalid user ID",
+		})
+		return
+	}
+
 	key := c.Param("key")
 	if key == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -264,7 +299,7 @@ func (h *SettingsHandler) SetUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.SetUser(c.Request.Context(), claims.Subject, key, req.Value); err != nil {
+	if err := h.service.SetUser(c.Request.Context(), userID, key, req.Value); err != nil {
 		handleSettingsError(c, err)
 		return
 	}
@@ -294,6 +329,14 @@ func (h *SettingsHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
+	userID := h.getUserID(c.Request.Context(), claims)
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: "Invalid user ID",
+		})
+		return
+	}
+
 	key := c.Param("key")
 	if key == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -302,7 +345,7 @@ func (h *SettingsHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.DeleteUser(c.Request.Context(), claims.Subject, key); err != nil {
+	if err := h.service.DeleteUser(c.Request.Context(), userID, key); err != nil {
 		handleSettingsError(c, err)
 		return
 	}
@@ -684,4 +727,33 @@ func handleSettingsError(c *gin.Context, err error) {
 	default:
 		handleError(c, err)
 	}
+}
+
+// getUserID extracts a valid user ID from claims.
+// Returns the Subject if it's a valid public_id (starts with "usr_" and is not the dev mode placeholder),
+// otherwise attempts to look up the user by internal ID (for dev mode).
+func (h *SettingsHandler) getUserID(ctx context.Context, claims *auth.AccessClaims) string {
+	if claims == nil {
+		return ""
+	}
+	// Check for dev mode placeholder - need to look up the real public_id
+	if claims.Subject == middleware.DevModePublicID {
+		if h.userLookup != nil && claims.UserID > 0 {
+			if publicID, err := h.userLookup.GetPublicIDByInternalID(ctx, claims.UserID); err == nil {
+				return publicID
+			}
+		}
+		return ""
+	}
+	// If the Subject is already a valid public_id, use it directly
+	if strings.HasPrefix(claims.Subject, "usr_") {
+		return claims.Subject
+	}
+	// Fallback: try to look up by internal ID if available
+	if h.userLookup != nil && claims.UserID > 0 {
+		if publicID, err := h.userLookup.GetPublicIDByInternalID(ctx, claims.UserID); err == nil {
+			return publicID
+		}
+	}
+	return ""
 }

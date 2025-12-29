@@ -16,6 +16,7 @@ type Querier interface {
 	// Used for interactive priority boost when user views an item.
 	BoostPriority(ctx context.Context, arg BoostPriorityParams) (int64, error)
 	ClaimEnrichmentJobs(ctx context.Context, arg ClaimEnrichmentJobsParams) ([]EnrichmentQueue, error)
+	CleanExpiredSchedulerLocks(ctx context.Context) (int64, error)
 	ClearScanStateError(ctx context.Context, arg ClearScanStateErrorParams) error
 	ClearScanStateWarning(ctx context.Context, arg ClearScanStateWarningParams) error
 	ClearStudiosForEntity(ctx context.Context, arg ClearStudiosForEntityParams) error
@@ -51,6 +52,7 @@ type Querier interface {
 	CountPluginAPIKeys(ctx context.Context, pluginID string) (int64, error)
 	CountPluginUserMetadata(ctx context.Context, arg CountPluginUserMetadataParams) (int64, error)
 	CountScanJobsByLibrary(ctx context.Context, libraryID int64) (int64, error)
+	CountSchedulerExecutionsByTask(ctx context.Context, taskID string) (int64, error)
 	CountSearchArtistsByName(ctx context.Context, arg CountSearchArtistsByNameParams) (int64, error)
 	CountSearchMoviesByTitle(ctx context.Context, arg CountSearchMoviesByTitleParams) (int64, error)
 	CountSearchTVShowsByTitle(ctx context.Context, arg CountSearchTVShowsByTitleParams) (int64, error)
@@ -78,6 +80,8 @@ type Querier interface {
 	CreateScanCheckpoint(ctx context.Context, arg CreateScanCheckpointParams) (ScanCheckpoint, error)
 	CreateScanCheckpointBatch(ctx context.Context, arg CreateScanCheckpointBatchParams) error
 	CreateScanJob(ctx context.Context, arg CreateScanJobParams) (ScanJob, error)
+	// Scheduler Executions Queries
+	CreateSchedulerExecution(ctx context.Context, arg CreateSchedulerExecutionParams) error
 	// Session queries for SQLite
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	CreateStudio(ctx context.Context, arg CreateStudioParams) (Studio, error)
@@ -133,7 +137,7 @@ type Querier interface {
 	DeleteOldPlaybackSessions(ctx context.Context, startTime int64) error
 	DeleteOldQualitySwitchEvents(ctx context.Context, timestamp int64) error
 	DeleteOldScanJobs(ctx context.Context, arg DeleteOldScanJobsParams) error
-	DeleteOldTaskExecutions(ctx context.Context, startedAt time.Time) error
+	DeleteOldSchedulerExecutions(ctx context.Context, createdAt time.Time) (int64, error)
 	// Delete images for entities that no longer exist (tv_show, tv_season, music_album, music_artist).
 	// This handles the polymorphic entity_id references that don't have foreign key constraints.
 	DeleteOrphanedEntityImages(ctx context.Context) (sql.Result, error)
@@ -153,6 +157,8 @@ type Querier interface {
 	DeleteScanJob(ctx context.Context, id int64) error
 	DeleteScanStateByLibrary(ctx context.Context, libraryID int64) error
 	DeleteScanStateByPath(ctx context.Context, arg DeleteScanStateByPathParams) error
+	DeleteScheduledTask(ctx context.Context, id string) error
+	DeleteScheduledTasksBySourceID(ctx context.Context, sourceID sql.NullString) error
 	DeleteSession(ctx context.Context, id int64) error
 	DeleteSessionsByUserID(ctx context.Context, userID int64) error
 	DeleteStudio(ctx context.Context, id int64) error
@@ -169,8 +175,10 @@ type Querier interface {
 	DeleteWatchProgressByMediaID(ctx context.Context, mediaID int64) error
 	DisablePipelineStage(ctx context.Context, id int64) error
 	DisablePlugin(ctx context.Context, id string) error
+	DisableScheduledTask(ctx context.Context, id string) error
 	EnablePipelineStage(ctx context.Context, id int64) error
 	EnablePlugin(ctx context.Context, id string) error
+	EnableScheduledTask(ctx context.Context, id string) error
 	// Enqueue a job for enrichment processing. On conflict:
 	// - If status is completed/skipped/failed: reset to pending for re-processing
 	// - If status is pending/processing: keep existing state (idempotent)
@@ -185,7 +193,6 @@ type Querier interface {
 	GetAlbumByMusicBrainzID(ctx context.Context, musicbrainzAlbumID sql.NullString) (MusicAlbum, error)
 	GetAllFileHashes(ctx context.Context) ([]sql.NullString, error)
 	GetAllPipelineStages(ctx context.Context, mediaType string) ([]EnrichmentPipeline, error)
-	GetAllRecentExecutions(ctx context.Context, limit int64) ([]TaskExecution, error)
 	GetAllSystemSettings(ctx context.Context) ([]SystemSetting, error)
 	GetAllUserSettings(ctx context.Context, userID string) ([]UserSetting, error)
 	GetArtistByID(ctx context.Context, id int64) (MusicArtist, error)
@@ -241,9 +248,10 @@ type Querier interface {
 	GetImageByTypeAndEntity(ctx context.Context, arg GetImageByTypeAndEntityParams) (MediaImage, error)
 	GetImageByTypeAndMediaID(ctx context.Context, arg GetImageByTypeAndMediaIDParams) (MediaImage, error)
 	GetImagesByHash(ctx context.Context, fileHash sql.NullString) ([]MediaImage, error)
+	GetInterruptedSchedulerExecutions(ctx context.Context) ([]SchedulerExecution, error)
 	GetKeywordsByEntity(ctx context.Context, arg GetKeywordsByEntityParams) ([]GetKeywordsByEntityRow, error)
-	GetLastTaskExecution(ctx context.Context, taskID string) (TaskExecution, error)
 	GetLatestScanJobByLibrary(ctx context.Context, libraryID int64) (ScanJob, error)
+	GetLatestSchedulerExecution(ctx context.Context, taskID string) (SchedulerExecution, error)
 	GetLibraryByID(ctx context.Context, id int64) (Library, error)
 	GetLibraryByPath(ctx context.Context, path string) (Library, error)
 	// Get failed enrichment jobs for a library with titles for display.
@@ -301,6 +309,7 @@ type Querier interface {
 	GetPluginUserMetadata(ctx context.Context, arg GetPluginUserMetadataParams) (GetPluginUserMetadataRow, error)
 	GetQualitySwitchStats(ctx context.Context, mediaID int64) (GetQualitySwitchStatsRow, error)
 	GetRetryableEnrichmentJobs(ctx context.Context, arg GetRetryableEnrichmentJobsParams) ([]EnrichmentQueue, error)
+	GetRunningSchedulerExecutions(ctx context.Context) ([]SchedulerExecution, error)
 	GetScanCheckpointByID(ctx context.Context, id int64) (ScanCheckpoint, error)
 	GetScanCheckpointByPath(ctx context.Context, arg GetScanCheckpointByPathParams) (ScanCheckpoint, error)
 	GetScanCheckpointErrorsByCategory(ctx context.Context, scanJobID int64) ([]GetScanCheckpointErrorsByCategoryRow, error)
@@ -310,6 +319,11 @@ type Querier interface {
 	GetScanJobStats(ctx context.Context, libraryID int64) (GetScanJobStatsRow, error)
 	GetScanStateByPath(ctx context.Context, arg GetScanStateByPathParams) (ScanState, error)
 	GetScanStateModifiedSince(ctx context.Context, arg GetScanStateModifiedSinceParams) ([]ScanState, error)
+	// Scheduled Tasks Queries
+	GetScheduledTask(ctx context.Context, id string) (ScheduledTask, error)
+	GetSchedulerExecution(ctx context.Context, id string) (SchedulerExecution, error)
+	GetSchedulerExecutionStats(ctx context.Context, taskID string) (GetSchedulerExecutionStatsRow, error)
+	GetSchedulerLock(ctx context.Context, lockKey string) (SchedulerLock, error)
 	GetSessionByID(ctx context.Context, id int64) (Session, error)
 	GetSessionByPublicID(ctx context.Context, publicID string) (Session, error)
 	GetSessionByTokenHash(ctx context.Context, refreshTokenHash string) (Session, error)
@@ -341,8 +355,6 @@ type Querier interface {
 	GetTVShowsWithCountsByLibrary(ctx context.Context, libraryID int64) ([]GetTVShowsWithCountsByLibraryRow, error)
 	GetTVShowsWithCountsByLibraryPaginated(ctx context.Context, arg GetTVShowsWithCountsByLibraryPaginatedParams) ([]GetTVShowsWithCountsByLibraryPaginatedRow, error)
 	GetTVShowsWithCountsByLibraryPaginatedDesc(ctx context.Context, arg GetTVShowsWithCountsByLibraryPaginatedDescParams) ([]GetTVShowsWithCountsByLibraryPaginatedDescRow, error)
-	GetTaskExecutionHistory(ctx context.Context, arg GetTaskExecutionHistoryParams) ([]TaskExecution, error)
-	GetTaskExecutionStats(ctx context.Context, taskID string) (GetTaskExecutionStatsRow, error)
 	GetThemeKeywordsByEntity(ctx context.Context, arg GetThemeKeywordsByEntityParams) ([]GetThemeKeywordsByEntityRow, error)
 	GetTotalTranscodeSize(ctx context.Context) (interface{}, error)
 	GetTranscodeAnalyticsBySessionID(ctx context.Context, sessionID string) (TranscodeAnalytic, error)
@@ -379,6 +391,7 @@ type Querier interface {
 	ListArtistIDsByLibraryPaginatedDesc(ctx context.Context, arg ListArtistIDsByLibraryPaginatedDescParams) ([]int64, error)
 	ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]MusicArtist, error)
 	ListEnabledPlugins(ctx context.Context) ([]ListEnabledPluginsRow, error)
+	ListEnabledScheduledTasks(ctx context.Context) ([]ScheduledTask, error)
 	ListFailedScanCheckpoints(ctx context.Context, arg ListFailedScanCheckpointsParams) ([]ScanCheckpoint, error)
 	ListImagesByEntity(ctx context.Context, arg ListImagesByEntityParams) ([]MediaImage, error)
 	ListImagesByMediaID(ctx context.Context, mediaID sql.NullInt64) ([]MediaImage, error)
@@ -417,6 +430,11 @@ type Querier interface {
 	ListQueuedTranscodeJobs(ctx context.Context, limit int64) ([]TranscodeJob, error)
 	ListRunningScanJobs(ctx context.Context) ([]ScanJob, error)
 	ListScanJobsByLibrary(ctx context.Context, arg ListScanJobsByLibraryParams) ([]ScanJob, error)
+	ListScheduledTasks(ctx context.Context) ([]ScheduledTask, error)
+	ListScheduledTasksBySource(ctx context.Context, source string) ([]ScheduledTask, error)
+	ListScheduledTasksBySourceID(ctx context.Context, sourceID sql.NullString) ([]ScheduledTask, error)
+	ListSchedulerExecutions(ctx context.Context, arg ListSchedulerExecutionsParams) ([]SchedulerExecution, error)
+	ListSchedulerExecutionsByTask(ctx context.Context, arg ListSchedulerExecutionsByTaskParams) ([]SchedulerExecution, error)
 	ListStudios(ctx context.Context) ([]Studio, error)
 	ListTVEpisodesByLibrary(ctx context.Context, libraryID int64) ([]ListTVEpisodesByLibraryRow, error)
 	ListTVEpisodesBySeason(ctx context.Context, seasonID int64) ([]ListTVEpisodesBySeasonRow, error)
@@ -434,10 +452,10 @@ type Querier interface {
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	ListWatchProgressByUserID(ctx context.Context, arg ListWatchProgressByUserIDParams) ([]WatchProgress, error)
 	ListWatchedByUserID(ctx context.Context, arg ListWatchedByUserIDParams) ([]WatchProgress, error)
-	LogTaskExecution(ctx context.Context, arg LogTaskExecutionParams) (TaskExecution, error)
 	MarkEnrichmentComplete(ctx context.Context, arg MarkEnrichmentCompleteParams) error
 	MarkEnrichmentFailed(ctx context.Context, arg MarkEnrichmentFailedParams) error
 	MarkEnrichmentSkipped(ctx context.Context, arg MarkEnrichmentSkippedParams) error
+	MarkRunningAsInterrupted(ctx context.Context, resumable sql.NullInt64) (int64, error)
 	MediaExistsInLibrary(ctx context.Context, arg MediaExistsInLibraryParams) (int64, error)
 	PluginExists(ctx context.Context, id string) (int64, error)
 	PluginKVCount(ctx context.Context, pluginID string) (int64, error)
@@ -448,6 +466,8 @@ type Querier interface {
 	PluginKVList(ctx context.Context, arg PluginKVListParams) ([]string, error)
 	PluginKVSet(ctx context.Context, arg PluginKVSetParams) error
 	PluginKVTotalSize(ctx context.Context, pluginID string) (interface{}, error)
+	RefreshSchedulerLock(ctx context.Context, arg RefreshSchedulerLockParams) error
+	ReleaseSchedulerLock(ctx context.Context, lockKey string) error
 	ReleaseStuckEnrichmentJobs(ctx context.Context, dollar_1 sql.NullString) error
 	RemoveMediaStudio(ctx context.Context, arg RemoveMediaStudioParams) error
 	// Re-queue a job for retry without incrementing the attempt count.
@@ -463,6 +483,8 @@ type Querier interface {
 	RetryEnrichmentJob(ctx context.Context, id int64) error
 	// Reset all failed jobs for a library to pending for retry.
 	RetryEnrichmentJobsByLibrary(ctx context.Context, libraryID sql.NullInt64) (int64, error)
+	ScheduledTaskExists(ctx context.Context, id string) (int64, error)
+	SchedulerLockExists(ctx context.Context, lockKey string) (int64, error)
 	SearchArtistsByName(ctx context.Context, arg SearchArtistsByNameParams) ([]MusicArtist, error)
 	SearchArtistsWithCountsByNamePaginated(ctx context.Context, arg SearchArtistsWithCountsByNamePaginatedParams) ([]SearchArtistsWithCountsByNamePaginatedRow, error)
 	SearchByKeyword(ctx context.Context, keyword string) ([]SearchByKeywordRow, error)
@@ -483,6 +505,8 @@ type Querier interface {
 	SetScanStateError(ctx context.Context, arg SetScanStateErrorParams) error
 	SetScanStateWarning(ctx context.Context, arg SetScanStateWarningParams) error
 	SkipEnrichmentJob(ctx context.Context, id int64) error
+	// Scheduler Locks Queries
+	TryAcquireSchedulerLock(ctx context.Context, arg TryAcquireSchedulerLockParams) error
 	UpdateAlbum(ctx context.Context, arg UpdateAlbumParams) error
 	UpdateArtist(ctx context.Context, arg UpdateArtistParams) error
 	UpdateImage(ctx context.Context, arg UpdateImageParams) error
@@ -506,6 +530,8 @@ type Querier interface {
 	UpdateScanCheckpointStatus(ctx context.Context, arg UpdateScanCheckpointStatusParams) error
 	UpdateScanJobProgress(ctx context.Context, arg UpdateScanJobProgressParams) error
 	UpdateScanJobStatus(ctx context.Context, arg UpdateScanJobStatusParams) error
+	UpdateScheduledTask(ctx context.Context, arg UpdateScheduledTaskParams) error
+	UpdateSchedulerExecution(ctx context.Context, arg UpdateSchedulerExecutionParams) error
 	UpdateSessionLastUsed(ctx context.Context, arg UpdateSessionLastUsedParams) error
 	UpdateStudio(ctx context.Context, arg UpdateStudioParams) error
 	UpdateTVEpisode(ctx context.Context, arg UpdateTVEpisodeParams) error
@@ -531,6 +557,7 @@ type Querier interface {
 	UpsertPlaybackSession(ctx context.Context, arg UpsertPlaybackSessionParams) (PlaybackSession, error)
 	UpsertPlugin(ctx context.Context, arg UpsertPluginParams) error
 	UpsertScanState(ctx context.Context, arg UpsertScanStateParams) error
+	UpsertScheduledTask(ctx context.Context, arg UpsertScheduledTaskParams) error
 	UpsertSystemSetting(ctx context.Context, arg UpsertSystemSettingParams) error
 	// Atomically creates a TV show or returns existing one if title already exists.
 	// Uses ON CONFLICT to handle race conditions during concurrent episode scans.

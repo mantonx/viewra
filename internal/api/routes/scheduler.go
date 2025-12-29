@@ -17,5 +17,9 @@ func RegisterSchedulerRoutes(router *gin.RouterGroup, handler *handlers.Schedule
 		scheduler.POST("/tasks/:id/enable", handler.EnableTask)
 		scheduler.POST("/tasks/:id/disable", handler.DisableTask)
 		scheduler.PUT("/tasks/:id/schedule", handler.UpdateTaskSchedule)
+
+		// Execution management
+		scheduler.GET("/executions/running", handler.GetRunningExecutions)
+		scheduler.POST("/executions/:id/cancel", handler.CancelExecution)
 	}
 }

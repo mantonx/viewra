@@ -514,6 +514,49 @@ type ScanState struct {
 	ErrorCategory   sql.NullString `json:"error_category"`
 }
 
+type ScheduledTask struct {
+	ID                string         `json:"id"`
+	Name              string         `json:"name"`
+	Description       sql.NullString `json:"description"`
+	Schedule          sql.NullString `json:"schedule"`
+	Enabled           int64          `json:"enabled"`
+	Source            string         `json:"source"`
+	SourceID          sql.NullString `json:"source_id"`
+	DependsOn         sql.NullString `json:"depends_on"`
+	TimeoutSeconds    sql.NullInt64  `json:"timeout_seconds"`
+	RetryCount        sql.NullInt64  `json:"retry_count"`
+	RetryDelaySeconds sql.NullInt64  `json:"retry_delay_seconds"`
+	ConcurrencyKey    sql.NullString `json:"concurrency_key"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+}
+
+type SchedulerExecution struct {
+	ID                string         `json:"id"`
+	TaskID            string         `json:"task_id"`
+	Status            string         `json:"status"`
+	ScheduledAt       sql.NullTime   `json:"scheduled_at"`
+	StartedAt         sql.NullTime   `json:"started_at"`
+	EndedAt           sql.NullTime   `json:"ended_at"`
+	DurationMs        sql.NullInt64  `json:"duration_ms"`
+	Success           sql.NullInt64  `json:"success"`
+	Error             sql.NullString `json:"error"`
+	Logs              sql.NullString `json:"logs"`
+	Attempt           sql.NullInt64  `json:"attempt"`
+	ParentExecutionID sql.NullString `json:"parent_execution_id"`
+	TriggeredBy       string         `json:"triggered_by"`
+	DependencyExecID  sql.NullString `json:"dependency_exec_id"`
+	Resumable         sql.NullInt64  `json:"resumable"`
+	CreatedAt         time.Time      `json:"created_at"`
+}
+
+type SchedulerLock struct {
+	LockKey     string    `json:"lock_key"`
+	ExecutionID string    `json:"execution_id"`
+	AcquiredAt  time.Time `json:"acquired_at"`
+	ExpiresAt   time.Time `json:"expires_at"`
+}
+
 type Session struct {
 	ID               int64          `json:"id"`
 	PublicID         string         `json:"public_id"`
