@@ -59,13 +59,13 @@ func (h *EnrichmentHandler) SetMediaListByType(fn MediaListByTypeFunc) {
 // @Tags enrichment
 // @Produce json
 // @Success 200 {object} map[string]enrichment.QueueStats
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.APIError
 // @Router /api/enrichment/stats [get]
 func (h *EnrichmentHandler) GetStats(c *gin.Context) {
 	stats, err := h.manager.GetStats(c.Request.Context())
 	if err != nil {
 		h.logger.Error("Failed to get enrichment stats", "error", err)
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get enrichment stats"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get enrichment stats")
 		return
 	}
 
@@ -96,7 +96,7 @@ func (h *EnrichmentHandler) GetStages(c *gin.Context) {
 func (h *EnrichmentHandler) ResetStageCircuitBreaker(c *gin.Context) {
 	stage := c.Param("stage")
 	if stage == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "stage is required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "stage is required")
 		return
 	}
 
@@ -115,33 +115,33 @@ func (h *EnrichmentHandler) ResetStageCircuitBreaker(c *gin.Context) {
 // @Produce json
 // @Param request body EnqueueMediaRequest true "Enqueue request"
 // @Success 202 {object} EnqueueMediaResponse
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 400 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
 // @Router /api/enrichment/enqueue [post]
 func (h *EnrichmentHandler) EnqueueMedia(c *gin.Context) {
 	var req EnqueueMediaRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request body"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request body")
 		return
 	}
 
 	if req.MediaID <= 0 {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "media_id is required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "media_id is required")
 		return
 	}
 
 	if req.Stage == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "stage is required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "stage is required")
 		return
 	}
 
 	if req.MediaType == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "media_type is required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "media_type is required")
 		return
 	}
 
 	if req.LibraryID <= 0 {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "library_id is required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "library_id is required")
 		return
 	}
 
@@ -151,7 +151,7 @@ func (h *EnrichmentHandler) EnqueueMedia(c *gin.Context) {
 			"media_id", req.MediaID,
 			"stage", req.Stage,
 			"error", err)
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to enqueue media"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to enqueue media")
 		return
 	}
 
@@ -173,28 +173,28 @@ func (h *EnrichmentHandler) EnqueueMedia(c *gin.Context) {
 // @Produce json
 // @Param request body PrioritizeRequest true "Prioritize request"
 // @Success 200 {object} PrioritizeResponse
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 400 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
 // @Router /api/enrichment/prioritize [post]
 func (h *EnrichmentHandler) Prioritize(c *gin.Context) {
 	var req PrioritizeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request body"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request body")
 		return
 	}
 
 	if req.MediaID <= 0 {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "media_id is required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "media_id is required")
 		return
 	}
 
 	if req.MediaType == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "media_type is required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "media_type is required")
 		return
 	}
 
 	if req.LibraryID <= 0 {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "library_id is required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "library_id is required")
 		return
 	}
 
@@ -208,7 +208,7 @@ func (h *EnrichmentHandler) Prioritize(c *gin.Context) {
 			"media_id", req.MediaID,
 			"media_type", req.MediaType,
 			"error", err)
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to boost priority"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to boost priority")
 		return
 	}
 
@@ -235,7 +235,7 @@ func (h *EnrichmentHandler) Prioritize(c *gin.Context) {
 			"media_id", req.MediaID,
 			"media_type", req.MediaType,
 			"error", err)
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to enqueue media"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to enqueue media")
 		return
 	}
 
@@ -314,20 +314,20 @@ type LibraryEnrichmentProgressResponse struct {
 // @Produce json
 // @Param id path int true "Library ID"
 // @Success 200 {object} LibraryEnrichmentProgressResponse
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 400 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
 // @Router /api/libraries/{id}/enrichment/progress [get]
 func (h *EnrichmentHandler) GetLibraryProgress(c *gin.Context) {
 	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid library ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid library ID")
 		return
 	}
 
 	progress, err := h.statusRepo.GetLibraryProgress(c.Request.Context(), libraryID)
 	if err != nil {
 		h.logger.Error("Failed to get library enrichment progress", "library_id", libraryID, "error", err)
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get progress"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get progress")
 		return
 	}
 
@@ -356,12 +356,12 @@ func (h *EnrichmentHandler) GetLibraryProgress(c *gin.Context) {
 // @Produce text/event-stream
 // @Param id path int true "Library ID"
 // @Success 200 {string} string "SSE stream"
-// @Failure 400 {object} handlers.ErrorResponse
+// @Failure 400 {object} handlers.APIError
 // @Router /api/libraries/{id}/enrichment/stream [get]
 func (h *EnrichmentHandler) StreamLibraryProgress(c *gin.Context) {
 	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid library ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid library ID")
 		return
 	}
 
@@ -534,33 +534,33 @@ type BulkEnqueueResponse struct {
 // @Produce json
 // @Param request body BulkEnqueueRequest true "Bulk enqueue request"
 // @Success 202 {object} BulkEnqueueResponse
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 400 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
 // @Router /api/enrichment/bulk-enqueue [post]
 func (h *EnrichmentHandler) BulkEnqueue(c *gin.Context) {
 	var req BulkEnqueueRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request body"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request body")
 		return
 	}
 
 	if req.LibraryID <= 0 {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "library_id is required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "library_id is required")
 		return
 	}
 
 	if req.MediaType == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "media_type is required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "media_type is required")
 		return
 	}
 
 	if req.Stage == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "stage is required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "stage is required")
 		return
 	}
 
 	if h.mediaListByType == nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Bulk enqueue not configured"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Bulk enqueue not configured")
 		return
 	}
 
@@ -578,7 +578,7 @@ func (h *EnrichmentHandler) BulkEnqueue(c *gin.Context) {
 		domainMediaType = media.MediaTypeMusic
 		enrichmentMediaType = enrichment.MediaTypeMusic
 	default:
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media_type. Supported: movie, tv_episode, music_track"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media_type. Supported: movie, tv_episode, music_track")
 		return
 	}
 
@@ -589,7 +589,7 @@ func (h *EnrichmentHandler) BulkEnqueue(c *gin.Context) {
 			"library_id", req.LibraryID,
 			"media_type", req.MediaType,
 			"error", err)
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to list media items"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list media items")
 		return
 	}
 
@@ -659,13 +659,13 @@ type LibraryEnrichmentFailuresResponse struct {
 // @Param limit query int false "Maximum results (default 50, max 200)"
 // @Param offset query int false "Results offset (default 0)"
 // @Success 200 {object} LibraryEnrichmentFailuresResponse
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 400 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
 // @Router /api/libraries/{id}/enrichment/failures [get]
 func (h *EnrichmentHandler) GetLibraryFailures(c *gin.Context) {
 	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid library ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid library ID")
 		return
 	}
 
@@ -683,7 +683,7 @@ func (h *EnrichmentHandler) GetLibraryFailures(c *gin.Context) {
 	failures, err := h.queueRepo.GetLibraryFailures(c.Request.Context(), libraryID, limit, offset)
 	if err != nil {
 		h.logger.Error("Failed to get library enrichment failures", "library_id", libraryID, "error", err)
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get failures"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get failures")
 		return
 	}
 
@@ -691,7 +691,7 @@ func (h *EnrichmentHandler) GetLibraryFailures(c *gin.Context) {
 	total, err := h.queueRepo.CountLibraryFailures(c.Request.Context(), libraryID)
 	if err != nil {
 		h.logger.Error("Failed to count library enrichment failures", "library_id", libraryID, "error", err)
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to count failures"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to count failures")
 		return
 	}
 
@@ -733,20 +733,20 @@ type RetryLibraryFailuresResponse struct {
 // @Produce json
 // @Param id path int true "Library ID"
 // @Success 200 {object} RetryLibraryFailuresResponse
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 400 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
 // @Router /api/libraries/{id}/enrichment/failures/retry [post]
 func (h *EnrichmentHandler) RetryLibraryFailures(c *gin.Context) {
 	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid library ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid library ID")
 		return
 	}
 
 	retriedCount, err := h.queueRepo.RetryLibraryFailures(c.Request.Context(), libraryID)
 	if err != nil {
 		h.logger.Error("Failed to retry library enrichment failures", "library_id", libraryID, "error", err)
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to retry failures"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to retry failures")
 		return
 	}
 
@@ -772,25 +772,25 @@ type RetryJobRequest struct {
 // @Produce json
 // @Param request body RetryJobRequest true "Retry request"
 // @Success 204 "No Content"
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 400 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
 // @Router /api/enrichment/retry [post]
 func (h *EnrichmentHandler) RetryJob(c *gin.Context) {
 	var req RetryJobRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request body"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request body")
 		return
 	}
 
 	if req.JobID <= 0 {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "job_id is required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "job_id is required")
 		return
 	}
 
 	err := h.queueRepo.RetryJob(c.Request.Context(), req.JobID)
 	if err != nil {
 		h.logger.Error("Failed to retry enrichment job", "job_id", req.JobID, "error", err)
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to retry job"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to retry job")
 		return
 	}
 

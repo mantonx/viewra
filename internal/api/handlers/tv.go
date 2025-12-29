@@ -50,8 +50,8 @@ func NewTVHandler(
 // @Param limit query int false "Number of items per page (default: 50, max: 200)"
 // @Param offset query int false "Number of items to skip (default: 0)"
 // @Success 200 {object} tv.ListTVShowsResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/tv/shows [get]
 func (h *TVHandler) ListShows(c *gin.Context) {
 	libraryID, ok := getRequiredQueryInt64(c, "library_id")
@@ -105,17 +105,14 @@ func (h *TVHandler) ListShows(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Show ID"
 // @Success 200 {object} tv.TVShowDetailResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/tv/shows/{id} [get]
 func (h *TVHandler) GetShow(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid show ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_SHOW_ID", err.Error())
 		return
 	}
 
@@ -136,35 +133,26 @@ func (h *TVHandler) GetShow(c *gin.Context) {
 // @Param showTitle path string true "Show title"
 // @Param library_id query int true "Library ID"
 // @Success 200 {object} tv.ListTVEpisodesResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/tv/shows/{showTitle}/episodes [get]
 func (h *TVHandler) ListEpisodesByShow(c *gin.Context) {
 	showTitle := c.Param("showTitle")
 	if showTitle == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing show title",
-			Message: "showTitle path parameter is required",
-		})
+		respondError(c, http.StatusBadRequest, "MISSING_SHOW_TITLE", "showTitle path parameter is required")
 		return
 	}
 
 	libraryIDStr := c.Query("library_id")
 	if libraryIDStr == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing library_id",
-			Message: "library_id query parameter is required",
-		})
+		respondError(c, http.StatusBadRequest, "MISSING_LIBRARY_ID", "library_id query parameter is required")
 		return
 	}
 
 	libraryID, err := parseID(libraryIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library_id",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_LIBRARY_ID", err.Error())
 		return
 	}
 
@@ -184,17 +172,14 @@ func (h *TVHandler) ListEpisodesByShow(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Show ID"
 // @Success 200 {object} tv.ListTVEpisodesResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/tv/shows/{id}/episodes [get]
 func (h *TVHandler) ListEpisodesByShowID(c *gin.Context) {
 	showID, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid show ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_SHOW_ID", err.Error())
 		return
 	}
 
@@ -214,17 +199,14 @@ func (h *TVHandler) ListEpisodesByShowID(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Episode ID"
 // @Success 200 {object} tv.TVEpisodeResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/tv/episodes/{id} [get]
 func (h *TVHandler) GetEpisode(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid episode ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_EPISODE_ID", err.Error())
 		return
 	}
 
@@ -245,34 +227,25 @@ func (h *TVHandler) GetEpisode(c *gin.Context) {
 // @Param library_id query int true "Library ID to search in"
 // @Param q query string true "Search query (show title or episode title)"
 // @Success 200 {object} tv.ListTVEpisodesResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/tv/search [get]
 func (h *TVHandler) Search(c *gin.Context) {
 	libraryIDStr := c.Query("library_id")
 	if libraryIDStr == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing library_id",
-			Message: "library_id query parameter is required",
-		})
+		respondError(c, http.StatusBadRequest, "MISSING_LIBRARY_ID", "library_id query parameter is required")
 		return
 	}
 
 	libraryID, err := parseID(libraryIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library_id",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_LIBRARY_ID", err.Error())
 		return
 	}
 
 	query := c.Query("q")
 	if query == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing search query",
-			Message: "q query parameter is required",
-		})
+		respondError(c, http.StatusBadRequest, "MISSING_SEARCH_QUERY", "q query parameter is required")
 		return
 	}
 
@@ -295,8 +268,8 @@ func (h *TVHandler) Search(c *gin.Context) {
 // @Param offset query int false "Number of items to skip (default: 0)"
 // @Param sort query string false "Sort order: title_asc or title_desc (default: title_asc)"
 // @Success 200 {object} tv.ListIDsResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/tv/ids [get]
 func (h *TVHandler) ListIDs(c *gin.Context) {
 	libraryID, ok := getRequiredQueryInt64(c, "library_id")
@@ -330,17 +303,14 @@ func (h *TVHandler) ListIDs(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Show ID"
 // @Success 200 {object} tv.TVEpisodeResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/tv/shows/{id}/next-episode [get]
 func (h *TVHandler) GetNextEpisode(c *gin.Context) {
 	showID, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid show ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_SHOW_ID", err.Error())
 		return
 	}
 

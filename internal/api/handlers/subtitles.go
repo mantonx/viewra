@@ -36,10 +36,7 @@ func NewSubtitleHandler(
 func serveVTTContent(c *gin.Context, vttPath string) {
 	vttContent, err := subtitles.GetWebVTTContent(vttPath)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "Failed to read subtitle file",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusInternalServerError, "FAILED_TO_READ_SUBTITLE_FILE", err.Error())
 		return
 	}
 
@@ -56,26 +53,20 @@ func serveVTTContent(c *gin.Context, vttPath string) {
 // @Param id path int true "Media ID"
 // @Param trackId path int true "Subtitle Track ID"
 // @Success 200 {string} string "WebVTT content"
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/media/{id}/subtitles/{trackId} [get]
 func (h *SubtitleHandler) GetSubtitle(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid media ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_MEDIA_ID", err.Error())
 		return
 	}
 
 	trackID, err := parseID(c.Param("trackId"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid track ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_TRACK_ID", err.Error())
 		return
 	}
 
@@ -86,18 +77,13 @@ func (h *SubtitleHandler) GetSubtitle(c *gin.Context) {
 		return
 	}
 	if track == nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Error: "Subtitle track not found",
-		})
+		respondError(c, http.StatusNotFound, "NOT_FOUND", "Subtitle track not found")
 		return
 	}
 
 	// Check if this is a bitmap format (cannot be converted)
 	if track.IsBitmap {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Bitmap subtitles not supported",
-			Message: "PGS/DVD subtitles must be burned into video stream",
-		})
+		respondError(c, http.StatusBadRequest, "BITMAP_SUBTITLES_NOT_SUPPORTED", "PGS/DVD subtitles must be burned into video stream")
 		return
 	}
 
@@ -118,10 +104,7 @@ func (h *SubtitleHandler) GetSubtitle(c *gin.Context) {
 
 		vttPath, err = h.converter.ConvertExternalSubtitle(c.Request.Context(), subtitlePath)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "Failed to convert subtitle",
-				Message: err.Error(),
-			})
+			respondError(c, http.StatusInternalServerError, "FAILED_TO_CONVERT_SUBTITLE", err.Error())
 			return
 		}
 	} else if track.StreamIndex != nil {
@@ -134,16 +117,11 @@ func (h *SubtitleHandler) GetSubtitle(c *gin.Context) {
 
 		vttPath, err = h.converter.ExtractAndConvert(c.Request.Context(), mediaID, mediaResp.FilePath, *track.StreamIndex)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "Failed to extract subtitle",
-				Message: err.Error(),
-			})
+			respondError(c, http.StatusInternalServerError, "FAILED_TO_EXTRACT_SUBTITLE", err.Error())
 			return
 		}
 	} else {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Invalid subtitle track configuration",
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_SUBTITLE_TRACK_CONFIGURATION", "Invalid subtitle track configuration")
 		return
 	}
 
@@ -158,26 +136,20 @@ func (h *SubtitleHandler) GetSubtitle(c *gin.Context) {
 // @Param id path int true "Media ID"
 // @Param index path int true "Stream Index"
 // @Success 200 {string} string "WebVTT content"
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/media/{id}/subtitles/stream/{index} [get]
 func (h *SubtitleHandler) GetSubtitleByStreamIndex(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid media ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_MEDIA_ID", err.Error())
 		return
 	}
 
 	streamIndex, err := parseID(c.Param("index"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid stream index",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_STREAM_INDEX", err.Error())
 		return
 	}
 
@@ -191,20 +163,14 @@ func (h *SubtitleHandler) GetSubtitleByStreamIndex(c *gin.Context) {
 	// Extract and convert
 	vttPath, err := h.converter.ExtractAndConvert(c.Request.Context(), mediaID, mediaResp.FilePath, int(streamIndex))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "Failed to extract subtitle",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusInternalServerError, "FAILED_TO_EXTRACT_SUBTITLE", err.Error())
 		return
 	}
 
 	// Read and serve
 	vttContent, err := subtitles.GetWebVTTContent(vttPath)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "Failed to read subtitle file",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusInternalServerError, "FAILED_TO_READ_SUBTITLE_FILE", err.Error())
 		return
 	}
 
@@ -223,26 +189,20 @@ func (h *SubtitleHandler) GetSubtitleByStreamIndex(c *gin.Context) {
 // @Param start query int false "Start time in milliseconds (default: 0, extracts full file)"
 // @Param end query int false "End time in milliseconds (default: 0, extracts full file)"
 // @Success 200 {string} string "WebVTT content"
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/media/{id}/subtitles/text/{index}/stream [get]
 func (h *SubtitleHandler) StreamTextSubtitle(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid media ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_MEDIA_ID", err.Error())
 		return
 	}
 
 	relativeIndex, err := parseID(c.Param("index"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid stream index",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_STREAM_INDEX", err.Error())
 		return
 	}
 
@@ -268,9 +228,7 @@ func (h *SubtitleHandler) StreamTextSubtitle(c *gin.Context) {
 		return
 	}
 	if targetTrack == nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Error: "Subtitle track not found",
-		})
+		respondError(c, http.StatusNotFound, "NOT_FOUND", "Subtitle track not found")
 		return
 	}
 
@@ -284,10 +242,7 @@ func (h *SubtitleHandler) StreamTextSubtitle(c *gin.Context) {
 	// Use windowed extraction (or full extraction if no time bounds)
 	vttContent, err := h.converter.StreamTextSubtitleWindow(c.Request.Context(), mediaID, mediaResp.FilePath, *targetTrack.StreamIndex, startMS, endMS)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "Failed to extract subtitle",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusInternalServerError, "FAILED_TO_EXTRACT_SUBTITLE", err.Error())
 		return
 	}
 
@@ -311,26 +266,20 @@ func (h *SubtitleHandler) StreamTextSubtitle(c *gin.Context) {
 // @Param start query int false "Start time in milliseconds (default: 0)"
 // @Param end query int false "End time in milliseconds (default: 5 minutes from start). Use 0 for unlimited (not recommended for large files)."
 // @Success 200 {object} subtitles.PGSFrame "JSON lines of PGS frames"
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/media/{id}/subtitles/pgs/{index}/stream [get]
 func (h *SubtitleHandler) StreamPGSSubtitle(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid media ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_MEDIA_ID", err.Error())
 		return
 	}
 
 	relativeIndex, err := parseID(c.Param("index"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid stream index",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_STREAM_INDEX", err.Error())
 		return
 	}
 
@@ -359,9 +308,7 @@ func (h *SubtitleHandler) StreamPGSSubtitle(c *gin.Context) {
 		return
 	}
 	if targetTrack == nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Error: "PGS subtitle track not found",
-		})
+		respondError(c, http.StatusNotFound, "NOT_FOUND", "PGS subtitle track not found")
 		return
 	}
 
@@ -415,26 +362,20 @@ func (h *SubtitleHandler) StreamPGSSubtitle(c *gin.Context) {
 // @Param id path int true "Media ID"
 // @Param index path int true "Stream Index (relative, 0-based among bitmap subtitle streams)"
 // @Success 200 {array} subtitles.PGSFrame "Array of PGS frames"
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/media/{id}/subtitles/pgs/{index} [get]
 func (h *SubtitleHandler) GetAllPGSFrames(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid media ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_MEDIA_ID", err.Error())
 		return
 	}
 
 	relativeIndex, err := parseID(c.Param("index"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid stream index",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_STREAM_INDEX", err.Error())
 		return
 	}
 
@@ -445,9 +386,7 @@ func (h *SubtitleHandler) GetAllPGSFrames(c *gin.Context) {
 		return
 	}
 	if targetTrack == nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Error: "PGS subtitle track not found",
-		})
+		respondError(c, http.StatusNotFound, "NOT_FOUND", "PGS subtitle track not found")
 		return
 	}
 
@@ -461,10 +400,7 @@ func (h *SubtitleHandler) GetAllPGSFrames(c *gin.Context) {
 	// Get all PGS frames
 	frames, err := h.converter.GetAllPGSFrames(c.Request.Context(), mediaID, mediaResp.FilePath, *targetTrack.StreamIndex)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "Failed to extract PGS subtitle",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusInternalServerError, "FAILED_TO_EXTRACT_PGS_SUBTITLE", err.Error())
 		return
 	}
 

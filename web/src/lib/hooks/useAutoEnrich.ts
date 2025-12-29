@@ -85,7 +85,7 @@ export const useAutoEnrich = ({
     const key = `${mediaType}:${mediaId}`
 
     // Don't re-prioritize same item in this session
-    if (prioritizedRef.current.has(key)) return
+    if (prioritizedRef.current.has(key)) {return}
 
     prioritizedRef.current.add(key)
 
@@ -101,7 +101,7 @@ export const useAutoEnrich = ({
     // 1. enabled
     // 2. not already enriched
     // 3. valid IDs
-    if (!enabled || isEnriched || mediaId <= 0 || libraryId <= 0) return
+    if (!enabled || isEnriched || mediaId <= 0 || libraryId <= 0) {return}
 
     prioritize()
   }, [enabled, isEnriched, mediaId, libraryId, prioritize])

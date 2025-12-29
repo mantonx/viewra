@@ -8,39 +8,26 @@ import (
 
 // MediaResponse represents the base media response for all media types
 type MediaResponse struct {
-	ID        int64     `json:"id"`
-	LibraryID int64     `json:"library_id"`
-	Title     string    `json:"title"`
-	Type      string    `json:"type"` // 'movie', 'tv_episode', 'music_track'
-	FilePath  string    `json:"file_path"`
-	FileSize  int64     `json:"file_size"`
-	Duration  int       `json:"duration"`
-	IsExtra   bool      `json:"is_extra"` // True for trailers, deleted scenes, etc.
+	ID        int64  `json:"id"`
+	LibraryID int64  `json:"library_id"`
+	Title     string `json:"title"`
+	Type      string `json:"type"` // 'movie', 'tv_episode', 'music_track'
+	FilePath  string `json:"file_path"`
+	FileSize  int64  `json:"file_size"`
+	Duration  int    `json:"duration"`
+	IsExtra   bool   `json:"is_extra"` // True for trailers, deleted scenes, etc.
 
 	// Technical video metadata
-	Width           int     `json:"width,omitempty"`             // Video width in pixels
-	Height          int     `json:"height,omitempty"`            // Video height in pixels
-	VideoCodec      string  `json:"video_codec,omitempty"`       // h264, hevc, etc.
-	AudioCodec      string  `json:"audio_codec,omitempty"`       // aac, mp3, etc.
-	Bitrate         int64   `json:"bitrate,omitempty"`           // bits per second
-	FrameRate       float64 `json:"frame_rate,omitempty"`        // frames per second
-	ContainerFormat string  `json:"container_format,omitempty"`  // mkv, mp4, etc.
+	Width           int     `json:"width,omitempty"`            // Video width in pixels
+	Height          int     `json:"height,omitempty"`           // Video height in pixels
+	VideoCodec      string  `json:"video_codec,omitempty"`      // h264, hevc, etc.
+	AudioCodec      string  `json:"audio_codec,omitempty"`      // aac, mp3, etc.
+	Bitrate         int64   `json:"bitrate,omitempty"`          // bits per second
+	FrameRate       float64 `json:"frame_rate,omitempty"`       // frames per second
+	ContainerFormat string  `json:"container_format,omitempty"` // mkv, mp4, etc.
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-}
-
-// MovieResponse represents a movie media item with all metadata
-// DEPRECATED: Use movies.MovieResponse instead for full movie metadata
-type MovieResponse struct {
-	MediaResponse
-	Year             int      `json:"year,omitempty"`
-	IMDbID           string   `json:"imdb_id,omitempty"`
-	TMDbID           int      `json:"tmdb_id,omitempty"`
-	Director         string   `json:"director,omitempty"`
-	Cast             []string `json:"cast,omitempty"`
-	Genre            []string `json:"genre,omitempty"`
-	Plot             string   `json:"plot,omitempty"`
 }
 
 // TVEpisodeResponse represents a TV episode media item with all metadata
@@ -73,12 +60,6 @@ type MusicTrackResponse struct {
 type ListMediaResponse struct {
 	Media []MediaResponse `json:"media"`
 	Total int             `json:"total"`
-}
-
-// ListMoviesResponse represents a paginated list of movies
-type ListMoviesResponse struct {
-	Movies []MovieResponse `json:"movies"`
-	Total  int             `json:"total"`
 }
 
 // ListTVEpisodesResponse represents a paginated list of TV episodes
@@ -140,21 +121,6 @@ func ToMediaResponse(m *media.Media) MediaResponse {
 	}
 }
 
-// ToMovieResponse converts a domain movie entity to a DTO
-// DEPRECATED: Use movies.ToMovieResponse instead for full movie metadata
-func ToMovieResponse(m *media.Movie) MovieResponse {
-	return MovieResponse{
-		MediaResponse: ToMediaResponse(&m.Media),
-		Year:          m.Year,
-		IMDbID:        m.IMDbID,
-		TMDbID:        m.TMDbID,
-		Director:      m.Director,
-		Cast:          m.Cast,
-		Genre:         m.Genre,
-		Plot:          m.Plot,
-	}
-}
-
 // ToTVEpisodeResponse converts a domain TV episode entity to a DTO
 func ToTVEpisodeResponse(tv *media.TVEpisode) TVEpisodeResponse {
 	return TVEpisodeResponse{
@@ -195,19 +161,6 @@ func ToListMediaResponse(mediaList []*media.Media) ListMediaResponse {
 	return ListMediaResponse{
 		Media: responses,
 		Total: len(responses),
-	}
-}
-
-// ToListMoviesResponse converts a list of domain movies to list response DTO
-func ToListMoviesResponse(movies []*media.Movie) ListMoviesResponse {
-	responses := make([]MovieResponse, len(movies))
-	for i, m := range movies {
-		responses[i] = ToMovieResponse(m)
-	}
-
-	return ListMoviesResponse{
-		Movies: responses,
-		Total:  len(responses),
 	}
 }
 

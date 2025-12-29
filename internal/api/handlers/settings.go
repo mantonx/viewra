@@ -36,8 +36,8 @@ func NewSettingsHandler(service *settings.Service, userLookup UserLookup) *Setti
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} SystemSettingsResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
 // @Router /api/settings/system [get]
 func (h *SettingsHandler) GetAllSystem(c *gin.Context) {
 	allSettings, err := h.service.GetAllSystem(c.Request.Context())
@@ -71,16 +71,14 @@ func (h *SettingsHandler) GetAllSystem(c *gin.Context) {
 // @Produce json
 // @Param key path string true "Setting key"
 // @Success 200 {object} SystemSettingValueResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
+// @Failure 404 {object} APIError
 // @Router /api/settings/system/{key} [get]
 func (h *SettingsHandler) GetSystem(c *gin.Context) {
 	key := c.Param("key")
 	if key == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Setting key required",
-		})
+		respondError(c, http.StatusBadRequest, "SETTING_KEY_REQUIRED", "Setting key required")
 		return
 	}
 
@@ -111,26 +109,21 @@ type SetSystemRequest struct {
 // @Param key path string true "Setting key"
 // @Param setting body SetSystemRequest true "Setting value"
 // @Success 200 {object} SystemSettingValueResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
+// @Failure 404 {object} APIError
 // @Router /api/settings/system/{key} [put]
 func (h *SettingsHandler) SetSystem(c *gin.Context) {
 	key := c.Param("key")
 	if key == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Setting key required",
-		})
+		respondError(c, http.StatusBadRequest, "SETTING_KEY_REQUIRED", "Setting key required")
 		return
 	}
 
 	var req SetSystemRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid request body",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST_BODY", err.Error())
 		return
 	}
 
@@ -161,22 +154,18 @@ func (h *SettingsHandler) SetSystem(c *gin.Context) {
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} UserSettingsResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 401 {object} APIError
 // @Router /api/settings/user [get]
 func (h *SettingsHandler) GetAllUser(c *gin.Context) {
 	claims := middleware.GetClaims(c)
 	if claims == nil {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Error: "Authentication required",
-		})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
 	userID := h.getUserID(c.Request.Context(), claims)
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Invalid user ID",
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
 		return
 	}
 
@@ -206,31 +195,25 @@ func (h *SettingsHandler) GetAllUser(c *gin.Context) {
 // @Produce json
 // @Param key path string true "Setting key"
 // @Success 200 {object} UserSettingValueResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 404 {object} APIError
 // @Router /api/settings/user/{key} [get]
 func (h *SettingsHandler) GetUser(c *gin.Context) {
 	claims := middleware.GetClaims(c)
 	if claims == nil {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Error: "Authentication required",
-		})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
 	userID := h.getUserID(c.Request.Context(), claims)
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Invalid user ID",
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
 		return
 	}
 
 	key := c.Param("key")
 	if key == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Setting key required",
-		})
+		respondError(c, http.StatusBadRequest, "SETTING_KEY_REQUIRED", "Setting key required")
 		return
 	}
 
@@ -261,41 +244,32 @@ type SetUserRequest struct {
 // @Param key path string true "Setting key"
 // @Param setting body SetUserRequest true "Setting value"
 // @Success 200 {object} UserSettingValueResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 401 {object} APIError
+// @Failure 404 {object} APIError
 // @Router /api/settings/user/{key} [put]
 func (h *SettingsHandler) SetUser(c *gin.Context) {
 	claims := middleware.GetClaims(c)
 	if claims == nil {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Error: "Authentication required",
-		})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
 	userID := h.getUserID(c.Request.Context(), claims)
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Invalid user ID",
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
 		return
 	}
 
 	key := c.Param("key")
 	if key == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Setting key required",
-		})
+		respondError(c, http.StatusBadRequest, "SETTING_KEY_REQUIRED", "Setting key required")
 		return
 	}
 
 	var req SetUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid request body",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST_BODY", err.Error())
 		return
 	}
 
@@ -317,31 +291,25 @@ func (h *SettingsHandler) SetUser(c *gin.Context) {
 // @Security BearerAuth
 // @Param key path string true "Setting key"
 // @Success 204 "No Content"
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 404 {object} APIError
 // @Router /api/settings/user/{key} [delete]
 func (h *SettingsHandler) DeleteUser(c *gin.Context) {
 	claims := middleware.GetClaims(c)
 	if claims == nil {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Error: "Authentication required",
-		})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
 	userID := h.getUserID(c.Request.Context(), claims)
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Invalid user ID",
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
 		return
 	}
 
 	key := c.Param("key")
 	if key == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Setting key required",
-		})
+		respondError(c, http.StatusBadRequest, "SETTING_KEY_REQUIRED", "Setting key required")
 		return
 	}
 
@@ -360,8 +328,8 @@ func (h *SettingsHandler) DeleteUser(c *gin.Context) {
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} EffectiveSettingsResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
 // @Router /api/settings/system/effective [get]
 func (h *SettingsHandler) GetAllSystemEffective(c *gin.Context) {
 	effectiveSettings, err := h.service.GetAllEffectiveSystemValues(c.Request.Context())
@@ -404,7 +372,7 @@ func (h *SettingsHandler) GetAllSystemEffective(c *gin.Context) {
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} SystemInfoResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 401 {object} APIError
 // @Router /api/system/info [get]
 func (h *SettingsHandler) GetSystemInfo(c *gin.Context) {
 	profile := h.service.GetSystemProfile()
@@ -508,7 +476,7 @@ func formatFloat(f float64) string {
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} SettingsSchemaResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 401 {object} APIError
 // @Router /api/settings/schema [get]
 func (h *SettingsHandler) GetSchema(c *gin.Context) {
 	systemDefs := h.service.GetSystemDefinitions()
@@ -713,17 +681,11 @@ func definitionToResponse(d settingsDomain.Definition) SettingDefinitionResponse
 func handleSettingsError(c *gin.Context, err error) {
 	switch err {
 	case settingsDomain.ErrSettingNotFound:
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Error: "Setting not found",
-		})
+		respondError(c, http.StatusNotFound, "NOT_FOUND", "Setting not found")
 	case settingsDomain.ErrUnknownSetting:
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Unknown setting key",
-		})
+		respondError(c, http.StatusBadRequest, "UNKNOWN_SETTING_KEY", "Unknown setting key")
 	case settingsDomain.ErrInvalidValue:
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Invalid setting value",
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_SETTING_VALUE", "Invalid setting value")
 	default:
 		handleError(c, err)
 	}

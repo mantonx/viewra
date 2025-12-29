@@ -115,19 +115,13 @@ func formatTime(t time.Time) string {
 func getRequiredQueryInt64(c *gin.Context, paramName string) (int64, bool) {
 	valueStr := c.Query(paramName)
 	if valueStr == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   fmt.Sprintf("Missing %s", paramName),
-			Message: fmt.Sprintf("%s query parameter is required", paramName),
-		})
+		respondError(c, http.StatusBadRequest, "MISSING_PARAMETER", fmt.Sprintf("%s query parameter is required", paramName))
 		return 0, false
 	}
 
 	value, err := parseID(valueStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   fmt.Sprintf("Invalid %s", paramName),
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_PARAMETER", fmt.Sprintf("Invalid %s: %s", paramName, err.Error()))
 		return 0, false
 	}
 
@@ -159,10 +153,7 @@ func getPathInt64(c *gin.Context, paramName string) (int64, bool) {
 	valueStr := c.Param(paramName)
 	value, err := parseID(valueStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   fmt.Sprintf("Invalid %s", paramName),
-			Message: fmt.Sprintf("Invalid %s parameter: %s", paramName, err.Error()),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_PARAMETER", fmt.Sprintf("Invalid %s: %s", paramName, err.Error()))
 		return 0, false
 	}
 	return value, true

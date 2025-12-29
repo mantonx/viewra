@@ -20,9 +20,9 @@ import { useVideoKeyboard } from '@/lib/hooks/useVideoKeyboard'
 import { useVideoControls } from '@/lib/hooks/useVideoControls'
 import { useSubtitles } from '@/lib/hooks/useSubtitles'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { VideoControls } from '../VideoControls'
-import { StatsPanel } from '../StatsPanel'
-import { SubtitleOverlay } from '../SubtitleOverlay'
+import { VideoControls } from './VideoControls'
+import { StatsPanel } from './StatsPanel'
+import { SubtitleOverlay } from './SubtitleOverlay'
 import type { VideoPlayerProps } from './VideoPlayer.types'
 import { useGetApiMediaIdTracks } from '@/lib/api/generated/media/media'
 import { getDeviceProfileHash } from '@/lib/capabilities'
@@ -131,11 +131,11 @@ export const VideoPlayer = ({
   // Audio tracks are managed via API, not HLS.js (since audio is muxed into video segments)
   const {
     hlsRef,
-    availableQualities,
-    currentQuality,
-    currentBandwidth,
+    availableQualities: _availableQualities,
+    currentQuality: _currentQuality,
+    currentBandwidth: _currentBandwidth,
     streamOffsetRef,
-    changeQuality,
+    changeQuality: _changeQuality,
   } = useHlsPlayer({
     videoRef,
     streamUrl: effectiveStreamUrl,

@@ -16,12 +16,12 @@ import (
 // @Tags transcode
 // @Produce json
 // @Success 200 {object} DiskUsageResponse
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.APIError
 // @Router /api/transcode/disk-usage [get]
 func (h *TranscodeHandler) GetDiskUsage(c *gin.Context) {
 	usage, err := h.cleanupService.GetDiskUsage(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
 
@@ -47,13 +47,13 @@ func (h *TranscodeHandler) GetDiskUsage(c *gin.Context) {
 // @Produce json
 // @Param request body CleanupRequest true "Cleanup criteria"
 // @Success 200 {object} CleanupResponse
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 400 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
 // @Router /api/transcode/cleanup [post]
 func (h *TranscodeHandler) CleanupTranscodes(c *gin.Context) {
 	var req CleanupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 		return
 	}
 
@@ -87,7 +87,7 @@ func (h *TranscodeHandler) CleanupTranscodes(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
 

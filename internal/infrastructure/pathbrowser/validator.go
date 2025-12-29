@@ -1,6 +1,7 @@
 package pathbrowser
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -53,7 +54,7 @@ func (v *PathValidator) Validate(path string) error {
 		if os.IsNotExist(err) {
 			realPath = cleanPath
 		} else {
-			return fmt.Errorf("%w: %v", library.ErrInvalidPath, err)
+			return errors.Join(library.ErrInvalidPath, err)
 		}
 	}
 
@@ -90,7 +91,7 @@ func (v *PathValidator) Validate(path string) error {
 		if os.IsPermission(err) {
 			return fmt.Errorf("%w: %s", library.ErrPermissionDenied, realPath)
 		}
-		return fmt.Errorf("%w: %v", library.ErrInvalidPath, err)
+		return errors.Join(library.ErrInvalidPath, err)
 	}
 
 	// 8. Ensure it's a directory

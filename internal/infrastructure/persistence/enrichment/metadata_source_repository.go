@@ -7,7 +7,6 @@ import (
 	"github.com/mantonx/viewra/internal/domain/enrichment"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
-	"github.com/mantonx/viewra/internal/infrastructure/persistence/adapters"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
@@ -18,17 +17,15 @@ type MetadataSourceRepository struct {
 	dbType   string
 	sqlite   *sqlc_sqlite.Queries
 	postgres *sqlc_postgres.Queries
-	adapter  *adapters.TypeAdapter
 	router   *common.QueryRouter
 }
 
 // NewMetadataSourceRepository creates a new metadata source repository with the appropriate database driver.
 func NewMetadataSourceRepository(db *sql.DB, driver string) *MetadataSourceRepository {
 	r := &MetadataSourceRepository{
-		db:      db,
-		dbType:  driver,
-		adapter: adapters.NewTypeAdapter(),
-		router:  common.NewQueryRouter(driver),
+		db:     db,
+		dbType: driver,
+		router: common.NewQueryRouter(driver),
 	}
 
 	if common.IsPostgres(driver) {

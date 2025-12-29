@@ -22,8 +22,8 @@ import type {
 } from '@tanstack/react-query'
 
 import type {
-  DeleteApiMediaMediaIdFfmpegLogsSessionId200,
-  GetApiMediaMediaIdFfmpegLogsSessionIdParams,
+  DeleteApiMediaIdFfmpegLogsSessionId200,
+  GetApiMediaIdFfmpegLogsSessionIdParams,
   GithubComMantonxViewraInternalInfrastructureTranscodingLoggingLogInfo,
   InternalApiHandlersActiveSessionsResponse,
   InternalApiHandlersErrorResponse,
@@ -39,103 +39,99 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
  * Lists all available FFmpeg transcode logs for a specific media item
  * @summary List FFmpeg logs for media
  */
-export type getApiMediaMediaIdFfmpegLogsResponse200 = {
+export type getApiMediaIdFfmpegLogsResponse200 = {
   data: InternalApiHandlersLogListResponse
   status: 200
 }
 
-export type getApiMediaMediaIdFfmpegLogsResponse400 = {
+export type getApiMediaIdFfmpegLogsResponse400 = {
   data: InternalApiHandlersErrorResponse
   status: 400
 }
 
-export type getApiMediaMediaIdFfmpegLogsResponse500 = {
+export type getApiMediaIdFfmpegLogsResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
 
-export type getApiMediaMediaIdFfmpegLogsResponseSuccess =
-  getApiMediaMediaIdFfmpegLogsResponse200 & {
-    headers: Headers
-  }
-export type getApiMediaMediaIdFfmpegLogsResponseError = (
-  | getApiMediaMediaIdFfmpegLogsResponse400
-  | getApiMediaMediaIdFfmpegLogsResponse500
+export type getApiMediaIdFfmpegLogsResponseSuccess = getApiMediaIdFfmpegLogsResponse200 & {
+  headers: Headers
+}
+export type getApiMediaIdFfmpegLogsResponseError = (
+  | getApiMediaIdFfmpegLogsResponse400
+  | getApiMediaIdFfmpegLogsResponse500
 ) & {
   headers: Headers
 }
 
-export type getApiMediaMediaIdFfmpegLogsResponse =
-  | getApiMediaMediaIdFfmpegLogsResponseSuccess
-  | getApiMediaMediaIdFfmpegLogsResponseError
+export type getApiMediaIdFfmpegLogsResponse =
+  | getApiMediaIdFfmpegLogsResponseSuccess
+  | getApiMediaIdFfmpegLogsResponseError
 
-export const getGetApiMediaMediaIdFfmpegLogsUrl = (mediaId: number) => {
-  return `/api/media/${mediaId}/ffmpeg-logs`
+export const getGetApiMediaIdFfmpegLogsUrl = (id: number) => {
+  return `/api/media/${id}/ffmpeg-logs`
 }
 
-export const getApiMediaMediaIdFfmpegLogs = async (
-  mediaId: number,
+export const getApiMediaIdFfmpegLogs = async (
+  id: number,
   options?: RequestInit
-): Promise<getApiMediaMediaIdFfmpegLogsResponse> => {
-  return customInstance<getApiMediaMediaIdFfmpegLogsResponse>(
-    getGetApiMediaMediaIdFfmpegLogsUrl(mediaId),
-    {
-      ...options,
-      method: 'GET',
-    }
-  )
+): Promise<getApiMediaIdFfmpegLogsResponse> => {
+  return customInstance<getApiMediaIdFfmpegLogsResponse>(getGetApiMediaIdFfmpegLogsUrl(id), {
+    ...options,
+    method: 'GET',
+  })
 }
 
-export const getGetApiMediaMediaIdFfmpegLogsQueryKey = (mediaId?: number) => {
-  return [`/api/media/${mediaId}/ffmpeg-logs`] as const
+export const getGetApiMediaIdFfmpegLogsQueryKey = (id?: number) => {
+  return [`/api/media/${id}/ffmpeg-logs`] as const
 }
 
-export const getGetApiMediaMediaIdFfmpegLogsQueryOptions = <
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogs>>,
+export const getGetApiMediaIdFfmpegLogsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogs>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogs>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdFfmpegLogs>>, TError, TData>
     >
     request?: SecondParameter<typeof customInstance>
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {}
 
-  const queryKey = queryOptions?.queryKey ?? getGetApiMediaMediaIdFfmpegLogsQueryKey(mediaId)
+  const queryKey = queryOptions?.queryKey ?? getGetApiMediaIdFfmpegLogsQueryKey(id)
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogs>>> = ({
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaIdFfmpegLogs>>> = ({
     signal,
-  }) => getApiMediaMediaIdFfmpegLogs(mediaId, { signal, ...requestOptions })
+  }) => getApiMediaIdFfmpegLogs(id, { signal, ...requestOptions })
 
-  return { queryKey, queryFn, enabled: !!mediaId, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogs>>,
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMediaIdFfmpegLogs>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetApiMediaMediaIdFfmpegLogsQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogs>>
+export type GetApiMediaIdFfmpegLogsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaIdFfmpegLogs>>
 >
-export type GetApiMediaMediaIdFfmpegLogsQueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaIdFfmpegLogsQueryError = InternalApiHandlersErrorResponse
 
-export function useGetApiMediaMediaIdFfmpegLogs<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogs>>,
+export function useGetApiMediaIdFfmpegLogs<
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogs>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogs>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdFfmpegLogs>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogs>>,
+          Awaited<ReturnType<typeof getApiMediaIdFfmpegLogs>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogs>>
+          Awaited<ReturnType<typeof getApiMediaIdFfmpegLogs>>
         >,
         'initialData'
       >
@@ -143,20 +139,20 @@ export function useGetApiMediaMediaIdFfmpegLogs<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdFfmpegLogs<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogs>>,
+export function useGetApiMediaIdFfmpegLogs<
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogs>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogs>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdFfmpegLogs>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogs>>,
+          Awaited<ReturnType<typeof getApiMediaIdFfmpegLogs>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogs>>
+          Awaited<ReturnType<typeof getApiMediaIdFfmpegLogs>>
         >,
         'initialData'
       >
@@ -164,14 +160,14 @@ export function useGetApiMediaMediaIdFfmpegLogs<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdFfmpegLogs<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogs>>,
+export function useGetApiMediaIdFfmpegLogs<
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogs>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogs>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdFfmpegLogs>>, TError, TData>
     >
     request?: SecondParameter<typeof customInstance>
   },
@@ -181,20 +177,20 @@ export function useGetApiMediaMediaIdFfmpegLogs<
  * @summary List FFmpeg logs for media
  */
 
-export function useGetApiMediaMediaIdFfmpegLogs<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogs>>,
+export function useGetApiMediaIdFfmpegLogs<
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogs>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogs>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdFfmpegLogs>>, TError, TData>
     >
     request?: SecondParameter<typeof customInstance>
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetApiMediaMediaIdFfmpegLogsQueryOptions(mediaId, options)
+  const queryOptions = getGetApiMediaIdFfmpegLogsQueryOptions(id, options)
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>
@@ -209,46 +205,46 @@ export function useGetApiMediaMediaIdFfmpegLogs<
  * Retrieves the content of a specific FFmpeg transcode log
  * @summary Get FFmpeg log content
  */
-export type getApiMediaMediaIdFfmpegLogsSessionIdResponse200 = {
+export type getApiMediaIdFfmpegLogsSessionIdResponse200 = {
   data: InternalApiHandlersLogContentResponse
   status: 200
 }
 
-export type getApiMediaMediaIdFfmpegLogsSessionIdResponse400 = {
+export type getApiMediaIdFfmpegLogsSessionIdResponse400 = {
   data: InternalApiHandlersErrorResponse
   status: 400
 }
 
-export type getApiMediaMediaIdFfmpegLogsSessionIdResponse404 = {
+export type getApiMediaIdFfmpegLogsSessionIdResponse404 = {
   data: InternalApiHandlersErrorResponse
   status: 404
 }
 
-export type getApiMediaMediaIdFfmpegLogsSessionIdResponse500 = {
+export type getApiMediaIdFfmpegLogsSessionIdResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
 
-export type getApiMediaMediaIdFfmpegLogsSessionIdResponseSuccess =
-  getApiMediaMediaIdFfmpegLogsSessionIdResponse200 & {
+export type getApiMediaIdFfmpegLogsSessionIdResponseSuccess =
+  getApiMediaIdFfmpegLogsSessionIdResponse200 & {
     headers: Headers
   }
-export type getApiMediaMediaIdFfmpegLogsSessionIdResponseError = (
-  | getApiMediaMediaIdFfmpegLogsSessionIdResponse400
-  | getApiMediaMediaIdFfmpegLogsSessionIdResponse404
-  | getApiMediaMediaIdFfmpegLogsSessionIdResponse500
+export type getApiMediaIdFfmpegLogsSessionIdResponseError = (
+  | getApiMediaIdFfmpegLogsSessionIdResponse400
+  | getApiMediaIdFfmpegLogsSessionIdResponse404
+  | getApiMediaIdFfmpegLogsSessionIdResponse500
 ) & {
   headers: Headers
 }
 
-export type getApiMediaMediaIdFfmpegLogsSessionIdResponse =
-  | getApiMediaMediaIdFfmpegLogsSessionIdResponseSuccess
-  | getApiMediaMediaIdFfmpegLogsSessionIdResponseError
+export type getApiMediaIdFfmpegLogsSessionIdResponse =
+  | getApiMediaIdFfmpegLogsSessionIdResponseSuccess
+  | getApiMediaIdFfmpegLogsSessionIdResponseError
 
-export const getGetApiMediaMediaIdFfmpegLogsSessionIdUrl = (
-  mediaId: number,
+export const getGetApiMediaIdFfmpegLogsSessionIdUrl = (
+  id: number,
   sessionId: string,
-  params?: GetApiMediaMediaIdFfmpegLogsSessionIdParams
+  params?: GetApiMediaIdFfmpegLogsSessionIdParams
 ) => {
   const normalizedParams = new URLSearchParams()
 
@@ -261,18 +257,18 @@ export const getGetApiMediaMediaIdFfmpegLogsSessionIdUrl = (
   const stringifiedParams = normalizedParams.toString()
 
   return stringifiedParams.length > 0
-    ? `/api/media/${mediaId}/ffmpeg-logs/${sessionId}?${stringifiedParams}`
-    : `/api/media/${mediaId}/ffmpeg-logs/${sessionId}`
+    ? `/api/media/${id}/ffmpeg-logs/${sessionId}?${stringifiedParams}`
+    : `/api/media/${id}/ffmpeg-logs/${sessionId}`
 }
 
-export const getApiMediaMediaIdFfmpegLogsSessionId = async (
-  mediaId: number,
+export const getApiMediaIdFfmpegLogsSessionId = async (
+  id: number,
   sessionId: string,
-  params?: GetApiMediaMediaIdFfmpegLogsSessionIdParams,
+  params?: GetApiMediaIdFfmpegLogsSessionIdParams,
   options?: RequestInit
-): Promise<getApiMediaMediaIdFfmpegLogsSessionIdResponse> => {
-  return customInstance<getApiMediaMediaIdFfmpegLogsSessionIdResponse>(
-    getGetApiMediaMediaIdFfmpegLogsSessionIdUrl(mediaId, sessionId, params),
+): Promise<getApiMediaIdFfmpegLogsSessionIdResponse> => {
+  return customInstance<getApiMediaIdFfmpegLogsSessionIdResponse>(
+    getGetApiMediaIdFfmpegLogsSessionIdUrl(id, sessionId, params),
     {
       ...options,
       method: 'GET',
@@ -280,28 +276,24 @@ export const getApiMediaMediaIdFfmpegLogsSessionId = async (
   )
 }
 
-export const getGetApiMediaMediaIdFfmpegLogsSessionIdQueryKey = (
-  mediaId?: number,
+export const getGetApiMediaIdFfmpegLogsSessionIdQueryKey = (
+  id?: number,
   sessionId?: string,
-  params?: GetApiMediaMediaIdFfmpegLogsSessionIdParams
+  params?: GetApiMediaIdFfmpegLogsSessionIdParams
 ) => {
-  return [`/api/media/${mediaId}/ffmpeg-logs/${sessionId}`, ...(params ? [params] : [])] as const
+  return [`/api/media/${id}/ffmpeg-logs/${sessionId}`, ...(params ? [params] : [])] as const
 }
 
-export const getGetApiMediaMediaIdFfmpegLogsSessionIdQueryOptions = <
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionId>>,
+export const getGetApiMediaIdFfmpegLogsSessionIdQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionId>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   sessionId: string,
-  params?: GetApiMediaMediaIdFfmpegLogsSessionIdParams,
+  params?: GetApiMediaIdFfmpegLogsSessionIdParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionId>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionId>>, TError, TData>
     >
     request?: SecondParameter<typeof customInstance>
   }
@@ -309,51 +301,40 @@ export const getGetApiMediaMediaIdFfmpegLogsSessionIdQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {}
 
   const queryKey =
-    queryOptions?.queryKey ??
-    getGetApiMediaMediaIdFfmpegLogsSessionIdQueryKey(mediaId, sessionId, params)
+    queryOptions?.queryKey ?? getGetApiMediaIdFfmpegLogsSessionIdQueryKey(id, sessionId, params)
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionId>>
-  > = ({ signal }) =>
-    getApiMediaMediaIdFfmpegLogsSessionId(mediaId, sessionId, params, { signal, ...requestOptions })
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionId>>> = ({
+    signal,
+  }) => getApiMediaIdFfmpegLogsSessionId(id, sessionId, params, { signal, ...requestOptions })
 
-  return {
-    queryKey,
-    queryFn,
-    enabled: !!(mediaId && sessionId),
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionId>>,
+  return { queryKey, queryFn, enabled: !!(id && sessionId), ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionId>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetApiMediaMediaIdFfmpegLogsSessionIdQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionId>>
+export type GetApiMediaIdFfmpegLogsSessionIdQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionId>>
 >
-export type GetApiMediaMediaIdFfmpegLogsSessionIdQueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaIdFfmpegLogsSessionIdQueryError = InternalApiHandlersErrorResponse
 
-export function useGetApiMediaMediaIdFfmpegLogsSessionId<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionId>>,
+export function useGetApiMediaIdFfmpegLogsSessionId<
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionId>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   sessionId: string,
-  params: undefined | GetApiMediaMediaIdFfmpegLogsSessionIdParams,
+  params: undefined | GetApiMediaIdFfmpegLogsSessionIdParams,
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionId>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionId>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionId>>,
+          Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionId>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionId>>
+          Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionId>>
         >,
         'initialData'
       >
@@ -361,26 +342,22 @@ export function useGetApiMediaMediaIdFfmpegLogsSessionId<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdFfmpegLogsSessionId<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionId>>,
+export function useGetApiMediaIdFfmpegLogsSessionId<
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionId>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   sessionId: string,
-  params?: GetApiMediaMediaIdFfmpegLogsSessionIdParams,
+  params?: GetApiMediaIdFfmpegLogsSessionIdParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionId>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionId>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionId>>,
+          Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionId>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionId>>
+          Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionId>>
         >,
         'initialData'
       >
@@ -388,20 +365,16 @@ export function useGetApiMediaMediaIdFfmpegLogsSessionId<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdFfmpegLogsSessionId<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionId>>,
+export function useGetApiMediaIdFfmpegLogsSessionId<
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionId>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   sessionId: string,
-  params?: GetApiMediaMediaIdFfmpegLogsSessionIdParams,
+  params?: GetApiMediaIdFfmpegLogsSessionIdParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionId>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionId>>, TError, TData>
     >
     request?: SecondParameter<typeof customInstance>
   },
@@ -411,27 +384,23 @@ export function useGetApiMediaMediaIdFfmpegLogsSessionId<
  * @summary Get FFmpeg log content
  */
 
-export function useGetApiMediaMediaIdFfmpegLogsSessionId<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionId>>,
+export function useGetApiMediaIdFfmpegLogsSessionId<
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionId>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   sessionId: string,
-  params?: GetApiMediaMediaIdFfmpegLogsSessionIdParams,
+  params?: GetApiMediaIdFfmpegLogsSessionIdParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionId>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionId>>, TError, TData>
     >
     request?: SecondParameter<typeof customInstance>
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetApiMediaMediaIdFfmpegLogsSessionIdQueryOptions(
-    mediaId,
+  const queryOptions = getGetApiMediaIdFfmpegLogsSessionIdQueryOptions(
+    id,
     sessionId,
     params,
     options
@@ -450,62 +419,59 @@ export function useGetApiMediaMediaIdFfmpegLogsSessionId<
  * Deletes a specific FFmpeg transcode log (cannot delete active logs)
  * @summary Delete FFmpeg log
  */
-export type deleteApiMediaMediaIdFfmpegLogsSessionIdResponse200 = {
-  data: DeleteApiMediaMediaIdFfmpegLogsSessionId200
+export type deleteApiMediaIdFfmpegLogsSessionIdResponse200 = {
+  data: DeleteApiMediaIdFfmpegLogsSessionId200
   status: 200
 }
 
-export type deleteApiMediaMediaIdFfmpegLogsSessionIdResponse400 = {
+export type deleteApiMediaIdFfmpegLogsSessionIdResponse400 = {
   data: InternalApiHandlersErrorResponse
   status: 400
 }
 
-export type deleteApiMediaMediaIdFfmpegLogsSessionIdResponse404 = {
+export type deleteApiMediaIdFfmpegLogsSessionIdResponse404 = {
   data: InternalApiHandlersErrorResponse
   status: 404
 }
 
-export type deleteApiMediaMediaIdFfmpegLogsSessionIdResponse409 = {
+export type deleteApiMediaIdFfmpegLogsSessionIdResponse409 = {
   data: InternalApiHandlersErrorResponse
   status: 409
 }
 
-export type deleteApiMediaMediaIdFfmpegLogsSessionIdResponse500 = {
+export type deleteApiMediaIdFfmpegLogsSessionIdResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
 
-export type deleteApiMediaMediaIdFfmpegLogsSessionIdResponseSuccess =
-  deleteApiMediaMediaIdFfmpegLogsSessionIdResponse200 & {
+export type deleteApiMediaIdFfmpegLogsSessionIdResponseSuccess =
+  deleteApiMediaIdFfmpegLogsSessionIdResponse200 & {
     headers: Headers
   }
-export type deleteApiMediaMediaIdFfmpegLogsSessionIdResponseError = (
-  | deleteApiMediaMediaIdFfmpegLogsSessionIdResponse400
-  | deleteApiMediaMediaIdFfmpegLogsSessionIdResponse404
-  | deleteApiMediaMediaIdFfmpegLogsSessionIdResponse409
-  | deleteApiMediaMediaIdFfmpegLogsSessionIdResponse500
+export type deleteApiMediaIdFfmpegLogsSessionIdResponseError = (
+  | deleteApiMediaIdFfmpegLogsSessionIdResponse400
+  | deleteApiMediaIdFfmpegLogsSessionIdResponse404
+  | deleteApiMediaIdFfmpegLogsSessionIdResponse409
+  | deleteApiMediaIdFfmpegLogsSessionIdResponse500
 ) & {
   headers: Headers
 }
 
-export type deleteApiMediaMediaIdFfmpegLogsSessionIdResponse =
-  | deleteApiMediaMediaIdFfmpegLogsSessionIdResponseSuccess
-  | deleteApiMediaMediaIdFfmpegLogsSessionIdResponseError
+export type deleteApiMediaIdFfmpegLogsSessionIdResponse =
+  | deleteApiMediaIdFfmpegLogsSessionIdResponseSuccess
+  | deleteApiMediaIdFfmpegLogsSessionIdResponseError
 
-export const getDeleteApiMediaMediaIdFfmpegLogsSessionIdUrl = (
-  mediaId: number,
-  sessionId: string
-) => {
-  return `/api/media/${mediaId}/ffmpeg-logs/${sessionId}`
+export const getDeleteApiMediaIdFfmpegLogsSessionIdUrl = (id: number, sessionId: string) => {
+  return `/api/media/${id}/ffmpeg-logs/${sessionId}`
 }
 
-export const deleteApiMediaMediaIdFfmpegLogsSessionId = async (
-  mediaId: number,
+export const deleteApiMediaIdFfmpegLogsSessionId = async (
+  id: number,
   sessionId: string,
   options?: RequestInit
-): Promise<deleteApiMediaMediaIdFfmpegLogsSessionIdResponse> => {
-  return customInstance<deleteApiMediaMediaIdFfmpegLogsSessionIdResponse>(
-    getDeleteApiMediaMediaIdFfmpegLogsSessionIdUrl(mediaId, sessionId),
+): Promise<deleteApiMediaIdFfmpegLogsSessionIdResponse> => {
+  return customInstance<deleteApiMediaIdFfmpegLogsSessionIdResponse>(
+    getDeleteApiMediaIdFfmpegLogsSessionIdUrl(id, sessionId),
     {
       ...options,
       method: 'DELETE',
@@ -513,24 +479,24 @@ export const deleteApiMediaMediaIdFfmpegLogsSessionId = async (
   )
 }
 
-export const getDeleteApiMediaMediaIdFfmpegLogsSessionIdMutationOptions = <
+export const getDeleteApiMediaIdFfmpegLogsSessionIdMutationOptions = <
   TError = InternalApiHandlersErrorResponse,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteApiMediaMediaIdFfmpegLogsSessionId>>,
+    Awaited<ReturnType<typeof deleteApiMediaIdFfmpegLogsSessionId>>,
     TError,
-    { mediaId: number; sessionId: string },
+    { id: number; sessionId: string },
     TContext
   >
   request?: SecondParameter<typeof customInstance>
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteApiMediaMediaIdFfmpegLogsSessionId>>,
+  Awaited<ReturnType<typeof deleteApiMediaIdFfmpegLogsSessionId>>,
   TError,
-  { mediaId: number; sessionId: string },
+  { id: number; sessionId: string },
   TContext
 > => {
-  const mutationKey = ['deleteApiMediaMediaIdFfmpegLogsSessionId']
+  const mutationKey = ['deleteApiMediaIdFfmpegLogsSessionId']
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
       ? options
@@ -538,47 +504,47 @@ export const getDeleteApiMediaMediaIdFfmpegLogsSessionIdMutationOptions = <
     : { mutation: { mutationKey }, request: undefined }
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteApiMediaMediaIdFfmpegLogsSessionId>>,
-    { mediaId: number; sessionId: string }
+    Awaited<ReturnType<typeof deleteApiMediaIdFfmpegLogsSessionId>>,
+    { id: number; sessionId: string }
   > = (props) => {
-    const { mediaId, sessionId } = props ?? {}
+    const { id, sessionId } = props ?? {}
 
-    return deleteApiMediaMediaIdFfmpegLogsSessionId(mediaId, sessionId, requestOptions)
+    return deleteApiMediaIdFfmpegLogsSessionId(id, sessionId, requestOptions)
   }
 
   return { mutationFn, ...mutationOptions }
 }
 
-export type DeleteApiMediaMediaIdFfmpegLogsSessionIdMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteApiMediaMediaIdFfmpegLogsSessionId>>
+export type DeleteApiMediaIdFfmpegLogsSessionIdMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteApiMediaIdFfmpegLogsSessionId>>
 >
 
-export type DeleteApiMediaMediaIdFfmpegLogsSessionIdMutationError = InternalApiHandlersErrorResponse
+export type DeleteApiMediaIdFfmpegLogsSessionIdMutationError = InternalApiHandlersErrorResponse
 
 /**
  * @summary Delete FFmpeg log
  */
-export const useDeleteApiMediaMediaIdFfmpegLogsSessionId = <
+export const useDeleteApiMediaIdFfmpegLogsSessionId = <
   TError = InternalApiHandlersErrorResponse,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteApiMediaMediaIdFfmpegLogsSessionId>>,
+      Awaited<ReturnType<typeof deleteApiMediaIdFfmpegLogsSessionId>>,
       TError,
-      { mediaId: number; sessionId: string },
+      { id: number; sessionId: string },
       TContext
     >
     request?: SecondParameter<typeof customInstance>
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteApiMediaMediaIdFfmpegLogsSessionId>>,
+  Awaited<ReturnType<typeof deleteApiMediaIdFfmpegLogsSessionId>>,
   TError,
-  { mediaId: number; sessionId: string },
+  { id: number; sessionId: string },
   TContext
 > => {
-  const mutationOptions = getDeleteApiMediaMediaIdFfmpegLogsSessionIdMutationOptions(options)
+  const mutationOptions = getDeleteApiMediaIdFfmpegLogsSessionIdMutationOptions(options)
 
   return useMutation(mutationOptions, queryClient)
 }
@@ -586,56 +552,53 @@ export const useDeleteApiMediaMediaIdFfmpegLogsSessionId = <
  * Retrieves metadata about a specific FFmpeg log (size, line count, error count)
  * @summary Get FFmpeg log info
  */
-export type getApiMediaMediaIdFfmpegLogsSessionIdInfoResponse200 = {
+export type getApiMediaIdFfmpegLogsSessionIdInfoResponse200 = {
   data: GithubComMantonxViewraInternalInfrastructureTranscodingLoggingLogInfo
   status: 200
 }
 
-export type getApiMediaMediaIdFfmpegLogsSessionIdInfoResponse400 = {
+export type getApiMediaIdFfmpegLogsSessionIdInfoResponse400 = {
   data: InternalApiHandlersErrorResponse
   status: 400
 }
 
-export type getApiMediaMediaIdFfmpegLogsSessionIdInfoResponse404 = {
+export type getApiMediaIdFfmpegLogsSessionIdInfoResponse404 = {
   data: InternalApiHandlersErrorResponse
   status: 404
 }
 
-export type getApiMediaMediaIdFfmpegLogsSessionIdInfoResponse500 = {
+export type getApiMediaIdFfmpegLogsSessionIdInfoResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
 
-export type getApiMediaMediaIdFfmpegLogsSessionIdInfoResponseSuccess =
-  getApiMediaMediaIdFfmpegLogsSessionIdInfoResponse200 & {
+export type getApiMediaIdFfmpegLogsSessionIdInfoResponseSuccess =
+  getApiMediaIdFfmpegLogsSessionIdInfoResponse200 & {
     headers: Headers
   }
-export type getApiMediaMediaIdFfmpegLogsSessionIdInfoResponseError = (
-  | getApiMediaMediaIdFfmpegLogsSessionIdInfoResponse400
-  | getApiMediaMediaIdFfmpegLogsSessionIdInfoResponse404
-  | getApiMediaMediaIdFfmpegLogsSessionIdInfoResponse500
+export type getApiMediaIdFfmpegLogsSessionIdInfoResponseError = (
+  | getApiMediaIdFfmpegLogsSessionIdInfoResponse400
+  | getApiMediaIdFfmpegLogsSessionIdInfoResponse404
+  | getApiMediaIdFfmpegLogsSessionIdInfoResponse500
 ) & {
   headers: Headers
 }
 
-export type getApiMediaMediaIdFfmpegLogsSessionIdInfoResponse =
-  | getApiMediaMediaIdFfmpegLogsSessionIdInfoResponseSuccess
-  | getApiMediaMediaIdFfmpegLogsSessionIdInfoResponseError
+export type getApiMediaIdFfmpegLogsSessionIdInfoResponse =
+  | getApiMediaIdFfmpegLogsSessionIdInfoResponseSuccess
+  | getApiMediaIdFfmpegLogsSessionIdInfoResponseError
 
-export const getGetApiMediaMediaIdFfmpegLogsSessionIdInfoUrl = (
-  mediaId: number,
-  sessionId: string
-) => {
-  return `/api/media/${mediaId}/ffmpeg-logs/${sessionId}/info`
+export const getGetApiMediaIdFfmpegLogsSessionIdInfoUrl = (id: number, sessionId: string) => {
+  return `/api/media/${id}/ffmpeg-logs/${sessionId}/info`
 }
 
-export const getApiMediaMediaIdFfmpegLogsSessionIdInfo = async (
-  mediaId: number,
+export const getApiMediaIdFfmpegLogsSessionIdInfo = async (
+  id: number,
   sessionId: string,
   options?: RequestInit
-): Promise<getApiMediaMediaIdFfmpegLogsSessionIdInfoResponse> => {
-  return customInstance<getApiMediaMediaIdFfmpegLogsSessionIdInfoResponse>(
-    getGetApiMediaMediaIdFfmpegLogsSessionIdInfoUrl(mediaId, sessionId),
+): Promise<getApiMediaIdFfmpegLogsSessionIdInfoResponse> => {
+  return customInstance<getApiMediaIdFfmpegLogsSessionIdInfoResponse>(
+    getGetApiMediaIdFfmpegLogsSessionIdInfoUrl(id, sessionId),
     {
       ...options,
       method: 'GET',
@@ -643,23 +606,23 @@ export const getApiMediaMediaIdFfmpegLogsSessionIdInfo = async (
   )
 }
 
-export const getGetApiMediaMediaIdFfmpegLogsSessionIdInfoQueryKey = (
-  mediaId?: number,
+export const getGetApiMediaIdFfmpegLogsSessionIdInfoQueryKey = (
+  id?: number,
   sessionId?: string
 ) => {
-  return [`/api/media/${mediaId}/ffmpeg-logs/${sessionId}/info`] as const
+  return [`/api/media/${id}/ffmpeg-logs/${sessionId}/info`] as const
 }
 
-export const getGetApiMediaMediaIdFfmpegLogsSessionIdInfoQueryOptions = <
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdInfo>>,
+export const getGetApiMediaIdFfmpegLogsSessionIdInfoQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdInfo>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   sessionId: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdInfo>>,
+        Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdInfo>>,
         TError,
         TData
       >
@@ -670,50 +633,44 @@ export const getGetApiMediaMediaIdFfmpegLogsSessionIdInfoQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {}
 
   const queryKey =
-    queryOptions?.queryKey ??
-    getGetApiMediaMediaIdFfmpegLogsSessionIdInfoQueryKey(mediaId, sessionId)
+    queryOptions?.queryKey ?? getGetApiMediaIdFfmpegLogsSessionIdInfoQueryKey(id, sessionId)
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdInfo>>
+    Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdInfo>>
   > = ({ signal }) =>
-    getApiMediaMediaIdFfmpegLogsSessionIdInfo(mediaId, sessionId, { signal, ...requestOptions })
+    getApiMediaIdFfmpegLogsSessionIdInfo(id, sessionId, { signal, ...requestOptions })
 
-  return {
-    queryKey,
-    queryFn,
-    enabled: !!(mediaId && sessionId),
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdInfo>>,
+  return { queryKey, queryFn, enabled: !!(id && sessionId), ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdInfo>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetApiMediaMediaIdFfmpegLogsSessionIdInfoQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdInfo>>
+export type GetApiMediaIdFfmpegLogsSessionIdInfoQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdInfo>>
 >
-export type GetApiMediaMediaIdFfmpegLogsSessionIdInfoQueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaIdFfmpegLogsSessionIdInfoQueryError = InternalApiHandlersErrorResponse
 
-export function useGetApiMediaMediaIdFfmpegLogsSessionIdInfo<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdInfo>>,
+export function useGetApiMediaIdFfmpegLogsSessionIdInfo<
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdInfo>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   sessionId: string,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdInfo>>,
+        Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdInfo>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdInfo>>,
+          Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdInfo>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdInfo>>
+          Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdInfo>>
         >,
         'initialData'
       >
@@ -721,25 +678,25 @@ export function useGetApiMediaMediaIdFfmpegLogsSessionIdInfo<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdFfmpegLogsSessionIdInfo<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdInfo>>,
+export function useGetApiMediaIdFfmpegLogsSessionIdInfo<
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdInfo>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   sessionId: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdInfo>>,
+        Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdInfo>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdInfo>>,
+          Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdInfo>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdInfo>>
+          Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdInfo>>
         >,
         'initialData'
       >
@@ -747,16 +704,16 @@ export function useGetApiMediaMediaIdFfmpegLogsSessionIdInfo<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdFfmpegLogsSessionIdInfo<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdInfo>>,
+export function useGetApiMediaIdFfmpegLogsSessionIdInfo<
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdInfo>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   sessionId: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdInfo>>,
+        Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdInfo>>,
         TError,
         TData
       >
@@ -769,16 +726,16 @@ export function useGetApiMediaMediaIdFfmpegLogsSessionIdInfo<
  * @summary Get FFmpeg log info
  */
 
-export function useGetApiMediaMediaIdFfmpegLogsSessionIdInfo<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdInfo>>,
+export function useGetApiMediaIdFfmpegLogsSessionIdInfo<
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdInfo>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   sessionId: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdInfo>>,
+        Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdInfo>>,
         TError,
         TData
       >
@@ -787,11 +744,7 @@ export function useGetApiMediaMediaIdFfmpegLogsSessionIdInfo<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetApiMediaMediaIdFfmpegLogsSessionIdInfoQueryOptions(
-    mediaId,
-    sessionId,
-    options
-  )
+  const queryOptions = getGetApiMediaIdFfmpegLogsSessionIdInfoQueryOptions(id, sessionId, options)
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>
@@ -808,56 +761,53 @@ For active sessions, new log lines are pushed as they appear.
 For completed sessions, returns existing content then closes.
  * @summary Stream FFmpeg log in real-time
  */
-export type getApiMediaMediaIdFfmpegLogsSessionIdStreamResponse200 = {
+export type getApiMediaIdFfmpegLogsSessionIdStreamResponse200 = {
   data: string
   status: 200
 }
 
-export type getApiMediaMediaIdFfmpegLogsSessionIdStreamResponse400 = {
+export type getApiMediaIdFfmpegLogsSessionIdStreamResponse400 = {
   data: InternalApiHandlersErrorResponse
   status: 400
 }
 
-export type getApiMediaMediaIdFfmpegLogsSessionIdStreamResponse404 = {
+export type getApiMediaIdFfmpegLogsSessionIdStreamResponse404 = {
   data: InternalApiHandlersErrorResponse
   status: 404
 }
 
-export type getApiMediaMediaIdFfmpegLogsSessionIdStreamResponse500 = {
+export type getApiMediaIdFfmpegLogsSessionIdStreamResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
 
-export type getApiMediaMediaIdFfmpegLogsSessionIdStreamResponseSuccess =
-  getApiMediaMediaIdFfmpegLogsSessionIdStreamResponse200 & {
+export type getApiMediaIdFfmpegLogsSessionIdStreamResponseSuccess =
+  getApiMediaIdFfmpegLogsSessionIdStreamResponse200 & {
     headers: Headers
   }
-export type getApiMediaMediaIdFfmpegLogsSessionIdStreamResponseError = (
-  | getApiMediaMediaIdFfmpegLogsSessionIdStreamResponse400
-  | getApiMediaMediaIdFfmpegLogsSessionIdStreamResponse404
-  | getApiMediaMediaIdFfmpegLogsSessionIdStreamResponse500
+export type getApiMediaIdFfmpegLogsSessionIdStreamResponseError = (
+  | getApiMediaIdFfmpegLogsSessionIdStreamResponse400
+  | getApiMediaIdFfmpegLogsSessionIdStreamResponse404
+  | getApiMediaIdFfmpegLogsSessionIdStreamResponse500
 ) & {
   headers: Headers
 }
 
-export type getApiMediaMediaIdFfmpegLogsSessionIdStreamResponse =
-  | getApiMediaMediaIdFfmpegLogsSessionIdStreamResponseSuccess
-  | getApiMediaMediaIdFfmpegLogsSessionIdStreamResponseError
+export type getApiMediaIdFfmpegLogsSessionIdStreamResponse =
+  | getApiMediaIdFfmpegLogsSessionIdStreamResponseSuccess
+  | getApiMediaIdFfmpegLogsSessionIdStreamResponseError
 
-export const getGetApiMediaMediaIdFfmpegLogsSessionIdStreamUrl = (
-  mediaId: number,
-  sessionId: string
-) => {
-  return `/api/media/${mediaId}/ffmpeg-logs/${sessionId}/stream`
+export const getGetApiMediaIdFfmpegLogsSessionIdStreamUrl = (id: number, sessionId: string) => {
+  return `/api/media/${id}/ffmpeg-logs/${sessionId}/stream`
 }
 
-export const getApiMediaMediaIdFfmpegLogsSessionIdStream = async (
-  mediaId: number,
+export const getApiMediaIdFfmpegLogsSessionIdStream = async (
+  id: number,
   sessionId: string,
   options?: RequestInit
-): Promise<getApiMediaMediaIdFfmpegLogsSessionIdStreamResponse> => {
-  return customInstance<getApiMediaMediaIdFfmpegLogsSessionIdStreamResponse>(
-    getGetApiMediaMediaIdFfmpegLogsSessionIdStreamUrl(mediaId, sessionId),
+): Promise<getApiMediaIdFfmpegLogsSessionIdStreamResponse> => {
+  return customInstance<getApiMediaIdFfmpegLogsSessionIdStreamResponse>(
+    getGetApiMediaIdFfmpegLogsSessionIdStreamUrl(id, sessionId),
     {
       ...options,
       method: 'GET',
@@ -865,23 +815,23 @@ export const getApiMediaMediaIdFfmpegLogsSessionIdStream = async (
   )
 }
 
-export const getGetApiMediaMediaIdFfmpegLogsSessionIdStreamQueryKey = (
-  mediaId?: number,
+export const getGetApiMediaIdFfmpegLogsSessionIdStreamQueryKey = (
+  id?: number,
   sessionId?: string
 ) => {
-  return [`/api/media/${mediaId}/ffmpeg-logs/${sessionId}/stream`] as const
+  return [`/api/media/${id}/ffmpeg-logs/${sessionId}/stream`] as const
 }
 
-export const getGetApiMediaMediaIdFfmpegLogsSessionIdStreamQueryOptions = <
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdStream>>,
+export const getGetApiMediaIdFfmpegLogsSessionIdStreamQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdStream>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   sessionId: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdStream>>,
+        Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdStream>>,
         TError,
         TData
       >
@@ -892,50 +842,44 @@ export const getGetApiMediaMediaIdFfmpegLogsSessionIdStreamQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {}
 
   const queryKey =
-    queryOptions?.queryKey ??
-    getGetApiMediaMediaIdFfmpegLogsSessionIdStreamQueryKey(mediaId, sessionId)
+    queryOptions?.queryKey ?? getGetApiMediaIdFfmpegLogsSessionIdStreamQueryKey(id, sessionId)
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdStream>>
+    Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdStream>>
   > = ({ signal }) =>
-    getApiMediaMediaIdFfmpegLogsSessionIdStream(mediaId, sessionId, { signal, ...requestOptions })
+    getApiMediaIdFfmpegLogsSessionIdStream(id, sessionId, { signal, ...requestOptions })
 
-  return {
-    queryKey,
-    queryFn,
-    enabled: !!(mediaId && sessionId),
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdStream>>,
+  return { queryKey, queryFn, enabled: !!(id && sessionId), ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdStream>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetApiMediaMediaIdFfmpegLogsSessionIdStreamQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdStream>>
+export type GetApiMediaIdFfmpegLogsSessionIdStreamQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdStream>>
 >
-export type GetApiMediaMediaIdFfmpegLogsSessionIdStreamQueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaIdFfmpegLogsSessionIdStreamQueryError = InternalApiHandlersErrorResponse
 
-export function useGetApiMediaMediaIdFfmpegLogsSessionIdStream<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdStream>>,
+export function useGetApiMediaIdFfmpegLogsSessionIdStream<
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdStream>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   sessionId: string,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdStream>>,
+        Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdStream>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdStream>>,
+          Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdStream>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdStream>>
+          Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdStream>>
         >,
         'initialData'
       >
@@ -943,25 +887,25 @@ export function useGetApiMediaMediaIdFfmpegLogsSessionIdStream<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdFfmpegLogsSessionIdStream<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdStream>>,
+export function useGetApiMediaIdFfmpegLogsSessionIdStream<
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdStream>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   sessionId: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdStream>>,
+        Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdStream>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdStream>>,
+          Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdStream>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdStream>>
+          Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdStream>>
         >,
         'initialData'
       >
@@ -969,16 +913,16 @@ export function useGetApiMediaMediaIdFfmpegLogsSessionIdStream<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdFfmpegLogsSessionIdStream<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdStream>>,
+export function useGetApiMediaIdFfmpegLogsSessionIdStream<
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdStream>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   sessionId: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdStream>>,
+        Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdStream>>,
         TError,
         TData
       >
@@ -991,16 +935,16 @@ export function useGetApiMediaMediaIdFfmpegLogsSessionIdStream<
  * @summary Stream FFmpeg log in real-time
  */
 
-export function useGetApiMediaMediaIdFfmpegLogsSessionIdStream<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdStream>>,
+export function useGetApiMediaIdFfmpegLogsSessionIdStream<
+  TData = Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdStream>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   sessionId: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdFfmpegLogsSessionIdStream>>,
+        Awaited<ReturnType<typeof getApiMediaIdFfmpegLogsSessionIdStream>>,
         TError,
         TData
       >
@@ -1009,11 +953,7 @@ export function useGetApiMediaMediaIdFfmpegLogsSessionIdStream<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetApiMediaMediaIdFfmpegLogsSessionIdStreamQueryOptions(
-    mediaId,
-    sessionId,
-    options
-  )
+  const queryOptions = getGetApiMediaIdFfmpegLogsSessionIdStreamQueryOptions(id, sessionId, options)
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>

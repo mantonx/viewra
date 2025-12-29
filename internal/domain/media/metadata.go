@@ -33,14 +33,6 @@ func CalculateAspectRatio(width, height int) string {
 	return ""
 }
 
-// CalculateResolutionLabel returns resolution label from height
-// Returns 4K, 1080p, 720p, 480p, or SD
-// This is domain logic - how we categorize video resolutions
-// Deprecated: Use CalculateResolutionLabelFromDimensions for accurate 4K detection
-func CalculateResolutionLabel(height int) string {
-	return CalculateResolutionLabelFromDimensions(0, height)
-}
-
 // CalculateResolutionLabelFromDimensions returns resolution label from width and height
 // Uses width as the primary indicator for 4K (ultrawide content has full 4K width but reduced height)
 // Returns 4K, 1080p, 720p, 480p, or SD

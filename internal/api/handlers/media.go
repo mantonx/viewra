@@ -40,8 +40,8 @@ func NewMediaHandler(
 // @Param limit query int false "Limit number of results" default(50)
 // @Param offset query int false "Offset for pagination" default(0)
 // @Success 200 {object} media.ListMediaResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/media [get]
 func (h *MediaHandler) List(c *gin.Context) {
 	// Parse library_id - optional
@@ -57,10 +57,7 @@ func (h *MediaHandler) List(c *gin.Context) {
 		// Library_id specified, filter by library
 		libraryID, parseErr := parseID(libraryIDStr)
 		if parseErr != nil {
-			c.JSON(http.StatusBadRequest, ErrorResponse{
-				Error:   "Invalid library_id",
-				Message: parseErr.Error(),
-			})
+			respondError(c, http.StatusBadRequest, "INVALID_LIBRARY_ID", parseErr.Error())
 			return
 		}
 
@@ -84,17 +81,14 @@ func (h *MediaHandler) List(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Media ID"
 // @Success 200 {object} media.GetMediaResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/media/{id} [get]
 func (h *MediaHandler) Get(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid media ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_MEDIA_ID", err.Error())
 		return
 	}
 
@@ -119,17 +113,14 @@ func (h *MediaHandler) Get(c *gin.Context) {
 // @Param quality query string false "Selected quality level (e.g., 'original', '1080p-10m', '480p')"
 // @Header 200 {string} X-Supported-Video-Codecs "Client-supported video codecs (h264,h265,vp9,av1)"
 // @Success 200 {object} media.StreamInfoResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/media/{id}/stream-info [get]
 func (h *MediaHandler) GetStreamInfo(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid media ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_MEDIA_ID", err.Error())
 		return
 	}
 
@@ -157,17 +148,14 @@ func (h *MediaHandler) GetStreamInfo(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Media ID"
 // @Success 200 {object} media.GetTracksResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/media/{id}/tracks [get]
 func (h *MediaHandler) GetTracks(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid media ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_MEDIA_ID", err.Error())
 		return
 	}
 

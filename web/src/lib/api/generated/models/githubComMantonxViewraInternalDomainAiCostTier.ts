@@ -9,7 +9,7 @@
 export type GithubComMantonxViewraInternalDomainAiCostTier =
   (typeof GithubComMantonxViewraInternalDomainAiCostTier)[keyof typeof GithubComMantonxViewraInternalDomainAiCostTier]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
+ 
 export const GithubComMantonxViewraInternalDomainAiCostTier = {
   /** Local models (Ollama) */
   CostTierFree: 'free',

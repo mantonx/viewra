@@ -108,15 +108,15 @@ type ScanHistoryResponse struct {
 // @Produce json
 // @Param id path int true "Library ID"
 // @Success 200 {object} ScanStatusResponse "Scan status"
-// @Success 404 {object} ErrorResponse "No scan jobs found for this library"
-// @Failure 400 {object} ErrorResponse "Invalid library ID"
-// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Success 404 {object} APIError "No scan jobs found for this library"
+// @Failure 400 {object} APIError "Invalid library ID"
+// @Failure 500 {object} APIError "Internal server error"
 // @Router /api/libraries/{id}/scan/status [get]
 func (h *ScanJobHandler) GetStatus(c *gin.Context) {
 	// Parse library ID
 	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid library ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid library ID")
 		return
 	}
 
@@ -124,10 +124,10 @@ func (h *ScanJobHandler) GetStatus(c *gin.Context) {
 	status, err := h.statusProvider.GetScanStatus(c.Request.Context(), libraryID)
 	if err != nil {
 		if err == scanner.ErrNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{Error: "No scan jobs found for this library"})
+			respondError(c, http.StatusNotFound, "NOT_FOUND", "No scan jobs found for this library")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get scan status"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get scan status")
 		return
 	}
 
@@ -173,14 +173,14 @@ func (h *ScanJobHandler) GetStatus(c *gin.Context) {
 // @Param id path int true "Library ID"
 // @Param limit query int false "Number of scan jobs to return (default 10, max 100)" default(10)
 // @Success 200 {object} ScanHistoryResponse "Scan history"
-// @Failure 400 {object} ErrorResponse "Invalid library ID or limit"
-// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Failure 400 {object} APIError "Invalid library ID or limit"
+// @Failure 500 {object} APIError "Internal server error"
 // @Router /api/libraries/{id}/scan/history [get]
 func (h *ScanJobHandler) GetHistory(c *gin.Context) {
 	// Parse library ID
 	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid library ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid library ID")
 		return
 	}
 
@@ -189,7 +189,7 @@ func (h *ScanJobHandler) GetHistory(c *gin.Context) {
 	if limitStr := c.Query("limit"); limitStr != "" {
 		parsedLimit, err := strconv.Atoi(limitStr)
 		if err != nil || parsedLimit < 1 || parsedLimit > 100 {
-			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid limit (must be between 1 and 100)"})
+			respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid limit (must be between 1 and 100)")
 			return
 		}
 		limit = parsedLimit
@@ -198,7 +198,7 @@ func (h *ScanJobHandler) GetHistory(c *gin.Context) {
 	// Get scan history
 	jobs, err := h.service.ListByLibrary(c.Request.Context(), libraryID, int32(limit))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get scan history"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get scan history")
 		return
 	}
 
@@ -241,15 +241,15 @@ func (h *ScanJobHandler) GetHistory(c *gin.Context) {
 // @Produce text/event-stream
 // @Param id path int true "Library ID"
 // @Success 200 {string} string "SSE stream of progress updates"
-// @Failure 400 {object} ErrorResponse "Invalid library ID"
-// @Failure 404 {object} ErrorResponse "No active scan found"
-// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Failure 400 {object} APIError "Invalid library ID"
+// @Failure 404 {object} APIError "No active scan found"
+// @Failure 500 {object} APIError "Internal server error"
 // @Router /api/libraries/{id}/scan/stream [get]
 func (h *ScanJobHandler) StreamProgress(c *gin.Context) {
 	// Parse library ID
 	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid library ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid library ID")
 		return
 	}
 
@@ -404,14 +404,14 @@ type RetryFailedResponse struct {
 // @Param id path int true "Library ID"
 // @Param jobId path int true "Scan Job ID"
 // @Success 200 {object} ScanErrorsResponse "Scan errors"
-// @Failure 400 {object} ErrorResponse "Invalid library ID or job ID"
-// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Failure 400 {object} APIError "Invalid library ID or job ID"
+// @Failure 500 {object} APIError "Internal server error"
 // @Router /api/libraries/{id}/scan/{jobId}/errors [get]
 func (h *ScanJobHandler) GetScanErrors(c *gin.Context) {
 	// Parse library ID (for consistency, though not strictly needed)
 	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid library ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid library ID")
 		return
 	}
 	_ = libraryID // Not used but validates URL structure
@@ -419,14 +419,14 @@ func (h *ScanJobHandler) GetScanErrors(c *gin.Context) {
 	// Parse job ID
 	jobID, err := strconv.ParseInt(c.Param("jobId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid job ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid job ID")
 		return
 	}
 
 	// Get failed checkpoints (limit to 1000 to prevent memory issues)
 	failed, err := h.service.ListFailed(c.Request.Context(), jobID, 1000)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to retrieve scan errors"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to retrieve scan errors")
 		return
 	}
 
@@ -472,14 +472,14 @@ func (h *ScanJobHandler) GetScanErrors(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Library ID"
 // @Success 200 {object} ScanErrorsResponse "Library issues"
-// @Failure 400 {object} ErrorResponse "Invalid library ID"
-// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Failure 400 {object} APIError "Invalid library ID"
+// @Failure 500 {object} APIError "Internal server error"
 // @Router /api/libraries/{id}/issues [get]
 func (h *ScanJobHandler) GetLibraryIssues(c *gin.Context) {
 	// Parse library ID
 	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid library ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid library ID")
 		return
 	}
 
@@ -489,7 +489,7 @@ func (h *ScanJobHandler) GetLibraryIssues(c *gin.Context) {
 		h.logger.Error("failed to get library issues",
 			"library_id", libraryID,
 			"error", err)
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to retrieve library issues"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to retrieve library issues")
 		return
 	}
 
@@ -548,14 +548,14 @@ func (h *ScanJobHandler) GetLibraryIssues(c *gin.Context) {
 // @Param id path int true "Library ID"
 // @Param jobId path int true "Scan Job ID"
 // @Success 200 {object} RetryFailedResponse "Retry result"
-// @Failure 400 {object} ErrorResponse "Invalid library ID or job ID"
-// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Failure 400 {object} APIError "Invalid library ID or job ID"
+// @Failure 500 {object} APIError "Internal server error"
 // @Router /api/libraries/{id}/scan/{jobId}/retry-failed [post]
 func (h *ScanJobHandler) RetryFailedFiles(c *gin.Context) {
 	// Parse library ID (for consistency)
 	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid library ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid library ID")
 		return
 	}
 	_ = libraryID // Not used but validates URL structure
@@ -563,14 +563,14 @@ func (h *ScanJobHandler) RetryFailedFiles(c *gin.Context) {
 	// Parse job ID
 	jobID, err := strconv.ParseInt(c.Param("jobId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid job ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid job ID")
 		return
 	}
 
 	// Reset failed checkpoints to pending
 	count, err := h.service.ResetFailed(c.Request.Context(), jobID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to reset failed files"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to reset failed files")
 		return
 	}
 
@@ -595,16 +595,16 @@ type PauseScanResponse struct {
 // @Param id path int true "Library ID"
 // @Param jobId path int true "Scan Job ID"
 // @Success 200 {object} PauseScanResponse "Scan paused successfully"
-// @Failure 400 {object} ErrorResponse "Invalid library ID or job ID"
-// @Failure 404 {object} ErrorResponse "Scan job not found"
-// @Failure 409 {object} ErrorResponse "Scan is not running"
-// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Failure 400 {object} APIError "Invalid library ID or job ID"
+// @Failure 404 {object} APIError "Scan job not found"
+// @Failure 409 {object} APIError "Scan is not running"
+// @Failure 500 {object} APIError "Internal server error"
 // @Router /api/libraries/{id}/scan/{jobId}/pause [post]
 func (h *ScanJobHandler) PauseScan(c *gin.Context) {
 	// Parse library ID (for consistency)
 	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid library ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid library ID")
 		return
 	}
 	_ = libraryID // Not used but validates URL structure
@@ -612,7 +612,7 @@ func (h *ScanJobHandler) PauseScan(c *gin.Context) {
 	// Parse job ID
 	jobID, err := strconv.ParseInt(c.Param("jobId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid job ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid job ID")
 		return
 	}
 
@@ -620,16 +620,16 @@ func (h *ScanJobHandler) PauseScan(c *gin.Context) {
 	job, err := h.service.GetByID(c.Request.Context(), jobID)
 	if err != nil {
 		if err == scanner.ErrNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{Error: "Scan job not found"})
+			respondError(c, http.StatusNotFound, "NOT_FOUND", "Scan job not found")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get scan job"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get scan job")
 		return
 	}
 
 	// Check if scan is running
 	if job.Status != scanner.ScanStatusRunning {
-		c.JSON(http.StatusConflict, ErrorResponse{Error: fmt.Sprintf("Scan is not running (current status: %s)", job.Status)})
+		respondError(c, http.StatusConflict, "BAD_REQUEST", fmt.Sprintf("Scan is not running (current status: %s)", job.Status))
 		return
 	}
 
@@ -639,7 +639,7 @@ func (h *ScanJobHandler) PauseScan(c *gin.Context) {
 			"job_id", jobID,
 			"library_id", libraryID,
 			"error", err)
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to pause scan"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to pause scan")
 		return
 	}
 
@@ -671,16 +671,16 @@ type ResumeScanResponse struct {
 // @Param id path int true "Library ID"
 // @Param jobId path int true "Scan Job ID"
 // @Success 200 {object} ResumeScanResponse "Scan resumed successfully"
-// @Failure 400 {object} ErrorResponse "Invalid library ID or job ID"
-// @Failure 404 {object} ErrorResponse "Scan job not found"
-// @Failure 409 {object} ErrorResponse "Scan is not paused"
-// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Failure 400 {object} APIError "Invalid library ID or job ID"
+// @Failure 404 {object} APIError "Scan job not found"
+// @Failure 409 {object} APIError "Scan is not paused"
+// @Failure 500 {object} APIError "Internal server error"
 // @Router /api/libraries/{id}/scan/{jobId}/resume [post]
 func (h *ScanJobHandler) ResumeScan(c *gin.Context) {
 	// Parse library ID (for consistency)
 	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid library ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid library ID")
 		return
 	}
 	_ = libraryID // Not used but validates URL structure
@@ -688,7 +688,7 @@ func (h *ScanJobHandler) ResumeScan(c *gin.Context) {
 	// Parse job ID
 	jobID, err := strconv.ParseInt(c.Param("jobId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid job ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid job ID")
 		return
 	}
 
@@ -701,11 +701,11 @@ func (h *ScanJobHandler) ResumeScan(c *gin.Context) {
 
 		// Check error type for appropriate status code
 		if err.Error() == "scan job is not paused" || err.Error() == fmt.Sprintf("scan job is not paused (current status: %s)", "") {
-			c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error()})
+			respondError(c, http.StatusConflict, "CONFLICT", err.Error())
 			return
 		}
 
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to resume scan"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to resume scan")
 		return
 	}
 

@@ -19,7 +19,9 @@ func SetHeaders(c *gin.Context) {
 
 // Flush writes and flushes SSE data to the client.
 func Flush(c *gin.Context) {
-	c.Writer.(http.Flusher).Flush()
+	if flusher, ok := c.Writer.(http.Flusher); ok {
+		flusher.Flush()
+	}
 }
 
 // GetInt64FromEvent extracts an int64 value from an event's Data map by key.

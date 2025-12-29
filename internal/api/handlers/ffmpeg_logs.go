@@ -57,27 +57,27 @@ type ActiveSessionInfo struct {
 // @Description Lists all available FFmpeg transcode logs for a specific media item
 // @Tags ffmpeg-logs
 // @Produce json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Success 200 {object} LogListResponse
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/ffmpeg-logs [get]
+// @Failure 400 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
+// @Router /api/media/{id}/ffmpeg-logs [get]
 func (h *FFmpegLogsHandler) ListLogs(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media ID")
 		return
 	}
 
 	logStore := h.sessionManager.GetLogStore()
 	if logStore == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: "FFmpeg logging not enabled"})
+		respondError(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "FFmpeg logging not enabled")
 		return
 	}
 
 	logs, err := logStore.ListLogs(mediaID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: fmt.Sprintf("Failed to list logs: %v", err)})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Sprintf("Failed to list logs: %v", err))
 		return
 	}
 
@@ -94,30 +94,30 @@ func (h *FFmpegLogsHandler) ListLogs(c *gin.Context) {
 // @Description Retrieves the content of a specific FFmpeg transcode log
 // @Tags ffmpeg-logs
 // @Produce json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param session_id path string true "Session ID"
 // @Param tail query int false "Only return last N lines"
 // @Success 200 {object} LogContentResponse
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 404 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/ffmpeg-logs/{session_id} [get]
+// @Failure 400 {object} handlers.APIError
+// @Failure 404 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
+// @Router /api/media/{id}/ffmpeg-logs/{session_id} [get]
 func (h *FFmpegLogsHandler) GetLog(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media ID")
 		return
 	}
 
 	sessionID := c.Param("session_id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Session ID required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Session ID required")
 		return
 	}
 
 	logStore := h.sessionManager.GetLogStore()
 	if logStore == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: "FFmpeg logging not enabled"})
+		respondError(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "FFmpeg logging not enabled")
 		return
 	}
 
@@ -126,13 +126,13 @@ func (h *FFmpegLogsHandler) GetLog(c *gin.Context) {
 	if tailStr := c.Query("tail"); tailStr != "" {
 		tailLines, err := strconv.Atoi(tailStr)
 		if err != nil || tailLines <= 0 {
-			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid tail parameter"})
+			respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid tail parameter")
 			return
 		}
 
 		lines, err := logStore.ReadLogTail(sessionID, mediaID, tailLines)
 		if err != nil {
-			c.JSON(http.StatusNotFound, ErrorResponse{Error: fmt.Sprintf("Log not found: %v", err)})
+			respondError(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("Log not found: %v", err))
 			return
 		}
 
@@ -143,7 +143,7 @@ func (h *FFmpegLogsHandler) GetLog(c *gin.Context) {
 		var err error
 		content, err = logStore.ReadLog(sessionID, mediaID)
 		if err != nil {
-			c.JSON(http.StatusNotFound, ErrorResponse{Error: fmt.Sprintf("Log not found: %v", err)})
+			respondError(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("Log not found: %v", err))
 			return
 		}
 	}
@@ -167,29 +167,29 @@ func (h *FFmpegLogsHandler) GetLog(c *gin.Context) {
 // @Description For completed sessions, returns existing content then closes.
 // @Tags ffmpeg-logs
 // @Produce text/event-stream
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param session_id path string true "Session ID"
 // @Success 200 {string} string "SSE stream of log lines"
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 404 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/ffmpeg-logs/{session_id}/stream [get]
+// @Failure 400 {object} handlers.APIError
+// @Failure 404 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
+// @Router /api/media/{id}/ffmpeg-logs/{session_id}/stream [get]
 func (h *FFmpegLogsHandler) StreamLog(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media ID")
 		return
 	}
 
 	sessionID := c.Param("session_id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Session ID required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Session ID required")
 		return
 	}
 
 	logStore := h.sessionManager.GetLogStore()
 	if logStore == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: "FFmpeg logging not enabled"})
+		respondError(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "FFmpeg logging not enabled")
 		return
 	}
 
@@ -222,35 +222,35 @@ func (h *FFmpegLogsHandler) StreamLog(c *gin.Context) {
 // @Description Retrieves metadata about a specific FFmpeg log (size, line count, error count)
 // @Tags ffmpeg-logs
 // @Produce json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param session_id path string true "Session ID"
 // @Success 200 {object} logging.LogInfo
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 404 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/ffmpeg-logs/{session_id}/info [get]
+// @Failure 400 {object} handlers.APIError
+// @Failure 404 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
+// @Router /api/media/{id}/ffmpeg-logs/{session_id}/info [get]
 func (h *FFmpegLogsHandler) GetLogInfo(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media ID")
 		return
 	}
 
 	sessionID := c.Param("session_id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Session ID required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Session ID required")
 		return
 	}
 
 	logStore := h.sessionManager.GetLogStore()
 	if logStore == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: "FFmpeg logging not enabled"})
+		respondError(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "FFmpeg logging not enabled")
 		return
 	}
 
 	info, err := logStore.GetLogInfo(sessionID, mediaID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{Error: fmt.Sprintf("Log not found: %v", err)})
+		respondError(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("Log not found: %v", err))
 		return
 	}
 
@@ -263,39 +263,39 @@ func (h *FFmpegLogsHandler) GetLogInfo(c *gin.Context) {
 // @Description Deletes a specific FFmpeg transcode log (cannot delete active logs)
 // @Tags ffmpeg-logs
 // @Produce json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param session_id path string true "Session ID"
 // @Success 200 {object} map[string]string
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 404 {object} handlers.ErrorResponse
-// @Failure 409 {object} handlers.ErrorResponse "Cannot delete active log"
-// @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/ffmpeg-logs/{session_id} [delete]
+// @Failure 400 {object} handlers.APIError
+// @Failure 404 {object} handlers.APIError
+// @Failure 409 {object} handlers.APIError "Cannot delete active log"
+// @Failure 500 {object} handlers.APIError
+// @Router /api/media/{id}/ffmpeg-logs/{session_id} [delete]
 func (h *FFmpegLogsHandler) DeleteLog(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media ID")
 		return
 	}
 
 	sessionID := c.Param("session_id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Session ID required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Session ID required")
 		return
 	}
 
 	logStore := h.sessionManager.GetLogStore()
 	if logStore == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: "FFmpeg logging not enabled"})
+		respondError(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "FFmpeg logging not enabled")
 		return
 	}
 
 	err = logStore.DeleteLog(sessionID, mediaID)
 	if err != nil {
 		if err.Error() == "cannot delete active log" {
-			c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error()})
+			respondError(c, http.StatusConflict, "CONFLICT", err.Error())
 		} else {
-			c.JSON(http.StatusNotFound, ErrorResponse{Error: fmt.Sprintf("Failed to delete log: %v", err)})
+			respondError(c, http.StatusNotFound, "BAD_REQUEST", fmt.Sprintf("Failed to delete log: %v", err))
 		}
 		return
 	}
@@ -310,7 +310,7 @@ func (h *FFmpegLogsHandler) DeleteLog(c *gin.Context) {
 // @Tags ffmpeg-logs
 // @Produce json
 // @Success 200 {object} ActiveSessionsResponse
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.APIError
 // @Router /api/transcode/active-sessions [get]
 func (h *FFmpegLogsHandler) ListActiveSessions(c *gin.Context) {
 	logStore := h.sessionManager.GetLogStore()

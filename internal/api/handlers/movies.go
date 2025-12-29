@@ -42,8 +42,8 @@ func NewMoviesHandler(
 // @Param offset query int false "Number of items to skip (default: 0)"
 // @Param sort query string false "Sort order: title_asc or title_desc (default: title_asc)"
 // @Success 200 {object} movies.ListMoviesResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/movies [get]
 func (h *MoviesHandler) List(c *gin.Context) {
 	libraryID, ok := getRequiredQueryInt64(c, "library_id")
@@ -104,17 +104,14 @@ func (h *MoviesHandler) List(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Movie ID"
 // @Success 200 {object} movies.MovieResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/movies/{id} [get]
 func (h *MoviesHandler) Get(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid movie ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_MOVIE_ID", err.Error())
 		return
 	}
 
@@ -137,8 +134,8 @@ func (h *MoviesHandler) Get(c *gin.Context) {
 // @Param limit query int false "Number of items per page (default: 50, max: 200)"
 // @Param offset query int false "Number of items to skip (default: 0)"
 // @Success 200 {object} movies.ListMoviesResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/movies/search [get]
 func (h *MoviesHandler) Search(c *gin.Context) {
 	libraryID, ok := getRequiredQueryInt64(c, "library_id")
@@ -148,10 +145,7 @@ func (h *MoviesHandler) Search(c *gin.Context) {
 
 	query := c.Query("q")
 	if query == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing search query",
-			Message: "q query parameter is required",
-		})
+		respondError(c, http.StatusBadRequest, "MISSING_SEARCH_QUERY", "q query parameter is required")
 		return
 	}
 
@@ -190,8 +184,8 @@ func (h *MoviesHandler) Search(c *gin.Context) {
 // @Param offset query int false "Number of items to skip (default: 0)"
 // @Param sort query string false "Sort order: title_asc or title_desc (default: title_asc)"
 // @Success 200 {object} movies.ListIDsResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/movies/ids [get]
 func (h *MoviesHandler) ListIDs(c *gin.Context) {
 	libraryID, ok := getRequiredQueryInt64(c, "library_id")

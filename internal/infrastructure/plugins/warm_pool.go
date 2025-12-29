@@ -182,11 +182,12 @@ func (p *WarmPool) GetWarmPlugins() []string {
 
 // checkIdlePlugins shuts down plugins that have been idle too long.
 func (p *WarmPool) checkIdlePlugins(ctx context.Context) {
-	p.mu.RLock()
 	now := time.Now()
 	var toUnload []string
 
 	plugins := p.manager.ListPlugins()
+
+	p.mu.Lock()
 	for _, plugin := range plugins {
 		// Skip keep-warm plugins
 		if p.keepWarm[plugin.ID] {
@@ -205,7 +206,7 @@ func (p *WarmPool) checkIdlePlugins(ctx context.Context) {
 			toUnload = append(toUnload, plugin.ID)
 		}
 	}
-	p.mu.RUnlock()
+	p.mu.Unlock()
 
 	// Unload idle plugins
 	for _, id := range toUnload {

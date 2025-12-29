@@ -1,1 +1,2 @@
-export { PluginSettingsForm, type PluginSettingsFormProps } from './PluginSettingsForm'
+export { PluginSettingsForm } from './PluginSettingsForm'
+export type { PluginSettingsFormProps } from './PluginSettingsForm.types'

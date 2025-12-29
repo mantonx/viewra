@@ -6,6 +6,7 @@ package transcodeanlytics
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	domainevents "github.com/mantonx/viewra/internal/domain/events"
@@ -15,10 +16,12 @@ import (
 
 // Service handles transcode analytics collection and queries.
 type Service struct {
-	repo      *transcoderepo.Repository
-	eventBus  *events.Bus
-	logger    *slog.Logger
-	cancelFn  context.CancelFunc
+	repo     *transcoderepo.Repository
+	eventBus *events.Bus
+	logger   *slog.Logger
+
+	mu       sync.Mutex
+	cancelFn context.CancelFunc
 }
 
 // NewService creates a new transcode analytics service.
@@ -32,6 +35,9 @@ func NewService(repo *transcoderepo.Repository, eventBus *events.Bus, logger *sl
 
 // Start begins listening for transcode events.
 func (s *Service) Start() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancelFn = cancel
 
@@ -47,8 +53,12 @@ func (s *Service) Start() {
 
 // Stop stops the event listener.
 func (s *Service) Stop() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.cancelFn != nil {
 		s.cancelFn()
+		s.cancelFn = nil
 	}
 	s.logger.Info("transcode analytics service stopped")
 }

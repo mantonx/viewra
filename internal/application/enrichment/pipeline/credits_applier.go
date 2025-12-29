@@ -10,6 +10,20 @@ import (
 	"github.com/mantonx/viewra/internal/domain/media"
 )
 
+// crewRole defines the properties for a crew credit type
+type crewRole struct {
+	creditType string
+	department string
+	job        string
+}
+
+var crewRoles = map[string]crewRole{
+	"director": {media.CreditTypeDirector, "Directing", "Director"},
+	"writer":   {media.CreditTypeWriter, "Writing", "Writer"},
+	"creator":  {media.CreditTypeCreator, "Production", "Creator"},
+	"producer": {media.CreditTypeProducer, "Production", "Producer"},
+}
+
 // CreditsApplier handles applying credits (cast, directors, writers, creators) from enrichment.
 type CreditsApplier struct {
 	peopleRepo media.PeopleRepository
@@ -84,93 +98,11 @@ func (a *CreditsApplier) Apply(ctx context.Context, mediaID int64, mediaType enr
 		}
 	}
 
-	// Process directors
-	for i, directorName := range metadata.Directors {
-		person, err := a.findOrCreatePerson(directorName, 0)
-		if err != nil {
-			a.logger.Warn("failed to find/create person for director",
-				slog.String("name", directorName),
-				slog.Any("error", err))
-			continue
-		}
-
-		credits = append(credits, &media.Credit{
-			PersonID:     person.ID,
-			Person:       person,
-			MediaType:    entityType,
-			EntityID:     mediaID,
-			CreditType:   media.CreditTypeDirector,
-			Department:   "Directing",
-			Job:          "Director",
-			BillingOrder: i,
-		})
-	}
-
-	// Process writers
-	for i, writerName := range metadata.Writers {
-		person, err := a.findOrCreatePerson(writerName, 0)
-		if err != nil {
-			a.logger.Warn("failed to find/create person for writer",
-				slog.String("name", writerName),
-				slog.Any("error", err))
-			continue
-		}
-
-		credits = append(credits, &media.Credit{
-			PersonID:     person.ID,
-			Person:       person,
-			MediaType:    entityType,
-			EntityID:     mediaID,
-			CreditType:   media.CreditTypeWriter,
-			Department:   "Writing",
-			Job:          "Writer",
-			BillingOrder: i,
-		})
-	}
-
-	// Process creators (TV shows)
-	for i, creatorName := range metadata.Creators {
-		person, err := a.findOrCreatePerson(creatorName, 0)
-		if err != nil {
-			a.logger.Warn("failed to find/create person for creator",
-				slog.String("name", creatorName),
-				slog.Any("error", err))
-			continue
-		}
-
-		credits = append(credits, &media.Credit{
-			PersonID:     person.ID,
-			Person:       person,
-			MediaType:    entityType,
-			EntityID:     mediaID,
-			CreditType:   media.CreditTypeCreator,
-			Department:   "Production",
-			Job:          "Creator",
-			BillingOrder: i,
-		})
-	}
-
-	// Process producers
-	for i, producerName := range metadata.Producers {
-		person, err := a.findOrCreatePerson(producerName, 0)
-		if err != nil {
-			a.logger.Warn("failed to find/create person for producer",
-				slog.String("name", producerName),
-				slog.Any("error", err))
-			continue
-		}
-
-		credits = append(credits, &media.Credit{
-			PersonID:     person.ID,
-			Person:       person,
-			MediaType:    entityType,
-			EntityID:     mediaID,
-			CreditType:   media.CreditTypeProducer,
-			Department:   "Production",
-			Job:          "Producer",
-			BillingOrder: i,
-		})
-	}
+	// Process crew (directors, writers, creators, producers)
+	credits = append(credits, a.processCrewCredits(metadata.Directors, "director", entityType, mediaID)...)
+	credits = append(credits, a.processCrewCredits(metadata.Writers, "writer", entityType, mediaID)...)
+	credits = append(credits, a.processCrewCredits(metadata.Creators, "creator", entityType, mediaID)...)
+	credits = append(credits, a.processCrewCredits(metadata.Producers, "producer", entityType, mediaID)...)
 
 	// Create new credits
 	for _, credit := range credits {
@@ -195,6 +127,38 @@ func (a *CreditsApplier) Apply(ctx context.Context, mediaID int64, mediaType enr
 // findOrCreatePerson finds or creates a person by name.
 func (a *CreditsApplier) findOrCreatePerson(name string, tmdbID int) (*media.Person, error) {
 	return a.peopleRepo.FindOrCreatePerson(name, tmdbID)
+}
+
+// processCrewCredits processes a list of crew names into credits.
+func (a *CreditsApplier) processCrewCredits(names []string, roleKey, entityType string, mediaID int64) []*media.Credit {
+	role, ok := crewRoles[roleKey]
+	if !ok {
+		return nil
+	}
+
+	var credits []*media.Credit
+	for i, name := range names {
+		person, err := a.findOrCreatePerson(name, 0)
+		if err != nil {
+			a.logger.Warn("failed to find/create person",
+				slog.String("role", roleKey),
+				slog.String("name", name),
+				slog.Any("error", err))
+			continue
+		}
+
+		credits = append(credits, &media.Credit{
+			PersonID:     person.ID,
+			Person:       person,
+			MediaType:    entityType,
+			EntityID:     mediaID,
+			CreditType:   role.creditType,
+			Department:   role.department,
+			Job:          role.job,
+			BillingOrder: i,
+		})
+	}
+	return credits
 }
 
 // mediaTypeToEntityType converts enrichment.MediaType to credits entity type.

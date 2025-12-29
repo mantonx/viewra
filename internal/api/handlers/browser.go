@@ -27,9 +27,9 @@ func NewBrowserHandler(browser library.PathBrowser) *BrowserHandler {
 // @Produce json
 // @Param path query string false "Directory path to browse"
 // @Success 200 {object} library.BrowseResult
-// @Failure 400 {object} ErrorResponse "Invalid path"
-// @Failure 403 {object} ErrorResponse "Access denied"
-// @Failure 404 {object} ErrorResponse "Directory not found"
+// @Failure 400 {object} APIError "Invalid path"
+// @Failure 403 {object} APIError "Access denied"
+// @Failure 404 {object} APIError "Directory not found"
 // @Router /api/filesystem/browse [get]
 func (h *BrowserHandler) Browse(c *gin.Context) {
 	path := c.Query("path")
@@ -40,31 +40,16 @@ func (h *BrowserHandler) Browse(c *gin.Context) {
 		switch {
 		case errors.Is(err, library.ErrInvalidPath),
 			errors.Is(err, library.ErrPathTraversal):
-			c.JSON(http.StatusBadRequest, ErrorResponse{
-				Error:   "Invalid path",
-				Message: err.Error(),
-			})
+			respondError(c, http.StatusBadRequest, "INVALID_PATH", err.Error())
 		case errors.Is(err, library.ErrSystemDirectory),
 			errors.Is(err, library.ErrOutsideAllowed):
-			c.JSON(http.StatusForbidden, ErrorResponse{
-				Error:   "Access denied",
-				Message: err.Error(),
-			})
+			respondError(c, http.StatusForbidden, "ACCESS_DENIED", err.Error())
 		case errors.Is(err, library.ErrPermissionDenied):
-			c.JSON(http.StatusForbidden, ErrorResponse{
-				Error:   "Permission denied",
-				Message: err.Error(),
-			})
+			respondError(c, http.StatusForbidden, "PERMISSION_DENIED", err.Error())
 		case errors.Is(err, library.ErrDirectoryNotFound):
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Error:   "Directory not found",
-				Message: err.Error(),
-			})
+			respondError(c, http.StatusNotFound, "DIRECTORY_NOT_FOUND", err.Error())
 		default:
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "Internal server error",
-				Message: "Failed to browse directory",
-			})
+			respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to browse directory")
 		}
 		return
 	}

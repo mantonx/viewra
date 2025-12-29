@@ -29,16 +29,14 @@ func NewProgressHandler(service *progress.Service) *ProgressHandler {
 // @Produce json
 // @Param request body progress.UpdateProgressRequest true "Update progress request"
 // @Success 200 {object} progress.WatchProgressResponse
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 400 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
 // @Router /api/progress [put]
 // @Router /api/progress [post]
 func (h *ProgressHandler) UpdateProgress(c *gin.Context) {
 	var req progress.UpdateProgressRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Invalid request body",
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST_BODY", "Invalid request body")
 		return
 	}
 
@@ -54,9 +52,9 @@ func (h *ProgressHandler) UpdateProgress(c *gin.Context) {
 			progressDomain.ErrInvalidProgress,
 			progressDomain.ErrInvalidDuration,
 			progressDomain.ErrProgressExceedsDuration:
-			c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+			respondError(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 		default:
-			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to update progress"})
+			respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update progress")
 		}
 		return
 	}
@@ -70,17 +68,17 @@ func (h *ProgressHandler) UpdateProgress(c *gin.Context) {
 // @Description Gets watch progress for a specific media item. If device_profile is provided, returns device-specific playback preferences (quality, audio track, subtitle track) if available.
 // @Tags progress
 // @Produce json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param device_profile query string false "Device profile hash (e.g., 'chrome-h264-sdr') for device-specific preferences"
 // @Success 200 {object} progress.WatchProgressResponse
-// @Failure 404 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/progress/{media_id} [get]
+// @Failure 404 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
+// @Router /api/progress/{id} [get]
 func (h *ProgressHandler) GetProgress(c *gin.Context) {
-	mediaIDStr := c.Param("media_id")
+	mediaIDStr := c.Param("id")
 	mediaID, err := parseID(mediaIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media ID")
 		return
 	}
 
@@ -96,9 +94,9 @@ func (h *ProgressHandler) GetProgress(c *gin.Context) {
 
 	if err != nil {
 		if err == progressDomain.ErrProgressNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{Error: "Progress not found"})
+			respondError(c, http.StatusNotFound, "NOT_FOUND", "Progress not found")
 		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get progress"})
+			respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get progress")
 		}
 		return
 	}
@@ -114,19 +112,19 @@ func (h *ProgressHandler) GetProgress(c *gin.Context) {
 // @Produce json
 // @Param media_ids query string true "Comma-separated media IDs"
 // @Success 200 {object} progress.BatchProgressResponse
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 400 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
 // @Router /api/progress/batch [get]
 func (h *ProgressHandler) GetBatchProgress(c *gin.Context) {
 	mediaIDsStr := c.Query("media_ids")
 	if mediaIDsStr == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "media_ids query parameter is required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "media_ids query parameter is required")
 		return
 	}
 
 	mediaIDs, err := parseIDList(mediaIDsStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media IDs format"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media IDs format")
 		return
 	}
 
@@ -134,7 +132,7 @@ func (h *ProgressHandler) GetBatchProgress(c *gin.Context) {
 
 	response, err := h.service.GetBatchProgress(c.Request.Context(), mediaIDs, userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get batch progress"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get batch progress")
 		return
 	}
 
@@ -150,7 +148,7 @@ func (h *ProgressHandler) GetBatchProgress(c *gin.Context) {
 // @Param limit query int false "Limit" default(50)
 // @Param offset query int false "Offset" default(0)
 // @Success 200 {object} progress.ListProgressResponse
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.APIError
 // @Router /api/progress [get]
 func (h *ProgressHandler) ListProgress(c *gin.Context) {
 	userID := getCurrentUserID()
@@ -158,7 +156,7 @@ func (h *ProgressHandler) ListProgress(c *gin.Context) {
 
 	response, err := h.service.ListProgress(c.Request.Context(), userID, params.limit, params.offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to list progress"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list progress")
 		return
 	}
 
@@ -174,7 +172,7 @@ func (h *ProgressHandler) ListProgress(c *gin.Context) {
 // @Param limit query int false "Limit" default(50)
 // @Param offset query int false "Offset" default(0)
 // @Success 200 {object} progress.ListProgressResponse
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.APIError
 // @Router /api/progress/watched [get]
 func (h *ProgressHandler) ListWatched(c *gin.Context) {
 	userID := getCurrentUserID()
@@ -182,7 +180,7 @@ func (h *ProgressHandler) ListWatched(c *gin.Context) {
 
 	response, err := h.service.ListWatched(c.Request.Context(), userID, params.limit, params.offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to list watched items"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list watched items")
 		return
 	}
 
@@ -198,7 +196,7 @@ func (h *ProgressHandler) ListWatched(c *gin.Context) {
 // @Param limit query int false "Limit" default(50)
 // @Param offset query int false "Offset" default(0)
 // @Success 200 {object} progress.ListProgressResponse
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.APIError
 // @Router /api/progress/in-progress [get]
 func (h *ProgressHandler) ListInProgress(c *gin.Context) {
 	userID := getCurrentUserID()
@@ -206,7 +204,7 @@ func (h *ProgressHandler) ListInProgress(c *gin.Context) {
 
 	response, err := h.service.ListInProgress(c.Request.Context(), userID, params.limit, params.offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to list in-progress items"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list in-progress items")
 		return
 	}
 
@@ -222,13 +220,13 @@ func (h *ProgressHandler) ListInProgress(c *gin.Context) {
 // @Produce json
 // @Param request body progress.MarkWatchedRequest true "Mark watched request"
 // @Success 200 {object} progress.WatchProgressResponse
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 400 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
 // @Router /api/progress/mark-watched [post]
 func (h *ProgressHandler) MarkWatched(c *gin.Context) {
 	var req progress.MarkWatchedRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request body"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request body")
 		return
 	}
 
@@ -240,9 +238,9 @@ func (h *ProgressHandler) MarkWatched(c *gin.Context) {
 	response, err := h.service.MarkWatched(c.Request.Context(), &req)
 	if err != nil {
 		if err == progressDomain.ErrInvalidMediaID {
-			c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+			respondError(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to mark as watched"})
+			respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to mark as watched")
 		}
 		return
 	}
@@ -259,14 +257,14 @@ func (h *ProgressHandler) MarkWatched(c *gin.Context) {
 // @Produce json
 // @Param request body progress.MarkWatchedRequest true "Mark unwatched request"
 // @Success 200 {object} progress.WatchProgressResponse
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 404 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 400 {object} handlers.APIError
+// @Failure 404 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
 // @Router /api/progress/mark-unwatched [post]
 func (h *ProgressHandler) MarkUnwatched(c *gin.Context) {
 	var req progress.MarkWatchedRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request body"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request body")
 		return
 	}
 
@@ -279,11 +277,11 @@ func (h *ProgressHandler) MarkUnwatched(c *gin.Context) {
 	if err != nil {
 		switch err {
 		case progressDomain.ErrInvalidMediaID:
-			c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+			respondError(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 		case progressDomain.ErrProgressNotFound:
-			c.JSON(http.StatusNotFound, ErrorResponse{Error: "Progress not found"})
+			respondError(c, http.StatusNotFound, "NOT_FOUND", "Progress not found")
 		default:
-			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to mark as unwatched"})
+			respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to mark as unwatched")
 		}
 		return
 	}
@@ -296,17 +294,17 @@ func (h *ProgressHandler) MarkUnwatched(c *gin.Context) {
 // @Summary Delete watch progress
 // @Description Deletes watch progress for a specific media item
 // @Tags progress
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Success 204
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 404 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/progress/{media_id} [delete]
+// @Failure 400 {object} handlers.APIError
+// @Failure 404 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
+// @Router /api/progress/{id} [delete]
 func (h *ProgressHandler) DeleteProgress(c *gin.Context) {
-	mediaIDStr := c.Param("media_id")
+	mediaIDStr := c.Param("id")
 	mediaID, err := parseID(mediaIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media ID")
 		return
 	}
 
@@ -316,11 +314,11 @@ func (h *ProgressHandler) DeleteProgress(c *gin.Context) {
 	if err != nil {
 		switch err {
 		case progressDomain.ErrInvalidMediaID:
-			c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+			respondError(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 		case progressDomain.ErrProgressNotFound:
-			c.JSON(http.StatusNotFound, ErrorResponse{Error: "Progress not found"})
+			respondError(c, http.StatusNotFound, "NOT_FOUND", "Progress not found")
 		default:
-			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to delete progress"})
+			respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to delete progress")
 		}
 		return
 	}

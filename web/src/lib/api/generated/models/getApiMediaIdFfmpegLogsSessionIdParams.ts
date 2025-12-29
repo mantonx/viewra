@@ -6,9 +6,9 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export type GetApiProgressMediaIdParams = {
+export type GetApiMediaIdFfmpegLogsSessionIdParams = {
   /**
-   * Device profile hash (e.g., 'chrome-h264-sdr') for device-specific preferences
+   * Only return last N lines
    */
-  device_profile?: string
+  tail?: number
 }

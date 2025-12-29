@@ -9,7 +9,7 @@
 export type GithubComMantonxViewraInternalApplicationEnrichmentPipelineCircuitState =
   (typeof GithubComMantonxViewraInternalApplicationEnrichmentPipelineCircuitState)[keyof typeof GithubComMantonxViewraInternalApplicationEnrichmentPipelineCircuitState]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
+ 
 export const GithubComMantonxViewraInternalApplicationEnrichmentPipelineCircuitState = {
   CircuitClosed: 'closed',
   CircuitOpen: 'open',

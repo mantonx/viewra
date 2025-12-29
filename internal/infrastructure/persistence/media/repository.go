@@ -8,7 +8,6 @@ import (
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
-	"github.com/mantonx/viewra/internal/infrastructure/persistence/adapters"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
@@ -16,10 +15,9 @@ import (
 // The driver parameter should be "sqlite", "sqlite3", "postgres", or "postgresql".
 func NewRepository(db *sql.DB, driver string) *Repository {
 	r := &Repository{
-		db:      db,
-		dbType:  driver,
-		adapter: adapters.NewTypeAdapter(),
-		router:  common.NewQueryRouter(driver),
+		db:     db,
+		dbType: driver,
+		router: common.NewQueryRouter(driver),
 	}
 
 	if common.IsPostgres(driver) {

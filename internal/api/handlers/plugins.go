@@ -52,8 +52,8 @@ type SuccessResponse struct {
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} PluginListResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/plugins [get]
 func (h *PluginHandler) List(c *gin.Context) {
 	list, err := h.service.List(c.Request.Context())
@@ -73,14 +73,14 @@ func (h *PluginHandler) List(c *gin.Context) {
 // @Produce json
 // @Param id path string true "Plugin ID"
 // @Success 200 {object} plugins.PluginDetail
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/plugins/{id} [get]
 func (h *PluginHandler) Get(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Plugin ID required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Plugin ID required")
 		return
 	}
 
@@ -101,14 +101,14 @@ func (h *PluginHandler) Get(c *gin.Context) {
 // @Produce json
 // @Param id path string true "Plugin ID"
 // @Success 200 {object} plugins.PluginSettings
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/plugins/{id}/settings [get]
 func (h *PluginHandler) GetSettings(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Plugin ID required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Plugin ID required")
 		return
 	}
 
@@ -131,22 +131,22 @@ func (h *PluginHandler) GetSettings(c *gin.Context) {
 // @Param id path string true "Plugin ID"
 // @Param body body UpdatePluginSettingsRequest true "Settings values"
 // @Success 200 {object} SuccessResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/plugins/{id}/settings [put]
 func (h *PluginHandler) UpdateSettings(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Plugin ID required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Plugin ID required")
 		return
 	}
 
 	var req UpdatePluginSettingsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request body"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request body")
 		return
 	}
 
@@ -166,15 +166,15 @@ func (h *PluginHandler) UpdateSettings(c *gin.Context) {
 // @Produce json
 // @Param id path string true "Plugin ID"
 // @Success 200 {object} SuccessResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/plugins/{id}/enable [post]
 func (h *PluginHandler) Enable(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Plugin ID required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Plugin ID required")
 		return
 	}
 
@@ -194,16 +194,16 @@ func (h *PluginHandler) Enable(c *gin.Context) {
 // @Produce json
 // @Param id path string true "Plugin ID"
 // @Success 200 {object} SuccessResponse
-// @Failure 400 {object} ErrorResponse "Cannot disable built-in plugin"
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError "Cannot disable built-in plugin"
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/plugins/{id}/disable [post]
 func (h *PluginHandler) Disable(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Plugin ID required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Plugin ID required")
 		return
 	}
 
@@ -223,15 +223,15 @@ func (h *PluginHandler) Disable(c *gin.Context) {
 // @Produce json
 // @Param id path string true "Plugin ID"
 // @Success 200 {object} SuccessResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/plugins/{id}/restart [post]
 func (h *PluginHandler) Restart(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Plugin ID required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Plugin ID required")
 		return
 	}
 
@@ -251,14 +251,14 @@ func (h *PluginHandler) Restart(c *gin.Context) {
 // @Produce json
 // @Param id path string true "Plugin ID"
 // @Success 200 {object} plugins.PluginHealthDetail
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/plugins/{id}/health [get]
 func (h *PluginHandler) GetHealth(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Plugin ID required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Plugin ID required")
 		return
 	}
 
@@ -282,15 +282,15 @@ func (h *PluginHandler) GetHealth(c *gin.Context) {
 // @Param level query string false "Filter by log level (error, warn, info, debug)"
 // @Param since query string false "Only entries after this RFC3339 timestamp"
 // @Success 200 {object} PluginLogsResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/plugins/{id}/logs [get]
 func (h *PluginHandler) GetLogs(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Plugin ID required"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Plugin ID required")
 		return
 	}
 

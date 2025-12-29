@@ -10,7 +10,6 @@ import (
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
-	"github.com/mantonx/viewra/internal/infrastructure/persistence/adapters"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
@@ -21,7 +20,6 @@ type CheckpointRepo struct {
 	dbType   string
 	postgres *sqlc_postgres.Queries
 	sqlite   *sqlc_sqlite.Queries
-	adapter  *adapters.TypeAdapter
 	router   *common.QueryRouter
 }
 
@@ -29,10 +27,9 @@ type CheckpointRepo struct {
 // The driver parameter should be "sqlite", "sqlite3", "postgres", or "postgresql".
 func NewCheckpointRepo(db *sql.DB, driver string) *CheckpointRepo {
 	r := &CheckpointRepo{
-		db:      db,
-		dbType:  driver,
-		adapter: adapters.NewTypeAdapter(),
-		router:  common.NewQueryRouter(driver),
+		db:     db,
+		dbType: driver,
+		router: common.NewQueryRouter(driver),
 	}
 
 	if common.IsPostgres(driver) {

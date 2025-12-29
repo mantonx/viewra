@@ -8,6 +8,7 @@ package thumbnail
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -60,7 +61,7 @@ func (c *Client) Generate(ctx context.Context, videoPath, outputPath string, opt
 	// Ensure output directory exists
 	outputDir := filepath.Dir(outputPath)
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
-		return fmt.Errorf("%w: failed to create output directory: %v", ErrThumbnailGeneration, err)
+		return errors.Join(ErrThumbnailGeneration, fmt.Errorf("failed to create output directory: %w", err))
 	}
 
 	// Set default quality if not specified
@@ -94,7 +95,7 @@ func (c *Client) Generate(ctx context.Context, videoPath, outputPath string, opt
 
 	cmd := c.paths.PrepareCommand("ffmpeg", args...)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("%w: %v: %s", ErrThumbnailGeneration, err, string(output))
+		return errors.Join(ErrThumbnailGeneration, fmt.Errorf("%w: %s", err, string(output)))
 	}
 
 	// Verify output file was created

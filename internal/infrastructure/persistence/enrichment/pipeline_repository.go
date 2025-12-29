@@ -9,7 +9,6 @@ import (
 	"github.com/mantonx/viewra/internal/domain/enrichment"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
-	"github.com/mantonx/viewra/internal/infrastructure/persistence/adapters"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 	"github.com/sqlc-dev/pqtype"
 )
@@ -17,10 +16,9 @@ import (
 // NewPipelineRepository creates a new pipeline repository with the appropriate database driver.
 func NewPipelineRepository(db *sql.DB, driver string) *PipelineRepository {
 	r := &PipelineRepository{
-		db:      db,
-		dbType:  driver,
-		adapter: adapters.NewTypeAdapter(),
-		router:  common.NewQueryRouter(driver),
+		db:     db,
+		dbType: driver,
+		router: common.NewQueryRouter(driver),
 	}
 
 	if common.IsPostgres(driver) {

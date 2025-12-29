@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -176,7 +177,22 @@ func (rl *RouteRateLimiter) CheckRateLimit(route *RegisteredRoute, userID string
 	return tokens >= 1.0
 }
 
-// CreateMiddleware creates a rate limit middleware from proto config.
+// sharedRateLimiter is a singleton rate limiter shared across all routes.
+// This prevents goroutine leaks from creating a new limiter per route.
+var (
+	sharedRateLimiter     *RouteRateLimiter
+	sharedRateLimiterOnce sync.Once
+)
+
+func getSharedRateLimiter() *RouteRateLimiter {
+	sharedRateLimiterOnce.Do(func() {
+		sharedRateLimiter = NewRouteRateLimiter()
+	})
+	return sharedRateLimiter
+}
+
+// CreateRateLimitMiddleware creates a rate limit middleware from proto config.
+// Uses a shared rate limiter to prevent goroutine leaks.
 func CreateRateLimitMiddleware(limit *pluginv1.PluginRateLimit, routePath string, getUserID func(c *gin.Context) string) gin.HandlerFunc {
 	if limit == nil || limit.RequestsPerMinute <= 0 {
 		return func(c *gin.Context) {
@@ -184,7 +200,7 @@ func CreateRateLimitMiddleware(limit *pluginv1.PluginRateLimit, routePath string
 		}
 	}
 
-	rl := NewRouteRateLimiter()
+	rl := getSharedRateLimiter()
 	route := &RegisteredRoute{
 		FullPath:  routePath,
 		RateLimit: limit,
@@ -195,7 +211,7 @@ func CreateRateLimitMiddleware(limit *pluginv1.PluginRateLimit, routePath string
 
 func formatFloat(f float64) string {
 	if f == float64(int(f)) {
-		return string(rune(int(f)))
+		return fmt.Sprintf("%d", int(f))
 	}
-	return ""
+	return fmt.Sprintf("%.2f", f)
 }

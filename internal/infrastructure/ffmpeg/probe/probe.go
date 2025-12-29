@@ -11,6 +11,7 @@ package probe
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -173,22 +174,22 @@ func (c *Client) ExtractMetadata(ctx context.Context, filePath string) (*VideoMe
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, fmt.Errorf("%w: failed to create stdout pipe: %v", ErrMetadataExtraction, err)
+		return nil, errors.Join(ErrMetadataExtraction, fmt.Errorf("failed to create stdout pipe: %w", err))
 	}
 
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrMetadataExtraction, err)
+		return nil, errors.Join(ErrMetadataExtraction, err)
 	}
 
 	var probe ffprobeOutput
 	decoder := json.NewDecoder(stdout)
 	if err := decoder.Decode(&probe); err != nil {
 		cmd.Wait()
-		return nil, fmt.Errorf("%w: failed to parse ffprobe output: %v", ErrMetadataExtraction, err)
+		return nil, errors.Join(ErrMetadataExtraction, fmt.Errorf("failed to parse ffprobe output: %w", err))
 	}
 
 	if err := cmd.Wait(); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrMetadataExtraction, err)
+		return nil, errors.Join(ErrMetadataExtraction, err)
 	}
 
 	metadata := &VideoMetadata{}
@@ -309,22 +310,22 @@ func (c *Client) ExtractTracks(ctx context.Context, filePath string) (*MediaTrac
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, fmt.Errorf("%w: failed to create stdout pipe: %v", ErrMetadataExtraction, err)
+		return nil, errors.Join(ErrMetadataExtraction, fmt.Errorf("failed to create stdout pipe: %w", err))
 	}
 
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrMetadataExtraction, err)
+		return nil, errors.Join(ErrMetadataExtraction, err)
 	}
 
 	var probe ffprobeOutput
 	decoder := json.NewDecoder(stdout)
 	if err := decoder.Decode(&probe); err != nil {
 		cmd.Wait()
-		return nil, fmt.Errorf("%w: failed to parse ffprobe output: %v", ErrMetadataExtraction, err)
+		return nil, errors.Join(ErrMetadataExtraction, fmt.Errorf("failed to parse ffprobe output: %w", err))
 	}
 
 	if err := cmd.Wait(); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrMetadataExtraction, err)
+		return nil, errors.Join(ErrMetadataExtraction, err)
 	}
 
 	tracks := &MediaTracksInfo{

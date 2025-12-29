@@ -8,7 +8,6 @@ import (
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
-	"github.com/mantonx/viewra/internal/infrastructure/persistence/adapters"
 )
 
 // BaseRepository provides common repository functionality for all media type repositories.
@@ -18,7 +17,6 @@ type BaseRepository struct {
 	dbType   string
 	sqlite   *sqlc_sqlite.Queries
 	postgres *sqlc_postgres.Queries
-	adapter  *adapters.TypeAdapter
 	router   *QueryRouter
 }
 
@@ -26,10 +24,9 @@ type BaseRepository struct {
 // The driver parameter should be "sqlite", "sqlite3", "postgres", or "postgresql".
 func NewBaseRepository(db *sql.DB, driver string) *BaseRepository {
 	r := &BaseRepository{
-		db:      db,
-		dbType:  driver,
-		adapter: adapters.NewTypeAdapter(),
-		router:  NewQueryRouter(driver),
+		db:     db,
+		dbType: driver,
+		router: NewQueryRouter(driver),
 	}
 
 	if IsPostgres(driver) {
@@ -59,11 +56,6 @@ func (r *BaseRepository) SQLite() *sqlc_sqlite.Queries {
 // Postgres returns the PostgreSQL queries instance
 func (r *BaseRepository) Postgres() *sqlc_postgres.Queries {
 	return r.postgres
-}
-
-// Adapter returns the type adapter
-func (r *BaseRepository) Adapter() *adapters.TypeAdapter {
-	return r.adapter
 }
 
 // Router returns the query router

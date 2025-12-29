@@ -7,7 +7,6 @@ import (
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
 	"github.com/mantonx/viewra/internal/infrastructure/metadata/quality"
-	"github.com/mantonx/viewra/internal/infrastructure/persistence/adapters"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
@@ -18,7 +17,6 @@ type Repository struct {
 	dbType   string
 	sqlite   *sqlc_sqlite.Queries
 	postgres *sqlc_postgres.Queries
-	adapter  *adapters.TypeAdapter
 	router   *common.QueryRouter
 }
 
@@ -116,7 +114,7 @@ func buildPostgresCreateParams(m *media.Media) sqlc_postgres.CreateMediaParams {
 		HdrFormat:         common.NullString(m.HDRFormat),
 		ColorSpace:        common.NullString(m.ColorSpace),
 		ColorPrimaries:    common.NullString(m.ColorPrimaries),
-		ThumbnailPath:     sql.NullString{},   // Set separately via UpdateThumbnailPath
+		ThumbnailPath:     sql.NullString{}, // Set separately via UpdateThumbnailPath
 		SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
 		ResolutionLabel:   common.NullString(media.CalculateResolutionLabelFromDimensions(m.Width, m.Height)),
 		QualityScore:      common.NullInt32(int32(calculateQualityScore(m))),
@@ -152,7 +150,7 @@ func buildSQLiteCreateParams(m *media.Media) sqlc_sqlite.CreateMediaParams {
 		HdrFormat:         common.NullString(m.HDRFormat),
 		ColorSpace:        common.NullString(m.ColorSpace),
 		ColorPrimaries:    common.NullString(m.ColorPrimaries),
-		ThumbnailPath:     sql.NullString{},   // TODO: Generate during scan
+		ThumbnailPath:     sql.NullString{}, // TODO: Generate during scan
 		SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
 		ResolutionLabel:   common.NullString(media.CalculateResolutionLabelFromDimensions(m.Width, m.Height)),
 		QualityScore:      common.NullInt64(int64(calculateQualityScore(m))),

@@ -111,7 +111,10 @@ func WithRetry(ctx context.Context, config Config, fn func() error) error {
 		// Check context cancellation before each attempt
 		if err := ctx.Err(); err != nil {
 			if lastErr != nil {
-				return fmt.Errorf("retry aborted due to context cancellation after %d attempts: %w (last error: %v)", attempt, err, lastErr)
+				return errors.Join(
+					fmt.Errorf("retry aborted due to context cancellation after %d attempts: %w", attempt, err),
+					fmt.Errorf("last error: %w", lastErr),
+				)
 			}
 			return fmt.Errorf("retry aborted due to context cancellation: %w", err)
 		}
@@ -140,7 +143,10 @@ func WithRetry(ctx context.Context, config Config, fn func() error) error {
 		// Sleep for backoff duration (respecting context cancellation)
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("retry aborted during backoff after %d attempts: %w (last error: %v)", attempt+1, ctx.Err(), lastErr)
+			return errors.Join(
+				fmt.Errorf("retry aborted during backoff after %d attempts: %w", attempt+1, ctx.Err()),
+				fmt.Errorf("last error: %w", lastErr),
+			)
 		case <-time.After(backoff):
 			// Continue to next attempt
 		}

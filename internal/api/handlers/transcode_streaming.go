@@ -22,21 +22,21 @@ import (
 // @Description from segment 0. Segments are created on-demand as the player requests them. Compatible videos redirect to direct stream.
 // @Tags transcode
 // @Produce application/vnd.apple.mpegurl,application/json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param quality path string true "Quality level (360p, 720p, 1080p, 4k)"
 // @Success 200 {file} file "HLS playlist file - segments generated on-demand"
 // @Success 302 "Redirect to direct stream (for compatible files)"
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 404 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/hls/{quality}/playlist.m3u8 [get]
+// @Failure 400 {object} handlers.APIError
+// @Failure 404 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
+// @Router /api/media/{id}/hls/{quality}/playlist.m3u8 [get]
 func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 	mediaIDStr := c.Param("id")
 	quality := c.Param("quality")
 
 	mediaID, err := parseID(mediaIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media ID")
 		return
 	}
 
@@ -80,7 +80,7 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 		StrategyHint:         strategyHint,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
 
@@ -102,7 +102,7 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 		if audioTrackIndex > 0 {
 			content, err := rewritePlaylistWithAudioTrack(response.ManifestPath, audioTrackIndex)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to process playlist"})
+				respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process playlist")
 				return
 			}
 			c.Data(http.StatusOK, "application/vnd.apple.mpegurl", content)
@@ -117,7 +117,7 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 
 	default:
 		// Should never reach here with new segment-based system
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Unknown streaming strategy"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Unknown streaming strategy")
 	}
 }
 
@@ -127,14 +127,14 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 // @Description Serves HLS segment files (.ts) from progressive transcoding sessions
 // @Tags transcode
 // @Produce video/mp2t
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param quality path string true "Quality level (360p, 720p, 1080p, 4k)"
 // @Param filename path string true "Segment filename (e.g., seg_000123.ts)"
 // @Success 200 {file} file "HLS segment file"
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 404 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/hls/{quality}/{filename} [get]
+// @Failure 400 {object} handlers.APIError
+// @Failure 404 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
+// @Router /api/media/{id}/hls/{quality}/{filename} [get]
 func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 	mediaIDStr := c.Param("id")
 	quality := c.Param("quality")
@@ -143,7 +143,7 @@ func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 	// Parse media ID
 	mediaID, err := parseID(mediaIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media ID")
 		return
 	}
 
@@ -160,7 +160,7 @@ func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 	// audioTrackIndex is used to find the correct session for multi-audio support
 	session, err := h.sessionManager.GetSession(mediaID, quality, audioTrackIndex)
 	if err != nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{Error: "No active transcode session"})
+		respondError(c, http.StatusNotFound, "NOT_FOUND", "No active transcode session")
 		return
 	}
 
@@ -168,9 +168,7 @@ func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 	if filename == segment.InitFilename {
 		initPath, err := session.WaitForInitSegment(10 * time.Second)
 		if err != nil {
-			c.JSON(http.StatusRequestTimeout, ErrorResponse{
-				Error: "Init segment not available",
-			})
+			respondError(c, http.StatusRequestTimeout, "INIT_SEGMENT_NOT_AVAILABLE", "Init segment not available")
 			return
 		}
 		session.UpdateLastAccessed()
@@ -183,16 +181,14 @@ func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 	// Parse segment number from filename
 	segmentNum := segment.ParseNumber(filename)
 	if segmentNum < 0 {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid segment filename"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid segment filename")
 		return
 	}
 
 	// Wait for segment to be generated (30 second timeout)
 	segmentPath, err := session.WaitForSegment(segmentNum, 30*time.Second)
 	if err != nil {
-		c.JSON(http.StatusRequestTimeout, ErrorResponse{
-			Error: "Segment not available - transcoding may be slow or failed",
-		})
+		respondError(c, http.StatusRequestTimeout, "SEGMENT_NOT_AVAILABLE___TRANSCODING_MAY_BE_SLOW_OR_FAILED", "Segment not available - transcoding may be slow or failed")
 		return
 	}
 
@@ -219,7 +215,7 @@ func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 // @Description If the video is compatible for direct play (right codec, audio, container), returns 302 redirect.
 // @Tags transcode
 // @Produce application/vnd.apple.mpegurl,application/json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param start query number false "Start position in seconds for seeking"
 // @Param screenWidth query int false "Client screen width in pixels"
 // @Param screenHeight query int false "Client screen height in pixels"
@@ -228,14 +224,14 @@ func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 // @Param quality query string false "Override: force specific quality (e.g., 4k-25m, 1080p-10m)"
 // @Success 200 {file} file "HLS master playlist with recommended quality"
 // @Success 302 "Redirect to direct stream (for compatible files)"
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 404 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/hls/master.m3u8 [get]
+// @Failure 400 {object} handlers.APIError
+// @Failure 404 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
+// @Router /api/media/{id}/hls/master.m3u8 [get]
 func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media ID")
 		return
 	}
 
@@ -299,7 +295,7 @@ func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 		ClientSupportsHDR:    clientSupportsHDR,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
 
@@ -327,7 +323,7 @@ func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 		c.String(http.StatusOK, response.PlaylistContent)
 
 	default:
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Unknown streaming strategy"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Unknown streaming strategy")
 	}
 }
 
@@ -338,56 +334,56 @@ func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 // @Description Streams a text subtitle as WebVTT for HLS playback (fast demux, no full file scan)
 // @Tags transcode
 // @Produce text/vtt
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param trackIndex path int true "Subtitle track index (0-based, among text subtitles only)"
 // @Param start query number false "Start position in seconds (for seeking)"
 // @Success 200 {file} file "WebVTT subtitle file"
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 404 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/hls/subtitle/{trackIndex}/subtitles.vtt [get]
+// @Failure 400 {object} handlers.APIError
+// @Failure 404 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
+// @Router /api/media/{id}/hls/subtitle/{trackIndex}/subtitles.vtt [get]
 func (h *TranscodeHandler) ServeSubtitle(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media ID")
 		return
 	}
 
 	relativeIndex, err := parseInt(c.Param("trackIndex"))
 	if err != nil || relativeIndex < 0 {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid track index"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid track index")
 		return
 	}
 
 	// Find text track at this relative index
 	targetTrack, err := h.getTracksUseCase.GetSubtitleTrackByRelativeIndex(c.Request.Context(), mediaID, relativeIndex, false)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get subtitle tracks"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get subtitle tracks")
 		return
 	}
 	if targetTrack == nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{Error: "Subtitle track not found"})
+		respondError(c, http.StatusNotFound, "NOT_FOUND", "Subtitle track not found")
 		return
 	}
 
 	// Get media file path
 	mediaResp, err := h.getMediaUseCase.Execute(c.Request.Context(), mediaID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{Error: "Media not found"})
+		respondError(c, http.StatusNotFound, "NOT_FOUND", "Media not found")
 		return
 	}
 
 	// Use the converter which handles subtitle-extractor with FFmpeg fallback
 	vttPath, err := h.subtitleConverter.ExtractAndConvert(c.Request.Context(), mediaID, mediaResp.FilePath, *targetTrack.StreamIndex)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to extract subtitle"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to extract subtitle")
 		return
 	}
 
 	// Read and serve the WebVTT content
 	vttContent, err := subtitles.GetWebVTTContent(vttPath)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to read subtitle file"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to read subtitle file")
 		return
 	}
 

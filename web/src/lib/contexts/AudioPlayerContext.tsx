@@ -1,12 +1,11 @@
-import { createContext, useContext, useState, useRef, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import type { MusicTrackResponse } from '@/lib/types/music'
 import { logger } from '@/lib/utils/logger'
 import { authFetch } from '@/lib/utils/authFetch'
+import { useAudioPlayback } from '@/lib/hooks/useAudioPlayback'
+import { useAudioQueue, type RepeatMode } from '@/lib/hooks/useAudioQueue'
 
 // Visibility states for the audio player
-// - expanded: Full player UI visible
-// - minimized: Compact player bar visible
-// - hidden: Player completely hidden (but audio may still be playing)
 type PlayerVisibility = 'expanded' | 'minimized' | 'hidden'
 
 interface AudioPlayerContextType {
@@ -21,7 +20,7 @@ interface AudioPlayerContextType {
   currentTime: number
   duration: number
   isShuffle: boolean
-  repeatMode: 'off' | 'one' | 'all'
+  repeatMode: RepeatMode
   isMinimized: boolean
   visibility: PlayerVisibility
   isOnMusicPage: boolean
@@ -61,554 +60,256 @@ interface AudioPlayerProviderProps {
 }
 
 export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const volumeBeforeMuteRef = useRef<number>(0.8)
-  const handleTrackEndedRef = useRef<() => void>(() => {})
-  const currentBlobUrlRef = useRef<string | null>(null)
-
-  // Load volume from localStorage or use default
-  const getInitialVolume = () => {
-    try {
-      const savedVolume = localStorage.getItem('audioPlayerVolume')
-      return savedVolume ? parseFloat(savedVolume) : 0.8
-    } catch {
-      return 0.8
+  // Use extracted hooks for playback and queue management
+  const queueHook = useAudioQueue()
+  
+  const handleTrackEnded = useCallback(() => {
+    reportProgress()
+    
+    if (queueHook.repeatMode === 'one') {
+      playback.seek(0)
+      playback.audioRef.current?.play()
+    } else {
+      const nextIdx = queueHook.getNextIndex()
+      if (nextIdx !== null) {
+        const track = queueHook.goToIndex(nextIdx)
+        if (track) {playback.loadAndPlay(track)}
+      } else {
+        // End of queue
+      }
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queueHook.repeatMode, queueHook.getNextIndex, queueHook.goToIndex])
 
-  const [currentTrack, setCurrentTrack] = useState<MusicTrackResponse | null>(null)
-  const [queue, setQueue] = useState<MusicTrackResponse[]>([])
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [volume, setVolumeState] = useState(getInitialVolume)
-  const [isMuted, setIsMuted] = useState(false)
-  const [currentTime, setCurrentTime] = useState(0)
-  const [duration, setDuration] = useState(0)
-  const [isShuffle, setIsShuffle] = useState(false)
-  const [repeatMode, setRepeatMode] = useState<'off' | 'one' | 'all'>('off')
+  const playback = useAudioPlayback({ onTrackEnded: handleTrackEnded })
+
+  // Visibility state
   const [isMinimized, setIsMinimized] = useState(false)
   const [visibility, setVisibilityState] = useState<PlayerVisibility>('expanded')
   const [isOnMusicPage, setIsOnMusicPage] = useState(false)
+  
+  // Auto-minimize refs
   const autoMinimizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastUserInteractionRef = useRef<number>(Date.now())
-  const userExpandedManuallyRef = useRef<boolean>(false) // Track if user manually expanded
-  const consecutiveAutoMinimizesRef = useRef<number>(0) // Track auto-minimize patterns
-  const wasPlayingBeforeNavRef = useRef<boolean>(false) // Track if was playing before navigation
+  const userExpandedManuallyRef = useRef<boolean>(false)
+  const consecutiveAutoMinimizesRef = useRef<number>(0)
+  const wasPlayingBeforeNavRef = useRef<boolean>(false)
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Initialize audio element
+  // Report progress to backend
+  const reportProgress = useCallback(async () => {
+    if (!playback.currentTrack || !playback.audioRef.current) {return}
+
+    try {
+      const position = Math.floor(playback.audioRef.current.currentTime)
+      await authFetch(`/api/progress/${playback.currentTrack.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          position_seconds: position,
+          duration_seconds: playback.currentTrack.duration,
+        }),
+      })
+    } catch (error) {
+      logger.error('Failed to report progress:', error)
+    }
+  }, [playback.currentTrack, playback.audioRef])
+
+  // Report progress every 5 seconds while playing
   useEffect(() => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio()
-      audioRef.current.volume = volume
-
-      // Event listeners
-      audioRef.current.addEventListener('loadedmetadata', () => {
-        setDuration(audioRef.current?.duration || 0)
-        setIsLoading(false)
-      })
-
-      audioRef.current.addEventListener('timeupdate', () => {
-        setCurrentTime(audioRef.current?.currentTime || 0)
-      })
-
-      audioRef.current.addEventListener('waiting', () => {
-        setIsLoading(true)
-      })
-
-      audioRef.current.addEventListener('canplay', () => {
-        setIsLoading(false)
-      })
-
-      audioRef.current.addEventListener('ended', () => handleTrackEndedRef.current())
-
-      audioRef.current.addEventListener('error', (e) => {
-        // Only log errors if there's an actual source (ignore errors from empty src)
-        if (audioRef.current?.src && audioRef.current.src !== '') {
-          logger.error('Audio playback error:', e)
-        }
-        setIsPlaying(false)
-        setIsLoading(false)
-      })
-    }
-
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause()
-        // Don't set src to empty string - it causes error events
-        audioRef.current.removeAttribute('src')
-        audioRef.current.load() // Reset the media element
-      }
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current)
-      }
-      // Revoke blob URL to prevent memory leaks
-      if (currentBlobUrlRef.current) {
-        URL.revokeObjectURL(currentBlobUrlRef.current)
-        currentBlobUrlRef.current = null
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Only run once on mount - volume changes handled by separate effect
-
-  // Update volume when changed and save to localStorage
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume
-    }
-    // Save to localStorage (only save non-muted volume)
-    if (!isMuted) {
-      try {
-        localStorage.setItem('audioPlayerVolume', volume.toString())
-      } catch (error) {
-        logger.error('Failed to save volume to localStorage:', error)
-      }
-    }
-  }, [volume, isMuted])
-
-  // Report progress to backend every 5 seconds
-  useEffect(() => {
-    if (isPlaying && currentTrack) {
-      progressIntervalRef.current = setInterval(() => {
-        reportProgress()
-      }, 5000)
+    if (playback.isPlaying && playback.currentTrack) {
+      progressIntervalRef.current = setInterval(reportProgress, 5000)
     } else {
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current)
         progressIntervalRef.current = null
       }
     }
-
     return () => {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current)
-      }
+      if (progressIntervalRef.current) {clearInterval(progressIntervalRef.current)}
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying, currentTrack, currentTime])
+  }, [playback.isPlaying, playback.currentTrack, reportProgress])
 
-  const reportProgress = async () => {
-    if (!currentTrack || !audioRef.current) {return}
+  // High-level player actions
+  const playTrack = useCallback((track: MusicTrackResponse) => {
+    queueHook.setQueueWithTrack([track], 0)
+    playback.loadAndPlay(track)
+  }, [queueHook, playback])
 
-    try {
-      const position = Math.floor(audioRef.current.currentTime)
-      await authFetch(`/api/progress/${currentTrack.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          position_seconds: position,
-          duration_seconds: currentTrack.duration,
-        }),
-      })
-    } catch (error) {
-      logger.error('Failed to report progress:', error)
-    }
-  }
-
-  // Keep the track ended handler ref updated to avoid stale closures
-  useEffect(() => {
-    handleTrackEndedRef.current = () => {
-      // Report final progress
-      reportProgress()
-
-      // Handle repeat modes
-      if (repeatMode === 'one') {
-        // Replay current track
-        if (audioRef.current) {
-          audioRef.current.currentTime = 0
-          audioRef.current.play()
-        }
-      } else if (repeatMode === 'all' && currentIndex === queue.length - 1) {
-        // Loop back to first track
-        playQueueAtIndex(0)
-      } else {
-        // Play next track
-        playNext()
-      }
-    }
-  })
-
-  const playTrack = (track: MusicTrackResponse) => {
-    setCurrentTrack(track)
-    setQueue([track])
-    setCurrentIndex(0)
-    loadAndPlay(track)
-  }
-
-  const playQueue = (tracks: MusicTrackResponse[], startIndex: number = 0) => {
+  const playQueue = useCallback((tracks: MusicTrackResponse[], startIndex = 0) => {
     if (tracks.length === 0) {return}
-    setQueue(tracks)
-    setCurrentIndex(startIndex)
-    setCurrentTrack(tracks[startIndex])
-    loadAndPlay(tracks[startIndex])
-  }
+    queueHook.setQueueWithTrack(tracks, startIndex)
+    playback.loadAndPlay(tracks[startIndex])
+  }, [queueHook, playback])
 
-  const playQueueAtIndex = (index: number) => {
-    if (index < 0 || index >= queue.length) {return}
-    setCurrentIndex(index)
-    setCurrentTrack(queue[index])
-    loadAndPlay(queue[index])
-  }
-
-  const loadAndPlay = async (track: MusicTrackResponse) => {
-    if (!audioRef.current) {return}
-
-    setIsLoading(true)
-
-    // Revoke previous blob URL to prevent memory leaks
-    if (currentBlobUrlRef.current) {
-      URL.revokeObjectURL(currentBlobUrlRef.current)
-      currentBlobUrlRef.current = null
+  const playNext = useCallback(() => {
+    const nextIdx = queueHook.getNextIndex()
+    if (nextIdx !== null) {
+      const track = queueHook.goToIndex(nextIdx)
+      if (track) {playback.loadAndPlay(track)}
     }
+  }, [queueHook, playback])
 
-    try {
-      // Fetch stream with authentication headers
-      const response = await authFetch(`/api/stream/${track.id}`)
-      if (!response.ok) {
-        throw new Error(`Failed to fetch audio stream: ${response.status}`)
-      }
-
-      const blob = await response.blob()
-      const blobUrl = URL.createObjectURL(blob)
-      currentBlobUrlRef.current = blobUrl
-
-      audioRef.current.src = blobUrl
-      await audioRef.current.play()
-      setIsPlaying(true)
-    } catch (error) {
-      logger.error('Failed to play track:', error)
-      setIsPlaying(false)
-      setIsLoading(false)
-    }
-  }
-
-  const togglePlayPause = () => {
-    if (!audioRef.current) {return}
-
-    if (isPlaying) {
-      audioRef.current.pause()
-      setIsPlaying(false)
-      // Report progress on pause
-      reportProgress()
-    } else {
-      audioRef.current.play().catch((error) => {
-        logger.error('Failed to play:', error)
-      })
-      setIsPlaying(true)
-    }
-  }
-
-  const playNext = () => {
-    if (queue.length === 0) {return}
-
-    let nextIndex = currentIndex + 1
-    if (nextIndex >= queue.length) {
-      if (repeatMode === 'all') {
-        nextIndex = 0
-      } else {
-        setIsPlaying(false)
-        return
-      }
-    }
-
-    playQueueAtIndex(nextIndex)
-  }
-
-  const playPrevious = () => {
-    if (queue.length === 0) {return}
-
-    // If more than 3 seconds into track, restart it
-    if (audioRef.current && audioRef.current.currentTime > 3) {
-      audioRef.current.currentTime = 0
+  const playPrevious = useCallback(() => {
+    // If more than 3 seconds in, restart current track
+    if (playback.audioRef.current && playback.audioRef.current.currentTime > 3) {
+      playback.seek(0)
       return
     }
-
-    let prevIndex = currentIndex - 1
-    if (prevIndex < 0) {
-      if (repeatMode === 'all') {
-        prevIndex = queue.length - 1
-      } else {
-        return
-      }
+    const prevIdx = queueHook.getPreviousIndex()
+    if (prevIdx !== null) {
+      const track = queueHook.goToIndex(prevIdx)
+      if (track) {playback.loadAndPlay(track)}
     }
+  }, [queueHook, playback])
 
-    playQueueAtIndex(prevIndex)
-  }
+  const clearQueue = useCallback(() => {
+    playback.stop()
+    queueHook.clearQueue()
+  }, [playback, queueHook])
 
-  const seek = (time: number) => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = time
-      setCurrentTime(time)
-    }
-  }
-
-  const setVolume = (newVolume: number) => {
-    const clampedVolume = Math.max(0, Math.min(1, newVolume))
-    setVolumeState(clampedVolume)
-    // Unmute if volume is changed from 0
-    if (isMuted && clampedVolume > 0) {
-      setIsMuted(false)
-    }
-  }
-
-  const toggleMute = () => {
-    if (isMuted) {
-      // Unmute: restore previous volume
-      setIsMuted(false)
-    } else {
-      // Mute: save current volume and mute
-      volumeBeforeMuteRef.current = volume
-      setIsMuted(true)
-    }
-  }
-
-  const toggleShuffle = () => {
-    const newShuffleState = !isShuffle
-    setIsShuffle(newShuffleState)
-
-    if (newShuffleState && queue.length > 1) {
-      // Shuffle the queue while keeping the current track at the front
-      const currentTrackInQueue = queue[currentIndex]
-      const remainingTracks = queue.filter((_, idx) => idx !== currentIndex)
-
-      // Fisher-Yates shuffle algorithm
-      const shuffled = [...remainingTracks]
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1))
-        ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-      }
-
-      // Put current track at the beginning
-      const newQueue = [currentTrackInQueue, ...shuffled]
-      setQueue(newQueue)
-      setCurrentIndex(0)
-    }
-  }
-
-  const toggleRepeat = () => {
-    const modes: Array<'off' | 'one' | 'all'> = ['off', 'all', 'one']
-    const currentModeIndex = modes.indexOf(repeatMode)
-    const nextMode = modes[(currentModeIndex + 1) % modes.length]
-    setRepeatMode(nextMode)
-  }
-
-  const clearQueue = () => {
-    if (audioRef.current) {
-      audioRef.current.pause()
-      // Don't set src to empty string - it causes error events
-      audioRef.current.removeAttribute('src')
-      audioRef.current.load() // Reset the media element
-    }
-    // Revoke blob URL to prevent memory leaks
-    if (currentBlobUrlRef.current) {
-      URL.revokeObjectURL(currentBlobUrlRef.current)
-      currentBlobUrlRef.current = null
-    }
-    setQueue([])
-    setCurrentTrack(null)
-    setCurrentIndex(0)
-    setIsPlaying(false)
-    setCurrentTime(0)
-    setDuration(0)
-  }
-
-  const removeFromQueue = (index: number) => {
-    const newQueue = queue.filter((_, i) => i !== index)
-    setQueue(newQueue)
-
-    if (index === currentIndex) {
-      // Removed currently playing track
-      if (newQueue.length === 0) {
+  const removeFromQueue = useCallback((index: number) => {
+    if (index === queueHook.currentIndex) {
+      if (queueHook.queue.length === 1) {
         clearQueue()
       } else {
-        const newIndex = Math.min(currentIndex, newQueue.length - 1)
-        playQueueAtIndex(newIndex)
+        const nextTrack = queueHook.queue[index + 1] || queueHook.queue[index - 1]
+        queueHook.removeFromQueue(index)
+        if (nextTrack) {playback.loadAndPlay(nextTrack)}
       }
-    } else if (index < currentIndex) {
-      // Adjust current index if track before current was removed
-      setCurrentIndex(currentIndex - 1)
+    } else {
+      queueHook.removeFromQueue(index)
     }
-  }
+  }, [queueHook, playback, clearQueue])
 
-  const toggleMinimized = () => {
+  const togglePlayPause = useCallback(() => {
+    if (playback.isPlaying) {reportProgress()}
+    playback.togglePlayPause()
+  }, [playback, reportProgress])
+
+  // Visibility management
+  const toggleMinimized = useCallback(() => {
     setIsMinimized((prev) => {
-      const newValue = !prev
-      // Track if user manually expanded (was minimized, now expanded)
-      if (prev && !newValue) {
+      if (prev) {
         userExpandedManuallyRef.current = true
-        // Reset consecutive auto-minimizes since user is actively engaging
         consecutiveAutoMinimizesRef.current = 0
       }
-      return newValue
+      return !prev
     })
-    // Reset auto-minimize timer when user interacts
     lastUserInteractionRef.current = Date.now()
-  }
+  }, [])
 
-  // Smart auto-minimize logic
+  const setVisibility = useCallback((newVisibility: PlayerVisibility) => {
+    setVisibilityState(newVisibility)
+    if (newVisibility === 'minimized') {setIsMinimized(true)}
+    else if (newVisibility === 'expanded') {setIsMinimized(false)}
+  }, [])
+
+  // Auto-minimize logic
   useEffect(() => {
-    // Base delay: 2 minutes
-    const BASE_AUTO_MINIMIZE_DELAY = 2 * 60 * 1000
-
-    // If user manually expanded recently, use longer delay (5 minutes)
-    // This respects user intent - they expanded it for a reason
-    const getAutoMinimizeDelay = () => {
-      if (userExpandedManuallyRef.current) {
-        return 5 * 60 * 1000 // 5 minutes if manually expanded
-      }
-      // After 3 consecutive auto-minimizes without user expanding,
-      // the user seems to prefer minimized - use shorter delay (1 minute)
-      if (consecutiveAutoMinimizesRef.current >= 3) {
-        return 1 * 60 * 1000 // 1 minute
-      }
-      return BASE_AUTO_MINIMIZE_DELAY
+    const getDelay = () => {
+      if (userExpandedManuallyRef.current) {return 5 * 60 * 1000}
+      if (consecutiveAutoMinimizesRef.current >= 3) {return 1 * 60 * 1000}
+      return 2 * 60 * 1000
     }
 
-    const checkAndMinimize = () => {
-      const timeSinceInteraction = Date.now() - lastUserInteractionRef.current
-      const delay = getAutoMinimizeDelay()
-
-      if (isPlaying && !isMinimized && timeSinceInteraction >= delay) {
-        setIsMinimized(true)
-        consecutiveAutoMinimizesRef.current += 1
-        // Reset manual expand flag after auto-minimize
-        userExpandedManuallyRef.current = false
-      }
-    }
-
-    // Clear existing timer
     if (autoMinimizeTimerRef.current) {
       clearTimeout(autoMinimizeTimerRef.current)
       autoMinimizeTimerRef.current = null
     }
 
-    // Only set timer if playing and not minimized
-    if (isPlaying && !isMinimized) {
-      const delay = getAutoMinimizeDelay()
-      autoMinimizeTimerRef.current = setTimeout(checkAndMinimize, delay)
+    if (playback.isPlaying && !isMinimized) {
+      const delay = getDelay()
+      autoMinimizeTimerRef.current = setTimeout(() => {
+        const timeSince = Date.now() - lastUserInteractionRef.current
+        if (playback.isPlaying && !isMinimized && timeSince >= delay) {
+          setIsMinimized(true)
+          consecutiveAutoMinimizesRef.current += 1
+          userExpandedManuallyRef.current = false
+        }
+      }, delay)
     }
 
     return () => {
-      if (autoMinimizeTimerRef.current) {
-        clearTimeout(autoMinimizeTimerRef.current)
-      }
+      if (autoMinimizeTimerRef.current) {clearTimeout(autoMinimizeTimerRef.current)}
     }
-  }, [isPlaying, isMinimized])
+  }, [playback.isPlaying, isMinimized])
 
-  // Expand player when a new track starts (but be smart about it)
-  // Intentionally only depend on currentTrack.id to avoid re-running when other track properties change
-  const currentTrackId = currentTrack?.id
+  // Expand on new track
+  const currentTrackId = queueHook.currentTrack?.id
   useEffect(() => {
-    if (currentTrackId) {
-      // Only auto-expand on new track if:
-      // 1. User hasn't established a pattern of preferring minimized (< 3 consecutive auto-minimizes)
-      // 2. OR it's a brand new listening session (queue was empty before)
-      const shouldExpand = consecutiveAutoMinimizesRef.current < 3
-      if (shouldExpand) {
-        setIsMinimized(false)
-        setVisibilityState('expanded')
-      }
+    if (currentTrackId && consecutiveAutoMinimizesRef.current < 3) {
+      setIsMinimized(false)
+      setVisibilityState('expanded')
       lastUserInteractionRef.current = Date.now()
     }
   }, [currentTrackId])
 
-  // Helper to check if a path is a music page
-  const isMusicPath = (pathname: string): boolean => {
-    return pathname.startsWith('/music')
-  }
+  // Route change handling
+  const isMusicPath = (pathname: string) => pathname.startsWith('/music')
 
-  // Handle visibility based on playback state and page location
-  const setVisibility = (newVisibility: PlayerVisibility) => {
-    setVisibilityState(newVisibility)
-    // Sync with isMinimized for backward compatibility
-    if (newVisibility === 'minimized') {
-      setIsMinimized(true)
-    } else if (newVisibility === 'expanded') {
-      setIsMinimized(false)
-    }
-  }
-
-  // Called when route changes - manages player visibility smartly
-  const notifyRouteChange = (pathname: string) => {
+  const notifyRouteChange = useCallback((pathname: string) => {
     const onMusicPage = isMusicPath(pathname)
     const wasOnMusicPage = isOnMusicPage
     setIsOnMusicPage(onMusicPage)
 
-    // No track loaded - nothing to show
-    if (!currentTrack) {
-      return
-    }
+    if (!queueHook.currentTrack) {return}
 
-    // Navigating TO a music page
     if (onMusicPage && !wasOnMusicPage) {
-      // Show the player, restore to expanded if was playing
-      if (isPlaying) {
+      if (playback.isPlaying) {
         setVisibilityState('expanded')
         setIsMinimized(false)
       } else if (visibility === 'hidden') {
-        // Was hidden, show minimized
         setVisibilityState('minimized')
         setIsMinimized(true)
       }
       return
     }
 
-    // Navigating AWAY from a music page
     if (!onMusicPage && wasOnMusicPage) {
-      wasPlayingBeforeNavRef.current = isPlaying
-
-      if (isPlaying) {
-        // Still playing - minimize but keep visible
+      wasPlayingBeforeNavRef.current = playback.isPlaying
+      if (playback.isPlaying) {
         setVisibilityState('minimized')
         setIsMinimized(true)
       } else {
-        // Not playing - hide completely
         setVisibilityState('hidden')
       }
       return
     }
 
-    // Staying on non-music pages
-    if (!onMusicPage) {
-      if (!isPlaying && visibility !== 'hidden') {
-        // Paused while on non-music page - hide after a short delay
-        // This allows the user to quickly resume if they accidentally paused
-        setTimeout(() => {
-          if (!isPlaying && !isMusicPath(pathname)) {
-            setVisibilityState('hidden')
-          }
-        }, 3000) // 3 second grace period
-      }
-    }
-  }
-
-  // When playback stops, consider hiding if not on music page
-  useEffect(() => {
-    if (!isPlaying && !isOnMusicPage && currentTrack && visibility !== 'hidden') {
-      // Give a grace period before hiding
-      const hideTimer = setTimeout(() => {
-        if (!isPlaying && !isOnMusicPage) {
+    if (!onMusicPage && !playback.isPlaying && visibility !== 'hidden') {
+      setTimeout(() => {
+        if (!playback.isPlaying && !isMusicPath(pathname)) {
           setVisibilityState('hidden')
         }
-      }, 5000) // 5 seconds after pause before hiding
-
-      return () => clearTimeout(hideTimer)
+      }, 3000)
     }
-  }, [isPlaying, isOnMusicPage, currentTrack, visibility])
+  }, [isOnMusicPage, queueHook.currentTrack, playback.isPlaying, visibility])
+
+  // Hide when playback stops on non-music page
+  useEffect(() => {
+    if (!playback.isPlaying && !isOnMusicPage && queueHook.currentTrack && visibility !== 'hidden') {
+      const timer = setTimeout(() => {
+        if (!playback.isPlaying && !isOnMusicPage) {
+          setVisibilityState('hidden')
+        }
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [playback.isPlaying, isOnMusicPage, queueHook.currentTrack, visibility])
 
   const value: AudioPlayerContextType = {
-    currentTrack,
-    queue,
-    currentIndex,
-    isPlaying,
-    isLoading,
-    volume,
-    isMuted,
-    currentTime,
-    duration,
-    isShuffle,
-    repeatMode,
+    currentTrack: queueHook.currentTrack,
+    queue: queueHook.queue,
+    currentIndex: queueHook.currentIndex,
+    isPlaying: playback.isPlaying,
+    isLoading: playback.isLoading,
+    volume: playback.volume,
+    isMuted: playback.isMuted,
+    currentTime: playback.currentTime,
+    duration: playback.duration,
+    isShuffle: queueHook.isShuffle,
+    repeatMode: queueHook.repeatMode,
     isMinimized,
     visibility,
     isOnMusicPage,
@@ -617,11 +318,11 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
     togglePlayPause,
     playNext,
     playPrevious,
-    seek,
-    setVolume,
-    toggleMute,
-    toggleShuffle,
-    toggleRepeat,
+    seek: playback.seek,
+    setVolume: playback.setVolume,
+    toggleMute: playback.toggleMute,
+    toggleShuffle: queueHook.toggleShuffle,
+    toggleRepeat: queueHook.toggleRepeat,
     clearQueue,
     removeFromQueue,
     setMinimized: setIsMinimized,

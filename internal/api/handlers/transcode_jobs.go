@@ -15,24 +15,24 @@ import (
 // @Tags transcode
 // @Accept json
 // @Produce json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param request body CreateTranscodeJobRequest true "Transcode request"
 // @Success 201 {object} TranscodeJobResponse
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 409 {object} handlers.ErrorResponse "Job already exists"
-// @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/transcode [post]
+// @Failure 400 {object} handlers.APIError
+// @Failure 409 {object} handlers.APIError "Job already exists"
+// @Failure 500 {object} handlers.APIError
+// @Router /api/media/{id}/transcode [post]
 func (h *TranscodeHandler) CreateTranscodeJob(c *gin.Context) {
 	mediaIDStr := c.Param("id")
 	mediaID, err := parseID(mediaIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media ID")
 		return
 	}
 
 	var req CreateTranscodeJobRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request body"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request body")
 		return
 	}
 
@@ -46,11 +46,11 @@ func (h *TranscodeHandler) CreateTranscodeJob(c *gin.Context) {
 	if err != nil {
 		switch err {
 		case transcodeDomain.ErrInvalidQuality:
-			c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+			respondError(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 		case transcodeDomain.ErrJobAlreadyExists:
-			c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error()})
+			respondError(c, http.StatusConflict, "CONFLICT", err.Error())
 		default:
-			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to create transcode job"})
+			respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create transcode job")
 		}
 		return
 	}
@@ -64,17 +64,17 @@ func (h *TranscodeHandler) CreateTranscodeJob(c *gin.Context) {
 // @Description Gets the status of a transcode job for specific media and quality
 // @Tags transcode
 // @Produce json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param quality path string true "Quality level (360p, 720p, 1080p, 4k)"
 // @Success 200 {object} TranscodeJobResponse
-// @Failure 404 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/transcode/{quality} [get]
+// @Failure 404 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
+// @Router /api/media/{id}/transcode/{quality} [get]
 func (h *TranscodeHandler) GetTranscodeStatus(c *gin.Context) {
 	mediaIDStr := c.Param("id")
 	mediaID, err := parseID(mediaIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media ID")
 		return
 	}
 
@@ -87,9 +87,9 @@ func (h *TranscodeHandler) GetTranscodeStatus(c *gin.Context) {
 	})
 	if err != nil {
 		if err == transcodeDomain.ErrJobNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{Error: "Transcode job not found"})
+			respondError(c, http.StatusNotFound, "NOT_FOUND", "Transcode job not found")
 		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get transcode status"})
+			respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get transcode status")
 		}
 		return
 	}
@@ -104,17 +104,17 @@ func (h *TranscodeHandler) GetTranscodeStatus(c *gin.Context) {
 // @Tags transcode
 // @Produce json
 // @Success 200 {object} transcode.QueueStats
-// @Failure 500 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.APIError
 // @Router /api/transcode/stats [get]
 func (h *TranscodeHandler) GetQueueStats(c *gin.Context) {
 	if h.queue == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: "Transcode queue not available"})
+		respondError(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Transcode queue not available")
 		return
 	}
 
 	stats, err := h.queue.GetStats(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get queue stats"})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get queue stats")
 		return
 	}
 
@@ -126,18 +126,18 @@ func (h *TranscodeHandler) GetQueueStats(c *gin.Context) {
 // @Summary Cancel transcode job
 // @Description Cancels an actively transcoding job (called when user pauses/stops video)
 // @Tags transcode
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param quality path string true "Quality level (360p, 720p, 1080p, 4k)"
 // @Success 200 {object} map[string]string
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 404 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/transcode/{quality}/cancel [post]
+// @Failure 400 {object} handlers.APIError
+// @Failure 404 {object} handlers.APIError
+// @Failure 500 {object} handlers.APIError
+// @Router /api/media/{id}/transcode/{quality}/cancel [post]
 func (h *TranscodeHandler) CancelTranscodeJob(c *gin.Context) {
 	mediaIDStr := c.Param("id")
 	mediaID, err := parseID(mediaIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media ID")
 		return
 	}
 
@@ -145,7 +145,7 @@ func (h *TranscodeHandler) CancelTranscodeJob(c *gin.Context) {
 
 	// Cancel the job via the queue
 	if err := h.queue.CancelJob(c.Request.Context(), mediaID, quality); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 		return
 	}
 

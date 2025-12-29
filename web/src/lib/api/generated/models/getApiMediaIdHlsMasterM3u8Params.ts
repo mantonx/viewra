@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export type GetApiMediaMediaIdHlsMasterM3u8Params = {
+export type GetApiMediaIdHlsMasterM3u8Params = {
   /**
    * Start position in seconds for seeking
    */

@@ -48,8 +48,8 @@ func NewMusicHandler(
 // @Param offset query int false "Number of items to skip (default: 0)"
 // @Param sort query string false "Sort order: title_asc or title_desc (default: title_asc)"
 // @Success 200 {object} music.ListArtistsResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/music/artists [get]
 func (h *MusicHandler) ListArtists(c *gin.Context) {
 	libraryID, ok := getRequiredQueryInt64(c, "library_id")
@@ -108,17 +108,14 @@ func (h *MusicHandler) ListArtists(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Track ID"
 // @Success 200 {object} music.MusicTrackResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/music/tracks/{id} [get]
 func (h *MusicHandler) GetTrack(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid track ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_TRACK_ID", err.Error())
 		return
 	}
 
@@ -139,34 +136,25 @@ func (h *MusicHandler) GetTrack(c *gin.Context) {
 // @Param library_id query int true "Library ID to search in"
 // @Param q query string true "Search query (title, artist, or album)"
 // @Success 200 {object} music.ListTracksResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/music/search [get]
 func (h *MusicHandler) Search(c *gin.Context) {
 	libraryIDStr := c.Query("library_id")
 	if libraryIDStr == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing library_id",
-			Message: "library_id query parameter is required",
-		})
+		respondError(c, http.StatusBadRequest, "MISSING_LIBRARY_ID", "library_id query parameter is required")
 		return
 	}
 
 	libraryID, err := parseID(libraryIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library_id",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_LIBRARY_ID", err.Error())
 		return
 	}
 
 	query := c.Query("q")
 	if query == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing search query",
-			Message: "q query parameter is required",
-		})
+		respondError(c, http.StatusBadRequest, "MISSING_SEARCH_QUERY", "q query parameter is required")
 		return
 	}
 
@@ -189,8 +177,8 @@ func (h *MusicHandler) Search(c *gin.Context) {
 // @Param offset query int false "Number of items to skip (default: 0)"
 // @Param sort query string false "Sort order: title_asc or title_desc (default: title_asc)"
 // @Success 200 {object} music.ListIDsResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/music/ids [get]
 func (h *MusicHandler) ListIDs(c *gin.Context) {
 	libraryID, ok := getRequiredQueryInt64(c, "library_id")
@@ -224,17 +212,14 @@ func (h *MusicHandler) ListIDs(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Artist ID (music_artists.id)"
 // @Success 200 {object} music.ListAlbumsResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/music/artists/{id}/albums [get]
 func (h *MusicHandler) ListAlbumsByArtistID(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid artist ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_ARTIST_ID", err.Error())
 		return
 	}
 
@@ -254,17 +239,14 @@ func (h *MusicHandler) ListAlbumsByArtistID(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Album ID (music_albums.id)"
 // @Success 200 {object} music.ListTracksResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/music/albums/{id}/tracks [get]
 func (h *MusicHandler) ListTracksByAlbumID(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid album ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_ALBUM_ID", err.Error())
 		return
 	}
 

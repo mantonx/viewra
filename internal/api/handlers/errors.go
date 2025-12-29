@@ -28,119 +28,6 @@ type APIError struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
-// ErrorMapper maps domain errors to HTTP responses
-type ErrorMapper struct {
-	logger *slog.Logger
-}
-
-// NewErrorMapper creates a new error mapper
-func NewErrorMapper(logger *slog.Logger) *ErrorMapper {
-	return &ErrorMapper{
-		logger: logger,
-	}
-}
-
-// MapError maps a domain error to HTTP status code and APIError
-func (m *ErrorMapper) MapError(c *gin.Context, err error) (int, APIError) {
-	requestID := getRequestID(c)
-	timestamp := time.Now()
-
-	apiErr := APIError{
-		RequestID: requestID,
-		Timestamp: timestamp,
-	}
-
-	// Map domain errors to API errors
-	switch {
-	// Library errors
-	case errors.Is(err, domainLibrary.ErrLibraryNotFound):
-		apiErr.Code = "LIBRARY_NOT_FOUND"
-		apiErr.Message = "Library not found"
-		return http.StatusNotFound, apiErr
-
-	case errors.Is(err, domainLibrary.ErrDuplicatePath):
-		apiErr.Code = "DUPLICATE_PATH"
-		apiErr.Message = "A library with this path already exists"
-		return http.StatusConflict, apiErr
-
-	case errors.Is(err, domainLibrary.ErrPathNotFound):
-		apiErr.Code = "PATH_NOT_FOUND"
-		apiErr.Message = "The specified path does not exist on the filesystem"
-		return http.StatusBadRequest, apiErr
-
-	case errors.Is(err, domainLibrary.ErrPathNotAbsolute):
-		apiErr.Code = "PATH_NOT_ABSOLUTE"
-		apiErr.Message = "The path must be an absolute path"
-		return http.StatusBadRequest, apiErr
-
-	case errors.Is(err, domainLibrary.ErrInvalidType):
-		apiErr.Code = "INVALID_LIBRARY_TYPE"
-		apiErr.Message = "Invalid library type. Must be 'movies', 'tv', or 'music'"
-		return http.StatusBadRequest, apiErr
-
-	case errors.Is(err, domainLibrary.ErrInvalidName):
-		apiErr.Code = "INVALID_LIBRARY_NAME"
-		apiErr.Message = "Invalid library name"
-		return http.StatusBadRequest, apiErr
-
-	case errors.Is(err, domainLibrary.ErrInvalidPath):
-		apiErr.Code = "INVALID_PATH"
-		apiErr.Message = "Invalid library path"
-		return http.StatusBadRequest, apiErr
-
-	// Media errors
-	case errors.Is(err, domainMedia.ErrMediaNotFound):
-		apiErr.Code = "MEDIA_NOT_FOUND"
-		apiErr.Message = "Media item not found"
-		return http.StatusNotFound, apiErr
-
-	case errors.Is(err, domainMedia.ErrInvalidLibraryID):
-		apiErr.Code = "INVALID_LIBRARY_ID"
-		apiErr.Message = "Invalid library ID"
-		return http.StatusBadRequest, apiErr
-
-	case errors.Is(err, domainMedia.ErrDuplicateFilePath):
-		apiErr.Code = "DUPLICATE_FILE_PATH"
-		apiErr.Message = "Media file already exists in library"
-		return http.StatusConflict, apiErr
-
-	// Scanner errors
-	case errors.Is(err, domainScanner.ErrAlreadyRunning):
-		apiErr.Code = "SCAN_ALREADY_RUNNING"
-		apiErr.Message = "A scan is already running for this library"
-		return http.StatusConflict, apiErr
-
-	case errors.Is(err, domainScanner.ErrNotFound):
-		apiErr.Code = "SCAN_JOB_NOT_FOUND"
-		apiErr.Message = "Scan job not found"
-		return http.StatusNotFound, apiErr
-
-	case errors.Is(err, domainScanner.ErrNotRunning):
-		apiErr.Code = "SCAN_NOT_RUNNING"
-		apiErr.Message = "Scan is not running"
-		return http.StatusBadRequest, apiErr
-
-	// Unknown error - log it and return generic error
-	default:
-		m.logger.Error("unmapped error",
-			"error", err,
-			"request_id", requestID,
-			"path", c.Request.URL.Path,
-			"method", c.Request.Method,
-		)
-
-		apiErr.Code = "INTERNAL_ERROR"
-		apiErr.Message = "An internal error occurred"
-		return http.StatusInternalServerError, apiErr
-	}
-}
-
-// RespondWithError sends a standardized error response
-func (m *ErrorMapper) RespondWithError(c *gin.Context, err error) {
-	status, apiErr := m.MapError(c, err)
-	c.JSON(status, apiErr)
-}
-
 // getRequestID retrieves the request ID from the context
 func getRequestID(c *gin.Context) string {
 	if requestID, exists := c.Get("request_id"); exists {
@@ -149,6 +36,17 @@ func getRequestID(c *gin.Context) string {
 		}
 	}
 	return ""
+}
+
+// respondError sends a standardized error response with the given status code and message.
+// Use this for ad-hoc errors that don't map to domain errors.
+func respondError(c *gin.Context, status int, code, message string) {
+	c.JSON(status, APIError{
+		Code:      code,
+		Message:   message,
+		RequestID: getRequestID(c),
+		Timestamp: time.Now(),
+	})
 }
 
 // handleError converts domain errors to appropriate HTTP responses using the APIError format.

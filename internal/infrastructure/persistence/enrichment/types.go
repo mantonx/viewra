@@ -5,7 +5,6 @@ import (
 
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
-	"github.com/mantonx/viewra/internal/infrastructure/persistence/adapters"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
@@ -16,7 +15,6 @@ type QueueRepository struct {
 	dbType   string
 	sqlite   *sqlc_sqlite.Queries
 	postgres *sqlc_postgres.Queries
-	adapter  *adapters.TypeAdapter
 	router   *common.QueryRouter
 }
 
@@ -27,7 +25,6 @@ type StatusRepository struct {
 	dbType   string
 	sqlite   *sqlc_sqlite.Queries
 	postgres *sqlc_postgres.Queries
-	adapter  *adapters.TypeAdapter
 	router   *common.QueryRouter
 }
 
@@ -38,7 +35,6 @@ type PipelineRepository struct {
 	dbType   string
 	sqlite   *sqlc_sqlite.Queries
 	postgres *sqlc_postgres.Queries
-	adapter  *adapters.TypeAdapter
 	router   *common.QueryRouter
 }
 
@@ -49,6 +45,5 @@ type ExternalIDRepository struct {
 	dbType   string
 	sqlite   *sqlc_sqlite.Queries
 	postgres *sqlc_postgres.Queries
-	adapter  *adapters.TypeAdapter
 	router   *common.QueryRouter
 }
