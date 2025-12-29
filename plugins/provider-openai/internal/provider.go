@@ -52,7 +52,7 @@ func (p *OpenAIProvider) SetModels(embeddingModel, chatModel string) {
 	if chatModel != "" {
 		p.chatModel = chatModel
 	}
-	p.logger.Info("configured models", "embedding", p.embeddingModel, "chat", p.chatModel)
+	p.logger.Debug("configured models", "embedding", p.embeddingModel, "chat", p.chatModel)
 }
 
 // ConfigureClient updates the provider configuration.
@@ -76,7 +76,7 @@ func (p *OpenAIProvider) ConfigureClient(apiKey, baseURL string) error {
 	p.client = &client
 	p.apiKey = apiKey
 	p.baseURL = baseURL
-	p.logger.Info("configured OpenAI provider", "has_custom_url", baseURL != "")
+	p.logger.Debug("configured OpenAI provider", "has_custom_url", baseURL != "")
 	return nil
 }
 
@@ -107,12 +107,12 @@ func (p *OpenAIProvider) GetProviderCapabilities() sdk.ProviderCapabilities {
 }
 
 func (p *OpenAIProvider) Initialize(ctx context.Context, dataDir string, config []byte, systemInfo *sdk.SystemInfo) error {
-	p.logger.Info("initializing OpenAI provider plugin", "data_dir", dataDir)
+	p.logger.Debug("initializing OpenAI provider plugin", "data_dir", dataDir)
 	return nil
 }
 
 func (p *OpenAIProvider) Shutdown(ctx context.Context) error {
-	p.logger.Info("shutting down OpenAI provider plugin")
+	p.logger.Debug("shutting down OpenAI provider plugin")
 	return nil
 }
 

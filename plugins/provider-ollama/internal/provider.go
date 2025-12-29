@@ -58,7 +58,7 @@ func (p *OllamaProvider) SetModels(embeddingModel, chatModel string) {
 	if chatModel != "" {
 		p.chatModel = chatModel
 	}
-	p.logger.Info("configured models", "embedding", p.embeddingModel, "chat", p.chatModel)
+	p.logger.Debug("configured models", "embedding", p.embeddingModel, "chat", p.chatModel)
 }
 
 // ConfigureClient updates the provider configuration.
@@ -74,7 +74,7 @@ func (p *OllamaProvider) ConfigureClient(baseURL string) error {
 
 	p.client = api.NewClient(parsedURL, &http.Client{Timeout: requestTimeout})
 	p.baseURL = baseURL
-	p.logger.Info("configured Ollama provider", "base_url", baseURL)
+	p.logger.Debug("configured Ollama provider", "base_url", baseURL)
 	return nil
 }
 
@@ -105,12 +105,12 @@ func (p *OllamaProvider) GetProviderCapabilities() sdk.ProviderCapabilities {
 }
 
 func (p *OllamaProvider) Initialize(ctx context.Context, dataDir string, config []byte, systemInfo *sdk.SystemInfo) error {
-	p.logger.Info("initializing Ollama provider plugin", "data_dir", dataDir)
+	p.logger.Debug("initializing Ollama provider plugin", "data_dir", dataDir)
 
 	// Store system info for model recommendations
 	p.systemInfo = systemInfo
 	if systemInfo != nil {
-		p.logger.Info("received system info",
+		p.logger.Debug("received system info",
 			"ram_bytes", systemInfo.RAMBytes,
 			"vram_bytes", systemInfo.VRAMBytes,
 			"has_gpu", systemInfo.HasGPU,
@@ -126,7 +126,7 @@ func (p *OllamaProvider) Initialize(ctx context.Context, dataDir string, config 
 }
 
 func (p *OllamaProvider) Shutdown(ctx context.Context) error {
-	p.logger.Info("shutting down Ollama provider plugin")
+	p.logger.Debug("shutting down Ollama provider plugin")
 	return nil
 }
 

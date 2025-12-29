@@ -86,7 +86,7 @@ func (p *AISearchPlugin) Initialize(ctx context.Context, req *pluginv1.InitReque
 	defer p.mu.Unlock()
 
 	p.dataDir = req.DataDir
-	p.logger.Info("initializing AI Search plugin",
+	p.logger.Debug("initializing AI Search plugin",
 		"host_version", req.HostVersion,
 		"data_dir", req.DataDir,
 	)
@@ -121,7 +121,7 @@ func (p *AISearchPlugin) Initialize(ctx context.Context, req *pluginv1.InitReque
 	// Initialize services once we have all the clients
 	p.initializeServices()
 
-	p.logger.Info("AI Search plugin initialized",
+	p.logger.Debug("AI Search plugin initialized",
 		"auto_index", p.config.Indexing.AutoIndex,
 		"mood_tags_enabled", p.config.MoodTags.Enabled,
 	)
@@ -175,7 +175,7 @@ func (p *AISearchPlugin) initializeServices() {
 }
 
 func (p *AISearchPlugin) Shutdown(ctx context.Context, req *pluginv1.Empty) (*pluginv1.Empty, error) {
-	p.logger.Info("shutting down AI Search plugin")
+	p.logger.Debug("shutting down AI Search plugin")
 
 	// Cancel any running operations
 	p.mu.RLock()
@@ -336,7 +336,7 @@ func (p *AISearchPlugin) Configure(ctx context.Context, req *pluginv1.Settings) 
 	// Reinitialize services with new config
 	p.initializeServices()
 
-	p.logger.Info("AI Search plugin reconfigured",
+	p.logger.Debug("AI Search plugin reconfigured",
 		"batch_size", p.config.Indexing.BatchSize,
 		"auto_index", p.config.Indexing.AutoIndex,
 		"mood_tags_enabled", p.config.MoodTags.Enabled,

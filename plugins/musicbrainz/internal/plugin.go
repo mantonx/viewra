@@ -72,12 +72,12 @@ func (p *MusicBrainzPlugin) Initialize(ctx context.Context, dataDir string, conf
 	defer p.mu.Unlock()
 
 	p.dataDir = dataDir
-	p.logger.Info("initializing MusicBrainz plugin", "data_dir", dataDir)
+	p.logger.Debug("initializing MusicBrainz plugin", "data_dir", dataDir)
 
 	// Store host storage client if available
 	if services != nil && services.Storage != nil {
 		p.storage = services.Storage
-		p.logger.Info("host storage service available")
+		p.logger.Debug("host storage service available")
 	}
 
 	// Parse config from YAML
@@ -123,7 +123,7 @@ func (p *MusicBrainzPlugin) Initialize(ctx context.Context, dataDir string, conf
 	if p.storage != nil {
 		cacheStatus = fmt.Sprintf("enabled (TTL: %dh)", p.config.CacheTTLHours)
 	}
-	p.logger.Info("MusicBrainz plugin initialized",
+	p.logger.Debug("MusicBrainz plugin initialized",
 		"cache", cacheStatus,
 		"min_confidence", p.config.MinConfidence,
 		"fetch_cover_art", p.config.FetchCoverArt,
@@ -133,7 +133,7 @@ func (p *MusicBrainzPlugin) Initialize(ctx context.Context, dataDir string, conf
 }
 
 func (p *MusicBrainzPlugin) Shutdown(ctx context.Context) error {
-	p.logger.Info("shutting down MusicBrainz plugin")
+	p.logger.Debug("shutting down MusicBrainz plugin")
 	if p.client != nil {
 		p.client.Close()
 	}

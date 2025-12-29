@@ -47,14 +47,14 @@ func (p *VoyageProvider) SetEmbeddingModel(embeddingModel string) {
 	if embeddingModel != "" {
 		p.embeddingModel = embeddingModel
 	}
-	p.logger.Info("configured embedding model", "model", p.embeddingModel)
+	p.logger.Debug("configured embedding model", "model", p.embeddingModel)
 }
 
 // ConfigureClient updates the provider configuration.
 func (p *VoyageProvider) ConfigureClient(apiKey string) error {
 	p.apiKey = apiKey
 	if apiKey != "" {
-		p.logger.Info("configured Voyage AI provider")
+		p.logger.Debug("configured Voyage AI provider")
 	}
 	return nil
 }
@@ -86,12 +86,12 @@ func (p *VoyageProvider) GetProviderCapabilities() sdk.ProviderCapabilities {
 }
 
 func (p *VoyageProvider) Initialize(ctx context.Context, dataDir string, config []byte, systemInfo *sdk.SystemInfo) error {
-	p.logger.Info("initializing Voyage AI provider plugin", "data_dir", dataDir)
+	p.logger.Debug("initializing Voyage AI provider plugin", "data_dir", dataDir)
 	return nil
 }
 
 func (p *VoyageProvider) Shutdown(ctx context.Context) error {
-	p.logger.Info("shutting down Voyage AI provider plugin")
+	p.logger.Debug("shutting down Voyage AI provider plugin")
 	return nil
 }
 

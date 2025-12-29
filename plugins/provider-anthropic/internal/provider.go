@@ -45,7 +45,7 @@ func (p *AnthropicProvider) SetChatModel(chatModel string) {
 	if chatModel != "" {
 		p.chatModel = chatModel
 	}
-	p.logger.Info("configured chat model", "model", p.chatModel)
+	p.logger.Debug("configured chat model", "model", p.chatModel)
 }
 
 // ConfigureClient updates the provider configuration.
@@ -59,7 +59,7 @@ func (p *AnthropicProvider) ConfigureClient(apiKey string) error {
 	client := anthropic.NewClient(option.WithAPIKey(apiKey))
 	p.client = &client
 	p.apiKey = apiKey
-	p.logger.Info("configured Anthropic provider")
+	p.logger.Debug("configured Anthropic provider")
 	return nil
 }
 
@@ -90,12 +90,12 @@ func (p *AnthropicProvider) GetProviderCapabilities() sdk.ProviderCapabilities {
 }
 
 func (p *AnthropicProvider) Initialize(ctx context.Context, dataDir string, config []byte, systemInfo *sdk.SystemInfo) error {
-	p.logger.Info("initializing Anthropic provider plugin", "data_dir", dataDir)
+	p.logger.Debug("initializing Anthropic provider plugin", "data_dir", dataDir)
 	return nil
 }
 
 func (p *AnthropicProvider) Shutdown(ctx context.Context) error {
-	p.logger.Info("shutting down Anthropic provider plugin")
+	p.logger.Debug("shutting down Anthropic provider plugin")
 	return nil
 }
 

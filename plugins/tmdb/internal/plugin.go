@@ -72,12 +72,12 @@ func (p *TMDbPlugin) Initialize(ctx context.Context, dataDir string, config []by
 	defer p.mu.Unlock()
 
 	p.dataDir = dataDir
-	p.logger.Info("initializing TMDb plugin", "data_dir", dataDir)
+	p.logger.Debug("initializing TMDb plugin", "data_dir", dataDir)
 
 	// Store host storage client if available
 	if services != nil && services.Storage != nil {
 		p.storage = services.Storage
-		p.logger.Info("host storage service available")
+		p.logger.Debug("host storage service available")
 	}
 
 	// Parse config from YAML
@@ -121,7 +121,7 @@ func (p *TMDbPlugin) Initialize(ctx context.Context, dataDir string, config []by
 	if p.storage != nil {
 		cacheStatus = fmt.Sprintf("enabled (TTL: %dh)", p.config.CacheTTLHours)
 	}
-	p.logger.Info("TMDb plugin initialized",
+	p.logger.Debug("TMDb plugin initialized",
 		"rate_limit", p.config.RateLimit,
 		"cache", cacheStatus,
 		"language", p.config.Language)
@@ -130,7 +130,7 @@ func (p *TMDbPlugin) Initialize(ctx context.Context, dataDir string, config []by
 }
 
 func (p *TMDbPlugin) Shutdown(ctx context.Context) error {
-	p.logger.Info("shutting down TMDb plugin")
+	p.logger.Debug("shutting down TMDb plugin")
 	if p.client != nil {
 		p.client.Close()
 	}
