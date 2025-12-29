@@ -17,14 +17,14 @@ type ProgressRepository struct {
 	nextID    int64
 
 	// Error injection
-	CreateErr            error
-	UpdateErr            error
-	GetErr               error
-	GetBatchErr          error
-	ListErr              error
-	DeleteErr            error
-	DeleteByMediaIDErr   error
-	UpsertErr            error
+	CreateErr          error
+	UpdateErr          error
+	GetErr             error
+	GetBatchErr        error
+	ListErr            error
+	DeleteErr          error
+	DeleteByMediaIDErr error
+	UpsertErr          error
 }
 
 // NewProgressRepository creates a new mock progress repository.
@@ -55,6 +55,12 @@ func (r *ProgressRepository) WithProgress(items ...*progress.WatchProgress) *Pro
 // WithCreateError injects an error for Create operations.
 func (r *ProgressRepository) WithCreateError(err error) *ProgressRepository {
 	r.CreateErr = err
+	return r
+}
+
+// WithUpsertError injects an error for Upsert operations.
+func (r *ProgressRepository) WithUpsertError(err error) *ProgressRepository {
+	r.UpsertErr = err
 	return r
 }
 

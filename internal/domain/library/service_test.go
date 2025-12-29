@@ -139,6 +139,27 @@ func (m *MockRepository) ExistsWithTx(ctx context.Context, tx *sql.Tx, path stri
 	return m.Exists(ctx, path)
 }
 
+// Monitoring methods
+func (m *MockRepository) UpdateMonitoring(ctx context.Context, id int64, enabled bool, config *MonitoringConfig) error {
+	lib, exists := m.libraries[id]
+	if !exists {
+		return ErrLibraryNotFound
+	}
+	lib.MonitoringEnabled = enabled
+	lib.MonitoringConfig = config
+	return nil
+}
+
+func (m *MockRepository) ListMonitored(ctx context.Context) ([]*Library, error) {
+	result := make([]*Library, 0)
+	for _, lib := range m.libraries {
+		if lib.MonitoringEnabled {
+			result = append(result, lib)
+		}
+	}
+	return result, nil
+}
+
 func TestNewService(t *testing.T) {
 	repo := NewMockRepository()
 	service := NewService(repo)

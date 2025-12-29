@@ -102,6 +102,8 @@ func (qr *QualityRecommender) RecommendQuality(caps ClientCapabilities) *Quality
 		reason += " (reduced for metered connection)"
 		// Simple downgrade logic
 		switch profileID {
+		case Quality4k200m, Quality4k100m:
+			profileID = Quality4k40m
 		case Quality4k60m, Quality4k40m:
 			profileID = Quality4k25m
 		case Quality4k25m:

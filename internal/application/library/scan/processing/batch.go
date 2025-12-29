@@ -130,12 +130,17 @@ func RunCheckpointProcessingLoop(ctx context.Context, deps *Deps, pctx *Checkpoi
 				// Hashing is done, but we need to verify all checkpoints are actually processed.
 				// Workers may still be processing claimed checkpoints that aren't "pending" anymore.
 				// A scan is complete when: total == processed (completed + failed + warning)
+				// OR when there were no files to process at all (TotalFiles == 0 or stats nil)
 				stats, _ := deps.ScanRepos.Checkpoint.GetStats(ctx, pctx.JobID)
-				if stats != nil && stats.TotalFiles > 0 && stats.ProcessedFiles >= stats.TotalFiles {
+				if stats == nil || stats.TotalFiles == 0 || stats.ProcessedFiles >= stats.TotalFiles {
+					var total, processed int64
+					if stats != nil {
+						total, processed = stats.TotalFiles, stats.ProcessedFiles
+					}
 					deps.Logger.Debug("All checkpoints processed, scan complete",
 						"job_id", pctx.JobID,
-						"total", stats.TotalFiles,
-						"processed", stats.ProcessedFiles)
+						"total", total,
+						"processed", processed)
 					return
 				}
 				// Still have checkpoints being processed, wait for workers to finish

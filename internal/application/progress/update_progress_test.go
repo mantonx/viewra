@@ -197,7 +197,7 @@ func TestUpdateProgress_ZeroDuration(t *testing.T) {
 
 func TestUpdateProgress_RepositoryError(t *testing.T) {
 	testErr := errors.New("database error")
-	repo := mocks.NewProgressRepository(t).WithCreateError(testErr)
+	repo := mocks.NewProgressRepository(t).WithUpsertError(testErr)
 
 	req := &UpdateProgressRequest{
 		MediaID:         1,

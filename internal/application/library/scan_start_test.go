@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mantonx/viewra/internal/domain/library"
 	"github.com/mantonx/viewra/internal/application/library/scan"
+	"github.com/mantonx/viewra/internal/domain/library"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/testutil/mocks"
 )
@@ -64,6 +64,15 @@ func (m *mockLibraryRepoForScan) DeleteWithTx(ctx context.Context, tx *sql.Tx, i
 
 func (m *mockLibraryRepoForScan) ExistsWithTx(ctx context.Context, tx *sql.Tx, path string) (bool, error) {
 	return m.Exists(ctx, path)
+}
+
+// Monitoring methods
+func (m *mockLibraryRepoForScan) UpdateMonitoring(ctx context.Context, id int64, enabled bool, config *library.MonitoringConfig) error {
+	return nil
+}
+
+func (m *mockLibraryRepoForScan) ListMonitored(ctx context.Context) ([]*library.Library, error) {
+	return nil, nil
 }
 
 func TestScanLibraryUseCase_StartScan(t *testing.T) {

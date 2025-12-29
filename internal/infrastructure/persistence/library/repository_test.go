@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"testing"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/mantonx/viewra/internal/domain/library"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // setupTestDB creates an in-memory SQLite database with schema
@@ -18,15 +18,21 @@ func setupTestDB(t *testing.T) *sql.DB {
 		t.Fatalf("Failed to open database: %v", err)
 	}
 
-	// Create schema (simplified version of migration)
+	// Create schema matching production migrations
 	schema := `
 	CREATE TABLE IF NOT EXISTS libraries (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL,
 		path TEXT NOT NULL UNIQUE,
 		type TEXT NOT NULL CHECK(type IN ('movies', 'tv', 'music')),
-		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		monitoring_enabled INTEGER NOT NULL DEFAULT 1,
+		monitoring_config TEXT,
+		preferred_audio_lang TEXT DEFAULT 'eng',
+		preferred_subtitle_lang TEXT DEFAULT 'eng',
+		auto_enable_subtitles TEXT DEFAULT 'foreign_only'
+			CHECK(auto_enable_subtitles IN ('always', 'foreign_only', 'never'))
 	);
 	`
 

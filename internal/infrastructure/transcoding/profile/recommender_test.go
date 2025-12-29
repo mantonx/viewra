@@ -40,7 +40,7 @@ func TestRecommendQuality(t *testing.T) {
 				ScreenWidth:      3840,
 				DeviceType:       "tv",
 			},
-			wantQuality: Quality4k60m,
+			wantQuality: Quality4k100m, // 100 Mbps network gets 4k-100m
 		},
 		{
 			name: "4K screen with good network",
@@ -208,7 +208,7 @@ func TestRecommendQuality_MeteredConnection(t *testing.T) {
 		wantContains string
 	}{
 		{
-			name: "Metered connection downgrade from 4k-60m",
+			name: "Metered connection downgrade from 4k-100m",
 			caps: ClientCapabilities{
 				NetworkSpeedMbps: 100.0,
 				ScreenHeight:     2160,
@@ -216,7 +216,7 @@ func TestRecommendQuality_MeteredConnection(t *testing.T) {
 				DeviceType:       "mobile",
 				IsMetered:        true,
 			},
-			wantQuality:  Quality4k25m,
+			wantQuality:  Quality4k40m, // 4k-100m downgraded to 4k-40m on metered
 			wantContains: "metered",
 		},
 		{

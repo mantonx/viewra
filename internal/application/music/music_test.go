@@ -95,11 +95,11 @@ func TestGetTrackUseCase_Execute(t *testing.T) {
 
 func TestListArtistsUseCase_Execute(t *testing.T) {
 	tests := []struct {
-		name       string
-		libraryID  int64
-		setupRepo  func(*mocks.MusicRepository)
-		wantCount  int
-		wantErr    bool
+		name      string
+		libraryID int64
+		setupRepo func(*mocks.MusicRepository)
+		wantCount int
+		wantErr   bool
 	}{
 		{
 			name:      "successful list artists",
@@ -297,12 +297,12 @@ func TestListArtistsUseCase_ExecuteWithPagination(t *testing.T) {
 
 func TestSearchTracksUseCase_Execute(t *testing.T) {
 	tests := []struct {
-		name       string
-		libraryID  int64
-		query      string
-		setupRepo  func(*mocks.MusicRepository)
-		wantCount  int
-		wantErr    bool
+		name      string
+		libraryID int64
+		query     string
+		setupRepo func(*mocks.MusicRepository)
+		wantCount int
+		wantErr   bool
 	}{
 		{
 			name:      "successful search by title",
@@ -340,12 +340,12 @@ func TestSearchTracksUseCase_Execute(t *testing.T) {
 			wantErr:   false,
 		},
 		{
-			name:       "empty query",
-			libraryID:  100,
-			query:      "",
-			setupRepo:  func(repo *mocks.MusicRepository) {},
-			wantCount:  0,
-			wantErr:    true,
+			name:      "empty query",
+			libraryID: 100,
+			query:     "",
+			setupRepo: func(repo *mocks.MusicRepository) {},
+			wantCount: 0,
+			wantErr:   true,
 		},
 		{
 			name:      "no results",
@@ -415,45 +415,41 @@ func TestSearchTracksUseCase_Execute(t *testing.T) {
 
 func TestListAlbumsByArtistIDUseCase_Execute(t *testing.T) {
 	tests := []struct {
-		name          string
-		artistTrackID int64
-		setupRepo     func(*mocks.MusicRepository)
-		wantCount     int
-		wantErr       bool
+		name      string
+		artistID  int64
+		setupRepo func(*mocks.MusicRepository)
+		wantCount int
+		wantErr   bool
 	}{
 		{
-			name:          "successful list albums for artist",
-			artistTrackID: 1,
+			name:     "successful list albums for artist",
+			artistID: 1,
 			setupRepo: func(repo *mocks.MusicRepository) {
-				// Add tracks from same artist across multiple albums
-				repo.WithTracks(
-					&media.MusicTrack{
-						Media: media.Media{
-							ID:        1,
-							LibraryID: 100,
-							Title:     "Song 1",
-							FilePath:  "music/artist/album1/song1.mp3",
-							CreatedAt: time.Now(),
-							UpdatedAt: time.Now(),
-						},
-						Artist:      "Queen",
+				// Add artist entity
+				repo.WithArtists(&media.Artist{
+					ID:        1,
+					LibraryID: 100,
+					Name:      "Queen",
+				})
+				// Add album entities for this artist
+				repo.WithAlbums(
+					&media.Album{
+						ID:          1,
+						LibraryID:   100,
+						ArtistID:    1,
+						Title:       "Album 1",
 						AlbumArtist: "Queen",
-						Album:       "Album 1",
 						Year:        1975,
+						TotalTracks: 10,
 					},
-					&media.MusicTrack{
-						Media: media.Media{
-							ID:        2,
-							LibraryID: 100,
-							Title:     "Song 2",
-							FilePath:  "music/artist/album2/song2.mp3",
-							CreatedAt: time.Now(),
-							UpdatedAt: time.Now(),
-						},
-						Artist:      "Queen",
+					&media.Album{
+						ID:          2,
+						LibraryID:   100,
+						ArtistID:    1,
+						Title:       "Album 2",
 						AlbumArtist: "Queen",
-						Album:       "Album 2",
 						Year:        1976,
+						TotalTracks: 12,
 					},
 				)
 			},
@@ -461,8 +457,8 @@ func TestListAlbumsByArtistIDUseCase_Execute(t *testing.T) {
 			wantErr:   false,
 		},
 		{
-			name:          "track not found",
-			artistTrackID: 999,
+			name:     "artist not found",
+			artistID: 999,
 			setupRepo: func(repo *mocks.MusicRepository) {
 				// Empty repository
 			},
@@ -470,29 +466,22 @@ func TestListAlbumsByArtistIDUseCase_Execute(t *testing.T) {
 			wantErr:   true,
 		},
 		{
-			name:          "track has no artist information",
-			artistTrackID: 1,
+			name:     "artist has no albums",
+			artistID: 1,
 			setupRepo: func(repo *mocks.MusicRepository) {
-				repo.WithTracks(&media.MusicTrack{
-					Media: media.Media{
-						ID:        1,
-						LibraryID: 100,
-						Title:     "Song",
-						FilePath:  "music/song.mp3",
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
-					},
-					Artist:      "", // No artist
-					AlbumArtist: "", // No album artist
-					Album:       "Album",
+				repo.WithArtists(&media.Artist{
+					ID:        1,
+					LibraryID: 100,
+					Name:      "New Artist",
 				})
+				// No albums added
 			},
 			wantCount: 0,
-			wantErr:   true,
+			wantErr:   false,
 		},
 		{
-			name:          "repository error on get track",
-			artistTrackID: 1,
+			name:     "repository error on get artist",
+			artistID: 1,
 			setupRepo: func(repo *mocks.MusicRepository) {
 				repo.GetErr = errors.New("database error")
 			},
@@ -509,7 +498,7 @@ func TestListAlbumsByArtistIDUseCase_Execute(t *testing.T) {
 			}
 
 			uc := NewListAlbumsByArtistIDUseCase(repo)
-			resp, err := uc.Execute(context.Background(), tt.artistTrackID)
+			resp, err := uc.Execute(context.Background(), tt.artistID)
 
 			if tt.wantErr {
 				if err == nil {
@@ -536,17 +525,17 @@ func TestListAlbumsByArtistIDUseCase_Execute(t *testing.T) {
 
 func TestListTracksByAlbumIDUseCase_Execute(t *testing.T) {
 	tests := []struct {
-		name         string
-		albumTrackID int64
-		setupRepo    func(*mocks.MusicRepository)
-		wantCount    int
-		wantErr      bool
+		name      string
+		albumID   int64
+		setupRepo func(*mocks.MusicRepository)
+		wantCount int
+		wantErr   bool
 	}{
 		{
-			name:         "successful list tracks for album",
-			albumTrackID: 1,
+			name:    "successful list tracks for album",
+			albumID: 1,
 			setupRepo: func(repo *mocks.MusicRepository) {
-				// Add multiple tracks from same album
+				// Add multiple tracks with AlbumID set
 				repo.WithTracks(
 					&media.MusicTrack{
 						Media: media.Media{
@@ -557,6 +546,7 @@ func TestListTracksByAlbumIDUseCase_Execute(t *testing.T) {
 							CreatedAt: time.Now(),
 							UpdatedAt: time.Now(),
 						},
+						AlbumID:     1,
 						Artist:      "Queen",
 						AlbumArtist: "Queen",
 						Album:       "A Night at the Opera",
@@ -571,6 +561,7 @@ func TestListTracksByAlbumIDUseCase_Execute(t *testing.T) {
 							CreatedAt: time.Now(),
 							UpdatedAt: time.Now(),
 						},
+						AlbumID:     1,
 						Artist:      "Queen",
 						AlbumArtist: "Queen",
 						Album:       "A Night at the Opera",
@@ -582,39 +573,19 @@ func TestListTracksByAlbumIDUseCase_Execute(t *testing.T) {
 			wantErr:   false,
 		},
 		{
-			name:         "track not found",
-			albumTrackID: 999,
+			name:    "album with no tracks",
+			albumID: 999,
 			setupRepo: func(repo *mocks.MusicRepository) {
-				// Empty repository
+				// Empty repository - no tracks for this album ID
 			},
 			wantCount: 0,
-			wantErr:   true,
+			wantErr:   false, // ListMusicTracksByAlbumID returns empty slice, not error
 		},
 		{
-			name:         "track has no album information",
-			albumTrackID: 1,
+			name:    "repository error on list tracks",
+			albumID: 1,
 			setupRepo: func(repo *mocks.MusicRepository) {
-				repo.WithTracks(&media.MusicTrack{
-					Media: media.Media{
-						ID:        1,
-						LibraryID: 100,
-						Title:     "Song",
-						FilePath:  "music/song.mp3",
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
-					},
-					Artist: "Artist",
-					Album:  "", // No album
-				})
-			},
-			wantCount: 0,
-			wantErr:   true,
-		},
-		{
-			name:         "repository error on get track",
-			albumTrackID: 1,
-			setupRepo: func(repo *mocks.MusicRepository) {
-				repo.GetErr = errors.New("database error")
+				repo.ListErr = errors.New("database error")
 			},
 			wantCount: 0,
 			wantErr:   true,
@@ -629,7 +600,7 @@ func TestListTracksByAlbumIDUseCase_Execute(t *testing.T) {
 			}
 
 			uc := NewListTracksByAlbumIDUseCase(repo)
-			resp, err := uc.Execute(context.Background(), tt.albumTrackID)
+			resp, err := uc.Execute(context.Background(), tt.albumID)
 
 			if tt.wantErr {
 				if err == nil {

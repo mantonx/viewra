@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/mantonx/viewra/internal/domain/scanner"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // setupTestDB creates an in-memory SQLite database with schema
@@ -32,7 +32,12 @@ func setupTestDB(t *testing.T) *sql.DB {
 		path TEXT NOT NULL UNIQUE,
 		type TEXT NOT NULL,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		monitoring_enabled INTEGER NOT NULL DEFAULT 1,
+		monitoring_config TEXT,
+		preferred_audio_lang TEXT DEFAULT 'eng',
+		preferred_subtitle_lang TEXT DEFAULT 'eng',
+		auto_enable_subtitles TEXT DEFAULT 'foreign_only'
 	);
 	`
 
@@ -40,7 +45,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 		t.Fatalf("Failed to create libraries schema: %v", err)
 	}
 
-	// Create scan_jobs table
+	// Create scan_jobs table matching production migrations
 	scanJobsSchema := `
 	CREATE TABLE scan_jobs (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,11 +56,22 @@ func setupTestDB(t *testing.T) *sql.DB {
 		files_processed INTEGER DEFAULT 0,
 		bytes_processed INTEGER DEFAULT 0,
 		error_count INTEGER DEFAULT 0,
+		warning_count INTEGER DEFAULT 0,
 		started_at DATETIME,
 		completed_at DATETIME,
 		error_message TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		phase TEXT DEFAULT 'processing' CHECK(phase IN ('discovering', 'processing', 'completed')),
+		estimated_total INTEGER DEFAULT 0,
+		discovery_done BOOLEAN DEFAULT 1,
+		last_checkpoint_at DATETIME,
+		resume_count INTEGER DEFAULT 0,
+		dirs_scanned INTEGER DEFAULT 0,
+		dirs_skipped INTEGER DEFAULT 0,
+		files_skipped INTEGER DEFAULT 0,
+		discovery_errors INTEGER DEFAULT 0,
+		discovery_warnings INTEGER DEFAULT 0,
 		FOREIGN KEY (library_id) REFERENCES libraries(id) ON DELETE CASCADE
 	);
 

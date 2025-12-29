@@ -76,6 +76,7 @@ type Config struct {
 	CheckpointBatchSize int           // Files per batch fetch from DB (default: 50)
 	MaxRetries          int           // Failed file retry attempts (default: 3)
 	WorkerTimeout       time.Duration // Absolute max time per file (default: 5m)
+	RetryBackoffBase    time.Duration // Base duration for retry backoff (default: 1s, actual = base * 2^retryCount)
 
 	// Timeouts
 	BaseFileTimeout      time.Duration // Per-file processing timeout for local storage (default: 30s)
@@ -85,10 +86,10 @@ type Config struct {
 	BatchWriteTimeout    time.Duration // Timeout for DB batch inserts (default: 500ms)
 
 	// Buffer sizes
-	DiscoveryBufferSize   int // Buffer size for file discovery channel (default: 100000)
-	CheckpointBufferSize  int // Buffer size for checkpoint channels (default: 100)
-	HashProgressLogEvery  int // Log hashing progress every N files (default: 5000)
-	DiscoveryLogEvery     int // Log discovery progress every N files (default: 1000)
+	DiscoveryBufferSize  int // Buffer size for file discovery channel (default: 100000)
+	CheckpointBufferSize int // Buffer size for checkpoint channels (default: 100)
+	HashProgressLogEvery int // Log hashing progress every N files (default: 5000)
+	DiscoveryLogEvery    int // Log discovery progress every N files (default: 1000)
 }
 
 // DefaultConfig returns a Config with sensible defaults.
@@ -101,6 +102,7 @@ func DefaultConfig() Config {
 		CheckpointBatchSize: 50,
 		MaxRetries:          3,
 		WorkerTimeout:       5 * time.Minute,
+		RetryBackoffBase:    time.Second,
 
 		BaseFileTimeout:      30 * time.Second,
 		RemoteStorageTimeout: 60 * time.Second,
@@ -130,6 +132,9 @@ func (c Config) WithDefaults() Config {
 	}
 	if c.WorkerTimeout == 0 {
 		c.WorkerTimeout = defaults.WorkerTimeout
+	}
+	if c.RetryBackoffBase == 0 {
+		c.RetryBackoffBase = defaults.RetryBackoffBase
 	}
 	if c.BaseFileTimeout == 0 {
 		c.BaseFileTimeout = defaults.BaseFileTimeout

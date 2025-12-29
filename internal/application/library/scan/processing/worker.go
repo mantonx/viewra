@@ -139,8 +139,12 @@ func RetryCheckpoint(
 			"error", retryErr)
 	}
 
-	// Calculate exponential backoff: 2^retryCount seconds (1s, 2s, 4s)
-	backoffDuration := time.Duration(1<<checkpoint.RetryCount) * time.Second
+	// Calculate exponential backoff: base * 2^retryCount (default: 1s, 2s, 4s)
+	backoffBase := deps.Config.RetryBackoffBase
+	if backoffBase == 0 {
+		backoffBase = time.Second
+	}
+	backoffDuration := time.Duration(1<<checkpoint.RetryCount) * backoffBase
 	deps.Logger.Info("retrying file after transient error",
 		"file_path", checkpoint.FilePath,
 		"retry_count", checkpoint.RetryCount,

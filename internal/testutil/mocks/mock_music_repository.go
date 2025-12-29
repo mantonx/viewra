@@ -14,12 +14,12 @@ import (
 
 // MusicRepository is a mock implementation of media.MusicRepository for testing.
 type MusicRepository struct {
-	t         testing.TB
-	mu        sync.RWMutex
-	tracks    map[int64]*media.MusicTrack
-	albums    map[int64]*media.Album
-	artists   map[int64]*media.Artist
-	nextID    int64
+	t            testing.TB
+	mu           sync.RWMutex
+	tracks       map[int64]*media.MusicTrack
+	albums       map[int64]*media.Album
+	artists      map[int64]*media.Artist
+	nextID       int64
 	nextAlbumID  int64
 	nextArtistID int64
 
@@ -54,6 +54,34 @@ func (r *MusicRepository) WithTracks(items ...*media.MusicTrack) *MusicRepositor
 		r.tracks[item.ID] = item
 		if item.ID >= r.nextID {
 			r.nextID = item.ID + 1
+		}
+	}
+	return r
+}
+
+// WithArtists pre-populates the mock with artist entities.
+func (r *MusicRepository) WithArtists(items ...*media.Artist) *MusicRepository {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, item := range items {
+		r.artists[item.ID] = item
+		if item.ID >= r.nextArtistID {
+			r.nextArtistID = item.ID + 1
+		}
+	}
+	return r
+}
+
+// WithAlbums pre-populates the mock with album entities.
+func (r *MusicRepository) WithAlbums(items ...*media.Album) *MusicRepository {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, item := range items {
+		r.albums[item.ID] = item
+		if item.ID >= r.nextAlbumID {
+			r.nextAlbumID = item.ID + 1
 		}
 	}
 	return r

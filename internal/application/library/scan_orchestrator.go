@@ -256,7 +256,7 @@ func (uc *ScanLibraryUseCase) GetScanStatus(ctx context.Context, libraryID int64
 // =============================================================================
 
 func (uc *ScanLibraryUseCase) mediaDeps() *scanmedia.Deps {
-	return &scanmedia.Deps{
+	deps := &scanmedia.Deps{
 		MediaRepos:         uc.mediaRepos,
 		ScanRepos:          uc.scanRepos,
 		EnrichmentEnqueuer: uc.enrichmentEnqueuer,
@@ -264,8 +264,13 @@ func (uc *ScanLibraryUseCase) mediaDeps() *scanmedia.Deps {
 		ProcessedShows:     &uc.processedShows,
 		Coordinator:        uc.coordinator,
 		Logger:             uc.logger,
-		Publisher:          uc.eventBus, // For media lifecycle events
 	}
+	// Only set Publisher if eventBus is non-nil to avoid interface nil pitfall
+	// (a nil *Bus assigned to Publisher interface is not == nil)
+	if uc.eventBus != nil {
+		deps.Publisher = uc.eventBus
+	}
+	return deps
 }
 
 func (uc *ScanLibraryUseCase) processingDeps() *processing.Deps {
@@ -313,20 +318,20 @@ func (uc *ScanLibraryUseCase) cleanupDeps() *cleanup.Deps {
 
 func (uc *ScanLibraryUseCase) executionDeps() *execution.Deps {
 	return &execution.Deps{
-		ScanRepos:              uc.scanRepos,
-		MediaRepos:             uc.mediaRepos,
-		Config:                 &uc.config,
-		SystemProfile:          uc.systemProfile,
-		Logger:                 uc.logger,
-		DiscoveryDeps:          uc.discoveryDeps,
-		ProcessingDeps:         uc.processingDeps,
-		StatusDeps:             uc.statusDeps,
-		CleanupDeps:            uc.cleanupDeps,
-		ProgressUpdater:        uc,
-		SessionInitializer:     uc,
-		RecoverFromPanic:       uc.recoverFromPanic,
+		ScanRepos:                 uc.scanRepos,
+		MediaRepos:                uc.mediaRepos,
+		Config:                    &uc.config,
+		SystemProfile:             uc.systemProfile,
+		Logger:                    uc.logger,
+		DiscoveryDeps:             uc.discoveryDeps,
+		ProcessingDeps:            uc.processingDeps,
+		StatusDeps:                uc.statusDeps,
+		CleanupDeps:               uc.cleanupDeps,
+		ProgressUpdater:           uc,
+		SessionInitializer:        uc,
+		RecoverFromPanic:          uc.recoverFromPanic,
 		RecoverFromPanicWithError: uc.recoverFromPanicWithError,
-		HasImageCleanup:        func() bool { return uc.imageRepo != nil && uc.imageCleanup != nil },
+		HasImageCleanup:           func() bool { return uc.imageRepo != nil && uc.imageCleanup != nil },
 	}
 }
 
@@ -420,4 +425,3 @@ func (uc *ScanLibraryUseCase) recoverFromPanic(jobID, libraryID int64, descripti
 func (uc *ScanLibraryUseCase) recoverFromPanicWithError(jobID, libraryID int64, description string, errChan chan<- error) {
 	recovery.RecoverFromPanicWithError(uc.logger, jobID, libraryID, description, errChan)
 }
-

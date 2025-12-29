@@ -26,7 +26,8 @@ func testWorkerDeps(checkpointRepo *mocks.CheckpointRepository, scanStateRepo *m
 			ScanState:  scanStateRepo,
 		},
 		Config: &scan.Config{
-			WorkerTimeout: 5 * time.Minute,
+			WorkerTimeout:    5 * time.Minute,
+			RetryBackoffBase: time.Millisecond, // Fast backoff for tests
 		},
 		Logger: testWorkerLogger(),
 	}
