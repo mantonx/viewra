@@ -64,12 +64,12 @@ type WeatherContextResponse struct {
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} LocationPreferencesResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 401 {object} APIError
 // @Router /api/settings/location [get]
 func (h *LocationSettingsHandler) GetLocationPreferences(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "unauthorized")
 		return
 	}
 
@@ -107,13 +107,13 @@ func (h *LocationSettingsHandler) GetLocationPreferences(c *gin.Context) {
 // @Produce json
 // @Param request body UpdateLocationPreferencesRequest true "Location preferences"
 // @Success 200 {object} LocationPreferencesResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 401 {object} APIError
 // @Router /api/settings/location [put]
 func (h *LocationSettingsHandler) UpdateLocationPreferences(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "unauthorized")
 		return
 	}
 
@@ -187,12 +187,12 @@ func (h *LocationSettingsHandler) UpdateLocationPreferences(c *gin.Context) {
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} WeatherContextResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 401 {object} APIError
 // @Router /api/context/weather [get]
 func (h *LocationSettingsHandler) GetWeatherContext(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "unauthorized")
 		return
 	}
 

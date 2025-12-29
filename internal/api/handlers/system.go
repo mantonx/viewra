@@ -44,8 +44,8 @@ type RestartResponse struct {
 // @Produce json
 // @Param request body RestartRequest true "Restart reason"
 // @Success 200 {object} RestartResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
 // @Router /api/admin/system/restart [post]
 func (h *SystemHandler) RequestRestart(c *gin.Context) {
 	var req RestartRequest
@@ -76,9 +76,9 @@ func (h *SystemHandler) RequestRestart(c *gin.Context) {
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} RestartResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse "No pending restart"
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
+// @Failure 404 {object} APIError "No pending restart"
 // @Router /api/admin/system/restart [delete]
 func (h *SystemHandler) CancelRestart(c *gin.Context) {
 	if !h.lifecycleMgr.CancelRestart() {
@@ -102,7 +102,7 @@ func (h *SystemHandler) CancelRestart(c *gin.Context) {
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} RestartResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 401 {object} APIError
 // @Router /api/admin/system/restart [get]
 func (h *SystemHandler) GetRestartStatus(c *gin.Context) {
 	status := h.lifecycleMgr.GetRestartStatus()
@@ -121,8 +121,8 @@ func (h *SystemHandler) GetRestartStatus(c *gin.Context) {
 // @Security BearerAuth
 // @Produce json
 // @Success 202 {object} RestartResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
 // @Router /api/admin/system/restart/now [post]
 func (h *SystemHandler) ExecuteRestart(c *gin.Context) {
 	// First ensure a restart is requested
@@ -158,8 +158,8 @@ type AdminStatusEvent struct {
 // @Security BearerAuth
 // @Produce text/event-stream
 // @Success 200 {object} AdminStatusEvent
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
 // @Router /api/admin/status/stream [get]
 func (h *SystemHandler) StreamAdminStatus(c *gin.Context) {
 	c.Header("Content-Type", "text/event-stream")

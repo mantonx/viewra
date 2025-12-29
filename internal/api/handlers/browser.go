@@ -27,9 +27,9 @@ func NewBrowserHandler(browser library.PathBrowser) *BrowserHandler {
 // @Produce json
 // @Param path query string false "Directory path to browse"
 // @Success 200 {object} library.BrowseResult
-// @Failure 400 {object} ErrorResponse "Invalid path"
-// @Failure 403 {object} ErrorResponse "Access denied"
-// @Failure 404 {object} ErrorResponse "Directory not found"
+// @Failure 400 {object} APIError "Invalid path"
+// @Failure 403 {object} APIError "Access denied"
+// @Failure 404 {object} APIError "Directory not found"
 // @Router /api/filesystem/browse [get]
 func (h *BrowserHandler) Browse(c *gin.Context) {
 	path := c.Query("path")

@@ -48,8 +48,8 @@ func NewImagesHandler(
 // @Produce json
 // @Param id path int true "Image ID"
 // @Success 200 {object} images.ImageResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/images/{id} [get]
 func (h *ImagesHandler) GetImage(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
@@ -83,8 +83,8 @@ func (h *ImagesHandler) GetImage(c *gin.Context) {
 // @Param id path int true "Image ID"
 // @Param preset query string false "Preset name (thumb, medium, large, xlarge)"
 // @Success 200 {file} binary
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/images/{id}/file [get]
 func (h *ImagesHandler) ServeImage(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
@@ -185,8 +185,8 @@ func (h *ImagesHandler) ServeImage(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Media ID"
 // @Success 200 {object} images.ListImagesResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/media/{id}/images [get]
 func (h *ImagesHandler) GetMediaImages(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
@@ -217,8 +217,8 @@ func (h *ImagesHandler) GetMediaImages(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Movie media ID"
 // @Success 200 {object} images.ListImagesResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/movies/{id}/images [get]
 func (h *ImagesHandler) GetMovieImages(c *gin.Context) {
 	// Reuse GetMediaImages logic
@@ -233,8 +233,8 @@ func (h *ImagesHandler) GetMovieImages(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Episode media ID"
 // @Success 200 {object} images.ListImagesResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/tv/episodes/{id}/images [get]
 func (h *ImagesHandler) GetEpisodeImages(c *gin.Context) {
 	// Reuse GetMediaImages logic
@@ -249,8 +249,8 @@ func (h *ImagesHandler) GetEpisodeImages(c *gin.Context) {
 // @Produce json
 // @Param id path int true "TV Show ID"
 // @Success 200 {object} images.ListImagesResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/tv/shows/{id}/images [get]
 func (h *ImagesHandler) GetTVShowImages(c *gin.Context) {
 	showID, err := parseID(c.Param("id"))
@@ -281,8 +281,8 @@ func (h *ImagesHandler) GetTVShowImages(c *gin.Context) {
 // @Produce json
 // @Param id path int true "TV Season ID"
 // @Success 200 {object} images.ListImagesResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/tv/seasons/{id}/images [get]
 func (h *ImagesHandler) GetTVSeasonImages(c *gin.Context) {
 	seasonID, err := parseID(c.Param("id"))
@@ -313,8 +313,8 @@ func (h *ImagesHandler) GetTVSeasonImages(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Album entity ID (track media_id)"
 // @Success 200 {object} images.ListImagesResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/music/albums/{id}/images [get]
 func (h *ImagesHandler) GetMusicAlbumImages(c *gin.Context) {
 	albumID, err := parseID(c.Param("id"))
@@ -345,8 +345,8 @@ func (h *ImagesHandler) GetMusicAlbumImages(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Artist entity ID (first track's media_id)"
 // @Success 200 {object} images.ListImagesResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/music/artists/{id}/images [get]
 func (h *ImagesHandler) GetMusicArtistImages(c *gin.Context) {
 	artistID, err := parseID(c.Param("id"))
@@ -378,8 +378,8 @@ func (h *ImagesHandler) GetMusicArtistImages(c *gin.Context) {
 // @Produce json
 // @Param request body object{media_ids=[]int,entity_ids=[]int,media_type=string} true "Batch request with either media_ids or (entity_ids + media_type)"
 // @Success 200 {object} images.BatchImagesResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/images/batch [post]
 func (h *ImagesHandler) GetBatchMediaImages(c *gin.Context) {
 	var req struct {

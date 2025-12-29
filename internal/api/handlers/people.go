@@ -34,9 +34,9 @@ func NewPeopleHandler(
 // @Produce json
 // @Param id path int true "Person ID"
 // @Success 200 {object} people.PersonResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/people/{id} [get]
 func (h *PeopleHandler) GetPerson(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
@@ -64,9 +64,9 @@ func (h *PeopleHandler) GetPerson(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Person ID"
 // @Success 200 {object} people.PersonCreditsResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/people/{id}/credits [get]
 func (h *PeopleHandler) GetPersonCredits(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
@@ -94,9 +94,9 @@ func (h *PeopleHandler) GetPersonCredits(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Movie ID"
 // @Success 200 {object} people.CreditsResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/movies/{id}/credits [get]
 func (h *PeopleHandler) GetMovieCredits(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
@@ -124,9 +124,9 @@ func (h *PeopleHandler) GetMovieCredits(c *gin.Context) {
 // @Produce json
 // @Param id path int true "TV Show ID"
 // @Success 200 {object} people.CreditsResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/tv/shows/{id}/credits [get]
 func (h *PeopleHandler) GetTVShowCredits(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
@@ -154,9 +154,9 @@ func (h *PeopleHandler) GetTVShowCredits(c *gin.Context) {
 // @Produce json
 // @Param id path int true "TV Episode ID"
 // @Success 200 {object} people.CreditsResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/tv/episodes/{id}/credits [get]
 func (h *PeopleHandler) GetTVEpisodeCredits(c *gin.Context) {
 	id, err := parseID(c.Param("id"))

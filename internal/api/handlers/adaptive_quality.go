@@ -88,7 +88,7 @@ type QualityProfile struct {
 // @Produce json
 // @Param request body RecommendQualityRequest true "Client capabilities"
 // @Success 200 {object} QualityRecommendationResponse
-// @Failure 400 {object} ErrorResponse
+// @Failure 400 {object} APIError
 // @Router /api/adaptive/recommend [post]
 func (h *AdaptiveQualityHandler) RecommendQuality(c *gin.Context) {
 	var req RecommendQualityRequest
@@ -149,7 +149,7 @@ func (h *AdaptiveQualityHandler) RecommendQuality(c *gin.Context) {
 // @Produce json
 // @Param request body RecommendQualityRequest true "Client capabilities"
 // @Success 200 {object} AdaptiveLadderResponse
-// @Failure 400 {object} ErrorResponse
+// @Failure 400 {object} APIError
 // @Router /api/adaptive/ladder [post]
 func (h *AdaptiveQualityHandler) GetAdaptiveLadder(c *gin.Context) {
 	var req RecommendQualityRequest

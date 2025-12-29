@@ -56,9 +56,9 @@ func serveVTTContent(c *gin.Context, vttPath string) {
 // @Param id path int true "Media ID"
 // @Param trackId path int true "Subtitle Track ID"
 // @Success 200 {string} string "WebVTT content"
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/media/{id}/subtitles/{trackId} [get]
 func (h *SubtitleHandler) GetSubtitle(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
@@ -158,9 +158,9 @@ func (h *SubtitleHandler) GetSubtitle(c *gin.Context) {
 // @Param id path int true "Media ID"
 // @Param index path int true "Stream Index"
 // @Success 200 {string} string "WebVTT content"
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/media/{id}/subtitles/stream/{index} [get]
 func (h *SubtitleHandler) GetSubtitleByStreamIndex(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
@@ -223,9 +223,9 @@ func (h *SubtitleHandler) GetSubtitleByStreamIndex(c *gin.Context) {
 // @Param start query int false "Start time in milliseconds (default: 0, extracts full file)"
 // @Param end query int false "End time in milliseconds (default: 0, extracts full file)"
 // @Success 200 {string} string "WebVTT content"
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/media/{id}/subtitles/text/{index}/stream [get]
 func (h *SubtitleHandler) StreamTextSubtitle(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
@@ -311,9 +311,9 @@ func (h *SubtitleHandler) StreamTextSubtitle(c *gin.Context) {
 // @Param start query int false "Start time in milliseconds (default: 0)"
 // @Param end query int false "End time in milliseconds (default: 5 minutes from start). Use 0 for unlimited (not recommended for large files)."
 // @Success 200 {object} subtitles.PGSFrame "JSON lines of PGS frames"
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/media/{id}/subtitles/pgs/{index}/stream [get]
 func (h *SubtitleHandler) StreamPGSSubtitle(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
@@ -415,9 +415,9 @@ func (h *SubtitleHandler) StreamPGSSubtitle(c *gin.Context) {
 // @Param id path int true "Media ID"
 // @Param index path int true "Stream Index (relative, 0-based among bitmap subtitle streams)"
 // @Success 200 {array} subtitles.PGSFrame "Array of PGS frames"
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/media/{id}/subtitles/pgs/{index} [get]
 func (h *SubtitleHandler) GetAllPGSFrames(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))

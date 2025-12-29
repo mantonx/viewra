@@ -32,8 +32,8 @@ func NewLibraryHandler(
 // @Produce json
 // @Param library body library.CreateLibraryRequest true "Library details"
 // @Success 201 {object} library.LibraryResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/libraries [post]
 func (h *LibraryHandler) Create(c *gin.Context) {
 	var req library.CreateLibraryRequest
@@ -60,7 +60,7 @@ func (h *LibraryHandler) Create(c *gin.Context) {
 // @Tags libraries
 // @Produce json
 // @Success 200 {object} library.ListLibrariesResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 500 {object} APIError
 // @Router /api/libraries [get]
 func (h *LibraryHandler) List(c *gin.Context) {
 	resp, err := h.service.List(c.Request.Context())
@@ -79,9 +79,9 @@ func (h *LibraryHandler) List(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Library ID"
 // @Success 200 {object} library.GetLibraryResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/libraries/{id} [get]
 func (h *LibraryHandler) Get(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
@@ -111,9 +111,9 @@ func (h *LibraryHandler) Get(c *gin.Context) {
 // @Param id path int true "Library ID"
 // @Param library body library.UpdateLibraryRequest true "Library details"
 // @Success 200 {object} library.LibraryResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/libraries/{id} [put]
 func (h *LibraryHandler) Update(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
@@ -150,9 +150,9 @@ func (h *LibraryHandler) Update(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Library ID"
 // @Success 204
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 500 {object} APIError
 // @Router /api/libraries/{id} [delete]
 func (h *LibraryHandler) Delete(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
@@ -180,10 +180,10 @@ func (h *LibraryHandler) Delete(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Library ID"
 // @Success 202 {object} library.StartScanResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 409 {object} ErrorResponse "Library is already being scanned"
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 409 {object} APIError "Library is already being scanned"
+// @Failure 500 {object} APIError
 // @Router /api/libraries/{id}/scan [post]
 func (h *LibraryHandler) Scan(c *gin.Context) {
 	id, err := parseID(c.Param("id"))

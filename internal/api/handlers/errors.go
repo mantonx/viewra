@@ -38,6 +38,17 @@ func getRequestID(c *gin.Context) string {
 	return ""
 }
 
+// respondError sends a standardized error response with the given status code and message.
+// Use this for ad-hoc errors that don't map to domain errors.
+func respondError(c *gin.Context, status int, code, message string) {
+	c.JSON(status, APIError{
+		Code:      code,
+		Message:   message,
+		RequestID: getRequestID(c),
+		Timestamp: time.Now(),
+	})
+}
+
 // handleError converts domain errors to appropriate HTTP responses using the APIError format.
 // This function uses the standardized error mapping with APIError for consistent responses.
 func handleError(c *gin.Context, err error) {

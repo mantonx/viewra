@@ -36,8 +36,8 @@ func NewSettingsHandler(service *settings.Service, userLookup UserLookup) *Setti
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} SystemSettingsResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
 // @Router /api/settings/system [get]
 func (h *SettingsHandler) GetAllSystem(c *gin.Context) {
 	allSettings, err := h.service.GetAllSystem(c.Request.Context())
@@ -71,9 +71,9 @@ func (h *SettingsHandler) GetAllSystem(c *gin.Context) {
 // @Produce json
 // @Param key path string true "Setting key"
 // @Success 200 {object} SystemSettingValueResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
+// @Failure 404 {object} APIError
 // @Router /api/settings/system/{key} [get]
 func (h *SettingsHandler) GetSystem(c *gin.Context) {
 	key := c.Param("key")
@@ -111,10 +111,10 @@ type SetSystemRequest struct {
 // @Param key path string true "Setting key"
 // @Param setting body SetSystemRequest true "Setting value"
 // @Success 200 {object} SystemSettingValueResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
+// @Failure 404 {object} APIError
 // @Router /api/settings/system/{key} [put]
 func (h *SettingsHandler) SetSystem(c *gin.Context) {
 	key := c.Param("key")
@@ -161,7 +161,7 @@ func (h *SettingsHandler) SetSystem(c *gin.Context) {
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} UserSettingsResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 401 {object} APIError
 // @Router /api/settings/user [get]
 func (h *SettingsHandler) GetAllUser(c *gin.Context) {
 	claims := middleware.GetClaims(c)
@@ -206,8 +206,8 @@ func (h *SettingsHandler) GetAllUser(c *gin.Context) {
 // @Produce json
 // @Param key path string true "Setting key"
 // @Success 200 {object} UserSettingValueResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 404 {object} APIError
 // @Router /api/settings/user/{key} [get]
 func (h *SettingsHandler) GetUser(c *gin.Context) {
 	claims := middleware.GetClaims(c)
@@ -261,9 +261,9 @@ type SetUserRequest struct {
 // @Param key path string true "Setting key"
 // @Param setting body SetUserRequest true "Setting value"
 // @Success 200 {object} UserSettingValueResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 401 {object} APIError
+// @Failure 404 {object} APIError
 // @Router /api/settings/user/{key} [put]
 func (h *SettingsHandler) SetUser(c *gin.Context) {
 	claims := middleware.GetClaims(c)
@@ -317,8 +317,8 @@ func (h *SettingsHandler) SetUser(c *gin.Context) {
 // @Security BearerAuth
 // @Param key path string true "Setting key"
 // @Success 204 "No Content"
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 404 {object} APIError
 // @Router /api/settings/user/{key} [delete]
 func (h *SettingsHandler) DeleteUser(c *gin.Context) {
 	claims := middleware.GetClaims(c)
@@ -360,8 +360,8 @@ func (h *SettingsHandler) DeleteUser(c *gin.Context) {
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} EffectiveSettingsResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
 // @Router /api/settings/system/effective [get]
 func (h *SettingsHandler) GetAllSystemEffective(c *gin.Context) {
 	effectiveSettings, err := h.service.GetAllEffectiveSystemValues(c.Request.Context())
@@ -404,7 +404,7 @@ func (h *SettingsHandler) GetAllSystemEffective(c *gin.Context) {
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} SystemInfoResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 401 {object} APIError
 // @Router /api/system/info [get]
 func (h *SettingsHandler) GetSystemInfo(c *gin.Context) {
 	profile := h.service.GetSystemProfile()
@@ -508,7 +508,7 @@ func formatFloat(f float64) string {
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} SettingsSchemaResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 401 {object} APIError
 // @Router /api/settings/schema [get]
 func (h *SettingsHandler) GetSchema(c *gin.Context) {
 	systemDefs := h.service.GetSystemDefinitions()

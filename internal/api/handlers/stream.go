@@ -38,10 +38,10 @@ func NewStreamHandler(getMedia media.GetMediaExecutor, streamService *streaming.
 // @Param Range header string false "HTTP Range header (e.g., bytes=0-1023)"
 // @Success 200 {file} binary "Full file"
 // @Success 206 {file} binary "Partial content"
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 416 {object} ErrorResponse "Range not satisfiable"
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 416 {object} APIError "Range not satisfiable"
+// @Failure 500 {object} APIError
 // @Router /api/stream/{id} [get]
 func (h *StreamHandler) Stream(c *gin.Context) {
 	// Parse media ID

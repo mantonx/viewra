@@ -33,8 +33,8 @@ type LoginRequest struct {
 // @Produce json
 // @Param credentials body LoginRequest true "Login credentials"
 // @Success 200 {object} auth.LoginResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 401 {object} APIError
 // @Router /api/auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
@@ -73,8 +73,8 @@ type RefreshRequest struct {
 // @Produce json
 // @Param token body RefreshRequest true "Refresh token"
 // @Success 200 {object} auth.LoginResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 401 {object} APIError
 // @Router /api/auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req RefreshRequest
@@ -112,7 +112,7 @@ type LogoutRequest struct {
 // @Produce json
 // @Param token body LogoutRequest true "Refresh token to invalidate"
 // @Success 204 "No Content"
-// @Failure 400 {object} ErrorResponse
+// @Failure 400 {object} APIError
 // @Router /api/auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var req LogoutRequest
@@ -134,7 +134,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 // @Tags auth
 // @Security BearerAuth
 // @Success 204 "No Content"
-// @Failure 401 {object} ErrorResponse
+// @Failure 401 {object} APIError
 // @Router /api/auth/logout-all [post]
 func (h *AuthHandler) LogoutAll(c *gin.Context) {
 	if !middleware.IsAuthenticated(c) {
@@ -156,7 +156,7 @@ func (h *AuthHandler) LogoutAll(c *gin.Context) {
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} auth.UserResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 401 {object} APIError
 // @Router /api/auth/me [get]
 func (h *AuthHandler) GetMe(c *gin.Context) {
 	if !middleware.IsAuthenticated(c) {
@@ -191,8 +191,8 @@ type ChangePasswordRequest struct {
 // @Produce json
 // @Param passwords body ChangePasswordRequest true "Password change request"
 // @Success 204 "No Content"
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 401 {object} APIError
 // @Router /api/auth/password [put]
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	if !middleware.IsAuthenticated(c) {
@@ -232,7 +232,7 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {array} auth.SessionResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 401 {object} APIError
 // @Router /api/auth/sessions [get]
 func (h *AuthHandler) ListSessions(c *gin.Context) {
 	if !middleware.IsAuthenticated(c) {
@@ -261,8 +261,8 @@ func (h *AuthHandler) ListSessions(c *gin.Context) {
 // @Security BearerAuth
 // @Param id path string true "Session ID"
 // @Success 204 "No Content"
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 404 {object} APIError
 // @Router /api/auth/sessions/{id} [delete]
 func (h *AuthHandler) RevokeSession(c *gin.Context) {
 	if !middleware.IsAuthenticated(c) {
@@ -329,8 +329,8 @@ type SetupRequest struct {
 // @Produce json
 // @Param admin body SetupRequest true "Admin user details"
 // @Success 201 {object} auth.UserResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 409 {object} ErrorResponse "Setup already completed"
+// @Failure 400 {object} APIError
+// @Failure 409 {object} APIError "Setup already completed"
 // @Router /api/auth/setup [post]
 func (h *AuthHandler) Setup(c *gin.Context) {
 	// Check if setup is needed

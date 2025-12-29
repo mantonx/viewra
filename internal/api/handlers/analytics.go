@@ -69,7 +69,7 @@ type PlaybackAnalyticsRequest struct {
 // @Produce json
 // @Param request body PlaybackAnalyticsRequest true "Analytics data"
 // @Success 200 {object} map[string]bool
-// @Failure 400 {object} ErrorResponse
+// @Failure 400 {object} APIError
 // @Router /api/analytics/playback [post]
 func (h *AnalyticsHandler) RecordPlaybackAnalytics(c *gin.Context) {
 	var req PlaybackAnalyticsRequest
@@ -185,7 +185,7 @@ type ListSessionsResponse struct {
 // @Produce json
 // @Param id path string true "Session ID"
 // @Success 200 {object} PlaybackSessionResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 404 {object} APIError
 // @Router /api/analytics/sessions/{id} [get]
 func (h *AnalyticsHandler) GetSession(c *gin.Context) {
 	sessionID := c.Param("id")
@@ -239,7 +239,7 @@ func (h *AnalyticsHandler) GetSession(c *gin.Context) {
 // @Param limit query int false "Maximum number of results (default 50)"
 // @Param offset query int false "Offset for pagination (default 0)"
 // @Success 200 {object} ListSessionsResponse
-// @Failure 400 {object} ErrorResponse
+// @Failure 400 {object} APIError
 // @Router /api/analytics/sessions [get]
 func (h *AnalyticsHandler) ListSessions(c *gin.Context) {
 	mediaIDStr := c.Query("media_id")

@@ -27,8 +27,8 @@ func NewUsersHandler(adminService *auth.AdminService) *UsersHandler {
 // @Param limit query int false "Limit" default(50)
 // @Param offset query int false "Offset" default(0)
 // @Success 200 {object} auth.ListUsersResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
 // @Router /api/users [get]
 func (h *UsersHandler) List(c *gin.Context) {
 	limit := getQueryInt(c, "limit", 50)
@@ -51,9 +51,9 @@ func (h *UsersHandler) List(c *gin.Context) {
 // @Produce json
 // @Param id path string true "User ID"
 // @Success 200 {object} auth.UserResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
+// @Failure 404 {object} APIError
 // @Router /api/users/{id} [get]
 func (h *UsersHandler) Get(c *gin.Context) {
 	id := c.Param("id")
@@ -90,10 +90,10 @@ type CreateUserRequest struct {
 // @Produce json
 // @Param user body CreateUserRequest true "User details"
 // @Success 201 {object} auth.UserResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 409 {object} ErrorResponse "Username exists"
+// @Failure 400 {object} APIError
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
+// @Failure 409 {object} APIError "Username exists"
 // @Router /api/users [post]
 func (h *UsersHandler) Create(c *gin.Context) {
 	var req CreateUserRequest
@@ -136,10 +136,10 @@ type UpdateUserRequest struct {
 // @Param id path string true "User ID"
 // @Param user body UpdateUserRequest true "User updates"
 // @Success 200 {object} auth.UserResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
+// @Failure 404 {object} APIError
 // @Router /api/users/{id} [put]
 func (h *UsersHandler) Update(c *gin.Context) {
 	id := c.Param("id")
@@ -179,9 +179,9 @@ func (h *UsersHandler) Update(c *gin.Context) {
 // @Security BearerAuth
 // @Param id path string true "User ID"
 // @Success 204 "No Content"
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
+// @Failure 404 {object} APIError
 // @Router /api/users/{id} [delete]
 func (h *UsersHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
@@ -215,10 +215,10 @@ type ResetPasswordRequest struct {
 // @Param id path string true "User ID"
 // @Param password body ResetPasswordRequest true "New password"
 // @Success 204 "No Content"
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
+// @Failure 404 {object} APIError
 // @Router /api/users/{id}/reset-password [post]
 func (h *UsersHandler) ResetPassword(c *gin.Context) {
 	id := c.Param("id")

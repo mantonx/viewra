@@ -80,8 +80,8 @@ type ProvidersResponse struct {
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} AISettingsResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
 // @Router /api/settings/ai [get]
 func (h *AISettingsHandler) GetAISettings(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -106,9 +106,9 @@ func (h *AISettingsHandler) GetAISettings(c *gin.Context) {
 // @Produce json
 // @Param settings body AISettingsRequest true "AI settings to update"
 // @Success 200 {object} AISettingsResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
+// @Failure 400 {object} APIError
+// @Failure 401 {object} APIError
+// @Failure 403 {object} APIError
 // @Router /api/settings/ai [put]
 func (h *AISettingsHandler) UpdateAISettings(c *gin.Context) {
 	var req AISettingsRequest
@@ -142,7 +142,7 @@ func (h *AISettingsHandler) UpdateAISettings(c *gin.Context) {
 // @Security BearerAuth
 // @Produce json
 // @Success 200 {object} ProvidersResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 401 {object} APIError
 // @Router /api/settings/ai/providers [get]
 func (h *AISettingsHandler) GetProviders(c *gin.Context) {
 	if h.providerRegistry == nil {
