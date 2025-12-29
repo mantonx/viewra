@@ -4,7 +4,7 @@ import type { DeepKeys, DeepValue, FieldApi } from '@tanstack/react-form'
  * Simplified FieldApi type for form field adapters.
  * Uses `any` for validator type parameters since adapters don't need that level of type detail.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export type AnyFieldApi<TFormData, TName extends DeepKeys<TFormData>> = FieldApi<
   TFormData,
   TName,
@@ -43,10 +43,10 @@ export const getFieldError = <TFormData, TName extends DeepKeys<TFormData>>(
   field: AnyFieldApi<TFormData, TName>
 ): string | undefined => {
   const errors = field.state.meta.errors
-  if (errors.length === 0) return undefined
+  if (errors.length === 0) {return undefined}
 
   const firstError = errors[0]
-  if (typeof firstError === 'string') return firstError
+  if (typeof firstError === 'string') {return firstError}
   if (firstError && typeof firstError === 'object' && 'message' in firstError) {
     return String(firstError.message)
   }

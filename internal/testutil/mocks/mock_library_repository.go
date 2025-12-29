@@ -17,16 +17,18 @@ type LibraryRepository struct {
 	nextID    int64
 
 	// Error injection
-	CreateErr       error
-	GetErr          error
-	ListErr         error
-	UpdateErr       error
-	DeleteErr       error
-	ExistsErr       error
-	CreateWithTxErr error
-	GetByIDWithTxErr error
-	DeleteWithTxErr error
-	ExistsWithTxErr error
+	CreateErr           error
+	GetErr              error
+	ListErr             error
+	UpdateErr           error
+	DeleteErr           error
+	ExistsErr           error
+	CreateWithTxErr     error
+	GetByIDWithTxErr    error
+	DeleteWithTxErr     error
+	ExistsWithTxErr     error
+	UpdateMonitoringErr error
+	ListMonitoredErr    error
 }
 
 // NewLibraryRepository creates a new mock library repository.
@@ -237,4 +239,42 @@ func (r *LibraryRepository) ExistsWithTx(ctx context.Context, tx *sql.Tx, path s
 
 	// In mock, delegate to regular Exists
 	return r.Exists(ctx, path)
+}
+
+// Monitoring methods
+
+func (r *LibraryRepository) UpdateMonitoring(ctx context.Context, id int64, enabled bool, config *library.MonitoringConfig) error {
+	if r.UpdateMonitoringErr != nil {
+		return r.UpdateMonitoringErr
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	lib, exists := r.libraries[id]
+	if !exists {
+		return library.ErrLibraryNotFound
+	}
+
+	lib.MonitoringEnabled = enabled
+	lib.MonitoringConfig = config
+	return nil
+}
+
+func (r *LibraryRepository) ListMonitored(ctx context.Context) ([]*library.Library, error) {
+	if r.ListMonitoredErr != nil {
+		return nil, r.ListMonitoredErr
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	result := make([]*library.Library, 0)
+	for _, lib := range r.libraries {
+		if lib.MonitoringEnabled {
+			result = append(result, lib)
+		}
+	}
+
+	return result, nil
 }

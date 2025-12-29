@@ -99,7 +99,7 @@ export const useAudioPlayback = (options: UseAudioPlaybackOptions = {}) => {
   }, [volume, isMuted])
 
   const loadAndPlay = useCallback(async (track: MusicTrackResponse) => {
-    if (!audioRef.current) return
+    if (!audioRef.current) {return}
 
     setIsLoading(true)
     setCurrentTrack(track)
@@ -131,7 +131,7 @@ export const useAudioPlayback = (options: UseAudioPlaybackOptions = {}) => {
   }, [])
 
   const togglePlayPause = useCallback(() => {
-    if (!audioRef.current) return
+    if (!audioRef.current) {return}
 
     if (isPlaying) {
       audioRef.current.pause()

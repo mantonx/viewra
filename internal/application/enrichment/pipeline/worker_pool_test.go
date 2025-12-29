@@ -29,7 +29,7 @@ func TestNewWorkerPool(t *testing.T) {
 
 	pipelineCache := NewPipelineCache(deps.PipelineRepo, 5*time.Minute)
 	entityCache := NewEntityCache(1000)
-	pool := NewWorkerPool(deps, enricher, nil, pipelineCache, entityCache, nil, config)
+	pool := NewWorkerPool(deps, enricher, nil, pipelineCache, entityCache, nil, nil, config)
 	if pool == nil {
 		t.Fatal("NewWorkerPool returned nil")
 	}
@@ -58,7 +58,7 @@ func TestNewWorkerPool_WithRateLimit(t *testing.T) {
 
 	pipelineCache := NewPipelineCache(deps.PipelineRepo, 5*time.Minute)
 	entityCache := NewEntityCache(1000)
-	pool := NewWorkerPool(deps, enricher, nil, pipelineCache, entityCache, nil, config)
+	pool := NewWorkerPool(deps, enricher, nil, pipelineCache, entityCache, nil, nil, config)
 	if pool == nil {
 		t.Fatal("NewWorkerPool returned nil")
 	}
@@ -80,7 +80,7 @@ func TestWorkerPool_Run_ContextCancellation(t *testing.T) {
 	config := DefaultLocalStageConfig("test")
 	pipelineCache := NewPipelineCache(deps.PipelineRepo, 5*time.Minute)
 	entityCache := NewEntityCache(1000)
-	pool := NewWorkerPool(deps, enricher, nil, pipelineCache, entityCache, nil, config)
+	pool := NewWorkerPool(deps, enricher, nil, pipelineCache, entityCache, nil, nil, config)
 
 	ctx, cancel := context.WithCancel(context.Background())
 

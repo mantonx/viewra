@@ -73,7 +73,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
       const nextIdx = queueHook.getNextIndex()
       if (nextIdx !== null) {
         const track = queueHook.goToIndex(nextIdx)
-        if (track) playback.loadAndPlay(track)
+        if (track) {playback.loadAndPlay(track)}
       } else {
         // End of queue
       }
@@ -98,7 +98,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
 
   // Report progress to backend
   const reportProgress = useCallback(async () => {
-    if (!playback.currentTrack || !playback.audioRef.current) return
+    if (!playback.currentTrack || !playback.audioRef.current) {return}
 
     try {
       const position = Math.floor(playback.audioRef.current.currentTime)
@@ -126,7 +126,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
       }
     }
     return () => {
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
+      if (progressIntervalRef.current) {clearInterval(progressIntervalRef.current)}
     }
   }, [playback.isPlaying, playback.currentTrack, reportProgress])
 
@@ -137,7 +137,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   }, [queueHook, playback])
 
   const playQueue = useCallback((tracks: MusicTrackResponse[], startIndex = 0) => {
-    if (tracks.length === 0) return
+    if (tracks.length === 0) {return}
     queueHook.setQueueWithTrack(tracks, startIndex)
     playback.loadAndPlay(tracks[startIndex])
   }, [queueHook, playback])
@@ -146,7 +146,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
     const nextIdx = queueHook.getNextIndex()
     if (nextIdx !== null) {
       const track = queueHook.goToIndex(nextIdx)
-      if (track) playback.loadAndPlay(track)
+      if (track) {playback.loadAndPlay(track)}
     }
   }, [queueHook, playback])
 
@@ -159,7 +159,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
     const prevIdx = queueHook.getPreviousIndex()
     if (prevIdx !== null) {
       const track = queueHook.goToIndex(prevIdx)
-      if (track) playback.loadAndPlay(track)
+      if (track) {playback.loadAndPlay(track)}
     }
   }, [queueHook, playback])
 
@@ -175,7 +175,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
       } else {
         const nextTrack = queueHook.queue[index + 1] || queueHook.queue[index - 1]
         queueHook.removeFromQueue(index)
-        if (nextTrack) playback.loadAndPlay(nextTrack)
+        if (nextTrack) {playback.loadAndPlay(nextTrack)}
       }
     } else {
       queueHook.removeFromQueue(index)
@@ -183,7 +183,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   }, [queueHook, playback, clearQueue])
 
   const togglePlayPause = useCallback(() => {
-    if (playback.isPlaying) reportProgress()
+    if (playback.isPlaying) {reportProgress()}
     playback.togglePlayPause()
   }, [playback, reportProgress])
 
@@ -201,15 +201,15 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
 
   const setVisibility = useCallback((newVisibility: PlayerVisibility) => {
     setVisibilityState(newVisibility)
-    if (newVisibility === 'minimized') setIsMinimized(true)
-    else if (newVisibility === 'expanded') setIsMinimized(false)
+    if (newVisibility === 'minimized') {setIsMinimized(true)}
+    else if (newVisibility === 'expanded') {setIsMinimized(false)}
   }, [])
 
   // Auto-minimize logic
   useEffect(() => {
     const getDelay = () => {
-      if (userExpandedManuallyRef.current) return 5 * 60 * 1000
-      if (consecutiveAutoMinimizesRef.current >= 3) return 1 * 60 * 1000
+      if (userExpandedManuallyRef.current) {return 5 * 60 * 1000}
+      if (consecutiveAutoMinimizesRef.current >= 3) {return 1 * 60 * 1000}
       return 2 * 60 * 1000
     }
 
@@ -231,7 +231,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
     }
 
     return () => {
-      if (autoMinimizeTimerRef.current) clearTimeout(autoMinimizeTimerRef.current)
+      if (autoMinimizeTimerRef.current) {clearTimeout(autoMinimizeTimerRef.current)}
     }
   }, [playback.isPlaying, isMinimized])
 
@@ -253,7 +253,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
     const wasOnMusicPage = isOnMusicPage
     setIsOnMusicPage(onMusicPage)
 
-    if (!queueHook.currentTrack) return
+    if (!queueHook.currentTrack) {return}
 
     if (onMusicPage && !wasOnMusicPage) {
       if (playback.isPlaying) {

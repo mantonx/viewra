@@ -8,7 +8,7 @@
 
 export type TimeDuration = (typeof TimeDuration)[keyof typeof TimeDuration]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
+ 
 export const TimeDuration = {
   minDuration: -9223372036854776000,
   maxDuration: 9223372036854776000,

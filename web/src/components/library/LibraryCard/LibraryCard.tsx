@@ -63,7 +63,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   })
 
   const handleDelete = async () => {
-    if (!library.id || !library.name) return
+    if (!library.id || !library.name) {return}
     const confirmed = await confirm({
       title: 'Delete Library',
       message: `Are you sure you want to delete "${library.name}"? This action cannot be undone.`,
@@ -71,7 +71,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
       cancelText: 'Cancel',
       variant: 'danger',
     })
-    if (!confirmed) return
+    if (!confirmed) {return}
     try {
       await deleteMutation.mutateAsync({ id: library.id })
       invalidateLibraries()
@@ -82,7 +82,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   }
 
   const handleScan = async () => {
-    if (!library.id) return
+    if (!library.id) {return}
     try {
       await scanMutation.mutateAsync({ id: library.id })
       toast.success('Scan started')
@@ -93,7 +93,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   }
 
   const handlePause = async () => {
-    if (!library.id || !scanStatus?.jobId) return
+    if (!library.id || !scanStatus?.jobId) {return}
     try {
       await pauseMutation.mutateAsync({ id: library.id, jobId: scanStatus.jobId })
       toast.success('Scan paused')
@@ -103,7 +103,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   }
 
   const handleResume = async () => {
-    if (!library.id || !scanStatus?.jobId) return
+    if (!library.id || !scanStatus?.jobId) {return}
     try {
       await resumeMutation.mutateAsync({ id: library.id, jobId: scanStatus.jobId })
       toast.success('Scan resumed')
@@ -153,14 +153,14 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
 
   // Status summary for collapsed view
   const getStatusSummary = () => {
-    if (isScanning) return 'Scanning...'
-    if (isPaused) return 'Paused'
+    if (isScanning) {return 'Scanning...'}
+    if (isPaused) {return 'Paused'}
     if (isEnriching) {
       const pct = Math.round(enrichmentProgress?.overallProgress?.percentage ?? 0)
       return `Enriching ${pct}%`
     }
-    if (isCompleted && enrichmentComplete) return 'Complete'
-    if (isCompleted) return 'Scanned'
+    if (isCompleted && enrichmentComplete) {return 'Complete'}
+    if (isCompleted) {return 'Scanned'}
     return 'Not scanned'
   }
 

@@ -131,11 +131,11 @@ export const VideoPlayer = ({
   // Audio tracks are managed via API, not HLS.js (since audio is muxed into video segments)
   const {
     hlsRef,
-    availableQualities,
-    currentQuality,
-    currentBandwidth,
+    availableQualities: _availableQualities,
+    currentQuality: _currentQuality,
+    currentBandwidth: _currentBandwidth,
     streamOffsetRef,
-    changeQuality,
+    changeQuality: _changeQuality,
   } = useHlsPlayer({
     videoRef,
     streamUrl: effectiveStreamUrl,

@@ -9,7 +9,7 @@
 export type GithubComMantonxViewraInternalDomainAiProviderType =
   (typeof GithubComMantonxViewraInternalDomainAiProviderType)[keyof typeof GithubComMantonxViewraInternalDomainAiProviderType]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
+ 
 export const GithubComMantonxViewraInternalDomainAiProviderType = {
   ProviderOllama: 'ollama',
   ProviderOpenRouter: 'openrouter',

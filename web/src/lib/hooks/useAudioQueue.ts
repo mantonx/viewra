@@ -29,7 +29,7 @@ export const useAudioQueue = () => {
   }, [queue])
 
   const getNextIndex = useCallback(() => {
-    if (queue.length === 0) return null
+    if (queue.length === 0) {return null}
     
     let nextIndex = currentIndex + 1
     if (nextIndex >= queue.length) {
@@ -43,7 +43,7 @@ export const useAudioQueue = () => {
   }, [currentIndex, queue.length, repeatMode])
 
   const getPreviousIndex = useCallback(() => {
-    if (queue.length === 0) return null
+    if (queue.length === 0) {return null}
     
     let prevIndex = currentIndex - 1
     if (prevIndex < 0) {
