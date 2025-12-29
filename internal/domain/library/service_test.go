@@ -2,10 +2,11 @@ package library
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"os"
 	"testing"
+
+	"github.com/mantonx/viewra/internal/domain/common"
 )
 
 // MockRepository is a mock implementation of Repository for testing
@@ -123,19 +124,19 @@ func (m *MockRepository) Exists(ctx context.Context, path string) (bool, error) 
 }
 
 // Transaction-aware methods (delegate to non-tx versions for testing)
-func (m *MockRepository) CreateWithTx(ctx context.Context, tx *sql.Tx, lib *Library) error {
+func (m *MockRepository) CreateWithTx(ctx context.Context, tx common.Transaction, lib *Library) error {
 	return m.Create(ctx, lib)
 }
 
-func (m *MockRepository) GetByIDWithTx(ctx context.Context, tx *sql.Tx, id int64) (*Library, error) {
+func (m *MockRepository) GetByIDWithTx(ctx context.Context, tx common.Transaction, id int64) (*Library, error) {
 	return m.GetByID(ctx, id)
 }
 
-func (m *MockRepository) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error {
+func (m *MockRepository) DeleteWithTx(ctx context.Context, tx common.Transaction, id int64) error {
 	return m.Delete(ctx, id)
 }
 
-func (m *MockRepository) ExistsWithTx(ctx context.Context, tx *sql.Tx, path string) (bool, error) {
+func (m *MockRepository) ExistsWithTx(ctx context.Context, tx common.Transaction, path string) (bool, error) {
 	return m.Exists(ctx, path)
 }
 

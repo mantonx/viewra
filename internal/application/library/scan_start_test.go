@@ -2,12 +2,12 @@ package library
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/mantonx/viewra/internal/application/library/scan"
+	"github.com/mantonx/viewra/internal/domain/common"
 	"github.com/mantonx/viewra/internal/domain/library"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/testutil/mocks"
@@ -50,19 +50,19 @@ func (m *mockLibraryRepoForScan) Exists(ctx context.Context, path string) (bool,
 }
 
 // Transaction-aware methods (delegate to non-transactional versions for mock)
-func (m *mockLibraryRepoForScan) CreateWithTx(ctx context.Context, tx *sql.Tx, lib *library.Library) error {
+func (m *mockLibraryRepoForScan) CreateWithTx(ctx context.Context, tx common.Transaction, lib *library.Library) error {
 	return m.Create(ctx, lib)
 }
 
-func (m *mockLibraryRepoForScan) GetByIDWithTx(ctx context.Context, tx *sql.Tx, id int64) (*library.Library, error) {
+func (m *mockLibraryRepoForScan) GetByIDWithTx(ctx context.Context, tx common.Transaction, id int64) (*library.Library, error) {
 	return m.GetByID(ctx, id)
 }
 
-func (m *mockLibraryRepoForScan) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error {
+func (m *mockLibraryRepoForScan) DeleteWithTx(ctx context.Context, tx common.Transaction, id int64) error {
 	return m.Delete(ctx, id)
 }
 
-func (m *mockLibraryRepoForScan) ExistsWithTx(ctx context.Context, tx *sql.Tx, path string) (bool, error) {
+func (m *mockLibraryRepoForScan) ExistsWithTx(ctx context.Context, tx common.Transaction, path string) (bool, error) {
 	return m.Exists(ctx, path)
 }
 

@@ -2,7 +2,6 @@ package media
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/common"
@@ -50,8 +49,8 @@ type Repository interface {
 	GetFilePathCache(ctx context.Context, libraryID int64) (map[string]int64, error)
 
 	// Transaction-aware methods
-	DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error
-	ListByLibraryWithTx(ctx context.Context, tx *sql.Tx, libraryID int64) ([]*Media, error)
+	DeleteWithTx(ctx context.Context, tx common.Transaction, id int64) error
+	ListByLibraryWithTx(ctx context.Context, tx common.Transaction, libraryID int64) ([]*Media, error)
 
 	// Audio and subtitle track methods
 	InsertAudioTrack(ctx context.Context, track *AudioTrack) error

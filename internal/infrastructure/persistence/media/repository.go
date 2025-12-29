@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	domaincommon "github.com/mantonx/viewra/internal/domain/common"
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
@@ -385,26 +386,28 @@ func (r *Repository) CountByType(ctx context.Context, libraryID int64, mediaType
 }
 
 // DeleteWithTx removes a media item from the repository within a transaction
-func (r *Repository) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error {
+func (r *Repository) DeleteWithTx(ctx context.Context, tx domaincommon.Transaction, id int64) error {
+	sqlTx := tx.Unwrap().(*sql.Tx)
 	_, err := r.router.Route(
 		func() (any, error) {
-			return nil, r.postgres.WithTx(tx).DeleteMedia(ctx, int32(id))
+			return nil, r.postgres.WithTx(sqlTx).DeleteMedia(ctx, int32(id))
 		},
 		func() (any, error) {
-			return nil, r.sqlite.WithTx(tx).DeleteMedia(ctx, id)
+			return nil, r.sqlite.WithTx(sqlTx).DeleteMedia(ctx, id)
 		},
 	)
 	return err
 }
 
 // ListByLibraryWithTx retrieves all media items in a specific library within a transaction
-func (r *Repository) ListByLibraryWithTx(ctx context.Context, tx *sql.Tx, libraryID int64) ([]*media.Media, error) {
+func (r *Repository) ListByLibraryWithTx(ctx context.Context, tx domaincommon.Transaction, libraryID int64) ([]*media.Media, error) {
+	sqlTx := tx.Unwrap().(*sql.Tx)
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.WithTx(tx).ListMediaByLibrary(ctx, int32(libraryID))
+			return r.postgres.WithTx(sqlTx).ListMediaByLibrary(ctx, int32(libraryID))
 		},
 		func() (any, error) {
-			return r.sqlite.WithTx(tx).ListMediaByLibrary(ctx, libraryID)
+			return r.sqlite.WithTx(sqlTx).ListMediaByLibrary(ctx, libraryID)
 		},
 	)
 	if err != nil {

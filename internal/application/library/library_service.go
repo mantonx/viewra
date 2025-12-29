@@ -10,6 +10,7 @@ import (
 
 	"github.com/mantonx/viewra/internal/application/common"
 	"github.com/mantonx/viewra/internal/application/library/scan/cleanup"
+	domaincommon "github.com/mantonx/viewra/internal/domain/common"
 	domainImages "github.com/mantonx/viewra/internal/domain/images"
 	"github.com/mantonx/viewra/internal/domain/library"
 )
@@ -64,8 +65,10 @@ func (s *LibraryService) Create(ctx context.Context, req CreateLibraryRequest) (
 
 	// Execute within transaction to ensure atomicity of check + create
 	err := s.txManager.WithTransaction(ctx, func(tx *sql.Tx) error {
+		wrappedTx := domaincommon.NewSQLTransaction(tx)
+
 		// Check if library with this path already exists
-		exists, err := s.repo.ExistsWithTx(ctx, tx, lib.Path)
+		exists, err := s.repo.ExistsWithTx(ctx, wrappedTx, lib.Path)
 		if err != nil {
 			return fmt.Errorf("failed to check library existence: %w", err)
 		}
@@ -74,7 +77,7 @@ func (s *LibraryService) Create(ctx context.Context, req CreateLibraryRequest) (
 		}
 
 		// Create the library
-		if err := s.repo.CreateWithTx(ctx, tx, lib); err != nil {
+		if err := s.repo.CreateWithTx(ctx, wrappedTx, lib); err != nil {
 			return fmt.Errorf("failed to create library: %w", err)
 		}
 
@@ -190,15 +193,17 @@ func (s *LibraryService) Update(ctx context.Context, id int64, req UpdateLibrary
 func (s *LibraryService) Delete(ctx context.Context, id int64) error {
 	// Execute within transaction to ensure atomicity of check + delete
 	err := s.txManager.WithTransaction(ctx, func(tx *sql.Tx) error {
+		wrappedTx := domaincommon.NewSQLTransaction(tx)
+
 		// Verify library exists
-		_, err := s.repo.GetByIDWithTx(ctx, tx, id)
+		_, err := s.repo.GetByIDWithTx(ctx, wrappedTx, id)
 		if err != nil {
 			return fmt.Errorf("failed to get library: %w", err)
 		}
 
 		// Delete the library
 		// This cascades to media table, which cascades to media_images table (ON DELETE CASCADE)
-		if err := s.repo.DeleteWithTx(ctx, tx, id); err != nil {
+		if err := s.repo.DeleteWithTx(ctx, wrappedTx, id); err != nil {
 			return fmt.Errorf("failed to delete library: %w", err)
 		}
 

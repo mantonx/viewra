@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/mantonx/viewra/internal/domain/common"
 	"github.com/mantonx/viewra/internal/domain/library"
 )
 
@@ -205,7 +206,7 @@ func (r *LibraryRepository) Exists(ctx context.Context, path string) (bool, erro
 
 // Transaction-aware methods
 
-func (r *LibraryRepository) CreateWithTx(ctx context.Context, tx *sql.Tx, lib *library.Library) error {
+func (r *LibraryRepository) CreateWithTx(ctx context.Context, tx common.Transaction, lib *library.Library) error {
 	if r.CreateWithTxErr != nil {
 		return r.CreateWithTxErr
 	}
@@ -214,7 +215,7 @@ func (r *LibraryRepository) CreateWithTx(ctx context.Context, tx *sql.Tx, lib *l
 	return r.Create(ctx, lib)
 }
 
-func (r *LibraryRepository) GetByIDWithTx(ctx context.Context, tx *sql.Tx, id int64) (*library.Library, error) {
+func (r *LibraryRepository) GetByIDWithTx(ctx context.Context, tx common.Transaction, id int64) (*library.Library, error) {
 	if r.GetByIDWithTxErr != nil {
 		return nil, r.GetByIDWithTxErr
 	}
@@ -223,7 +224,7 @@ func (r *LibraryRepository) GetByIDWithTx(ctx context.Context, tx *sql.Tx, id in
 	return r.GetByID(ctx, id)
 }
 
-func (r *LibraryRepository) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error {
+func (r *LibraryRepository) DeleteWithTx(ctx context.Context, tx common.Transaction, id int64) error {
 	if r.DeleteWithTxErr != nil {
 		return r.DeleteWithTxErr
 	}
@@ -232,7 +233,7 @@ func (r *LibraryRepository) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int
 	return r.Delete(ctx, id)
 }
 
-func (r *LibraryRepository) ExistsWithTx(ctx context.Context, tx *sql.Tx, path string) (bool, error) {
+func (r *LibraryRepository) ExistsWithTx(ctx context.Context, tx common.Transaction, path string) (bool, error) {
 	if r.ExistsWithTxErr != nil {
 		return false, r.ExistsWithTxErr
 	}

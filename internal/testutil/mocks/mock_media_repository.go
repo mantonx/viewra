@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/mantonx/viewra/internal/domain/common"
 	"github.com/mantonx/viewra/internal/domain/media"
 )
 
@@ -21,23 +22,23 @@ type MediaRepository struct {
 	subtitleTracks map[int64][]*media.SubtitleTrack
 
 	// Error injection
-	CreateErr                     error
-	GetErr                        error
-	GetByFilePathErr              error
-	ListErr                       error
-	UpdateErr                     error
-	DeleteErr                     error
-	ExistsInLibraryErr            error
-	CountErr                      error
-	DeleteWithTxErr               error
-	ListByLibraryWithTxErr        error
-	DeleteAudioTracksErr          error
-	DeleteSubtitleTracksErr       error
-	InsertAudioTrackErr           error
-	InsertSubtitleTrackErr        error
-	GetAudioTracksErr             error
-	GetSubtitleTracksErr          error
-	GetFilePathCacheErr           error
+	CreateErr               error
+	GetErr                  error
+	GetByFilePathErr        error
+	ListErr                 error
+	UpdateErr               error
+	DeleteErr               error
+	ExistsInLibraryErr      error
+	CountErr                error
+	DeleteWithTxErr         error
+	ListByLibraryWithTxErr  error
+	DeleteAudioTracksErr    error
+	DeleteSubtitleTracksErr error
+	InsertAudioTrackErr     error
+	InsertSubtitleTrackErr  error
+	GetAudioTracksErr       error
+	GetSubtitleTracksErr    error
+	GetFilePathCacheErr     error
 }
 
 // NewMediaRepository creates a new mock media repository.
@@ -316,7 +317,7 @@ func (m *MediaRepository) CountByType(ctx context.Context, libraryID int64, medi
 	return count, nil
 }
 
-func (m *MediaRepository) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error {
+func (m *MediaRepository) DeleteWithTx(ctx context.Context, tx common.Transaction, id int64) error {
 	if m.DeleteWithTxErr != nil {
 		return m.DeleteWithTxErr
 	}
@@ -325,7 +326,7 @@ func (m *MediaRepository) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64
 	return m.Delete(ctx, id)
 }
 
-func (m *MediaRepository) ListByLibraryWithTx(ctx context.Context, tx *sql.Tx, libraryID int64) ([]*media.Media, error) {
+func (m *MediaRepository) ListByLibraryWithTx(ctx context.Context, tx common.Transaction, libraryID int64) ([]*media.Media, error) {
 	if m.ListByLibraryWithTxErr != nil {
 		return nil, m.ListByLibraryWithTxErr
 	}

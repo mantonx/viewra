@@ -2,7 +2,8 @@ package library
 
 import (
 	"context"
-	"database/sql"
+
+	"github.com/mantonx/viewra/internal/domain/common"
 )
 
 // Repository defines the interface for library data access
@@ -29,10 +30,10 @@ type Repository interface {
 	Exists(ctx context.Context, path string) (bool, error)
 
 	// Transaction-aware methods
-	CreateWithTx(ctx context.Context, tx *sql.Tx, library *Library) error
-	GetByIDWithTx(ctx context.Context, tx *sql.Tx, id int64) (*Library, error)
-	DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error
-	ExistsWithTx(ctx context.Context, tx *sql.Tx, path string) (bool, error)
+	CreateWithTx(ctx context.Context, tx common.Transaction, library *Library) error
+	GetByIDWithTx(ctx context.Context, tx common.Transaction, id int64) (*Library, error)
+	DeleteWithTx(ctx context.Context, tx common.Transaction, id int64) error
+	ExistsWithTx(ctx context.Context, tx common.Transaction, path string) (bool, error)
 
 	// Monitoring methods
 	UpdateMonitoring(ctx context.Context, id int64, enabled bool, config *MonitoringConfig) error

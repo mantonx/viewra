@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 
+	domaincommon "github.com/mantonx/viewra/internal/domain/common"
 	"github.com/mantonx/viewra/internal/domain/library"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
@@ -369,17 +370,18 @@ func (r *Repository) ListMonitored(ctx context.Context) ([]*library.Library, err
 }
 
 // CreateWithTx adds a new library to the database within a transaction.
-func (r *Repository) CreateWithTx(ctx context.Context, tx *sql.Tx, lib *library.Library) error {
+func (r *Repository) CreateWithTx(ctx context.Context, tx domaincommon.Transaction, lib *library.Library) error {
+	sqlTx := tx.Unwrap().(*sql.Tx)
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.WithTx(tx).CreateLibrary(ctx, sqlc_postgres.CreateLibraryParams{
+			return r.postgres.WithTx(sqlTx).CreateLibrary(ctx, sqlc_postgres.CreateLibraryParams{
 				Name: lib.Name,
 				Path: lib.Path,
 				Type: string(lib.Type),
 			})
 		},
 		func() (any, error) {
-			return r.sqlite.WithTx(tx).CreateLibrary(ctx, sqlc_sqlite.CreateLibraryParams{
+			return r.sqlite.WithTx(sqlTx).CreateLibrary(ctx, sqlc_sqlite.CreateLibraryParams{
 				Name: lib.Name,
 				Path: lib.Path,
 				Type: string(lib.Type),
@@ -411,13 +413,14 @@ func (r *Repository) CreateWithTx(ctx context.Context, tx *sql.Tx, lib *library.
 }
 
 // GetByIDWithTx retrieves a library by its ID within a transaction.
-func (r *Repository) GetByIDWithTx(ctx context.Context, tx *sql.Tx, id int64) (*library.Library, error) {
+func (r *Repository) GetByIDWithTx(ctx context.Context, tx domaincommon.Transaction, id int64) (*library.Library, error) {
+	sqlTx := tx.Unwrap().(*sql.Tx)
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.WithTx(tx).GetLibraryByID(ctx, int32(id))
+			return r.postgres.WithTx(sqlTx).GetLibraryByID(ctx, int32(id))
 		},
 		func() (any, error) {
-			return r.sqlite.WithTx(tx).GetLibraryByID(ctx, id)
+			return r.sqlite.WithTx(sqlTx).GetLibraryByID(ctx, id)
 		},
 	)
 	if err != nil {
@@ -438,26 +441,28 @@ func (r *Repository) GetByIDWithTx(ctx context.Context, tx *sql.Tx, id int64) (*
 }
 
 // DeleteWithTx deletes a library by its ID within a transaction.
-func (r *Repository) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error {
+func (r *Repository) DeleteWithTx(ctx context.Context, tx domaincommon.Transaction, id int64) error {
+	sqlTx := tx.Unwrap().(*sql.Tx)
 	_, err := r.router.Route(
 		func() (any, error) {
-			return nil, r.postgres.WithTx(tx).DeleteLibrary(ctx, int32(id))
+			return nil, r.postgres.WithTx(sqlTx).DeleteLibrary(ctx, int32(id))
 		},
 		func() (any, error) {
-			return nil, r.sqlite.WithTx(tx).DeleteLibrary(ctx, id)
+			return nil, r.sqlite.WithTx(sqlTx).DeleteLibrary(ctx, id)
 		},
 	)
 	return err
 }
 
 // ExistsWithTx checks if a library with the given path exists within a transaction.
-func (r *Repository) ExistsWithTx(ctx context.Context, tx *sql.Tx, path string) (bool, error) {
+func (r *Repository) ExistsWithTx(ctx context.Context, tx domaincommon.Transaction, path string) (bool, error) {
+	sqlTx := tx.Unwrap().(*sql.Tx)
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.WithTx(tx).LibraryExistsByPath(ctx, path)
+			return r.postgres.WithTx(sqlTx).LibraryExistsByPath(ctx, path)
 		},
 		func() (any, error) {
-			count, err := r.sqlite.WithTx(tx).LibraryExistsByPath(ctx, path)
+			count, err := r.sqlite.WithTx(sqlTx).LibraryExistsByPath(ctx, path)
 			if err != nil {
 				return false, err
 			}

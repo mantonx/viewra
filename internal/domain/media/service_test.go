@@ -2,11 +2,12 @@ package media
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/mantonx/viewra/internal/domain/common"
 )
 
 // mockRepository implements Repository for testing
@@ -185,11 +186,11 @@ func (m *mockRepository) DeleteExternalSubtitlesByMediaID(ctx context.Context, m
 }
 
 // Transaction-aware methods (delegate to non-tx versions for testing)
-func (m *mockRepository) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error {
+func (m *mockRepository) DeleteWithTx(ctx context.Context, tx common.Transaction, id int64) error {
 	return m.Delete(ctx, id)
 }
 
-func (m *mockRepository) ListByLibraryWithTx(ctx context.Context, tx *sql.Tx, libraryID int64) ([]*Media, error) {
+func (m *mockRepository) ListByLibraryWithTx(ctx context.Context, tx common.Transaction, libraryID int64) ([]*Media, error) {
 	return m.ListByLibrary(ctx, libraryID)
 }
 
