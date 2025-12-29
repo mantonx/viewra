@@ -70,14 +70,14 @@ func (h *ProgressHandler) UpdateProgress(c *gin.Context) {
 // @Description Gets watch progress for a specific media item. If device_profile is provided, returns device-specific playback preferences (quality, audio track, subtitle track) if available.
 // @Tags progress
 // @Produce json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param device_profile query string false "Device profile hash (e.g., 'chrome-h264-sdr') for device-specific preferences"
 // @Success 200 {object} progress.WatchProgressResponse
 // @Failure 404 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/progress/{media_id} [get]
+// @Router /api/progress/{id} [get]
 func (h *ProgressHandler) GetProgress(c *gin.Context) {
-	mediaIDStr := c.Param("media_id")
+	mediaIDStr := c.Param("id")
 	mediaID, err := parseID(mediaIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
@@ -296,14 +296,14 @@ func (h *ProgressHandler) MarkUnwatched(c *gin.Context) {
 // @Summary Delete watch progress
 // @Description Deletes watch progress for a specific media item
 // @Tags progress
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Success 204
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 404 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/progress/{media_id} [delete]
+// @Router /api/progress/{id} [delete]
 func (h *ProgressHandler) DeleteProgress(c *gin.Context) {
-	mediaIDStr := c.Param("media_id")
+	mediaIDStr := c.Param("id")
 	mediaID, err := parseID(mediaIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})

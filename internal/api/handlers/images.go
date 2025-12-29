@@ -183,11 +183,11 @@ func (h *ImagesHandler) ServeImage(c *gin.Context) {
 // @Description Returns all images associated with a specific media item
 // @Tags images
 // @Produce json
-// @Param mediaId path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Success 200 {object} images.ListImagesResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
-// @Router /api/media/{mediaId}/images [get]
+// @Router /api/media/{id}/images [get]
 func (h *ImagesHandler) GetMediaImages(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {

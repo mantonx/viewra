@@ -15,13 +15,13 @@ import (
 // @Tags transcode
 // @Accept json
 // @Produce json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param request body CreateTranscodeJobRequest true "Transcode request"
 // @Success 201 {object} TranscodeJobResponse
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 409 {object} handlers.ErrorResponse "Job already exists"
 // @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/transcode [post]
+// @Router /api/media/{id}/transcode [post]
 func (h *TranscodeHandler) CreateTranscodeJob(c *gin.Context) {
 	mediaIDStr := c.Param("id")
 	mediaID, err := parseID(mediaIDStr)
@@ -64,12 +64,12 @@ func (h *TranscodeHandler) CreateTranscodeJob(c *gin.Context) {
 // @Description Gets the status of a transcode job for specific media and quality
 // @Tags transcode
 // @Produce json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param quality path string true "Quality level (360p, 720p, 1080p, 4k)"
 // @Success 200 {object} TranscodeJobResponse
 // @Failure 404 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/transcode/{quality} [get]
+// @Router /api/media/{id}/transcode/{quality} [get]
 func (h *TranscodeHandler) GetTranscodeStatus(c *gin.Context) {
 	mediaIDStr := c.Param("id")
 	mediaID, err := parseID(mediaIDStr)
@@ -126,13 +126,13 @@ func (h *TranscodeHandler) GetQueueStats(c *gin.Context) {
 // @Summary Cancel transcode job
 // @Description Cancels an actively transcoding job (called when user pauses/stops video)
 // @Tags transcode
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param quality path string true "Quality level (360p, 720p, 1080p, 4k)"
 // @Success 200 {object} map[string]string
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 404 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/transcode/{quality}/cancel [post]
+// @Router /api/media/{id}/transcode/{quality}/cancel [post]
 func (h *TranscodeHandler) CancelTranscodeJob(c *gin.Context) {
 	mediaIDStr := c.Param("id")
 	mediaID, err := parseID(mediaIDStr)

@@ -484,99 +484,96 @@ export function useGetApiImagesIdFile<
  * Returns all images associated with a specific media item
  * @summary Get all images for a media item
  */
-export type getApiMediaMediaIdImagesResponse200 = {
+export type getApiMediaIdImagesResponse200 = {
   data: GithubComMantonxViewraInternalApplicationImagesListImagesResponse
   status: 200
 }
 
-export type getApiMediaMediaIdImagesResponse400 = {
+export type getApiMediaIdImagesResponse400 = {
   data: InternalApiHandlersErrorResponse
   status: 400
 }
 
-export type getApiMediaMediaIdImagesResponse500 = {
+export type getApiMediaIdImagesResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
 
-export type getApiMediaMediaIdImagesResponseSuccess = getApiMediaMediaIdImagesResponse200 & {
+export type getApiMediaIdImagesResponseSuccess = getApiMediaIdImagesResponse200 & {
   headers: Headers
 }
-export type getApiMediaMediaIdImagesResponseError = (
-  | getApiMediaMediaIdImagesResponse400
-  | getApiMediaMediaIdImagesResponse500
+export type getApiMediaIdImagesResponseError = (
+  | getApiMediaIdImagesResponse400
+  | getApiMediaIdImagesResponse500
 ) & {
   headers: Headers
 }
 
-export type getApiMediaMediaIdImagesResponse =
-  | getApiMediaMediaIdImagesResponseSuccess
-  | getApiMediaMediaIdImagesResponseError
+export type getApiMediaIdImagesResponse =
+  | getApiMediaIdImagesResponseSuccess
+  | getApiMediaIdImagesResponseError
 
-export const getGetApiMediaMediaIdImagesUrl = (mediaId: number) => {
-  return `/api/media/${mediaId}/images`
+export const getGetApiMediaIdImagesUrl = (id: number) => {
+  return `/api/media/${id}/images`
 }
 
-export const getApiMediaMediaIdImages = async (
-  mediaId: number,
+export const getApiMediaIdImages = async (
+  id: number,
   options?: RequestInit
-): Promise<getApiMediaMediaIdImagesResponse> => {
-  return customInstance<getApiMediaMediaIdImagesResponse>(getGetApiMediaMediaIdImagesUrl(mediaId), {
+): Promise<getApiMediaIdImagesResponse> => {
+  return customInstance<getApiMediaIdImagesResponse>(getGetApiMediaIdImagesUrl(id), {
     ...options,
     method: 'GET',
   })
 }
 
-export const getGetApiMediaMediaIdImagesQueryKey = (mediaId?: number) => {
-  return [`/api/media/${mediaId}/images`] as const
+export const getGetApiMediaIdImagesQueryKey = (id?: number) => {
+  return [`/api/media/${id}/images`] as const
 }
 
-export const getGetApiMediaMediaIdImagesQueryOptions = <
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdImages>>,
+export const getGetApiMediaIdImagesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaIdImages>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdImages>>, TError, TData>
-    >
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdImages>>, TError, TData>>
     request?: SecondParameter<typeof customInstance>
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {}
 
-  const queryKey = queryOptions?.queryKey ?? getGetApiMediaMediaIdImagesQueryKey(mediaId)
+  const queryKey = queryOptions?.queryKey ?? getGetApiMediaIdImagesQueryKey(id)
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaMediaIdImages>>> = ({
-    signal,
-  }) => getApiMediaMediaIdImages(mediaId, { signal, ...requestOptions })
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaIdImages>>> = ({ signal }) =>
+    getApiMediaIdImages(id, { signal, ...requestOptions })
 
-  return { queryKey, queryFn, enabled: !!mediaId, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getApiMediaMediaIdImages>>,
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMediaIdImages>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetApiMediaMediaIdImagesQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getApiMediaMediaIdImages>>
+export type GetApiMediaIdImagesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaIdImages>>
 >
-export type GetApiMediaMediaIdImagesQueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaIdImagesQueryError = InternalApiHandlersErrorResponse
 
-export function useGetApiMediaMediaIdImages<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdImages>>,
+export function useGetApiMediaIdImages<
+  TData = Awaited<ReturnType<typeof getApiMediaIdImages>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdImages>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdImages>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdImages>>,
+          Awaited<ReturnType<typeof getApiMediaIdImages>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdImages>>
+          Awaited<ReturnType<typeof getApiMediaIdImages>>
         >,
         'initialData'
       >
@@ -584,20 +581,20 @@ export function useGetApiMediaMediaIdImages<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdImages<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdImages>>,
+export function useGetApiMediaIdImages<
+  TData = Awaited<ReturnType<typeof getApiMediaIdImages>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdImages>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdImages>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdImages>>,
+          Awaited<ReturnType<typeof getApiMediaIdImages>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdImages>>
+          Awaited<ReturnType<typeof getApiMediaIdImages>>
         >,
         'initialData'
       >
@@ -605,15 +602,13 @@ export function useGetApiMediaMediaIdImages<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdImages<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdImages>>,
+export function useGetApiMediaIdImages<
+  TData = Awaited<ReturnType<typeof getApiMediaIdImages>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdImages>>, TError, TData>
-    >
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdImages>>, TError, TData>>
     request?: SecondParameter<typeof customInstance>
   },
   queryClient?: QueryClient
@@ -622,20 +617,18 @@ export function useGetApiMediaMediaIdImages<
  * @summary Get all images for a media item
  */
 
-export function useGetApiMediaMediaIdImages<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdImages>>,
+export function useGetApiMediaIdImages<
+  TData = Awaited<ReturnType<typeof getApiMediaIdImages>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdImages>>, TError, TData>
-    >
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdImages>>, TError, TData>>
     request?: SecondParameter<typeof customInstance>
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetApiMediaMediaIdImagesQueryOptions(mediaId, options)
+  const queryOptions = getGetApiMediaIdImagesQueryOptions(id, options)
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>

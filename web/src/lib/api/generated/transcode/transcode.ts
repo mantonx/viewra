@@ -22,8 +22,8 @@ import type {
 } from '@tanstack/react-query'
 
 import type {
-  GetApiMediaMediaIdHlsMasterM3u8Params,
-  GetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttParams,
+  GetApiMediaIdHlsMasterM3u8Params,
+  GetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttParams,
   GithubComMantonxViewraInternalApplicationTranscodeQueueStats,
   InternalApiHandlersCleanupRequest,
   InternalApiHandlersCleanupResponse,
@@ -31,7 +31,7 @@ import type {
   InternalApiHandlersDiskUsageResponse,
   InternalApiHandlersErrorResponse,
   InternalApiHandlersTranscodeJobResponse,
-  PostApiMediaMediaIdTranscodeQualityCancel200,
+  PostApiMediaIdTranscodeQualityCancel200,
 } from '.././models'
 
 import { customInstance } from '../../mutator/index'
@@ -44,51 +44,50 @@ Uses screen size, bandwidth, and codec support to recommend the best quality.
 If the video is compatible for direct play (right codec, audio, container), returns 302 redirect.
  * @summary Serve HLS master playlist
  */
-export type getApiMediaMediaIdHlsMasterM3u8Response200 = {
+export type getApiMediaIdHlsMasterM3u8Response200 = {
   data: Blob
   status: 200
 }
 
-export type getApiMediaMediaIdHlsMasterM3u8Response302 = {
+export type getApiMediaIdHlsMasterM3u8Response302 = {
   data: void
   status: 302
 }
 
-export type getApiMediaMediaIdHlsMasterM3u8Response400 = {
+export type getApiMediaIdHlsMasterM3u8Response400 = {
   data: InternalApiHandlersErrorResponse
   status: 400
 }
 
-export type getApiMediaMediaIdHlsMasterM3u8Response404 = {
+export type getApiMediaIdHlsMasterM3u8Response404 = {
   data: InternalApiHandlersErrorResponse
   status: 404
 }
 
-export type getApiMediaMediaIdHlsMasterM3u8Response500 = {
+export type getApiMediaIdHlsMasterM3u8Response500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
 
-export type getApiMediaMediaIdHlsMasterM3u8ResponseSuccess =
-  getApiMediaMediaIdHlsMasterM3u8Response200 & {
-    headers: Headers
-  }
-export type getApiMediaMediaIdHlsMasterM3u8ResponseError = (
-  | getApiMediaMediaIdHlsMasterM3u8Response302
-  | getApiMediaMediaIdHlsMasterM3u8Response400
-  | getApiMediaMediaIdHlsMasterM3u8Response404
-  | getApiMediaMediaIdHlsMasterM3u8Response500
+export type getApiMediaIdHlsMasterM3u8ResponseSuccess = getApiMediaIdHlsMasterM3u8Response200 & {
+  headers: Headers
+}
+export type getApiMediaIdHlsMasterM3u8ResponseError = (
+  | getApiMediaIdHlsMasterM3u8Response302
+  | getApiMediaIdHlsMasterM3u8Response400
+  | getApiMediaIdHlsMasterM3u8Response404
+  | getApiMediaIdHlsMasterM3u8Response500
 ) & {
   headers: Headers
 }
 
-export type getApiMediaMediaIdHlsMasterM3u8Response =
-  | getApiMediaMediaIdHlsMasterM3u8ResponseSuccess
-  | getApiMediaMediaIdHlsMasterM3u8ResponseError
+export type getApiMediaIdHlsMasterM3u8Response =
+  | getApiMediaIdHlsMasterM3u8ResponseSuccess
+  | getApiMediaIdHlsMasterM3u8ResponseError
 
-export const getGetApiMediaMediaIdHlsMasterM3u8Url = (
-  mediaId: number,
-  params?: GetApiMediaMediaIdHlsMasterM3u8Params
+export const getGetApiMediaIdHlsMasterM3u8Url = (
+  id: number,
+  params?: GetApiMediaIdHlsMasterM3u8Params
 ) => {
   const normalizedParams = new URLSearchParams()
 
@@ -101,17 +100,17 @@ export const getGetApiMediaMediaIdHlsMasterM3u8Url = (
   const stringifiedParams = normalizedParams.toString()
 
   return stringifiedParams.length > 0
-    ? `/api/media/${mediaId}/hls/master.m3u8?${stringifiedParams}`
-    : `/api/media/${mediaId}/hls/master.m3u8`
+    ? `/api/media/${id}/hls/master.m3u8?${stringifiedParams}`
+    : `/api/media/${id}/hls/master.m3u8`
 }
 
-export const getApiMediaMediaIdHlsMasterM3u8 = async (
-  mediaId: number,
-  params?: GetApiMediaMediaIdHlsMasterM3u8Params,
+export const getApiMediaIdHlsMasterM3u8 = async (
+  id: number,
+  params?: GetApiMediaIdHlsMasterM3u8Params,
   options?: RequestInit
-): Promise<getApiMediaMediaIdHlsMasterM3u8Response> => {
-  return customInstance<getApiMediaMediaIdHlsMasterM3u8Response>(
-    getGetApiMediaMediaIdHlsMasterM3u8Url(mediaId, params),
+): Promise<getApiMediaIdHlsMasterM3u8Response> => {
+  return customInstance<getApiMediaIdHlsMasterM3u8Response>(
+    getGetApiMediaIdHlsMasterM3u8Url(id, params),
     {
       ...options,
       method: 'GET',
@@ -119,62 +118,61 @@ export const getApiMediaMediaIdHlsMasterM3u8 = async (
   )
 }
 
-export const getGetApiMediaMediaIdHlsMasterM3u8QueryKey = (
-  mediaId?: number,
-  params?: GetApiMediaMediaIdHlsMasterM3u8Params
+export const getGetApiMediaIdHlsMasterM3u8QueryKey = (
+  id?: number,
+  params?: GetApiMediaIdHlsMasterM3u8Params
 ) => {
-  return [`/api/media/${mediaId}/hls/master.m3u8`, ...(params ? [params] : [])] as const
+  return [`/api/media/${id}/hls/master.m3u8`, ...(params ? [params] : [])] as const
 }
 
-export const getGetApiMediaMediaIdHlsMasterM3u8QueryOptions = <
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
+export const getGetApiMediaIdHlsMasterM3u8QueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsMasterM3u8>>,
   TError = void | InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
-  params?: GetApiMediaMediaIdHlsMasterM3u8Params,
+  id: number,
+  params?: GetApiMediaIdHlsMasterM3u8Params,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdHlsMasterM3u8>>, TError, TData>
     >
     request?: SecondParameter<typeof customInstance>
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {}
 
-  const queryKey =
-    queryOptions?.queryKey ?? getGetApiMediaMediaIdHlsMasterM3u8QueryKey(mediaId, params)
+  const queryKey = queryOptions?.queryKey ?? getGetApiMediaIdHlsMasterM3u8QueryKey(id, params)
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>> = ({
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaIdHlsMasterM3u8>>> = ({
     signal,
-  }) => getApiMediaMediaIdHlsMasterM3u8(mediaId, params, { signal, ...requestOptions })
+  }) => getApiMediaIdHlsMasterM3u8(id, params, { signal, ...requestOptions })
 
-  return { queryKey, queryFn, enabled: !!mediaId, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMediaIdHlsMasterM3u8>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetApiMediaMediaIdHlsMasterM3u8QueryResult = NonNullable<
-  Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>
+export type GetApiMediaIdHlsMasterM3u8QueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaIdHlsMasterM3u8>>
 >
-export type GetApiMediaMediaIdHlsMasterM3u8QueryError = void | InternalApiHandlersErrorResponse
+export type GetApiMediaIdHlsMasterM3u8QueryError = void | InternalApiHandlersErrorResponse
 
-export function useGetApiMediaMediaIdHlsMasterM3u8<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
+export function useGetApiMediaIdHlsMasterM3u8<
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsMasterM3u8>>,
   TError = void | InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
-  params: undefined | GetApiMediaMediaIdHlsMasterM3u8Params,
+  id: number,
+  params: undefined | GetApiMediaIdHlsMasterM3u8Params,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdHlsMasterM3u8>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
+          Awaited<ReturnType<typeof getApiMediaIdHlsMasterM3u8>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>
+          Awaited<ReturnType<typeof getApiMediaIdHlsMasterM3u8>>
         >,
         'initialData'
       >
@@ -182,21 +180,21 @@ export function useGetApiMediaMediaIdHlsMasterM3u8<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdHlsMasterM3u8<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
+export function useGetApiMediaIdHlsMasterM3u8<
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsMasterM3u8>>,
   TError = void | InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
-  params?: GetApiMediaMediaIdHlsMasterM3u8Params,
+  id: number,
+  params?: GetApiMediaIdHlsMasterM3u8Params,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdHlsMasterM3u8>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
+          Awaited<ReturnType<typeof getApiMediaIdHlsMasterM3u8>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>
+          Awaited<ReturnType<typeof getApiMediaIdHlsMasterM3u8>>
         >,
         'initialData'
       >
@@ -204,15 +202,15 @@ export function useGetApiMediaMediaIdHlsMasterM3u8<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdHlsMasterM3u8<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
+export function useGetApiMediaIdHlsMasterM3u8<
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsMasterM3u8>>,
   TError = void | InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
-  params?: GetApiMediaMediaIdHlsMasterM3u8Params,
+  id: number,
+  params?: GetApiMediaIdHlsMasterM3u8Params,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdHlsMasterM3u8>>, TError, TData>
     >
     request?: SecondParameter<typeof customInstance>
   },
@@ -222,21 +220,21 @@ export function useGetApiMediaMediaIdHlsMasterM3u8<
  * @summary Serve HLS master playlist
  */
 
-export function useGetApiMediaMediaIdHlsMasterM3u8<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
+export function useGetApiMediaIdHlsMasterM3u8<
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsMasterM3u8>>,
   TError = void | InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
-  params?: GetApiMediaMediaIdHlsMasterM3u8Params,
+  id: number,
+  params?: GetApiMediaIdHlsMasterM3u8Params,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdHlsMasterM3u8>>, TError, TData>
     >
     request?: SecondParameter<typeof customInstance>
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetApiMediaMediaIdHlsMasterM3u8QueryOptions(mediaId, params, options)
+  const queryOptions = getGetApiMediaIdHlsMasterM3u8QueryOptions(id, params, options)
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>
@@ -251,46 +249,46 @@ export function useGetApiMediaMediaIdHlsMasterM3u8<
  * Streams a text subtitle as WebVTT for HLS playback (fast demux, no full file scan)
  * @summary Serve subtitle WebVTT file
  */
-export type getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse200 = {
+export type getApiMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse200 = {
   data: Blob
   status: 200
 }
 
-export type getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse400 = {
+export type getApiMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse400 = {
   data: InternalApiHandlersErrorResponse
   status: 400
 }
 
-export type getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse404 = {
+export type getApiMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse404 = {
   data: InternalApiHandlersErrorResponse
   status: 404
 }
 
-export type getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse500 = {
+export type getApiMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
 
-export type getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttResponseSuccess =
-  getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse200 & {
+export type getApiMediaIdHlsSubtitleTrackIndexSubtitlesVttResponseSuccess =
+  getApiMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse200 & {
     headers: Headers
   }
-export type getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttResponseError = (
-  | getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse400
-  | getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse404
-  | getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse500
+export type getApiMediaIdHlsSubtitleTrackIndexSubtitlesVttResponseError = (
+  | getApiMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse400
+  | getApiMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse404
+  | getApiMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse500
 ) & {
   headers: Headers
 }
 
-export type getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse =
-  | getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttResponseSuccess
-  | getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttResponseError
+export type getApiMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse =
+  | getApiMediaIdHlsSubtitleTrackIndexSubtitlesVttResponseSuccess
+  | getApiMediaIdHlsSubtitleTrackIndexSubtitlesVttResponseError
 
-export const getGetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttUrl = (
-  mediaId: number,
+export const getGetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttUrl = (
+  id: number,
   trackIndex: number,
-  params?: GetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttParams
+  params?: GetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttParams
 ) => {
   const normalizedParams = new URLSearchParams()
 
@@ -303,18 +301,18 @@ export const getGetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttUrl = (
   const stringifiedParams = normalizedParams.toString()
 
   return stringifiedParams.length > 0
-    ? `/api/media/${mediaId}/hls/subtitle/${trackIndex}/subtitles.vtt?${stringifiedParams}`
-    : `/api/media/${mediaId}/hls/subtitle/${trackIndex}/subtitles.vtt`
+    ? `/api/media/${id}/hls/subtitle/${trackIndex}/subtitles.vtt?${stringifiedParams}`
+    : `/api/media/${id}/hls/subtitle/${trackIndex}/subtitles.vtt`
 }
 
-export const getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt = async (
-  mediaId: number,
+export const getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt = async (
+  id: number,
   trackIndex: number,
-  params?: GetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttParams,
+  params?: GetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttParams,
   options?: RequestInit
-): Promise<getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse> => {
-  return customInstance<getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse>(
-    getGetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttUrl(mediaId, trackIndex, params),
+): Promise<getApiMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse> => {
+  return customInstance<getApiMediaIdHlsSubtitleTrackIndexSubtitlesVttResponse>(
+    getGetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttUrl(id, trackIndex, params),
     {
       ...options,
       method: 'GET',
@@ -322,28 +320,28 @@ export const getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt = async (
   )
 }
 
-export const getGetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttQueryKey = (
-  mediaId?: number,
+export const getGetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttQueryKey = (
+  id?: number,
   trackIndex?: number,
-  params?: GetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttParams
+  params?: GetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttParams
 ) => {
   return [
-    `/api/media/${mediaId}/hls/subtitle/${trackIndex}/subtitles.vtt`,
+    `/api/media/${id}/hls/subtitle/${trackIndex}/subtitles.vtt`,
     ...(params ? [params] : []),
   ] as const
 }
 
-export const getGetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttQueryOptions = <
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
+export const getGetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   trackIndex: number,
-  params?: GetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttParams,
+  params?: GetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
+        Awaited<ReturnType<typeof getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
         TError,
         TData
       >
@@ -355,54 +353,49 @@ export const getGetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttQueryOptions 
 
   const queryKey =
     queryOptions?.queryKey ??
-    getGetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttQueryKey(mediaId, trackIndex, params)
+    getGetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttQueryKey(id, trackIndex, params)
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>
+    Awaited<ReturnType<typeof getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>
   > = ({ signal }) =>
-    getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt(mediaId, trackIndex, params, {
+    getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt(id, trackIndex, params, {
       signal,
       ...requestOptions,
     })
 
-  return {
-    queryKey,
-    queryFn,
-    enabled: !!(mediaId && trackIndex),
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
+  return { queryKey, queryFn, enabled: !!(id && trackIndex), ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>
+export type GetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>
 >
-export type GetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttQueryError =
+export type GetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttQueryError =
   InternalApiHandlersErrorResponse
 
-export function useGetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
+export function useGetApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt<
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   trackIndex: number,
-  params: undefined | GetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttParams,
+  params: undefined | GetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
+        Awaited<ReturnType<typeof getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
+          Awaited<ReturnType<typeof getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>
+          Awaited<ReturnType<typeof getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>
         >,
         'initialData'
       >
@@ -410,26 +403,26 @@ export function useGetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
+export function useGetApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt<
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   trackIndex: number,
-  params?: GetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttParams,
+  params?: GetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
+        Awaited<ReturnType<typeof getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
+          Awaited<ReturnType<typeof getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>
+          Awaited<ReturnType<typeof getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>
         >,
         'initialData'
       >
@@ -437,17 +430,17 @@ export function useGetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
+export function useGetApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt<
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   trackIndex: number,
-  params?: GetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttParams,
+  params?: GetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
+        Awaited<ReturnType<typeof getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
         TError,
         TData
       >
@@ -460,17 +453,17 @@ export function useGetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt<
  * @summary Serve subtitle WebVTT file
  */
 
-export function useGetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
+export function useGetApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt<
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   trackIndex: number,
-  params?: GetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttParams,
+  params?: GetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
+        Awaited<ReturnType<typeof getApiMediaIdHlsSubtitleTrackIndexSubtitlesVtt>>,
         TError,
         TData
       >
@@ -479,8 +472,8 @@ export function useGetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVttQueryOptions(
-    mediaId,
+  const queryOptions = getGetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttQueryOptions(
+    id,
     trackIndex,
     params,
     options
@@ -500,62 +493,59 @@ export function useGetApiMediaMediaIdHlsSubtitleTrackIndexSubtitlesVtt<
 from segment 0. Segments are created on-demand as the player requests them. Compatible videos redirect to direct stream.
  * @summary Serve HLS playlist (instant manifest generation)
  */
-export type getApiMediaMediaIdHlsQualityPlaylistM3u8Response200 = {
+export type getApiMediaIdHlsQualityPlaylistM3u8Response200 = {
   data: Blob
   status: 200
 }
 
-export type getApiMediaMediaIdHlsQualityPlaylistM3u8Response302 = {
+export type getApiMediaIdHlsQualityPlaylistM3u8Response302 = {
   data: void
   status: 302
 }
 
-export type getApiMediaMediaIdHlsQualityPlaylistM3u8Response400 = {
+export type getApiMediaIdHlsQualityPlaylistM3u8Response400 = {
   data: InternalApiHandlersErrorResponse
   status: 400
 }
 
-export type getApiMediaMediaIdHlsQualityPlaylistM3u8Response404 = {
+export type getApiMediaIdHlsQualityPlaylistM3u8Response404 = {
   data: InternalApiHandlersErrorResponse
   status: 404
 }
 
-export type getApiMediaMediaIdHlsQualityPlaylistM3u8Response500 = {
+export type getApiMediaIdHlsQualityPlaylistM3u8Response500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
 
-export type getApiMediaMediaIdHlsQualityPlaylistM3u8ResponseSuccess =
-  getApiMediaMediaIdHlsQualityPlaylistM3u8Response200 & {
+export type getApiMediaIdHlsQualityPlaylistM3u8ResponseSuccess =
+  getApiMediaIdHlsQualityPlaylistM3u8Response200 & {
     headers: Headers
   }
-export type getApiMediaMediaIdHlsQualityPlaylistM3u8ResponseError = (
-  | getApiMediaMediaIdHlsQualityPlaylistM3u8Response302
-  | getApiMediaMediaIdHlsQualityPlaylistM3u8Response400
-  | getApiMediaMediaIdHlsQualityPlaylistM3u8Response404
-  | getApiMediaMediaIdHlsQualityPlaylistM3u8Response500
+export type getApiMediaIdHlsQualityPlaylistM3u8ResponseError = (
+  | getApiMediaIdHlsQualityPlaylistM3u8Response302
+  | getApiMediaIdHlsQualityPlaylistM3u8Response400
+  | getApiMediaIdHlsQualityPlaylistM3u8Response404
+  | getApiMediaIdHlsQualityPlaylistM3u8Response500
 ) & {
   headers: Headers
 }
 
-export type getApiMediaMediaIdHlsQualityPlaylistM3u8Response =
-  | getApiMediaMediaIdHlsQualityPlaylistM3u8ResponseSuccess
-  | getApiMediaMediaIdHlsQualityPlaylistM3u8ResponseError
+export type getApiMediaIdHlsQualityPlaylistM3u8Response =
+  | getApiMediaIdHlsQualityPlaylistM3u8ResponseSuccess
+  | getApiMediaIdHlsQualityPlaylistM3u8ResponseError
 
-export const getGetApiMediaMediaIdHlsQualityPlaylistM3u8Url = (
-  mediaId: number,
-  quality: string
-) => {
-  return `/api/media/${mediaId}/hls/${quality}/playlist.m3u8`
+export const getGetApiMediaIdHlsQualityPlaylistM3u8Url = (id: number, quality: string) => {
+  return `/api/media/${id}/hls/${quality}/playlist.m3u8`
 }
 
-export const getApiMediaMediaIdHlsQualityPlaylistM3u8 = async (
-  mediaId: number,
+export const getApiMediaIdHlsQualityPlaylistM3u8 = async (
+  id: number,
   quality: string,
   options?: RequestInit
-): Promise<getApiMediaMediaIdHlsQualityPlaylistM3u8Response> => {
-  return customInstance<getApiMediaMediaIdHlsQualityPlaylistM3u8Response>(
-    getGetApiMediaMediaIdHlsQualityPlaylistM3u8Url(mediaId, quality),
+): Promise<getApiMediaIdHlsQualityPlaylistM3u8Response> => {
+  return customInstance<getApiMediaIdHlsQualityPlaylistM3u8Response>(
+    getGetApiMediaIdHlsQualityPlaylistM3u8Url(id, quality),
     {
       ...options,
       method: 'GET',
@@ -563,23 +553,20 @@ export const getApiMediaMediaIdHlsQualityPlaylistM3u8 = async (
   )
 }
 
-export const getGetApiMediaMediaIdHlsQualityPlaylistM3u8QueryKey = (
-  mediaId?: number,
-  quality?: string
-) => {
-  return [`/api/media/${mediaId}/hls/${quality}/playlist.m3u8`] as const
+export const getGetApiMediaIdHlsQualityPlaylistM3u8QueryKey = (id?: number, quality?: string) => {
+  return [`/api/media/${id}/hls/${quality}/playlist.m3u8`] as const
 }
 
-export const getGetApiMediaMediaIdHlsQualityPlaylistM3u8QueryOptions = <
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+export const getGetApiMediaIdHlsQualityPlaylistM3u8QueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsQualityPlaylistM3u8>>,
   TError = void | InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   quality: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+        Awaited<ReturnType<typeof getApiMediaIdHlsQualityPlaylistM3u8>>,
         TError,
         TData
       >
@@ -590,45 +577,43 @@ export const getGetApiMediaMediaIdHlsQualityPlaylistM3u8QueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {}
 
   const queryKey =
-    queryOptions?.queryKey ?? getGetApiMediaMediaIdHlsQualityPlaylistM3u8QueryKey(mediaId, quality)
+    queryOptions?.queryKey ?? getGetApiMediaIdHlsQualityPlaylistM3u8QueryKey(id, quality)
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>
-  > = ({ signal }) =>
-    getApiMediaMediaIdHlsQualityPlaylistM3u8(mediaId, quality, { signal, ...requestOptions })
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaIdHlsQualityPlaylistM3u8>>> = ({
+    signal,
+  }) => getApiMediaIdHlsQualityPlaylistM3u8(id, quality, { signal, ...requestOptions })
 
-  return { queryKey, queryFn, enabled: !!(mediaId && quality), ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+  return { queryKey, queryFn, enabled: !!(id && quality), ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMediaIdHlsQualityPlaylistM3u8>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetApiMediaMediaIdHlsQualityPlaylistM3u8QueryResult = NonNullable<
-  Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>
+export type GetApiMediaIdHlsQualityPlaylistM3u8QueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaIdHlsQualityPlaylistM3u8>>
 >
-export type GetApiMediaMediaIdHlsQualityPlaylistM3u8QueryError =
-  void | InternalApiHandlersErrorResponse
+export type GetApiMediaIdHlsQualityPlaylistM3u8QueryError = void | InternalApiHandlersErrorResponse
 
-export function useGetApiMediaMediaIdHlsQualityPlaylistM3u8<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+export function useGetApiMediaIdHlsQualityPlaylistM3u8<
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsQualityPlaylistM3u8>>,
   TError = void | InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   quality: string,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+        Awaited<ReturnType<typeof getApiMediaIdHlsQualityPlaylistM3u8>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+          Awaited<ReturnType<typeof getApiMediaIdHlsQualityPlaylistM3u8>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>
+          Awaited<ReturnType<typeof getApiMediaIdHlsQualityPlaylistM3u8>>
         >,
         'initialData'
       >
@@ -636,25 +621,25 @@ export function useGetApiMediaMediaIdHlsQualityPlaylistM3u8<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdHlsQualityPlaylistM3u8<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+export function useGetApiMediaIdHlsQualityPlaylistM3u8<
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsQualityPlaylistM3u8>>,
   TError = void | InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   quality: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+        Awaited<ReturnType<typeof getApiMediaIdHlsQualityPlaylistM3u8>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+          Awaited<ReturnType<typeof getApiMediaIdHlsQualityPlaylistM3u8>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>
+          Awaited<ReturnType<typeof getApiMediaIdHlsQualityPlaylistM3u8>>
         >,
         'initialData'
       >
@@ -662,16 +647,16 @@ export function useGetApiMediaMediaIdHlsQualityPlaylistM3u8<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdHlsQualityPlaylistM3u8<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+export function useGetApiMediaIdHlsQualityPlaylistM3u8<
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsQualityPlaylistM3u8>>,
   TError = void | InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   quality: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+        Awaited<ReturnType<typeof getApiMediaIdHlsQualityPlaylistM3u8>>,
         TError,
         TData
       >
@@ -684,16 +669,16 @@ export function useGetApiMediaMediaIdHlsQualityPlaylistM3u8<
  * @summary Serve HLS playlist (instant manifest generation)
  */
 
-export function useGetApiMediaMediaIdHlsQualityPlaylistM3u8<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+export function useGetApiMediaIdHlsQualityPlaylistM3u8<
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsQualityPlaylistM3u8>>,
   TError = void | InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   quality: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+        Awaited<ReturnType<typeof getApiMediaIdHlsQualityPlaylistM3u8>>,
         TError,
         TData
       >
@@ -702,11 +687,7 @@ export function useGetApiMediaMediaIdHlsQualityPlaylistM3u8<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetApiMediaMediaIdHlsQualityPlaylistM3u8QueryOptions(
-    mediaId,
-    quality,
-    options
-  )
+  const queryOptions = getGetApiMediaIdHlsQualityPlaylistM3u8QueryOptions(id, quality, options)
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>
@@ -721,58 +702,58 @@ export function useGetApiMediaMediaIdHlsQualityPlaylistM3u8<
  * Serves HLS segment files (.ts) from progressive transcoding sessions
  * @summary Serve HLS segment
  */
-export type getApiMediaMediaIdHlsQualityFilenameResponse200 = {
+export type getApiMediaIdHlsQualityFilenameResponse200 = {
   data: Blob
   status: 200
 }
 
-export type getApiMediaMediaIdHlsQualityFilenameResponse400 = {
+export type getApiMediaIdHlsQualityFilenameResponse400 = {
   data: InternalApiHandlersErrorResponse
   status: 400
 }
 
-export type getApiMediaMediaIdHlsQualityFilenameResponse404 = {
+export type getApiMediaIdHlsQualityFilenameResponse404 = {
   data: InternalApiHandlersErrorResponse
   status: 404
 }
 
-export type getApiMediaMediaIdHlsQualityFilenameResponse500 = {
+export type getApiMediaIdHlsQualityFilenameResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
 
-export type getApiMediaMediaIdHlsQualityFilenameResponseSuccess =
-  getApiMediaMediaIdHlsQualityFilenameResponse200 & {
+export type getApiMediaIdHlsQualityFilenameResponseSuccess =
+  getApiMediaIdHlsQualityFilenameResponse200 & {
     headers: Headers
   }
-export type getApiMediaMediaIdHlsQualityFilenameResponseError = (
-  | getApiMediaMediaIdHlsQualityFilenameResponse400
-  | getApiMediaMediaIdHlsQualityFilenameResponse404
-  | getApiMediaMediaIdHlsQualityFilenameResponse500
+export type getApiMediaIdHlsQualityFilenameResponseError = (
+  | getApiMediaIdHlsQualityFilenameResponse400
+  | getApiMediaIdHlsQualityFilenameResponse404
+  | getApiMediaIdHlsQualityFilenameResponse500
 ) & {
   headers: Headers
 }
 
-export type getApiMediaMediaIdHlsQualityFilenameResponse =
-  | getApiMediaMediaIdHlsQualityFilenameResponseSuccess
-  | getApiMediaMediaIdHlsQualityFilenameResponseError
+export type getApiMediaIdHlsQualityFilenameResponse =
+  | getApiMediaIdHlsQualityFilenameResponseSuccess
+  | getApiMediaIdHlsQualityFilenameResponseError
 
-export const getGetApiMediaMediaIdHlsQualityFilenameUrl = (
-  mediaId: number,
+export const getGetApiMediaIdHlsQualityFilenameUrl = (
+  id: number,
   quality: string,
   filename: string
 ) => {
-  return `/api/media/${mediaId}/hls/${quality}/${filename}`
+  return `/api/media/${id}/hls/${quality}/${filename}`
 }
 
-export const getApiMediaMediaIdHlsQualityFilename = async (
-  mediaId: number,
+export const getApiMediaIdHlsQualityFilename = async (
+  id: number,
   quality: string,
   filename: string,
   options?: RequestInit
-): Promise<getApiMediaMediaIdHlsQualityFilenameResponse> => {
-  return customInstance<getApiMediaMediaIdHlsQualityFilenameResponse>(
-    getGetApiMediaMediaIdHlsQualityFilenameUrl(mediaId, quality, filename),
+): Promise<getApiMediaIdHlsQualityFilenameResponse> => {
+  return customInstance<getApiMediaIdHlsQualityFilenameResponse>(
+    getGetApiMediaIdHlsQualityFilenameUrl(id, quality, filename),
     {
       ...options,
       method: 'GET',
@@ -780,28 +761,24 @@ export const getApiMediaMediaIdHlsQualityFilename = async (
   )
 }
 
-export const getGetApiMediaMediaIdHlsQualityFilenameQueryKey = (
-  mediaId?: number,
+export const getGetApiMediaIdHlsQualityFilenameQueryKey = (
+  id?: number,
   quality?: string,
   filename?: string
 ) => {
-  return [`/api/media/${mediaId}/hls/${quality}/${filename}`] as const
+  return [`/api/media/${id}/hls/${quality}/${filename}`] as const
 }
 
-export const getGetApiMediaMediaIdHlsQualityFilenameQueryOptions = <
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+export const getGetApiMediaIdHlsQualityFilenameQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsQualityFilename>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   quality: string,
   filename: string,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdHlsQualityFilename>>, TError, TData>
     >
     request?: SecondParameter<typeof customInstance>
   }
@@ -809,51 +786,45 @@ export const getGetApiMediaMediaIdHlsQualityFilenameQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {}
 
   const queryKey =
-    queryOptions?.queryKey ??
-    getGetApiMediaMediaIdHlsQualityFilenameQueryKey(mediaId, quality, filename)
+    queryOptions?.queryKey ?? getGetApiMediaIdHlsQualityFilenameQueryKey(id, quality, filename)
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>
-  > = ({ signal }) =>
-    getApiMediaMediaIdHlsQualityFilename(mediaId, quality, filename, { signal, ...requestOptions })
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaIdHlsQualityFilename>>> = ({
+    signal,
+  }) => getApiMediaIdHlsQualityFilename(id, quality, filename, { signal, ...requestOptions })
 
   return {
     queryKey,
     queryFn,
-    enabled: !!(mediaId && quality && filename),
+    enabled: !!(id && quality && filename),
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+    Awaited<ReturnType<typeof getApiMediaIdHlsQualityFilename>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetApiMediaMediaIdHlsQualityFilenameQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>
+export type GetApiMediaIdHlsQualityFilenameQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaIdHlsQualityFilename>>
 >
-export type GetApiMediaMediaIdHlsQualityFilenameQueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaIdHlsQualityFilenameQueryError = InternalApiHandlersErrorResponse
 
-export function useGetApiMediaMediaIdHlsQualityFilename<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+export function useGetApiMediaIdHlsQualityFilename<
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsQualityFilename>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   quality: string,
   filename: string,
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdHlsQualityFilename>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+          Awaited<ReturnType<typeof getApiMediaIdHlsQualityFilename>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>
+          Awaited<ReturnType<typeof getApiMediaIdHlsQualityFilename>>
         >,
         'initialData'
       >
@@ -861,26 +832,22 @@ export function useGetApiMediaMediaIdHlsQualityFilename<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdHlsQualityFilename<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+export function useGetApiMediaIdHlsQualityFilename<
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsQualityFilename>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   quality: string,
   filename: string,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdHlsQualityFilename>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+          Awaited<ReturnType<typeof getApiMediaIdHlsQualityFilename>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>
+          Awaited<ReturnType<typeof getApiMediaIdHlsQualityFilename>>
         >,
         'initialData'
       >
@@ -888,20 +855,16 @@ export function useGetApiMediaMediaIdHlsQualityFilename<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdHlsQualityFilename<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+export function useGetApiMediaIdHlsQualityFilename<
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsQualityFilename>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   quality: string,
   filename: string,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdHlsQualityFilename>>, TError, TData>
     >
     request?: SecondParameter<typeof customInstance>
   },
@@ -911,27 +874,23 @@ export function useGetApiMediaMediaIdHlsQualityFilename<
  * @summary Serve HLS segment
  */
 
-export function useGetApiMediaMediaIdHlsQualityFilename<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+export function useGetApiMediaIdHlsQualityFilename<
+  TData = Awaited<ReturnType<typeof getApiMediaIdHlsQualityFilename>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   quality: string,
   filename: string,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdHlsQualityFilename>>, TError, TData>
     >
     request?: SecondParameter<typeof customInstance>
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetApiMediaMediaIdHlsQualityFilenameQueryOptions(
-    mediaId,
+  const queryOptions = getGetApiMediaIdHlsQualityFilenameQueryOptions(
+    id,
     quality,
     filename,
     options
@@ -950,80 +909,76 @@ export function useGetApiMediaMediaIdHlsQualityFilename<
  * Creates a new transcode job for the specified media and quality level
  * @summary Start transcoding
  */
-export type postApiMediaMediaIdTranscodeResponse201 = {
+export type postApiMediaIdTranscodeResponse201 = {
   data: InternalApiHandlersTranscodeJobResponse
   status: 201
 }
 
-export type postApiMediaMediaIdTranscodeResponse400 = {
+export type postApiMediaIdTranscodeResponse400 = {
   data: InternalApiHandlersErrorResponse
   status: 400
 }
 
-export type postApiMediaMediaIdTranscodeResponse409 = {
+export type postApiMediaIdTranscodeResponse409 = {
   data: InternalApiHandlersErrorResponse
   status: 409
 }
 
-export type postApiMediaMediaIdTranscodeResponse500 = {
+export type postApiMediaIdTranscodeResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
 
-export type postApiMediaMediaIdTranscodeResponseSuccess =
-  postApiMediaMediaIdTranscodeResponse201 & {
-    headers: Headers
-  }
-export type postApiMediaMediaIdTranscodeResponseError = (
-  | postApiMediaMediaIdTranscodeResponse400
-  | postApiMediaMediaIdTranscodeResponse409
-  | postApiMediaMediaIdTranscodeResponse500
+export type postApiMediaIdTranscodeResponseSuccess = postApiMediaIdTranscodeResponse201 & {
+  headers: Headers
+}
+export type postApiMediaIdTranscodeResponseError = (
+  | postApiMediaIdTranscodeResponse400
+  | postApiMediaIdTranscodeResponse409
+  | postApiMediaIdTranscodeResponse500
 ) & {
   headers: Headers
 }
 
-export type postApiMediaMediaIdTranscodeResponse =
-  | postApiMediaMediaIdTranscodeResponseSuccess
-  | postApiMediaMediaIdTranscodeResponseError
+export type postApiMediaIdTranscodeResponse =
+  | postApiMediaIdTranscodeResponseSuccess
+  | postApiMediaIdTranscodeResponseError
 
-export const getPostApiMediaMediaIdTranscodeUrl = (mediaId: number) => {
-  return `/api/media/${mediaId}/transcode`
+export const getPostApiMediaIdTranscodeUrl = (id: number) => {
+  return `/api/media/${id}/transcode`
 }
 
-export const postApiMediaMediaIdTranscode = async (
-  mediaId: number,
+export const postApiMediaIdTranscode = async (
+  id: number,
   internalApiHandlersCreateTranscodeJobRequest: InternalApiHandlersCreateTranscodeJobRequest,
   options?: RequestInit
-): Promise<postApiMediaMediaIdTranscodeResponse> => {
-  return customInstance<postApiMediaMediaIdTranscodeResponse>(
-    getPostApiMediaMediaIdTranscodeUrl(mediaId),
-    {
-      ...options,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...options?.headers },
-      body: JSON.stringify(internalApiHandlersCreateTranscodeJobRequest),
-    }
-  )
+): Promise<postApiMediaIdTranscodeResponse> => {
+  return customInstance<postApiMediaIdTranscodeResponse>(getPostApiMediaIdTranscodeUrl(id), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(internalApiHandlersCreateTranscodeJobRequest),
+  })
 }
 
-export const getPostApiMediaMediaIdTranscodeMutationOptions = <
+export const getPostApiMediaIdTranscodeMutationOptions = <
   TError = InternalApiHandlersErrorResponse,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>,
+    Awaited<ReturnType<typeof postApiMediaIdTranscode>>,
     TError,
-    { mediaId: number; data: InternalApiHandlersCreateTranscodeJobRequest },
+    { id: number; data: InternalApiHandlersCreateTranscodeJobRequest },
     TContext
   >
   request?: SecondParameter<typeof customInstance>
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>,
+  Awaited<ReturnType<typeof postApiMediaIdTranscode>>,
   TError,
-  { mediaId: number; data: InternalApiHandlersCreateTranscodeJobRequest },
+  { id: number; data: InternalApiHandlersCreateTranscodeJobRequest },
   TContext
 > => {
-  const mutationKey = ['postApiMediaMediaIdTranscode']
+  const mutationKey = ['postApiMediaIdTranscode']
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
       ? options
@@ -1031,47 +986,47 @@ export const getPostApiMediaMediaIdTranscodeMutationOptions = <
     : { mutation: { mutationKey }, request: undefined }
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>,
-    { mediaId: number; data: InternalApiHandlersCreateTranscodeJobRequest }
+    Awaited<ReturnType<typeof postApiMediaIdTranscode>>,
+    { id: number; data: InternalApiHandlersCreateTranscodeJobRequest }
   > = (props) => {
-    const { mediaId, data } = props ?? {}
+    const { id, data } = props ?? {}
 
-    return postApiMediaMediaIdTranscode(mediaId, data, requestOptions)
+    return postApiMediaIdTranscode(id, data, requestOptions)
   }
 
   return { mutationFn, ...mutationOptions }
 }
 
-export type PostApiMediaMediaIdTranscodeMutationResult = NonNullable<
-  Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>
+export type PostApiMediaIdTranscodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiMediaIdTranscode>>
 >
-export type PostApiMediaMediaIdTranscodeMutationBody = InternalApiHandlersCreateTranscodeJobRequest
-export type PostApiMediaMediaIdTranscodeMutationError = InternalApiHandlersErrorResponse
+export type PostApiMediaIdTranscodeMutationBody = InternalApiHandlersCreateTranscodeJobRequest
+export type PostApiMediaIdTranscodeMutationError = InternalApiHandlersErrorResponse
 
 /**
  * @summary Start transcoding
  */
-export const usePostApiMediaMediaIdTranscode = <
+export const usePostApiMediaIdTranscode = <
   TError = InternalApiHandlersErrorResponse,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>,
+      Awaited<ReturnType<typeof postApiMediaIdTranscode>>,
       TError,
-      { mediaId: number; data: InternalApiHandlersCreateTranscodeJobRequest },
+      { id: number; data: InternalApiHandlersCreateTranscodeJobRequest },
       TContext
     >
     request?: SecondParameter<typeof customInstance>
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>,
+  Awaited<ReturnType<typeof postApiMediaIdTranscode>>,
   TError,
-  { mediaId: number; data: InternalApiHandlersCreateTranscodeJobRequest },
+  { id: number; data: InternalApiHandlersCreateTranscodeJobRequest },
   TContext
 > => {
-  const mutationOptions = getPostApiMediaMediaIdTranscodeMutationOptions(options)
+  const mutationOptions = getPostApiMediaIdTranscodeMutationOptions(options)
 
   return useMutation(mutationOptions, queryClient)
 }
@@ -1079,47 +1034,47 @@ export const usePostApiMediaMediaIdTranscode = <
  * Gets the status of a transcode job for specific media and quality
  * @summary Get transcode status
  */
-export type getApiMediaMediaIdTranscodeQualityResponse200 = {
+export type getApiMediaIdTranscodeQualityResponse200 = {
   data: InternalApiHandlersTranscodeJobResponse
   status: 200
 }
 
-export type getApiMediaMediaIdTranscodeQualityResponse404 = {
+export type getApiMediaIdTranscodeQualityResponse404 = {
   data: InternalApiHandlersErrorResponse
   status: 404
 }
 
-export type getApiMediaMediaIdTranscodeQualityResponse500 = {
+export type getApiMediaIdTranscodeQualityResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
 
-export type getApiMediaMediaIdTranscodeQualityResponseSuccess =
-  getApiMediaMediaIdTranscodeQualityResponse200 & {
+export type getApiMediaIdTranscodeQualityResponseSuccess =
+  getApiMediaIdTranscodeQualityResponse200 & {
     headers: Headers
   }
-export type getApiMediaMediaIdTranscodeQualityResponseError = (
-  | getApiMediaMediaIdTranscodeQualityResponse404
-  | getApiMediaMediaIdTranscodeQualityResponse500
+export type getApiMediaIdTranscodeQualityResponseError = (
+  | getApiMediaIdTranscodeQualityResponse404
+  | getApiMediaIdTranscodeQualityResponse500
 ) & {
   headers: Headers
 }
 
-export type getApiMediaMediaIdTranscodeQualityResponse =
-  | getApiMediaMediaIdTranscodeQualityResponseSuccess
-  | getApiMediaMediaIdTranscodeQualityResponseError
+export type getApiMediaIdTranscodeQualityResponse =
+  | getApiMediaIdTranscodeQualityResponseSuccess
+  | getApiMediaIdTranscodeQualityResponseError
 
-export const getGetApiMediaMediaIdTranscodeQualityUrl = (mediaId: number, quality: string) => {
-  return `/api/media/${mediaId}/transcode/${quality}`
+export const getGetApiMediaIdTranscodeQualityUrl = (id: number, quality: string) => {
+  return `/api/media/${id}/transcode/${quality}`
 }
 
-export const getApiMediaMediaIdTranscodeQuality = async (
-  mediaId: number,
+export const getApiMediaIdTranscodeQuality = async (
+  id: number,
   quality: string,
   options?: RequestInit
-): Promise<getApiMediaMediaIdTranscodeQualityResponse> => {
-  return customInstance<getApiMediaMediaIdTranscodeQualityResponse>(
-    getGetApiMediaMediaIdTranscodeQualityUrl(mediaId, quality),
+): Promise<getApiMediaIdTranscodeQualityResponse> => {
+  return customInstance<getApiMediaIdTranscodeQualityResponse>(
+    getGetApiMediaIdTranscodeQualityUrl(id, quality),
     {
       ...options,
       method: 'GET',
@@ -1127,62 +1082,58 @@ export const getApiMediaMediaIdTranscodeQuality = async (
   )
 }
 
-export const getGetApiMediaMediaIdTranscodeQualityQueryKey = (
-  mediaId?: number,
-  quality?: string
-) => {
-  return [`/api/media/${mediaId}/transcode/${quality}`] as const
+export const getGetApiMediaIdTranscodeQualityQueryKey = (id?: number, quality?: string) => {
+  return [`/api/media/${id}/transcode/${quality}`] as const
 }
 
-export const getGetApiMediaMediaIdTranscodeQualityQueryOptions = <
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>,
+export const getGetApiMediaIdTranscodeQualityQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaIdTranscodeQuality>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   quality: string,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdTranscodeQuality>>, TError, TData>
     >
     request?: SecondParameter<typeof customInstance>
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {}
 
-  const queryKey =
-    queryOptions?.queryKey ?? getGetApiMediaMediaIdTranscodeQualityQueryKey(mediaId, quality)
+  const queryKey = queryOptions?.queryKey ?? getGetApiMediaIdTranscodeQualityQueryKey(id, quality)
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>> = ({
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaIdTranscodeQuality>>> = ({
     signal,
-  }) => getApiMediaMediaIdTranscodeQuality(mediaId, quality, { signal, ...requestOptions })
+  }) => getApiMediaIdTranscodeQuality(id, quality, { signal, ...requestOptions })
 
-  return { queryKey, queryFn, enabled: !!(mediaId && quality), ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>,
+  return { queryKey, queryFn, enabled: !!(id && quality), ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMediaIdTranscodeQuality>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetApiMediaMediaIdTranscodeQualityQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>
+export type GetApiMediaIdTranscodeQualityQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaIdTranscodeQuality>>
 >
-export type GetApiMediaMediaIdTranscodeQualityQueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaIdTranscodeQualityQueryError = InternalApiHandlersErrorResponse
 
-export function useGetApiMediaMediaIdTranscodeQuality<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>,
+export function useGetApiMediaIdTranscodeQuality<
+  TData = Awaited<ReturnType<typeof getApiMediaIdTranscodeQuality>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   quality: string,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdTranscodeQuality>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>,
+          Awaited<ReturnType<typeof getApiMediaIdTranscodeQuality>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>
+          Awaited<ReturnType<typeof getApiMediaIdTranscodeQuality>>
         >,
         'initialData'
       >
@@ -1190,21 +1141,21 @@ export function useGetApiMediaMediaIdTranscodeQuality<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdTranscodeQuality<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>,
+export function useGetApiMediaIdTranscodeQuality<
+  TData = Awaited<ReturnType<typeof getApiMediaIdTranscodeQuality>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   quality: string,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdTranscodeQuality>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>,
+          Awaited<ReturnType<typeof getApiMediaIdTranscodeQuality>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>
+          Awaited<ReturnType<typeof getApiMediaIdTranscodeQuality>>
         >,
         'initialData'
       >
@@ -1212,15 +1163,15 @@ export function useGetApiMediaMediaIdTranscodeQuality<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdTranscodeQuality<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>,
+export function useGetApiMediaIdTranscodeQuality<
+  TData = Awaited<ReturnType<typeof getApiMediaIdTranscodeQuality>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   quality: string,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdTranscodeQuality>>, TError, TData>
     >
     request?: SecondParameter<typeof customInstance>
   },
@@ -1230,21 +1181,21 @@ export function useGetApiMediaMediaIdTranscodeQuality<
  * @summary Get transcode status
  */
 
-export function useGetApiMediaMediaIdTranscodeQuality<
-  TData = Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>,
+export function useGetApiMediaIdTranscodeQuality<
+  TData = Awaited<ReturnType<typeof getApiMediaIdTranscodeQuality>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
+  id: number,
   quality: string,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdTranscodeQuality>>, TError, TData>
     >
     request?: SecondParameter<typeof customInstance>
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetApiMediaMediaIdTranscodeQualityQueryOptions(mediaId, quality, options)
+  const queryOptions = getGetApiMediaIdTranscodeQualityQueryOptions(id, quality, options)
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>
@@ -1259,56 +1210,53 @@ export function useGetApiMediaMediaIdTranscodeQuality<
  * Cancels an actively transcoding job (called when user pauses/stops video)
  * @summary Cancel transcode job
  */
-export type postApiMediaMediaIdTranscodeQualityCancelResponse200 = {
-  data: PostApiMediaMediaIdTranscodeQualityCancel200
+export type postApiMediaIdTranscodeQualityCancelResponse200 = {
+  data: PostApiMediaIdTranscodeQualityCancel200
   status: 200
 }
 
-export type postApiMediaMediaIdTranscodeQualityCancelResponse400 = {
+export type postApiMediaIdTranscodeQualityCancelResponse400 = {
   data: InternalApiHandlersErrorResponse
   status: 400
 }
 
-export type postApiMediaMediaIdTranscodeQualityCancelResponse404 = {
+export type postApiMediaIdTranscodeQualityCancelResponse404 = {
   data: InternalApiHandlersErrorResponse
   status: 404
 }
 
-export type postApiMediaMediaIdTranscodeQualityCancelResponse500 = {
+export type postApiMediaIdTranscodeQualityCancelResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
 
-export type postApiMediaMediaIdTranscodeQualityCancelResponseSuccess =
-  postApiMediaMediaIdTranscodeQualityCancelResponse200 & {
+export type postApiMediaIdTranscodeQualityCancelResponseSuccess =
+  postApiMediaIdTranscodeQualityCancelResponse200 & {
     headers: Headers
   }
-export type postApiMediaMediaIdTranscodeQualityCancelResponseError = (
-  | postApiMediaMediaIdTranscodeQualityCancelResponse400
-  | postApiMediaMediaIdTranscodeQualityCancelResponse404
-  | postApiMediaMediaIdTranscodeQualityCancelResponse500
+export type postApiMediaIdTranscodeQualityCancelResponseError = (
+  | postApiMediaIdTranscodeQualityCancelResponse400
+  | postApiMediaIdTranscodeQualityCancelResponse404
+  | postApiMediaIdTranscodeQualityCancelResponse500
 ) & {
   headers: Headers
 }
 
-export type postApiMediaMediaIdTranscodeQualityCancelResponse =
-  | postApiMediaMediaIdTranscodeQualityCancelResponseSuccess
-  | postApiMediaMediaIdTranscodeQualityCancelResponseError
+export type postApiMediaIdTranscodeQualityCancelResponse =
+  | postApiMediaIdTranscodeQualityCancelResponseSuccess
+  | postApiMediaIdTranscodeQualityCancelResponseError
 
-export const getPostApiMediaMediaIdTranscodeQualityCancelUrl = (
-  mediaId: number,
-  quality: string
-) => {
-  return `/api/media/${mediaId}/transcode/${quality}/cancel`
+export const getPostApiMediaIdTranscodeQualityCancelUrl = (id: number, quality: string) => {
+  return `/api/media/${id}/transcode/${quality}/cancel`
 }
 
-export const postApiMediaMediaIdTranscodeQualityCancel = async (
-  mediaId: number,
+export const postApiMediaIdTranscodeQualityCancel = async (
+  id: number,
   quality: string,
   options?: RequestInit
-): Promise<postApiMediaMediaIdTranscodeQualityCancelResponse> => {
-  return customInstance<postApiMediaMediaIdTranscodeQualityCancelResponse>(
-    getPostApiMediaMediaIdTranscodeQualityCancelUrl(mediaId, quality),
+): Promise<postApiMediaIdTranscodeQualityCancelResponse> => {
+  return customInstance<postApiMediaIdTranscodeQualityCancelResponse>(
+    getPostApiMediaIdTranscodeQualityCancelUrl(id, quality),
     {
       ...options,
       method: 'POST',
@@ -1316,24 +1264,24 @@ export const postApiMediaMediaIdTranscodeQualityCancel = async (
   )
 }
 
-export const getPostApiMediaMediaIdTranscodeQualityCancelMutationOptions = <
+export const getPostApiMediaIdTranscodeQualityCancelMutationOptions = <
   TError = InternalApiHandlersErrorResponse,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>,
+    Awaited<ReturnType<typeof postApiMediaIdTranscodeQualityCancel>>,
     TError,
-    { mediaId: number; quality: string },
+    { id: number; quality: string },
     TContext
   >
   request?: SecondParameter<typeof customInstance>
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>,
+  Awaited<ReturnType<typeof postApiMediaIdTranscodeQualityCancel>>,
   TError,
-  { mediaId: number; quality: string },
+  { id: number; quality: string },
   TContext
 > => {
-  const mutationKey = ['postApiMediaMediaIdTranscodeQualityCancel']
+  const mutationKey = ['postApiMediaIdTranscodeQualityCancel']
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
       ? options
@@ -1341,48 +1289,47 @@ export const getPostApiMediaMediaIdTranscodeQualityCancelMutationOptions = <
     : { mutation: { mutationKey }, request: undefined }
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>,
-    { mediaId: number; quality: string }
+    Awaited<ReturnType<typeof postApiMediaIdTranscodeQualityCancel>>,
+    { id: number; quality: string }
   > = (props) => {
-    const { mediaId, quality } = props ?? {}
+    const { id, quality } = props ?? {}
 
-    return postApiMediaMediaIdTranscodeQualityCancel(mediaId, quality, requestOptions)
+    return postApiMediaIdTranscodeQualityCancel(id, quality, requestOptions)
   }
 
   return { mutationFn, ...mutationOptions }
 }
 
-export type PostApiMediaMediaIdTranscodeQualityCancelMutationResult = NonNullable<
-  Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>
+export type PostApiMediaIdTranscodeQualityCancelMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiMediaIdTranscodeQualityCancel>>
 >
 
-export type PostApiMediaMediaIdTranscodeQualityCancelMutationError =
-  InternalApiHandlersErrorResponse
+export type PostApiMediaIdTranscodeQualityCancelMutationError = InternalApiHandlersErrorResponse
 
 /**
  * @summary Cancel transcode job
  */
-export const usePostApiMediaMediaIdTranscodeQualityCancel = <
+export const usePostApiMediaIdTranscodeQualityCancel = <
   TError = InternalApiHandlersErrorResponse,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>,
+      Awaited<ReturnType<typeof postApiMediaIdTranscodeQualityCancel>>,
       TError,
-      { mediaId: number; quality: string },
+      { id: number; quality: string },
       TContext
     >
     request?: SecondParameter<typeof customInstance>
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>,
+  Awaited<ReturnType<typeof postApiMediaIdTranscodeQualityCancel>>,
   TError,
-  { mediaId: number; quality: string },
+  { id: number; quality: string },
   TContext
 > => {
-  const mutationOptions = getPostApiMediaMediaIdTranscodeQualityCancelMutationOptions(options)
+  const mutationOptions = getPostApiMediaIdTranscodeQualityCancelMutationOptions(options)
 
   return useMutation(mutationOptions, queryClient)
 }

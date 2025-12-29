@@ -23,8 +23,8 @@ import type {
 
 import type {
   GetApiProgressBatchParams,
+  GetApiProgressIdParams,
   GetApiProgressInProgressParams,
-  GetApiProgressMediaIdParams,
   GetApiProgressParams,
   GetApiProgressWatchedParams,
   GithubComMantonxViewraInternalApplicationProgressBatchProgressResponse,
@@ -1182,39 +1182,36 @@ export function useGetApiProgressWatched<
  * Gets watch progress for a specific media item. If device_profile is provided, returns device-specific playback preferences (quality, audio track, subtitle track) if available.
  * @summary Get watch progress
  */
-export type getApiProgressMediaIdResponse200 = {
+export type getApiProgressIdResponse200 = {
   data: GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse
   status: 200
 }
 
-export type getApiProgressMediaIdResponse404 = {
+export type getApiProgressIdResponse404 = {
   data: InternalApiHandlersErrorResponse
   status: 404
 }
 
-export type getApiProgressMediaIdResponse500 = {
+export type getApiProgressIdResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
 
-export type getApiProgressMediaIdResponseSuccess = getApiProgressMediaIdResponse200 & {
+export type getApiProgressIdResponseSuccess = getApiProgressIdResponse200 & {
   headers: Headers
 }
-export type getApiProgressMediaIdResponseError = (
-  | getApiProgressMediaIdResponse404
-  | getApiProgressMediaIdResponse500
+export type getApiProgressIdResponseError = (
+  | getApiProgressIdResponse404
+  | getApiProgressIdResponse500
 ) & {
   headers: Headers
 }
 
-export type getApiProgressMediaIdResponse =
-  | getApiProgressMediaIdResponseSuccess
-  | getApiProgressMediaIdResponseError
+export type getApiProgressIdResponse =
+  | getApiProgressIdResponseSuccess
+  | getApiProgressIdResponseError
 
-export const getGetApiProgressMediaIdUrl = (
-  mediaId: number,
-  params?: GetApiProgressMediaIdParams
-) => {
+export const getGetApiProgressIdUrl = (id: number, params?: GetApiProgressIdParams) => {
   const normalizedParams = new URLSearchParams()
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -1226,78 +1223,66 @@ export const getGetApiProgressMediaIdUrl = (
   const stringifiedParams = normalizedParams.toString()
 
   return stringifiedParams.length > 0
-    ? `/api/progress/${mediaId}?${stringifiedParams}`
-    : `/api/progress/${mediaId}`
+    ? `/api/progress/${id}?${stringifiedParams}`
+    : `/api/progress/${id}`
 }
 
-export const getApiProgressMediaId = async (
-  mediaId: number,
-  params?: GetApiProgressMediaIdParams,
+export const getApiProgressId = async (
+  id: number,
+  params?: GetApiProgressIdParams,
   options?: RequestInit
-): Promise<getApiProgressMediaIdResponse> => {
-  return customInstance<getApiProgressMediaIdResponse>(
-    getGetApiProgressMediaIdUrl(mediaId, params),
-    {
-      ...options,
-      method: 'GET',
-    }
-  )
+): Promise<getApiProgressIdResponse> => {
+  return customInstance<getApiProgressIdResponse>(getGetApiProgressIdUrl(id, params), {
+    ...options,
+    method: 'GET',
+  })
 }
 
-export const getGetApiProgressMediaIdQueryKey = (
-  mediaId?: number,
-  params?: GetApiProgressMediaIdParams
-) => {
-  return [`/api/progress/${mediaId}`, ...(params ? [params] : [])] as const
+export const getGetApiProgressIdQueryKey = (id?: number, params?: GetApiProgressIdParams) => {
+  return [`/api/progress/${id}`, ...(params ? [params] : [])] as const
 }
 
-export const getGetApiProgressMediaIdQueryOptions = <
-  TData = Awaited<ReturnType<typeof getApiProgressMediaId>>,
+export const getGetApiProgressIdQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiProgressId>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
-  params?: GetApiProgressMediaIdParams,
+  id: number,
+  params?: GetApiProgressIdParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiProgressMediaId>>, TError, TData>
-    >
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiProgressId>>, TError, TData>>
     request?: SecondParameter<typeof customInstance>
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {}
 
-  const queryKey = queryOptions?.queryKey ?? getGetApiProgressMediaIdQueryKey(mediaId, params)
+  const queryKey = queryOptions?.queryKey ?? getGetApiProgressIdQueryKey(id, params)
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiProgressMediaId>>> = ({ signal }) =>
-    getApiProgressMediaId(mediaId, params, { signal, ...requestOptions })
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiProgressId>>> = ({ signal }) =>
+    getApiProgressId(id, params, { signal, ...requestOptions })
 
-  return { queryKey, queryFn, enabled: !!mediaId, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getApiProgressMediaId>>,
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiProgressId>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetApiProgressMediaIdQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getApiProgressMediaId>>
->
-export type GetApiProgressMediaIdQueryError = InternalApiHandlersErrorResponse
+export type GetApiProgressIdQueryResult = NonNullable<Awaited<ReturnType<typeof getApiProgressId>>>
+export type GetApiProgressIdQueryError = InternalApiHandlersErrorResponse
 
-export function useGetApiProgressMediaId<
-  TData = Awaited<ReturnType<typeof getApiProgressMediaId>>,
+export function useGetApiProgressId<
+  TData = Awaited<ReturnType<typeof getApiProgressId>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
-  params: undefined | GetApiProgressMediaIdParams,
+  id: number,
+  params: undefined | GetApiProgressIdParams,
   options: {
-    query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiProgressMediaId>>, TError, TData>
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiProgressId>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiProgressMediaId>>,
+          Awaited<ReturnType<typeof getApiProgressId>>,
           TError,
-          Awaited<ReturnType<typeof getApiProgressMediaId>>
+          Awaited<ReturnType<typeof getApiProgressId>>
         >,
         'initialData'
       >
@@ -1305,21 +1290,19 @@ export function useGetApiProgressMediaId<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiProgressMediaId<
-  TData = Awaited<ReturnType<typeof getApiProgressMediaId>>,
+export function useGetApiProgressId<
+  TData = Awaited<ReturnType<typeof getApiProgressId>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
-  params?: GetApiProgressMediaIdParams,
+  id: number,
+  params?: GetApiProgressIdParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiProgressMediaId>>, TError, TData>
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiProgressId>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiProgressMediaId>>,
+          Awaited<ReturnType<typeof getApiProgressId>>,
           TError,
-          Awaited<ReturnType<typeof getApiProgressMediaId>>
+          Awaited<ReturnType<typeof getApiProgressId>>
         >,
         'initialData'
       >
@@ -1327,16 +1310,14 @@ export function useGetApiProgressMediaId<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiProgressMediaId<
-  TData = Awaited<ReturnType<typeof getApiProgressMediaId>>,
+export function useGetApiProgressId<
+  TData = Awaited<ReturnType<typeof getApiProgressId>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
-  params?: GetApiProgressMediaIdParams,
+  id: number,
+  params?: GetApiProgressIdParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiProgressMediaId>>, TError, TData>
-    >
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiProgressId>>, TError, TData>>
     request?: SecondParameter<typeof customInstance>
   },
   queryClient?: QueryClient
@@ -1345,21 +1326,19 @@ export function useGetApiProgressMediaId<
  * @summary Get watch progress
  */
 
-export function useGetApiProgressMediaId<
-  TData = Awaited<ReturnType<typeof getApiProgressMediaId>>,
+export function useGetApiProgressId<
+  TData = Awaited<ReturnType<typeof getApiProgressId>>,
   TError = InternalApiHandlersErrorResponse,
 >(
-  mediaId: number,
-  params?: GetApiProgressMediaIdParams,
+  id: number,
+  params?: GetApiProgressIdParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getApiProgressMediaId>>, TError, TData>
-    >
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiProgressId>>, TError, TData>>
     request?: SecondParameter<typeof customInstance>
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetApiProgressMediaIdQueryOptions(mediaId, params, options)
+  const queryOptions = getGetApiProgressIdQueryOptions(id, params, options)
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>
@@ -1374,73 +1353,73 @@ export function useGetApiProgressMediaId<
  * Deletes watch progress for a specific media item
  * @summary Delete watch progress
  */
-export type deleteApiProgressMediaIdResponse204 = {
+export type deleteApiProgressIdResponse204 = {
   data: void
   status: 204
 }
 
-export type deleteApiProgressMediaIdResponse400 = {
+export type deleteApiProgressIdResponse400 = {
   data: InternalApiHandlersErrorResponse
   status: 400
 }
 
-export type deleteApiProgressMediaIdResponse404 = {
+export type deleteApiProgressIdResponse404 = {
   data: InternalApiHandlersErrorResponse
   status: 404
 }
 
-export type deleteApiProgressMediaIdResponse500 = {
+export type deleteApiProgressIdResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
 
-export type deleteApiProgressMediaIdResponseSuccess = deleteApiProgressMediaIdResponse204 & {
+export type deleteApiProgressIdResponseSuccess = deleteApiProgressIdResponse204 & {
   headers: Headers
 }
-export type deleteApiProgressMediaIdResponseError = (
-  | deleteApiProgressMediaIdResponse400
-  | deleteApiProgressMediaIdResponse404
-  | deleteApiProgressMediaIdResponse500
+export type deleteApiProgressIdResponseError = (
+  | deleteApiProgressIdResponse400
+  | deleteApiProgressIdResponse404
+  | deleteApiProgressIdResponse500
 ) & {
   headers: Headers
 }
 
-export type deleteApiProgressMediaIdResponse =
-  | deleteApiProgressMediaIdResponseSuccess
-  | deleteApiProgressMediaIdResponseError
+export type deleteApiProgressIdResponse =
+  | deleteApiProgressIdResponseSuccess
+  | deleteApiProgressIdResponseError
 
-export const getDeleteApiProgressMediaIdUrl = (mediaId: number) => {
-  return `/api/progress/${mediaId}`
+export const getDeleteApiProgressIdUrl = (id: number) => {
+  return `/api/progress/${id}`
 }
 
-export const deleteApiProgressMediaId = async (
-  mediaId: number,
+export const deleteApiProgressId = async (
+  id: number,
   options?: RequestInit
-): Promise<deleteApiProgressMediaIdResponse> => {
-  return customInstance<deleteApiProgressMediaIdResponse>(getDeleteApiProgressMediaIdUrl(mediaId), {
+): Promise<deleteApiProgressIdResponse> => {
+  return customInstance<deleteApiProgressIdResponse>(getDeleteApiProgressIdUrl(id), {
     ...options,
     method: 'DELETE',
   })
 }
 
-export const getDeleteApiProgressMediaIdMutationOptions = <
+export const getDeleteApiProgressIdMutationOptions = <
   TError = InternalApiHandlersErrorResponse,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteApiProgressMediaId>>,
+    Awaited<ReturnType<typeof deleteApiProgressId>>,
     TError,
-    { mediaId: number },
+    { id: number },
     TContext
   >
   request?: SecondParameter<typeof customInstance>
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteApiProgressMediaId>>,
+  Awaited<ReturnType<typeof deleteApiProgressId>>,
   TError,
-  { mediaId: number },
+  { id: number },
   TContext
 > => {
-  const mutationKey = ['deleteApiProgressMediaId']
+  const mutationKey = ['deleteApiProgressId']
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
       ? options
@@ -1448,47 +1427,47 @@ export const getDeleteApiProgressMediaIdMutationOptions = <
     : { mutation: { mutationKey }, request: undefined }
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteApiProgressMediaId>>,
-    { mediaId: number }
+    Awaited<ReturnType<typeof deleteApiProgressId>>,
+    { id: number }
   > = (props) => {
-    const { mediaId } = props ?? {}
+    const { id } = props ?? {}
 
-    return deleteApiProgressMediaId(mediaId, requestOptions)
+    return deleteApiProgressId(id, requestOptions)
   }
 
   return { mutationFn, ...mutationOptions }
 }
 
-export type DeleteApiProgressMediaIdMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteApiProgressMediaId>>
+export type DeleteApiProgressIdMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteApiProgressId>>
 >
 
-export type DeleteApiProgressMediaIdMutationError = InternalApiHandlersErrorResponse
+export type DeleteApiProgressIdMutationError = InternalApiHandlersErrorResponse
 
 /**
  * @summary Delete watch progress
  */
-export const useDeleteApiProgressMediaId = <
+export const useDeleteApiProgressId = <
   TError = InternalApiHandlersErrorResponse,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteApiProgressMediaId>>,
+      Awaited<ReturnType<typeof deleteApiProgressId>>,
       TError,
-      { mediaId: number },
+      { id: number },
       TContext
     >
     request?: SecondParameter<typeof customInstance>
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteApiProgressMediaId>>,
+  Awaited<ReturnType<typeof deleteApiProgressId>>,
   TError,
-  { mediaId: number },
+  { id: number },
   TContext
 > => {
-  const mutationOptions = getDeleteApiProgressMediaIdMutationOptions(options)
+  const mutationOptions = getDeleteApiProgressIdMutationOptions(options)
 
   return useMutation(mutationOptions, queryClient)
 }

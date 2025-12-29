@@ -22,14 +22,14 @@ import (
 // @Description from segment 0. Segments are created on-demand as the player requests them. Compatible videos redirect to direct stream.
 // @Tags transcode
 // @Produce application/vnd.apple.mpegurl,application/json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param quality path string true "Quality level (360p, 720p, 1080p, 4k)"
 // @Success 200 {file} file "HLS playlist file - segments generated on-demand"
 // @Success 302 "Redirect to direct stream (for compatible files)"
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 404 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/hls/{quality}/playlist.m3u8 [get]
+// @Router /api/media/{id}/hls/{quality}/playlist.m3u8 [get]
 func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 	mediaIDStr := c.Param("id")
 	quality := c.Param("quality")
@@ -127,14 +127,14 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 // @Description Serves HLS segment files (.ts) from progressive transcoding sessions
 // @Tags transcode
 // @Produce video/mp2t
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param quality path string true "Quality level (360p, 720p, 1080p, 4k)"
 // @Param filename path string true "Segment filename (e.g., seg_000123.ts)"
 // @Success 200 {file} file "HLS segment file"
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 404 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/hls/{quality}/{filename} [get]
+// @Router /api/media/{id}/hls/{quality}/{filename} [get]
 func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 	mediaIDStr := c.Param("id")
 	quality := c.Param("quality")
@@ -219,7 +219,7 @@ func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 // @Description If the video is compatible for direct play (right codec, audio, container), returns 302 redirect.
 // @Tags transcode
 // @Produce application/vnd.apple.mpegurl,application/json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param start query number false "Start position in seconds for seeking"
 // @Param screenWidth query int false "Client screen width in pixels"
 // @Param screenHeight query int false "Client screen height in pixels"
@@ -231,7 +231,7 @@ func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 404 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/hls/master.m3u8 [get]
+// @Router /api/media/{id}/hls/master.m3u8 [get]
 func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
@@ -338,14 +338,14 @@ func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 // @Description Streams a text subtitle as WebVTT for HLS playback (fast demux, no full file scan)
 // @Tags transcode
 // @Produce text/vtt
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param trackIndex path int true "Subtitle track index (0-based, among text subtitles only)"
 // @Param start query number false "Start position in seconds (for seeking)"
 // @Success 200 {file} file "WebVTT subtitle file"
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 404 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/hls/subtitle/{trackIndex}/subtitles.vtt [get]
+// @Router /api/media/{id}/hls/subtitle/{trackIndex}/subtitles.vtt [get]
 func (h *TranscodeHandler) ServeSubtitle(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {

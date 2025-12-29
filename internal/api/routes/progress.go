@@ -26,7 +26,7 @@ func RegisterProgressRoutes(router *gin.RouterGroup, handler *handlers.ProgressH
 		progress.POST("/mark-unwatched", handler.MarkUnwatched)
 
 		// Get/delete progress for specific media
-		progress.GET("/:media_id", handler.GetProgress)
-		progress.DELETE("/:media_id", handler.DeleteProgress)
+		progress.GET("/:id", handler.GetProgress)
+		progress.DELETE("/:id", handler.DeleteProgress)
 	}
 }

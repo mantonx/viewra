@@ -6,4 +6,9 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export type DeleteApiMediaMediaIdFfmpegLogsSessionId200 = { [key: string]: string }
+export type GetApiMediaIdHlsSubtitleTrackIndexSubtitlesVttParams = {
+  /**
+   * Start position in seconds (for seeking)
+   */
+  start?: number
+}

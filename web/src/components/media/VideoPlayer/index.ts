@@ -1,6 +1,6 @@
 // Main component
 export { VideoPlayer } from './VideoPlayer'
-export type { VideoPlayerProps } from './VideoPlayer'
+export type { VideoPlayerProps } from './VideoPlayer.types'
 
 // Control components
 export { VideoControls } from './VideoControls'

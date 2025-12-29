@@ -57,11 +57,11 @@ type ActiveSessionInfo struct {
 // @Description Lists all available FFmpeg transcode logs for a specific media item
 // @Tags ffmpeg-logs
 // @Produce json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Success 200 {object} LogListResponse
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/ffmpeg-logs [get]
+// @Router /api/media/{id}/ffmpeg-logs [get]
 func (h *FFmpegLogsHandler) ListLogs(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
@@ -94,14 +94,14 @@ func (h *FFmpegLogsHandler) ListLogs(c *gin.Context) {
 // @Description Retrieves the content of a specific FFmpeg transcode log
 // @Tags ffmpeg-logs
 // @Produce json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param session_id path string true "Session ID"
 // @Param tail query int false "Only return last N lines"
 // @Success 200 {object} LogContentResponse
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 404 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/ffmpeg-logs/{session_id} [get]
+// @Router /api/media/{id}/ffmpeg-logs/{session_id} [get]
 func (h *FFmpegLogsHandler) GetLog(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
@@ -167,13 +167,13 @@ func (h *FFmpegLogsHandler) GetLog(c *gin.Context) {
 // @Description For completed sessions, returns existing content then closes.
 // @Tags ffmpeg-logs
 // @Produce text/event-stream
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param session_id path string true "Session ID"
 // @Success 200 {string} string "SSE stream of log lines"
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 404 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/ffmpeg-logs/{session_id}/stream [get]
+// @Router /api/media/{id}/ffmpeg-logs/{session_id}/stream [get]
 func (h *FFmpegLogsHandler) StreamLog(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
@@ -222,13 +222,13 @@ func (h *FFmpegLogsHandler) StreamLog(c *gin.Context) {
 // @Description Retrieves metadata about a specific FFmpeg log (size, line count, error count)
 // @Tags ffmpeg-logs
 // @Produce json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param session_id path string true "Session ID"
 // @Success 200 {object} logging.LogInfo
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 404 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/ffmpeg-logs/{session_id}/info [get]
+// @Router /api/media/{id}/ffmpeg-logs/{session_id}/info [get]
 func (h *FFmpegLogsHandler) GetLogInfo(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
@@ -263,14 +263,14 @@ func (h *FFmpegLogsHandler) GetLogInfo(c *gin.Context) {
 // @Description Deletes a specific FFmpeg transcode log (cannot delete active logs)
 // @Tags ffmpeg-logs
 // @Produce json
-// @Param media_id path int true "Media ID"
+// @Param id path int true "Media ID"
 // @Param session_id path string true "Session ID"
 // @Success 200 {object} map[string]string
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 404 {object} handlers.ErrorResponse
 // @Failure 409 {object} handlers.ErrorResponse "Cannot delete active log"
 // @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/ffmpeg-logs/{session_id} [delete]
+// @Router /api/media/{id}/ffmpeg-logs/{session_id} [delete]
 func (h *FFmpegLogsHandler) DeleteLog(c *gin.Context) {
 	mediaID, err := parseID(c.Param("id"))
 	if err != nil {

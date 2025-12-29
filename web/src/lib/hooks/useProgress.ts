@@ -2,11 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useRef, useEffect } from 'react';
 import {
   getApiProgress,
-  getApiProgressMediaId,
+  getApiProgressId,
   putApiProgress,
   postApiProgressMarkWatched,
   postApiProgressMarkUnwatched,
-  deleteApiProgressMediaId,
+  deleteApiProgressId,
   getApiProgressWatched,
   getApiProgressInProgress,
 } from '../api/generated/progress/progress';
@@ -39,7 +39,7 @@ export const useMediaProgress = (mediaId: number | undefined, enabled = true) =>
       if (!mediaId) {
         return null
       }
-      const response = await getApiProgressMediaId(mediaId)
+      const response = await getApiProgressId(mediaId)
       return extractProgressData(response)
     },
     enabled: enabled && !!mediaId,
@@ -163,7 +163,7 @@ export const useDeleteProgress = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (mediaId: number) => deleteApiProgressMediaId(mediaId),
+    mutationFn: (mediaId: number) => deleteApiProgressId(mediaId),
     onSuccess: (_, mediaId) => {
       queryClient.invalidateQueries({ queryKey: progressKeys.all });
       queryClient.removeQueries({ queryKey: progressKeys.detail(mediaId) });

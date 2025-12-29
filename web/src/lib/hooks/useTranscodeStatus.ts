@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import {
-  getApiMediaMediaIdTranscodeQuality,
-  getGetApiMediaMediaIdTranscodeQualityQueryKey,
+  getApiMediaIdTranscodeQuality,
+  getGetApiMediaIdTranscodeQualityQueryKey,
 } from '../api/generated/transcode/transcode';
 import type {
   InternalApiHandlersTranscodeJobResponse as TranscodeJobResponse,
@@ -30,12 +30,12 @@ export const useTranscodeStatus = (
   return useQuery<TranscodeJobResponse, ErrorResponse>({
     queryKey: mediaId && quality
       ? transcodeKeys.status(mediaId, quality)
-      : getGetApiMediaMediaIdTranscodeQualityQueryKey(mediaId, quality),
+      : getGetApiMediaIdTranscodeQualityQueryKey(mediaId, quality),
     queryFn: async () => {
       if (!mediaId || !quality) {
         throw new Error('mediaId and quality are required');
       }
-      const response = await getApiMediaMediaIdTranscodeQuality(mediaId, quality);
+      const response = await getApiMediaIdTranscodeQuality(mediaId, quality);
       if (!response.data) {
         throw new Error('No transcode job found');
       }
