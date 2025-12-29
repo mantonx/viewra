@@ -5,11 +5,18 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
+	"os"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/renderer"
+	"github.com/olekukonko/tablewriter/tw"
+
 	"github.com/mantonx/viewra/internal/domain/scheduler"
 	"github.com/robfig/cron/v3"
 )
@@ -138,7 +145,7 @@ func (s *Service) RegisterInternalTask(ctx context.Context, task scheduler.Inter
 		return fmt.Errorf("failed to persist task %s: %w", task.ID, err)
 	}
 
-	s.logger.Info("Registered internal task",
+	s.logger.Debug("registered internal task",
 		"task_id", task.ID,
 		"name", task.Name,
 		"schedule", task.Schedule)
@@ -186,7 +193,9 @@ func (s *Service) Start(ctx context.Context) error {
 
 	// Start cron scheduler
 	s.cron.Start()
-	s.logger.Info("Scheduler started", "task_count", len(tasks))
+
+	// Print task summary table
+	s.printTaskTable(os.Stderr, fmt.Sprintf("Scheduled Tasks (%d registered)", len(tasks)), tasks)
 
 	// Start background cleanup goroutine
 	go s.cleanupLoop(ctx)
@@ -274,9 +283,9 @@ func (s *Service) scheduleTask(task *scheduler.Task) error {
 	s.cronIDs[task.ID] = cronID
 	s.mu.Unlock()
 
-	// Log next run time
+	// Log at debug level - summary table is shown at startup
 	entry := s.cron.Entry(cronID)
-	s.logger.Info("Task scheduled",
+	s.logger.Debug("task scheduled",
 		"task_id", task.ID,
 		"name", task.Name,
 		"schedule", task.Schedule,
@@ -685,4 +694,83 @@ func (s *Service) GetRunningExecutions(ctx context.Context) ([]*scheduler.Execut
 		execs = append(execs, rt.exec)
 	}
 	return execs, nil
+}
+
+// printTaskTable writes a formatted table of scheduled tasks to the writer.
+func (s *Service) printTaskTable(w io.Writer, title string, tasks []*scheduler.Task) {
+	if len(tasks) == 0 {
+		fmt.Fprintln(w, "No tasks scheduled")
+		return
+	}
+
+	// Print title if provided
+	if title != "" {
+		fmt.Fprintf(w, "\n%s\n", title)
+	}
+
+	// Collect task info with next run times
+	type taskInfo struct {
+		name     string
+		schedule string
+		nextRun  time.Time
+	}
+
+	infos := make([]taskInfo, 0, len(tasks))
+	s.mu.RLock()
+	for _, task := range tasks {
+		var nextRun time.Time
+		if cronID, ok := s.cronIDs[task.ID]; ok {
+			entry := s.cron.Entry(cronID)
+			nextRun = entry.Next
+		}
+		infos = append(infos, taskInfo{
+			name:     task.Name,
+			schedule: task.Schedule,
+			nextRun:  nextRun,
+		})
+	}
+	s.mu.RUnlock()
+
+	// Sort by name
+	sort.Slice(infos, func(i, j int) bool {
+		return infos[i].name < infos[j].name
+	})
+
+	// Create table with Unicode box-drawing style
+	table := tablewriter.NewTable(w,
+		tablewriter.WithRenderer(renderer.NewBlueprint(tw.Rendition{
+			Borders: tw.Border{
+				Left:   tw.On,
+				Right:  tw.On,
+				Top:    tw.On,
+				Bottom: tw.On,
+			},
+			Symbols: tw.NewSymbols(tw.StyleLight),
+			Settings: tw.Settings{
+				Separators: tw.Separators{
+					BetweenColumns: tw.On,
+				},
+				Lines: tw.Lines{
+					ShowHeaderLine: tw.On,
+				},
+			},
+		})),
+	)
+
+	table.Header("Name", "Schedule", "Next Run")
+
+	for _, t := range infos {
+		nextRunStr := "-"
+		if !t.nextRun.IsZero() {
+			nextRunStr = t.nextRun.Format("15:04:05")
+		}
+
+		table.Append([]string{
+			t.name,
+			t.schedule,
+			nextRunStr,
+		})
+	}
+
+	table.Render()
 }

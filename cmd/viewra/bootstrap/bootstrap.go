@@ -132,7 +132,6 @@ func (a *Application) Run() error {
 				a.Logger.Error("Scheduler error", "error", err)
 			}
 		}()
-		a.Logger.Info("Scheduler service started")
 	}
 
 	// Start server in goroutine

@@ -241,7 +241,6 @@ func RegisterAllTasks(ctx context.Context, svc *scheduler.Service, deps *schedul
 		}
 	}
 
-	logger.Info("Registered internal scheduled tasks")
 	return nil
 }
 `
