@@ -57,10 +57,7 @@ func (h *MediaHandler) List(c *gin.Context) {
 		// Library_id specified, filter by library
 		libraryID, parseErr := parseID(libraryIDStr)
 		if parseErr != nil {
-			c.JSON(http.StatusBadRequest, ErrorResponse{
-				Error:   "Invalid library_id",
-				Message: parseErr.Error(),
-			})
+			respondError(c, http.StatusBadRequest, "INVALID_LIBRARY_ID", parseErr.Error())
 			return
 		}
 
@@ -91,10 +88,7 @@ func (h *MediaHandler) List(c *gin.Context) {
 func (h *MediaHandler) Get(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid media ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_MEDIA_ID", err.Error())
 		return
 	}
 
@@ -126,10 +120,7 @@ func (h *MediaHandler) Get(c *gin.Context) {
 func (h *MediaHandler) GetStreamInfo(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid media ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_MEDIA_ID", err.Error())
 		return
 	}
 
@@ -164,10 +155,7 @@ func (h *MediaHandler) GetStreamInfo(c *gin.Context) {
 func (h *MediaHandler) GetTracks(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid media ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_MEDIA_ID", err.Error())
 		return
 	}
 

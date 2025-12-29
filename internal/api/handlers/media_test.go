@@ -282,14 +282,14 @@ func TestMediaHandler_Get(t *testing.T) {
 			}
 
 			if tt.expectedStatus == http.StatusBadRequest {
-				// Direct ErrorResponse from handler (validation error)
-				var responseBody ErrorResponse
+				// APIError from respondError (validation error)
+				var responseBody APIError
 				if err := json.Unmarshal(w.Body.Bytes(), &responseBody); err != nil {
 					t.Fatalf("Failed to parse error response: %v", err)
 				}
 
-				if responseBody.Error != "Invalid media ID" {
-					t.Errorf("Expected error 'Invalid media ID', got '%s'", responseBody.Error)
+				if responseBody.Code != "INVALID_MEDIA_ID" {
+					t.Errorf("Expected code 'INVALID_MEDIA_ID', got '%s'", responseBody.Code)
 				}
 			}
 

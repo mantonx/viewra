@@ -115,10 +115,7 @@ func (h *MusicHandler) ListArtists(c *gin.Context) {
 func (h *MusicHandler) GetTrack(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid track ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_TRACK_ID", err.Error())
 		return
 	}
 
@@ -145,28 +142,19 @@ func (h *MusicHandler) GetTrack(c *gin.Context) {
 func (h *MusicHandler) Search(c *gin.Context) {
 	libraryIDStr := c.Query("library_id")
 	if libraryIDStr == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing library_id",
-			Message: "library_id query parameter is required",
-		})
+		respondError(c, http.StatusBadRequest, "MISSING_LIBRARY_ID", "library_id query parameter is required")
 		return
 	}
 
 	libraryID, err := parseID(libraryIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library_id",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_LIBRARY_ID", err.Error())
 		return
 	}
 
 	query := c.Query("q")
 	if query == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing search query",
-			Message: "q query parameter is required",
-		})
+		respondError(c, http.StatusBadRequest, "MISSING_SEARCH_QUERY", "q query parameter is required")
 		return
 	}
 
@@ -231,10 +219,7 @@ func (h *MusicHandler) ListIDs(c *gin.Context) {
 func (h *MusicHandler) ListAlbumsByArtistID(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid artist ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_ARTIST_ID", err.Error())
 		return
 	}
 
@@ -261,10 +246,7 @@ func (h *MusicHandler) ListAlbumsByArtistID(c *gin.Context) {
 func (h *MusicHandler) ListTracksByAlbumID(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid album ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_ALBUM_ID", err.Error())
 		return
 	}
 

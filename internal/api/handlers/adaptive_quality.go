@@ -94,10 +94,7 @@ func (h *AdaptiveQualityHandler) RecommendQuality(c *gin.Context) {
 	var req RecommendQualityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.Warn("invalid quality recommendation request", "error", err)
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid request",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 		return
 	}
 
@@ -155,10 +152,7 @@ func (h *AdaptiveQualityHandler) GetAdaptiveLadder(c *gin.Context) {
 	var req RecommendQualityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.Warn("invalid adaptive ladder request", "error", err)
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid request",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 		return
 	}
 
@@ -228,10 +222,7 @@ func (h *AdaptiveQualityHandler) SpeedTestChunk(c *gin.Context) {
 	data := make([]byte, chunkSize)
 	if _, err := rand.Read(data); err != nil {
 		h.logger.Error("failed to generate speed test chunk", "error", err)
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "internal server error",
-			Message: "failed to generate test data",
-		})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to generate test data")
 		return
 	}
 

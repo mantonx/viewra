@@ -77,7 +77,7 @@ func (h *FFmpegLogsHandler) ListLogs(c *gin.Context) {
 
 	logs, err := logStore.ListLogs(mediaID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: fmt.Sprintf("Failed to list logs: %v", err)})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Sprintf("Failed to list logs: %v", err))
 		return
 	}
 
@@ -132,7 +132,7 @@ func (h *FFmpegLogsHandler) GetLog(c *gin.Context) {
 
 		lines, err := logStore.ReadLogTail(sessionID, mediaID, tailLines)
 		if err != nil {
-			c.JSON(http.StatusNotFound, ErrorResponse{Error: fmt.Sprintf("Log not found: %v", err)})
+			respondError(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("Log not found: %v", err))
 			return
 		}
 
@@ -143,7 +143,7 @@ func (h *FFmpegLogsHandler) GetLog(c *gin.Context) {
 		var err error
 		content, err = logStore.ReadLog(sessionID, mediaID)
 		if err != nil {
-			c.JSON(http.StatusNotFound, ErrorResponse{Error: fmt.Sprintf("Log not found: %v", err)})
+			respondError(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("Log not found: %v", err))
 			return
 		}
 	}
@@ -250,7 +250,7 @@ func (h *FFmpegLogsHandler) GetLogInfo(c *gin.Context) {
 
 	info, err := logStore.GetLogInfo(sessionID, mediaID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{Error: fmt.Sprintf("Log not found: %v", err)})
+		respondError(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("Log not found: %v", err))
 		return
 	}
 
@@ -295,7 +295,7 @@ func (h *FFmpegLogsHandler) DeleteLog(c *gin.Context) {
 		if err.Error() == "cannot delete active log" {
 			respondError(c, http.StatusConflict, "CONFLICT", err.Error())
 		} else {
-			c.JSON(http.StatusNotFound, ErrorResponse{Error: fmt.Sprintf("Failed to delete log: %v", err)})
+			respondError(c, http.StatusNotFound, "BAD_REQUEST", fmt.Sprintf("Failed to delete log: %v", err))
 		}
 		return
 	}

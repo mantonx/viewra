@@ -47,10 +47,7 @@ func (h *StreamHandler) Stream(c *gin.Context) {
 	// Parse media ID
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid media ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_MEDIA_ID", err.Error())
 		return
 	}
 
@@ -70,16 +67,10 @@ func (h *StreamHandler) Stream(c *gin.Context) {
 		// Check if this is a range error
 		if stream == nil {
 			c.Header("Content-Range", "bytes */*")
-			c.JSON(http.StatusRequestedRangeNotSatisfiable, ErrorResponse{
-				Error:   "Invalid range",
-				Message: err.Error(),
-			})
+			respondError(c, http.StatusRequestedRangeNotSatisfiable, "INVALID_RANGE", err.Error())
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "Failed to prepare stream",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusInternalServerError, "FAILED_TO_PREPARE_STREAM", err.Error())
 		return
 	}
 	defer stream.Close()

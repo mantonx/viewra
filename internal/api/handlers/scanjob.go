@@ -629,7 +629,7 @@ func (h *ScanJobHandler) PauseScan(c *gin.Context) {
 
 	// Check if scan is running
 	if job.Status != scanner.ScanStatusRunning {
-		c.JSON(http.StatusConflict, ErrorResponse{Error: fmt.Sprintf("Scan is not running (current status: %s)", job.Status)})
+		respondError(c, http.StatusConflict, "BAD_REQUEST", fmt.Sprintf("Scan is not running (current status: %s)", job.Status))
 		return
 	}
 

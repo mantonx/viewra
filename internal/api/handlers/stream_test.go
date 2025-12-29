@@ -160,13 +160,13 @@ func TestStreamHandler_Stream(t *testing.T) {
 			}
 
 			if tt.expectedStatus == http.StatusBadRequest {
-				var responseBody ErrorResponse
+				var responseBody APIError
 				if err := json.Unmarshal(w.Body.Bytes(), &responseBody); err != nil {
 					t.Fatalf("Failed to parse error response: %v", err)
 				}
 
-				if responseBody.Error != "Invalid media ID" {
-					t.Errorf("Expected error 'Invalid media ID', got '%s'", responseBody.Error)
+				if responseBody.Code != "INVALID_MEDIA_ID" {
+					t.Errorf("Expected code 'INVALID_MEDIA_ID', got '%s'", responseBody.Code)
 				}
 			}
 
@@ -229,13 +229,13 @@ func TestStreamHandler_Stream_InvalidRange(t *testing.T) {
 		t.Errorf("Expected Content-Range: bytes */* for invalid range, got: %s", contentRange)
 	}
 
-	var responseBody ErrorResponse
+	var responseBody APIError
 	if err := json.Unmarshal(w.Body.Bytes(), &responseBody); err != nil {
 		t.Fatalf("Failed to parse error response: %v", err)
 	}
 
-	if responseBody.Error != "Invalid range" {
-		t.Errorf("Expected error 'Invalid range', got '%s'", responseBody.Error)
+	if responseBody.Code != "INVALID_RANGE" {
+		t.Errorf("Expected code 'INVALID_RANGE', got '%s'", responseBody.Code)
 	}
 }
 

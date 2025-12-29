@@ -82,10 +82,7 @@ func (h *SystemHandler) RequestRestart(c *gin.Context) {
 // @Router /api/admin/system/restart [delete]
 func (h *SystemHandler) CancelRestart(c *gin.Context) {
 	if !h.lifecycleMgr.CancelRestart() {
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Error:   "not_found",
-			Message: "No pending restart to cancel",
-		})
+		respondError(c, http.StatusNotFound, "NOT_FOUND", "No pending restart to cancel")
 		return
 	}
 

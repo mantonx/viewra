@@ -113,7 +113,7 @@ func (h *AISettingsHandler) GetAISettings(c *gin.Context) {
 func (h *AISettingsHandler) UpdateAISettings(c *gin.Context) {
 	var req AISettingsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid_request", Message: err.Error()})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 		return
 	}
 

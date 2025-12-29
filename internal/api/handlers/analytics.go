@@ -74,10 +74,7 @@ type PlaybackAnalyticsRequest struct {
 func (h *AnalyticsHandler) RecordPlaybackAnalytics(c *gin.Context) {
 	var req PlaybackAnalyticsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid request",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 		return
 	}
 
@@ -123,10 +120,7 @@ func (h *AnalyticsHandler) RecordPlaybackAnalytics(c *gin.Context) {
 		Events:  events,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "internal server error",
-			Message: "failed to store analytics data",
-		})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to store analytics data")
 		return
 	}
 
@@ -190,27 +184,18 @@ type ListSessionsResponse struct {
 func (h *AnalyticsHandler) GetSession(c *gin.Context) {
 	sessionID := c.Param("id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid request",
-			Message: "session ID is required",
-		})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "session ID is required")
 		return
 	}
 
 	session, err := h.service.GetSession(c.Request.Context(), sessionID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "internal server error",
-			Message: "failed to retrieve session",
-		})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to retrieve session")
 		return
 	}
 
 	if session == nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Error:   "not found",
-			Message: "session not found",
-		})
+		respondError(c, http.StatusNotFound, "NOT_FOUND", "session not found")
 		return
 	}
 
@@ -244,19 +229,13 @@ func (h *AnalyticsHandler) GetSession(c *gin.Context) {
 func (h *AnalyticsHandler) ListSessions(c *gin.Context) {
 	mediaIDStr := c.Query("media_id")
 	if mediaIDStr == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid request",
-			Message: "media_id is required",
-		})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "media_id is required")
 		return
 	}
 
 	mediaID, err := strconv.ParseInt(mediaIDStr, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid request",
-			Message: "invalid media_id",
-		})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid media_id")
 		return
 	}
 
@@ -280,10 +259,7 @@ func (h *AnalyticsHandler) ListSessions(c *gin.Context) {
 	if h.transcodeAnalytics != nil {
 		correlated, err := h.transcodeAnalytics.GetCorrelated(ctx, mediaID, limit, offset)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "internal server error",
-				Message: "failed to retrieve sessions",
-			})
+			respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to retrieve sessions")
 			return
 		}
 
@@ -324,10 +300,7 @@ func (h *AnalyticsHandler) ListSessions(c *gin.Context) {
 	// Fallback to basic sessions without transcode data
 	sessions, err := h.service.ListSessions(ctx, mediaID, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "internal server error",
-			Message: "failed to retrieve sessions",
-		})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to retrieve sessions")
 		return
 	}
 
@@ -372,10 +345,7 @@ func (h *AnalyticsHandler) GetMediaSummary(c *gin.Context) {
 	if mediaIDStr != "" {
 		mediaID, parseErr := strconv.ParseInt(mediaIDStr, 10, 64)
 		if parseErr != nil {
-			c.JSON(http.StatusBadRequest, ErrorResponse{
-				Error:   "invalid request",
-				Message: "invalid media_id",
-			})
+			respondError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid media_id")
 			return
 		}
 		summary, err = h.service.GetMediaSummary(c.Request.Context(), mediaID)
@@ -384,10 +354,7 @@ func (h *AnalyticsHandler) GetMediaSummary(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "internal server error",
-			Message: "failed to retrieve summary",
-		})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to retrieve summary")
 		return
 	}
 

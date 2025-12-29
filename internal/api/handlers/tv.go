@@ -112,10 +112,7 @@ func (h *TVHandler) ListShows(c *gin.Context) {
 func (h *TVHandler) GetShow(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid show ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_SHOW_ID", err.Error())
 		return
 	}
 
@@ -143,28 +140,19 @@ func (h *TVHandler) GetShow(c *gin.Context) {
 func (h *TVHandler) ListEpisodesByShow(c *gin.Context) {
 	showTitle := c.Param("showTitle")
 	if showTitle == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing show title",
-			Message: "showTitle path parameter is required",
-		})
+		respondError(c, http.StatusBadRequest, "MISSING_SHOW_TITLE", "showTitle path parameter is required")
 		return
 	}
 
 	libraryIDStr := c.Query("library_id")
 	if libraryIDStr == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing library_id",
-			Message: "library_id query parameter is required",
-		})
+		respondError(c, http.StatusBadRequest, "MISSING_LIBRARY_ID", "library_id query parameter is required")
 		return
 	}
 
 	libraryID, err := parseID(libraryIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library_id",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_LIBRARY_ID", err.Error())
 		return
 	}
 
@@ -191,10 +179,7 @@ func (h *TVHandler) ListEpisodesByShow(c *gin.Context) {
 func (h *TVHandler) ListEpisodesByShowID(c *gin.Context) {
 	showID, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid show ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_SHOW_ID", err.Error())
 		return
 	}
 
@@ -221,10 +206,7 @@ func (h *TVHandler) ListEpisodesByShowID(c *gin.Context) {
 func (h *TVHandler) GetEpisode(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid episode ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_EPISODE_ID", err.Error())
 		return
 	}
 
@@ -251,28 +233,19 @@ func (h *TVHandler) GetEpisode(c *gin.Context) {
 func (h *TVHandler) Search(c *gin.Context) {
 	libraryIDStr := c.Query("library_id")
 	if libraryIDStr == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing library_id",
-			Message: "library_id query parameter is required",
-		})
+		respondError(c, http.StatusBadRequest, "MISSING_LIBRARY_ID", "library_id query parameter is required")
 		return
 	}
 
 	libraryID, err := parseID(libraryIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library_id",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_LIBRARY_ID", err.Error())
 		return
 	}
 
 	query := c.Query("q")
 	if query == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing search query",
-			Message: "q query parameter is required",
-		})
+		respondError(c, http.StatusBadRequest, "MISSING_SEARCH_QUERY", "q query parameter is required")
 		return
 	}
 
@@ -337,10 +310,7 @@ func (h *TVHandler) ListIDs(c *gin.Context) {
 func (h *TVHandler) GetNextEpisode(c *gin.Context) {
 	showID, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid show ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_SHOW_ID", err.Error())
 		return
 	}
 

@@ -38,10 +38,7 @@ func NewLibraryHandler(
 func (h *LibraryHandler) Create(c *gin.Context) {
 	var req library.CreateLibraryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid request body",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST_BODY", "Invalid request body")
 		return
 	}
 
@@ -86,10 +83,7 @@ func (h *LibraryHandler) List(c *gin.Context) {
 func (h *LibraryHandler) Get(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_LIBRARY_ID", err.Error())
 		return
 	}
 
@@ -118,19 +112,13 @@ func (h *LibraryHandler) Get(c *gin.Context) {
 func (h *LibraryHandler) Update(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_LIBRARY_ID", err.Error())
 		return
 	}
 
 	var req library.UpdateLibraryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid request body",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST_BODY", err.Error())
 		return
 	}
 
@@ -157,10 +145,7 @@ func (h *LibraryHandler) Update(c *gin.Context) {
 func (h *LibraryHandler) Delete(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_LIBRARY_ID", err.Error())
 		return
 	}
 
@@ -188,10 +173,7 @@ func (h *LibraryHandler) Delete(c *gin.Context) {
 func (h *LibraryHandler) Scan(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_LIBRARY_ID", err.Error())
 		return
 	}
 

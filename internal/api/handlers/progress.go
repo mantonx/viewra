@@ -36,9 +36,7 @@ func NewProgressHandler(service *progress.Service) *ProgressHandler {
 func (h *ProgressHandler) UpdateProgress(c *gin.Context) {
 	var req progress.UpdateProgressRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Invalid request body",
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST_BODY", "Invalid request body")
 		return
 	}
 

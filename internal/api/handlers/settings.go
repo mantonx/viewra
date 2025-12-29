@@ -78,9 +78,7 @@ func (h *SettingsHandler) GetAllSystem(c *gin.Context) {
 func (h *SettingsHandler) GetSystem(c *gin.Context) {
 	key := c.Param("key")
 	if key == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Setting key required",
-		})
+		respondError(c, http.StatusBadRequest, "SETTING_KEY_REQUIRED", "Setting key required")
 		return
 	}
 
@@ -119,18 +117,13 @@ type SetSystemRequest struct {
 func (h *SettingsHandler) SetSystem(c *gin.Context) {
 	key := c.Param("key")
 	if key == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Setting key required",
-		})
+		respondError(c, http.StatusBadRequest, "SETTING_KEY_REQUIRED", "Setting key required")
 		return
 	}
 
 	var req SetSystemRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid request body",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST_BODY", err.Error())
 		return
 	}
 
@@ -166,17 +159,13 @@ func (h *SettingsHandler) SetSystem(c *gin.Context) {
 func (h *SettingsHandler) GetAllUser(c *gin.Context) {
 	claims := middleware.GetClaims(c)
 	if claims == nil {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Error: "Authentication required",
-		})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
 	userID := h.getUserID(c.Request.Context(), claims)
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Invalid user ID",
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
 		return
 	}
 
@@ -212,25 +201,19 @@ func (h *SettingsHandler) GetAllUser(c *gin.Context) {
 func (h *SettingsHandler) GetUser(c *gin.Context) {
 	claims := middleware.GetClaims(c)
 	if claims == nil {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Error: "Authentication required",
-		})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
 	userID := h.getUserID(c.Request.Context(), claims)
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Invalid user ID",
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
 		return
 	}
 
 	key := c.Param("key")
 	if key == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Setting key required",
-		})
+		respondError(c, http.StatusBadRequest, "SETTING_KEY_REQUIRED", "Setting key required")
 		return
 	}
 
@@ -268,34 +251,25 @@ type SetUserRequest struct {
 func (h *SettingsHandler) SetUser(c *gin.Context) {
 	claims := middleware.GetClaims(c)
 	if claims == nil {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Error: "Authentication required",
-		})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
 	userID := h.getUserID(c.Request.Context(), claims)
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Invalid user ID",
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
 		return
 	}
 
 	key := c.Param("key")
 	if key == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Setting key required",
-		})
+		respondError(c, http.StatusBadRequest, "SETTING_KEY_REQUIRED", "Setting key required")
 		return
 	}
 
 	var req SetUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid request body",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST_BODY", err.Error())
 		return
 	}
 
@@ -323,25 +297,19 @@ func (h *SettingsHandler) SetUser(c *gin.Context) {
 func (h *SettingsHandler) DeleteUser(c *gin.Context) {
 	claims := middleware.GetClaims(c)
 	if claims == nil {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Error: "Authentication required",
-		})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
 	userID := h.getUserID(c.Request.Context(), claims)
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Invalid user ID",
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID")
 		return
 	}
 
 	key := c.Param("key")
 	if key == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Setting key required",
-		})
+		respondError(c, http.StatusBadRequest, "SETTING_KEY_REQUIRED", "Setting key required")
 		return
 	}
 
@@ -713,17 +681,11 @@ func definitionToResponse(d settingsDomain.Definition) SettingDefinitionResponse
 func handleSettingsError(c *gin.Context, err error) {
 	switch err {
 	case settingsDomain.ErrSettingNotFound:
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Error: "Setting not found",
-		})
+		respondError(c, http.StatusNotFound, "NOT_FOUND", "Setting not found")
 	case settingsDomain.ErrUnknownSetting:
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Unknown setting key",
-		})
+		respondError(c, http.StatusBadRequest, "UNKNOWN_SETTING_KEY", "Unknown setting key")
 	case settingsDomain.ErrInvalidValue:
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Invalid setting value",
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_SETTING_VALUE", "Invalid setting value")
 	default:
 		handleError(c, err)
 	}

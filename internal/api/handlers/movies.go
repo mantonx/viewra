@@ -111,10 +111,7 @@ func (h *MoviesHandler) List(c *gin.Context) {
 func (h *MoviesHandler) Get(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid movie ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_MOVIE_ID", err.Error())
 		return
 	}
 
@@ -148,10 +145,7 @@ func (h *MoviesHandler) Search(c *gin.Context) {
 
 	query := c.Query("q")
 	if query == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing search query",
-			Message: "q query parameter is required",
-		})
+		respondError(c, http.StatusBadRequest, "MISSING_SEARCH_QUERY", "q query parameter is required")
 		return
 	}
 

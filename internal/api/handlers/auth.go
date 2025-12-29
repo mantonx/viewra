@@ -39,10 +39,7 @@ type LoginRequest struct {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid request body",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST_BODY", err.Error())
 		return
 	}
 
@@ -79,10 +76,7 @@ type RefreshRequest struct {
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req RefreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid request body",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST_BODY", err.Error())
 		return
 	}
 
@@ -117,10 +111,7 @@ type LogoutRequest struct {
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var req LogoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid request body",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST_BODY", err.Error())
 		return
 	}
 
@@ -138,9 +129,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 // @Router /api/auth/logout-all [post]
 func (h *AuthHandler) LogoutAll(c *gin.Context) {
 	if !middleware.IsAuthenticated(c) {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Error: "Not authenticated",
-		})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
 		return
 	}
 	userID := middleware.GetUserID(c)
@@ -160,9 +149,7 @@ func (h *AuthHandler) LogoutAll(c *gin.Context) {
 // @Router /api/auth/me [get]
 func (h *AuthHandler) GetMe(c *gin.Context) {
 	if !middleware.IsAuthenticated(c) {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Error: "Not authenticated",
-		})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
 		return
 	}
 	userID := middleware.GetUserID(c)
@@ -196,19 +183,14 @@ type ChangePasswordRequest struct {
 // @Router /api/auth/password [put]
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	if !middleware.IsAuthenticated(c) {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Error: "Not authenticated",
-		})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
 		return
 	}
 	userID := middleware.GetUserID(c)
 
 	var req ChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid request body",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST_BODY", err.Error())
 		return
 	}
 
@@ -236,9 +218,7 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 // @Router /api/auth/sessions [get]
 func (h *AuthHandler) ListSessions(c *gin.Context) {
 	if !middleware.IsAuthenticated(c) {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Error: "Not authenticated",
-		})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
 		return
 	}
 	userID := middleware.GetUserID(c)
@@ -266,18 +246,14 @@ func (h *AuthHandler) ListSessions(c *gin.Context) {
 // @Router /api/auth/sessions/{id} [delete]
 func (h *AuthHandler) RevokeSession(c *gin.Context) {
 	if !middleware.IsAuthenticated(c) {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Error: "Not authenticated",
-		})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
 		return
 	}
 	userID := middleware.GetUserID(c)
 
 	sessionID := c.Param("id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Session ID required",
-		})
+		respondError(c, http.StatusBadRequest, "SESSION_ID_REQUIRED", "Session ID required")
 		return
 	}
 
@@ -341,18 +317,13 @@ func (h *AuthHandler) Setup(c *gin.Context) {
 	}
 
 	if !needsSetup {
-		c.JSON(http.StatusConflict, ErrorResponse{
-			Error: "Setup already completed",
-		})
+		respondError(c, http.StatusConflict, "CONFLICT", "Setup already completed")
 		return
 	}
 
 	var req SetupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid request body",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST_BODY", err.Error())
 		return
 	}
 
@@ -375,29 +346,18 @@ func (h *AuthHandler) Setup(c *gin.Context) {
 func handleAuthError(c *gin.Context, err error) {
 	switch err {
 	case domainUser.ErrInvalidCredentials:
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Error: "Invalid username or password",
-		})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid username or password")
 	case domainUser.ErrUserDisabled:
-		c.JSON(http.StatusForbidden, ErrorResponse{
-			Error: "Account is disabled",
-		})
+		respondError(c, http.StatusForbidden, "FORBIDDEN", "Account is disabled")
 	case domainUser.ErrRefreshTokenInvalid:
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Error: "Invalid or expired refresh token",
-		})
+		respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid or expired refresh token")
 	case domainUser.ErrUsernameExists:
-		c.JSON(http.StatusConflict, ErrorResponse{
-			Error: "Username already exists",
-		})
+		respondError(c, http.StatusConflict, "CONFLICT", "Username already exists")
 	case domainUser.ErrUsernameTooShort, domainUser.ErrUsernameTooLong,
 		domainUser.ErrUsernameInvalidChars, domainUser.ErrPasswordTooShort,
 		domainUser.ErrDisplayNameEmpty, domainUser.ErrDisplayNameTooLong,
 		domainUser.ErrPasswordSameAsOld:
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Validation error",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
 	default:
 		handleError(c, err)
 	}

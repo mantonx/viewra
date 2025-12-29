@@ -119,7 +119,7 @@ func (h *LocationSettingsHandler) UpdateLocationPreferences(c *gin.Context) {
 
 	var req UpdateLocationPreferencesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid request body: " + err.Error()})
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body: " + err.Error())
 		return
 	}
 
@@ -161,7 +161,7 @@ func (h *LocationSettingsHandler) UpdateLocationPreferences(c *gin.Context) {
 
 	// Save preferences
 	if err := h.locationRepo.Upsert(c.Request.Context(), prefs); err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to save: " + err.Error()})
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to save: " + err.Error())
 		return
 	}
 

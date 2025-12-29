@@ -41,10 +41,7 @@ func NewPeopleHandler(
 func (h *PeopleHandler) GetPerson(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid person ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_PERSON_ID", err.Error())
 		return
 	}
 
@@ -71,10 +68,7 @@ func (h *PeopleHandler) GetPerson(c *gin.Context) {
 func (h *PeopleHandler) GetPersonCredits(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid person ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_PERSON_ID", err.Error())
 		return
 	}
 
@@ -101,10 +95,7 @@ func (h *PeopleHandler) GetPersonCredits(c *gin.Context) {
 func (h *PeopleHandler) GetMovieCredits(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid movie ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_MOVIE_ID", err.Error())
 		return
 	}
 
@@ -131,10 +122,7 @@ func (h *PeopleHandler) GetMovieCredits(c *gin.Context) {
 func (h *PeopleHandler) GetTVShowCredits(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid TV show ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_TV_SHOW_ID", err.Error())
 		return
 	}
 
@@ -161,10 +149,7 @@ func (h *PeopleHandler) GetTVShowCredits(c *gin.Context) {
 func (h *PeopleHandler) GetTVEpisodeCredits(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid TV episode ID",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "INVALID_TV_EPISODE_ID", err.Error())
 		return
 	}
 

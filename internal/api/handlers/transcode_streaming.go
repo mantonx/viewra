@@ -168,9 +168,7 @@ func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 	if filename == segment.InitFilename {
 		initPath, err := session.WaitForInitSegment(10 * time.Second)
 		if err != nil {
-			c.JSON(http.StatusRequestTimeout, ErrorResponse{
-				Error: "Init segment not available",
-			})
+			respondError(c, http.StatusRequestTimeout, "INIT_SEGMENT_NOT_AVAILABLE", "Init segment not available")
 			return
 		}
 		session.UpdateLastAccessed()
@@ -190,9 +188,7 @@ func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 	// Wait for segment to be generated (30 second timeout)
 	segmentPath, err := session.WaitForSegment(segmentNum, 30*time.Second)
 	if err != nil {
-		c.JSON(http.StatusRequestTimeout, ErrorResponse{
-			Error: "Segment not available - transcoding may be slow or failed",
-		})
+		respondError(c, http.StatusRequestTimeout, "SEGMENT_NOT_AVAILABLE___TRANSCODING_MAY_BE_SLOW_OR_FAILED", "Segment not available - transcoding may be slow or failed")
 		return
 	}
 
