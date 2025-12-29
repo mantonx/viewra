@@ -1,8 +1,8 @@
-# AI Search Plugin Manifest
-id: ai-search
-name: AI Search
+# Semantic Search Plugin Manifest
+id: semantic-search
+name: Semantic Search
 version: 1.0.0
-description: Semantic search and media indexing for AI features
+description: Semantic search and media indexing using embeddings
 
 author: ViewRA Team
 license: MIT

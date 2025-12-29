@@ -17,9 +17,9 @@ make api-client-gen                    # Generate TypeScript API client (runs sw
 make proto-gen                         # Generate Go code from protobuf definitions
 
 # Plugin Development
-make reload-plugin NAME=ai-search      # Build + reload plugin (picks up changes immediately)
-make reload-plugins                    # Build + reload all plugins
-make build-plugin NAME=ai-search       # Build plugin only (no reload)
+make reload-plugin NAME=semantic-search # Build + reload plugin (picks up changes immediately)
+make reload-plugins                     # Build + reload all plugins
+make build-plugin NAME=semantic-search  # Build plugin only (no reload)
 make build-plugins                     # Build all plugins
 ```
 

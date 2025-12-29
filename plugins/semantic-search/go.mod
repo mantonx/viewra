@@ -1,4 +1,4 @@
-module github.com/mantonx/viewra/plugins/ai-search
+module github.com/mantonx/viewra/plugins/semantic-search
 
 go 1.25.4
 

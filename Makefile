@@ -241,7 +241,7 @@ build-plugin: ## Build a single plugin (usage: make build-plugin NAME=tmdb)
 	fi
 	@echo "✓ $(NAME) built -> data/plugins/$(NAME)/$(NAME)"
 
-reload-plugin: ## Build and reload a plugin in dev server (usage: make reload-plugin NAME=ai-search)
+reload-plugin: ## Build and reload a plugin in dev server (usage: make reload-plugin NAME=semantic-search)
 	@if [ -z "$(NAME)" ]; then echo "Usage: make reload-plugin NAME=plugin_name"; exit 1; fi
 	@$(MAKE) build-plugin NAME=$(NAME)
 	@echo "Reloading plugin in dev server..."
