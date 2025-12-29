@@ -9,7 +9,6 @@
 import type {
   GithubComMantonxViewraInternalApplicationLibraryLibraryResponse,
   GithubComMantonxViewraInternalApplicationMediaMediaResponse,
-  GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse,
 } from '@/lib/api/generated/models'
 
 /**
@@ -85,39 +84,6 @@ export const extractMedia = (
   if ('data' in response && isObject(response.data)) {
     if ('media' in response.data && isArray(response.data.media)) {
       return response.data.media as GithubComMantonxViewraInternalApplicationMediaMediaResponse[]
-    }
-  }
-
-  return []
-}
-
-/**
- * Extract progress array from API response
- *
- * Handles both formats:
- * - Direct: { progress: [...] }
- * - Nested: { data: { progress: [...] } }
- *
- * @param response - The API response object
- * @returns Array of progress responses, empty array if extraction fails
- */
-export const extractProgress = (
-  response: unknown
-): GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse[] => {
-  if (!isObject(response)) {
-    return []
-  }
-
-  // Check for direct progress property
-  if ('progress' in response && isArray(response.progress)) {
-    return response.progress as GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse[]
-  }
-
-  // Check for nested data.progress property
-  if ('data' in response && isObject(response.data)) {
-    if ('progress' in response.data && isArray(response.data.progress)) {
-      return response.data
-        .progress as GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse[]
     }
   }
 
