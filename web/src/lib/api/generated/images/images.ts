@@ -26,7 +26,7 @@ import type {
   GithubComMantonxViewraInternalApplicationImagesBatchImagesResponse,
   GithubComMantonxViewraInternalApplicationImagesImageResponse,
   GithubComMantonxViewraInternalApplicationImagesListImagesResponse,
-  InternalApiHandlersErrorResponse,
+  InternalApiHandlersAPIError,
   PostApiImagesBatchBody,
 } from '.././models'
 
@@ -44,12 +44,12 @@ export type postApiImagesBatchResponse200 = {
 }
 
 export type postApiImagesBatchResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiImagesBatchResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -84,7 +84,7 @@ export const postApiImagesBatch = async (
 }
 
 export const getPostApiImagesBatchMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -123,15 +123,12 @@ export type PostApiImagesBatchMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiImagesBatch>>
 >
 export type PostApiImagesBatchMutationBody = PostApiImagesBatchBody
-export type PostApiImagesBatchMutationError = InternalApiHandlersErrorResponse
+export type PostApiImagesBatchMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Get images for multiple media items or entities
  */
-export const usePostApiImagesBatch = <
-  TError = InternalApiHandlersErrorResponse,
-  TContext = unknown,
->(
+export const usePostApiImagesBatch = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiImagesBatch>>,
@@ -162,12 +159,12 @@ export type getApiImagesIdResponse200 = {
 }
 
 export type getApiImagesIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiImagesIdResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -203,7 +200,7 @@ export const getGetApiImagesIdQueryKey = (id?: number) => {
 
 export const getGetApiImagesIdQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiImagesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -226,11 +223,11 @@ export const getGetApiImagesIdQueryOptions = <
 }
 
 export type GetApiImagesIdQueryResult = NonNullable<Awaited<ReturnType<typeof getApiImagesId>>>
-export type GetApiImagesIdQueryError = InternalApiHandlersErrorResponse
+export type GetApiImagesIdQueryError = InternalApiHandlersAPIError
 
 export function useGetApiImagesId<
   TData = Awaited<ReturnType<typeof getApiImagesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -249,7 +246,7 @@ export function useGetApiImagesId<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiImagesId<
   TData = Awaited<ReturnType<typeof getApiImagesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -268,7 +265,7 @@ export function useGetApiImagesId<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiImagesId<
   TData = Awaited<ReturnType<typeof getApiImagesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -283,7 +280,7 @@ export function useGetApiImagesId<
 
 export function useGetApiImagesId<
   TData = Awaited<ReturnType<typeof getApiImagesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -315,12 +312,12 @@ export type getApiImagesIdFileResponse200 = {
 }
 
 export type getApiImagesIdFileResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiImagesIdFileResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -371,7 +368,7 @@ export const getGetApiImagesIdFileQueryKey = (id?: number, params?: GetApiImages
 
 export const getGetApiImagesIdFileQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiImagesIdFile>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiImagesIdFileParams,
@@ -397,11 +394,11 @@ export const getGetApiImagesIdFileQueryOptions = <
 export type GetApiImagesIdFileQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiImagesIdFile>>
 >
-export type GetApiImagesIdFileQueryError = InternalApiHandlersErrorResponse
+export type GetApiImagesIdFileQueryError = InternalApiHandlersAPIError
 
 export function useGetApiImagesIdFile<
   TData = Awaited<ReturnType<typeof getApiImagesIdFile>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params: undefined | GetApiImagesIdFileParams,
@@ -421,7 +418,7 @@ export function useGetApiImagesIdFile<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiImagesIdFile<
   TData = Awaited<ReturnType<typeof getApiImagesIdFile>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiImagesIdFileParams,
@@ -443,7 +440,7 @@ export function useGetApiImagesIdFile<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiImagesIdFile<
   TData = Awaited<ReturnType<typeof getApiImagesIdFile>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiImagesIdFileParams,
@@ -459,7 +456,7 @@ export function useGetApiImagesIdFile<
 
 export function useGetApiImagesIdFile<
   TData = Awaited<ReturnType<typeof getApiImagesIdFile>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiImagesIdFileParams,
@@ -490,12 +487,12 @@ export type getApiMediaIdImagesResponse200 = {
 }
 
 export type getApiMediaIdImagesResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMediaIdImagesResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -533,7 +530,7 @@ export const getGetApiMediaIdImagesQueryKey = (id?: number) => {
 
 export const getGetApiMediaIdImagesQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMediaIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -558,11 +555,11 @@ export const getGetApiMediaIdImagesQueryOptions = <
 export type GetApiMediaIdImagesQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMediaIdImages>>
 >
-export type GetApiMediaIdImagesQueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaIdImagesQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMediaIdImages<
   TData = Awaited<ReturnType<typeof getApiMediaIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -583,7 +580,7 @@ export function useGetApiMediaIdImages<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaIdImages<
   TData = Awaited<ReturnType<typeof getApiMediaIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -604,7 +601,7 @@ export function useGetApiMediaIdImages<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaIdImages<
   TData = Awaited<ReturnType<typeof getApiMediaIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -619,7 +616,7 @@ export function useGetApiMediaIdImages<
 
 export function useGetApiMediaIdImages<
   TData = Awaited<ReturnType<typeof getApiMediaIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {

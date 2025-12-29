@@ -25,11 +25,11 @@ import type {
   GetApiEnrichmentStats200,
   GetApiLibrariesIdEnrichmentFailuresParams,
   GithubComMantonxViewraInternalApplicationEnrichmentPipelineCircuitBreakerStatus,
+  InternalApiHandlersAPIError,
   InternalApiHandlersBulkEnqueueRequest,
   InternalApiHandlersBulkEnqueueResponse,
   InternalApiHandlersEnqueueMediaRequest,
   InternalApiHandlersEnqueueMediaResponse,
-  InternalApiHandlersErrorResponse,
   InternalApiHandlersLibraryEnrichmentFailuresResponse,
   InternalApiHandlersLibraryEnrichmentProgressResponse,
   InternalApiHandlersPrioritizeRequest,
@@ -52,12 +52,12 @@ export type postApiEnrichmentBulkEnqueueResponse202 = {
 }
 
 export type postApiEnrichmentBulkEnqueueResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiEnrichmentBulkEnqueueResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -96,7 +96,7 @@ export const postApiEnrichmentBulkEnqueue = async (
 }
 
 export const getPostApiEnrichmentBulkEnqueueMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -135,13 +135,13 @@ export type PostApiEnrichmentBulkEnqueueMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiEnrichmentBulkEnqueue>>
 >
 export type PostApiEnrichmentBulkEnqueueMutationBody = InternalApiHandlersBulkEnqueueRequest
-export type PostApiEnrichmentBulkEnqueueMutationError = InternalApiHandlersErrorResponse
+export type PostApiEnrichmentBulkEnqueueMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Bulk enqueue media for enrichment
  */
 export const usePostApiEnrichmentBulkEnqueue = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {
@@ -174,12 +174,12 @@ export type postApiEnrichmentEnqueueResponse202 = {
 }
 
 export type postApiEnrichmentEnqueueResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiEnrichmentEnqueueResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -214,7 +214,7 @@ export const postApiEnrichmentEnqueue = async (
 }
 
 export const getPostApiEnrichmentEnqueueMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -253,13 +253,13 @@ export type PostApiEnrichmentEnqueueMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiEnrichmentEnqueue>>
 >
 export type PostApiEnrichmentEnqueueMutationBody = InternalApiHandlersEnqueueMediaRequest
-export type PostApiEnrichmentEnqueueMutationError = InternalApiHandlersErrorResponse
+export type PostApiEnrichmentEnqueueMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Enqueue media for enrichment
  */
 export const usePostApiEnrichmentEnqueue = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {
@@ -292,12 +292,12 @@ export type postApiEnrichmentPrioritizeResponse200 = {
 }
 
 export type postApiEnrichmentPrioritizeResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiEnrichmentPrioritizeResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -332,7 +332,7 @@ export const postApiEnrichmentPrioritize = async (
 }
 
 export const getPostApiEnrichmentPrioritizeMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -371,13 +371,13 @@ export type PostApiEnrichmentPrioritizeMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiEnrichmentPrioritize>>
 >
 export type PostApiEnrichmentPrioritizeMutationBody = InternalApiHandlersPrioritizeRequest
-export type PostApiEnrichmentPrioritizeMutationError = InternalApiHandlersErrorResponse
+export type PostApiEnrichmentPrioritizeMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Prioritize media for immediate enrichment
  */
 export const usePostApiEnrichmentPrioritize = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {
@@ -410,12 +410,12 @@ export type postApiEnrichmentRetryResponse204 = {
 }
 
 export type postApiEnrichmentRetryResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiEnrichmentRetryResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -450,7 +450,7 @@ export const postApiEnrichmentRetry = async (
 }
 
 export const getPostApiEnrichmentRetryMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -489,15 +489,12 @@ export type PostApiEnrichmentRetryMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiEnrichmentRetry>>
 >
 export type PostApiEnrichmentRetryMutationBody = InternalApiHandlersRetryJobRequest
-export type PostApiEnrichmentRetryMutationError = InternalApiHandlersErrorResponse
+export type PostApiEnrichmentRetryMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Retry a single failed enrichment job
  */
-export const usePostApiEnrichmentRetry = <
-  TError = InternalApiHandlersErrorResponse,
-  TContext = unknown,
->(
+export const usePostApiEnrichmentRetry = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiEnrichmentRetry>>,
@@ -765,7 +762,7 @@ export type getApiEnrichmentStatsResponse200 = {
 }
 
 export type getApiEnrichmentStatsResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -799,7 +796,7 @@ export const getGetApiEnrichmentStatsQueryKey = () => {
 
 export const getGetApiEnrichmentStatsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiEnrichmentStats>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(options?: {
   query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiEnrichmentStats>>, TError, TData>>
   request?: SecondParameter<typeof customInstance>
@@ -821,11 +818,11 @@ export const getGetApiEnrichmentStatsQueryOptions = <
 export type GetApiEnrichmentStatsQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiEnrichmentStats>>
 >
-export type GetApiEnrichmentStatsQueryError = InternalApiHandlersErrorResponse
+export type GetApiEnrichmentStatsQueryError = InternalApiHandlersAPIError
 
 export function useGetApiEnrichmentStats<
   TData = Awaited<ReturnType<typeof getApiEnrichmentStats>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options: {
     query: Partial<
@@ -845,7 +842,7 @@ export function useGetApiEnrichmentStats<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiEnrichmentStats<
   TData = Awaited<ReturnType<typeof getApiEnrichmentStats>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -865,7 +862,7 @@ export function useGetApiEnrichmentStats<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiEnrichmentStats<
   TData = Awaited<ReturnType<typeof getApiEnrichmentStats>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -881,7 +878,7 @@ export function useGetApiEnrichmentStats<
 
 export function useGetApiEnrichmentStats<
   TData = Awaited<ReturnType<typeof getApiEnrichmentStats>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -912,12 +909,12 @@ export type getApiLibrariesIdEnrichmentFailuresResponse200 = {
 }
 
 export type getApiLibrariesIdEnrichmentFailuresResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiLibrariesIdEnrichmentFailuresResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -978,7 +975,7 @@ export const getGetApiLibrariesIdEnrichmentFailuresQueryKey = (
 
 export const getGetApiLibrariesIdEnrichmentFailuresQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiLibrariesIdEnrichmentFailuresParams,
@@ -1012,11 +1009,11 @@ export const getGetApiLibrariesIdEnrichmentFailuresQueryOptions = <
 export type GetApiLibrariesIdEnrichmentFailuresQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>
 >
-export type GetApiLibrariesIdEnrichmentFailuresQueryError = InternalApiHandlersErrorResponse
+export type GetApiLibrariesIdEnrichmentFailuresQueryError = InternalApiHandlersAPIError
 
 export function useGetApiLibrariesIdEnrichmentFailures<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params: undefined | GetApiLibrariesIdEnrichmentFailuresParams,
@@ -1042,7 +1039,7 @@ export function useGetApiLibrariesIdEnrichmentFailures<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesIdEnrichmentFailures<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiLibrariesIdEnrichmentFailuresParams,
@@ -1068,7 +1065,7 @@ export function useGetApiLibrariesIdEnrichmentFailures<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesIdEnrichmentFailures<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiLibrariesIdEnrichmentFailuresParams,
@@ -1090,7 +1087,7 @@ export function useGetApiLibrariesIdEnrichmentFailures<
 
 export function useGetApiLibrariesIdEnrichmentFailures<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentFailures>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiLibrariesIdEnrichmentFailuresParams,
@@ -1127,12 +1124,12 @@ export type postApiLibrariesIdEnrichmentFailuresRetryResponse200 = {
 }
 
 export type postApiLibrariesIdEnrichmentFailuresRetryResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiLibrariesIdEnrichmentFailuresRetryResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1169,7 +1166,7 @@ export const postApiLibrariesIdEnrichmentFailuresRetry = async (
 }
 
 export const getPostApiLibrariesIdEnrichmentFailuresRetryMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -1208,14 +1205,13 @@ export type PostApiLibrariesIdEnrichmentFailuresRetryMutationResult = NonNullabl
   Awaited<ReturnType<typeof postApiLibrariesIdEnrichmentFailuresRetry>>
 >
 
-export type PostApiLibrariesIdEnrichmentFailuresRetryMutationError =
-  InternalApiHandlersErrorResponse
+export type PostApiLibrariesIdEnrichmentFailuresRetryMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Retry all failed enrichment jobs for a library
  */
 export const usePostApiLibrariesIdEnrichmentFailuresRetry = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {
@@ -1248,12 +1244,12 @@ export type getApiLibrariesIdEnrichmentProgressResponse200 = {
 }
 
 export type getApiLibrariesIdEnrichmentProgressResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiLibrariesIdEnrichmentProgressResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1295,7 +1291,7 @@ export const getGetApiLibrariesIdEnrichmentProgressQueryKey = (id?: number) => {
 
 export const getGetApiLibrariesIdEnrichmentProgressQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentProgress>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1327,11 +1323,11 @@ export const getGetApiLibrariesIdEnrichmentProgressQueryOptions = <
 export type GetApiLibrariesIdEnrichmentProgressQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentProgress>>
 >
-export type GetApiLibrariesIdEnrichmentProgressQueryError = InternalApiHandlersErrorResponse
+export type GetApiLibrariesIdEnrichmentProgressQueryError = InternalApiHandlersAPIError
 
 export function useGetApiLibrariesIdEnrichmentProgress<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentProgress>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -1356,7 +1352,7 @@ export function useGetApiLibrariesIdEnrichmentProgress<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesIdEnrichmentProgress<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentProgress>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1381,7 +1377,7 @@ export function useGetApiLibrariesIdEnrichmentProgress<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesIdEnrichmentProgress<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentProgress>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1402,7 +1398,7 @@ export function useGetApiLibrariesIdEnrichmentProgress<
 
 export function useGetApiLibrariesIdEnrichmentProgress<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentProgress>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1438,7 +1434,7 @@ export type getApiLibrariesIdEnrichmentStreamResponse200 = {
 }
 
 export type getApiLibrariesIdEnrichmentStreamResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
@@ -1478,7 +1474,7 @@ export const getGetApiLibrariesIdEnrichmentStreamQueryKey = (id?: number) => {
 
 export const getGetApiLibrariesIdEnrichmentStreamQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1506,11 +1502,11 @@ export const getGetApiLibrariesIdEnrichmentStreamQueryOptions = <
 export type GetApiLibrariesIdEnrichmentStreamQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentStream>>
 >
-export type GetApiLibrariesIdEnrichmentStreamQueryError = InternalApiHandlersErrorResponse
+export type GetApiLibrariesIdEnrichmentStreamQueryError = InternalApiHandlersAPIError
 
 export function useGetApiLibrariesIdEnrichmentStream<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -1531,7 +1527,7 @@ export function useGetApiLibrariesIdEnrichmentStream<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesIdEnrichmentStream<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1552,7 +1548,7 @@ export function useGetApiLibrariesIdEnrichmentStream<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesIdEnrichmentStream<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1569,7 +1565,7 @@ export function useGetApiLibrariesIdEnrichmentStream<
 
 export function useGetApiLibrariesIdEnrichmentStream<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdEnrichmentStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {

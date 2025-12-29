@@ -6,7 +6,10 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export interface InternalApiHandlersErrorResponse {
-  error?: string
+export interface InternalApiHandlersAPIError {
+  code?: string
+  details?: unknown
   message?: string
+  request_id?: string
+  timestamp?: string
 }

@@ -23,7 +23,7 @@ import type {
 
 import type {
   GetApiLibrariesIdScanHistoryParams,
-  InternalApiHandlersErrorResponse,
+  InternalApiHandlersAPIError,
   InternalApiHandlersPauseScanResponse,
   InternalApiHandlersResumeScanResponse,
   InternalApiHandlersRetryFailedResponse,
@@ -46,12 +46,12 @@ export type getApiLibrariesIdIssuesResponse200 = {
 }
 
 export type getApiLibrariesIdIssuesResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiLibrariesIdIssuesResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -89,7 +89,7 @@ export const getGetApiLibrariesIdIssuesQueryKey = (id?: number) => {
 
 export const getGetApiLibrariesIdIssuesQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiLibrariesIdIssues>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -117,11 +117,11 @@ export const getGetApiLibrariesIdIssuesQueryOptions = <
 export type GetApiLibrariesIdIssuesQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiLibrariesIdIssues>>
 >
-export type GetApiLibrariesIdIssuesQueryError = InternalApiHandlersErrorResponse
+export type GetApiLibrariesIdIssuesQueryError = InternalApiHandlersAPIError
 
 export function useGetApiLibrariesIdIssues<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdIssues>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -142,7 +142,7 @@ export function useGetApiLibrariesIdIssues<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesIdIssues<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdIssues>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -163,7 +163,7 @@ export function useGetApiLibrariesIdIssues<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesIdIssues<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdIssues>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -180,7 +180,7 @@ export function useGetApiLibrariesIdIssues<
 
 export function useGetApiLibrariesIdIssues<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdIssues>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -212,12 +212,12 @@ export type getApiLibrariesIdScanHistoryResponse200 = {
 }
 
 export type getApiLibrariesIdScanHistoryResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiLibrariesIdScanHistoryResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -278,7 +278,7 @@ export const getGetApiLibrariesIdScanHistoryQueryKey = (
 
 export const getGetApiLibrariesIdScanHistoryQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiLibrariesIdScanHistoryParams,
@@ -307,11 +307,11 @@ export const getGetApiLibrariesIdScanHistoryQueryOptions = <
 export type GetApiLibrariesIdScanHistoryQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>
 >
-export type GetApiLibrariesIdScanHistoryQueryError = InternalApiHandlersErrorResponse
+export type GetApiLibrariesIdScanHistoryQueryError = InternalApiHandlersAPIError
 
 export function useGetApiLibrariesIdScanHistory<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params: undefined | GetApiLibrariesIdScanHistoryParams,
@@ -333,7 +333,7 @@ export function useGetApiLibrariesIdScanHistory<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesIdScanHistory<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiLibrariesIdScanHistoryParams,
@@ -355,7 +355,7 @@ export function useGetApiLibrariesIdScanHistory<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesIdScanHistory<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiLibrariesIdScanHistoryParams,
@@ -373,7 +373,7 @@ export function useGetApiLibrariesIdScanHistory<
 
 export function useGetApiLibrariesIdScanHistory<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiLibrariesIdScanHistoryParams,
@@ -406,17 +406,17 @@ export type getApiLibrariesIdScanStatusResponse200 = {
 }
 
 export type getApiLibrariesIdScanStatusResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiLibrariesIdScanStatusResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiLibrariesIdScanStatusResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -458,7 +458,7 @@ export const getGetApiLibrariesIdScanStatusQueryKey = (id?: number) => {
 
 export const getGetApiLibrariesIdScanStatusQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -486,11 +486,11 @@ export const getGetApiLibrariesIdScanStatusQueryOptions = <
 export type GetApiLibrariesIdScanStatusQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>
 >
-export type GetApiLibrariesIdScanStatusQueryError = InternalApiHandlersErrorResponse
+export type GetApiLibrariesIdScanStatusQueryError = InternalApiHandlersAPIError
 
 export function useGetApiLibrariesIdScanStatus<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -511,7 +511,7 @@ export function useGetApiLibrariesIdScanStatus<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesIdScanStatus<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -532,7 +532,7 @@ export function useGetApiLibrariesIdScanStatus<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesIdScanStatus<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -549,7 +549,7 @@ export function useGetApiLibrariesIdScanStatus<
 
 export function useGetApiLibrariesIdScanStatus<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -581,17 +581,17 @@ export type getApiLibrariesIdScanStreamResponse200 = {
 }
 
 export type getApiLibrariesIdScanStreamResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiLibrariesIdScanStreamResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiLibrariesIdScanStreamResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -633,7 +633,7 @@ export const getGetApiLibrariesIdScanStreamQueryKey = (id?: number) => {
 
 export const getGetApiLibrariesIdScanStreamQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -661,11 +661,11 @@ export const getGetApiLibrariesIdScanStreamQueryOptions = <
 export type GetApiLibrariesIdScanStreamQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>
 >
-export type GetApiLibrariesIdScanStreamQueryError = InternalApiHandlersErrorResponse
+export type GetApiLibrariesIdScanStreamQueryError = InternalApiHandlersAPIError
 
 export function useGetApiLibrariesIdScanStream<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -686,7 +686,7 @@ export function useGetApiLibrariesIdScanStream<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesIdScanStream<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -707,7 +707,7 @@ export function useGetApiLibrariesIdScanStream<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesIdScanStream<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -724,7 +724,7 @@ export function useGetApiLibrariesIdScanStream<
 
 export function useGetApiLibrariesIdScanStream<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -756,12 +756,12 @@ export type getApiLibrariesIdScanJobIdErrorsResponse200 = {
 }
 
 export type getApiLibrariesIdScanJobIdErrorsResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiLibrariesIdScanJobIdErrorsResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -804,7 +804,7 @@ export const getGetApiLibrariesIdScanJobIdErrorsQueryKey = (id?: number, jobId?:
 
 export const getGetApiLibrariesIdScanJobIdErrorsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   jobId: number,
@@ -833,11 +833,11 @@ export const getGetApiLibrariesIdScanJobIdErrorsQueryOptions = <
 export type GetApiLibrariesIdScanJobIdErrorsQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>
 >
-export type GetApiLibrariesIdScanJobIdErrorsQueryError = InternalApiHandlersErrorResponse
+export type GetApiLibrariesIdScanJobIdErrorsQueryError = InternalApiHandlersAPIError
 
 export function useGetApiLibrariesIdScanJobIdErrors<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   jobId: number,
@@ -859,7 +859,7 @@ export function useGetApiLibrariesIdScanJobIdErrors<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesIdScanJobIdErrors<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   jobId: number,
@@ -881,7 +881,7 @@ export function useGetApiLibrariesIdScanJobIdErrors<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesIdScanJobIdErrors<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   jobId: number,
@@ -899,7 +899,7 @@ export function useGetApiLibrariesIdScanJobIdErrors<
 
 export function useGetApiLibrariesIdScanJobIdErrors<
   TData = Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   jobId: number,
@@ -932,22 +932,22 @@ export type postApiLibrariesIdScanJobIdPauseResponse200 = {
 }
 
 export type postApiLibrariesIdScanJobIdPauseResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiLibrariesIdScanJobIdPauseResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type postApiLibrariesIdScanJobIdPauseResponse409 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 409
 }
 
 export type postApiLibrariesIdScanJobIdPauseResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -987,7 +987,7 @@ export const postApiLibrariesIdScanJobIdPause = async (
 }
 
 export const getPostApiLibrariesIdScanJobIdPauseMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -1026,13 +1026,13 @@ export type PostApiLibrariesIdScanJobIdPauseMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiLibrariesIdScanJobIdPause>>
 >
 
-export type PostApiLibrariesIdScanJobIdPauseMutationError = InternalApiHandlersErrorResponse
+export type PostApiLibrariesIdScanJobIdPauseMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Pause scan
  */
 export const usePostApiLibrariesIdScanJobIdPause = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {
@@ -1065,22 +1065,22 @@ export type postApiLibrariesIdScanJobIdResumeResponse200 = {
 }
 
 export type postApiLibrariesIdScanJobIdResumeResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiLibrariesIdScanJobIdResumeResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type postApiLibrariesIdScanJobIdResumeResponse409 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 409
 }
 
 export type postApiLibrariesIdScanJobIdResumeResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1120,7 +1120,7 @@ export const postApiLibrariesIdScanJobIdResume = async (
 }
 
 export const getPostApiLibrariesIdScanJobIdResumeMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -1159,13 +1159,13 @@ export type PostApiLibrariesIdScanJobIdResumeMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiLibrariesIdScanJobIdResume>>
 >
 
-export type PostApiLibrariesIdScanJobIdResumeMutationError = InternalApiHandlersErrorResponse
+export type PostApiLibrariesIdScanJobIdResumeMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Resume scan
  */
 export const usePostApiLibrariesIdScanJobIdResume = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {
@@ -1198,12 +1198,12 @@ export type postApiLibrariesIdScanJobIdRetryFailedResponse200 = {
 }
 
 export type postApiLibrariesIdScanJobIdRetryFailedResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiLibrariesIdScanJobIdRetryFailedResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1241,7 +1241,7 @@ export const postApiLibrariesIdScanJobIdRetryFailed = async (
 }
 
 export const getPostApiLibrariesIdScanJobIdRetryFailedMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -1280,13 +1280,13 @@ export type PostApiLibrariesIdScanJobIdRetryFailedMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiLibrariesIdScanJobIdRetryFailed>>
 >
 
-export type PostApiLibrariesIdScanJobIdRetryFailedMutationError = InternalApiHandlersErrorResponse
+export type PostApiLibrariesIdScanJobIdRetryFailedMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Retry failed files
  */
 export const usePostApiLibrariesIdScanJobIdRetryFailed = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {

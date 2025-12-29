@@ -22,7 +22,7 @@ import type {
   GetApiMediaIdSubtitlesPgsIndexStreamParams,
   GetApiMediaIdSubtitlesTextIndexStreamParams,
   GithubComMantonxViewraInternalInfrastructureSubtitlesPGSFrame,
-  InternalApiHandlersErrorResponse,
+  InternalApiHandlersAPIError,
 } from '.././models'
 
 import { customInstance } from '../../mutator/index'
@@ -43,17 +43,17 @@ export type getApiMediaIdSubtitlesPgsIndexResponse200 = {
 }
 
 export type getApiMediaIdSubtitlesPgsIndexResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMediaIdSubtitlesPgsIndexResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiMediaIdSubtitlesPgsIndexResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -97,7 +97,7 @@ export const getGetApiMediaIdSubtitlesPgsIndexQueryKey = (id?: number, index?: n
 
 export const getGetApiMediaIdSubtitlesPgsIndexQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -126,11 +126,11 @@ export const getGetApiMediaIdSubtitlesPgsIndexQueryOptions = <
 export type GetApiMediaIdSubtitlesPgsIndexQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>
 >
-export type GetApiMediaIdSubtitlesPgsIndexQueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaIdSubtitlesPgsIndexQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMediaIdSubtitlesPgsIndex<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -152,7 +152,7 @@ export function useGetApiMediaIdSubtitlesPgsIndex<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaIdSubtitlesPgsIndex<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -174,7 +174,7 @@ export function useGetApiMediaIdSubtitlesPgsIndex<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaIdSubtitlesPgsIndex<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -192,7 +192,7 @@ export function useGetApiMediaIdSubtitlesPgsIndex<
 
 export function useGetApiMediaIdSubtitlesPgsIndex<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -225,17 +225,17 @@ export type getApiMediaIdSubtitlesPgsIndexStreamResponse200 = {
 }
 
 export type getApiMediaIdSubtitlesPgsIndexStreamResponse400 = {
-  stream: TypedResponse<InternalApiHandlersErrorResponse>
+  stream: TypedResponse<InternalApiHandlersAPIError>
   status: 400
 }
 
 export type getApiMediaIdSubtitlesPgsIndexStreamResponse404 = {
-  stream: TypedResponse<InternalApiHandlersErrorResponse>
+  stream: TypedResponse<InternalApiHandlersAPIError>
   status: 404
 }
 
 export type getApiMediaIdSubtitlesPgsIndexStreamResponse500 = {
-  stream: TypedResponse<InternalApiHandlersErrorResponse>
+  stream: TypedResponse<InternalApiHandlersAPIError>
   status: 500
 }
 
@@ -301,7 +301,7 @@ export const getGetApiMediaIdSubtitlesPgsIndexStreamQueryKey = (
 
 export const getGetApiMediaIdSubtitlesPgsIndexStreamQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -337,11 +337,11 @@ export const getGetApiMediaIdSubtitlesPgsIndexStreamQueryOptions = <
 export type GetApiMediaIdSubtitlesPgsIndexStreamQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>
 >
-export type GetApiMediaIdSubtitlesPgsIndexStreamQueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaIdSubtitlesPgsIndexStreamQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMediaIdSubtitlesPgsIndexStream<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -368,7 +368,7 @@ export function useGetApiMediaIdSubtitlesPgsIndexStream<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaIdSubtitlesPgsIndexStream<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -395,7 +395,7 @@ export function useGetApiMediaIdSubtitlesPgsIndexStream<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaIdSubtitlesPgsIndexStream<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -418,7 +418,7 @@ export function useGetApiMediaIdSubtitlesPgsIndexStream<
 
 export function useGetApiMediaIdSubtitlesPgsIndexStream<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -461,17 +461,17 @@ export type getApiMediaIdSubtitlesStreamIndexResponse200 = {
 }
 
 export type getApiMediaIdSubtitlesStreamIndexResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMediaIdSubtitlesStreamIndexResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiMediaIdSubtitlesStreamIndexResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -515,7 +515,7 @@ export const getGetApiMediaIdSubtitlesStreamIndexQueryKey = (id?: number, index?
 
 export const getGetApiMediaIdSubtitlesStreamIndexQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesStreamIndex>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -544,11 +544,11 @@ export const getGetApiMediaIdSubtitlesStreamIndexQueryOptions = <
 export type GetApiMediaIdSubtitlesStreamIndexQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMediaIdSubtitlesStreamIndex>>
 >
-export type GetApiMediaIdSubtitlesStreamIndexQueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaIdSubtitlesStreamIndexQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMediaIdSubtitlesStreamIndex<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesStreamIndex>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -570,7 +570,7 @@ export function useGetApiMediaIdSubtitlesStreamIndex<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaIdSubtitlesStreamIndex<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesStreamIndex>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -592,7 +592,7 @@ export function useGetApiMediaIdSubtitlesStreamIndex<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaIdSubtitlesStreamIndex<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesStreamIndex>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -610,7 +610,7 @@ export function useGetApiMediaIdSubtitlesStreamIndex<
 
 export function useGetApiMediaIdSubtitlesStreamIndex<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesStreamIndex>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -643,17 +643,17 @@ export type getApiMediaIdSubtitlesTextIndexStreamResponse200 = {
 }
 
 export type getApiMediaIdSubtitlesTextIndexStreamResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMediaIdSubtitlesTextIndexStreamResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiMediaIdSubtitlesTextIndexStreamResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -718,7 +718,7 @@ export const getGetApiMediaIdSubtitlesTextIndexStreamQueryKey = (
 
 export const getGetApiMediaIdSubtitlesTextIndexStreamQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -754,11 +754,11 @@ export const getGetApiMediaIdSubtitlesTextIndexStreamQueryOptions = <
 export type GetApiMediaIdSubtitlesTextIndexStreamQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>
 >
-export type GetApiMediaIdSubtitlesTextIndexStreamQueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaIdSubtitlesTextIndexStreamQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMediaIdSubtitlesTextIndexStream<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -785,7 +785,7 @@ export function useGetApiMediaIdSubtitlesTextIndexStream<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaIdSubtitlesTextIndexStream<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -812,7 +812,7 @@ export function useGetApiMediaIdSubtitlesTextIndexStream<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaIdSubtitlesTextIndexStream<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -835,7 +835,7 @@ export function useGetApiMediaIdSubtitlesTextIndexStream<
 
 export function useGetApiMediaIdSubtitlesTextIndexStream<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   index: number,
@@ -878,17 +878,17 @@ export type getApiMediaIdSubtitlesTrackIdResponse200 = {
 }
 
 export type getApiMediaIdSubtitlesTrackIdResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMediaIdSubtitlesTrackIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiMediaIdSubtitlesTrackIdResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -932,7 +932,7 @@ export const getGetApiMediaIdSubtitlesTrackIdQueryKey = (id?: number, trackId?: 
 
 export const getGetApiMediaIdSubtitlesTrackIdQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesTrackId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   trackId: number,
@@ -961,11 +961,11 @@ export const getGetApiMediaIdSubtitlesTrackIdQueryOptions = <
 export type GetApiMediaIdSubtitlesTrackIdQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMediaIdSubtitlesTrackId>>
 >
-export type GetApiMediaIdSubtitlesTrackIdQueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaIdSubtitlesTrackIdQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMediaIdSubtitlesTrackId<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesTrackId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   trackId: number,
@@ -987,7 +987,7 @@ export function useGetApiMediaIdSubtitlesTrackId<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaIdSubtitlesTrackId<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesTrackId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   trackId: number,
@@ -1009,7 +1009,7 @@ export function useGetApiMediaIdSubtitlesTrackId<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaIdSubtitlesTrackId<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesTrackId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   trackId: number,
@@ -1027,7 +1027,7 @@ export function useGetApiMediaIdSubtitlesTrackId<
 
 export function useGetApiMediaIdSubtitlesTrackId<
   TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesTrackId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   trackId: number,

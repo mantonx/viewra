@@ -21,7 +21,7 @@ import type {
 import type {
   GithubComMantonxViewraInternalApplicationPeoplePersonCreditsResponse,
   GithubComMantonxViewraInternalApplicationPeoplePersonResponse,
-  InternalApiHandlersErrorResponse,
+  InternalApiHandlersAPIError,
 } from '.././models'
 
 import { customInstance } from '../../mutator/index'
@@ -38,17 +38,17 @@ export type getApiPeopleIdResponse200 = {
 }
 
 export type getApiPeopleIdResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiPeopleIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiPeopleIdResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -85,7 +85,7 @@ export const getGetApiPeopleIdQueryKey = (id?: number) => {
 
 export const getGetApiPeopleIdQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiPeopleId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -108,11 +108,11 @@ export const getGetApiPeopleIdQueryOptions = <
 }
 
 export type GetApiPeopleIdQueryResult = NonNullable<Awaited<ReturnType<typeof getApiPeopleId>>>
-export type GetApiPeopleIdQueryError = InternalApiHandlersErrorResponse
+export type GetApiPeopleIdQueryError = InternalApiHandlersAPIError
 
 export function useGetApiPeopleId<
   TData = Awaited<ReturnType<typeof getApiPeopleId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -131,7 +131,7 @@ export function useGetApiPeopleId<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiPeopleId<
   TData = Awaited<ReturnType<typeof getApiPeopleId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -150,7 +150,7 @@ export function useGetApiPeopleId<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiPeopleId<
   TData = Awaited<ReturnType<typeof getApiPeopleId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -165,7 +165,7 @@ export function useGetApiPeopleId<
 
 export function useGetApiPeopleId<
   TData = Awaited<ReturnType<typeof getApiPeopleId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -195,17 +195,17 @@ export type getApiPeopleIdCreditsResponse200 = {
 }
 
 export type getApiPeopleIdCreditsResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiPeopleIdCreditsResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiPeopleIdCreditsResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -244,7 +244,7 @@ export const getGetApiPeopleIdCreditsQueryKey = (id?: number) => {
 
 export const getGetApiPeopleIdCreditsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiPeopleIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -271,11 +271,11 @@ export const getGetApiPeopleIdCreditsQueryOptions = <
 export type GetApiPeopleIdCreditsQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiPeopleIdCredits>>
 >
-export type GetApiPeopleIdCreditsQueryError = InternalApiHandlersErrorResponse
+export type GetApiPeopleIdCreditsQueryError = InternalApiHandlersAPIError
 
 export function useGetApiPeopleIdCredits<
   TData = Awaited<ReturnType<typeof getApiPeopleIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -296,7 +296,7 @@ export function useGetApiPeopleIdCredits<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiPeopleIdCredits<
   TData = Awaited<ReturnType<typeof getApiPeopleIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -317,7 +317,7 @@ export function useGetApiPeopleIdCredits<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiPeopleIdCredits<
   TData = Awaited<ReturnType<typeof getApiPeopleIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -334,7 +334,7 @@ export function useGetApiPeopleIdCredits<
 
 export function useGetApiPeopleIdCredits<
   TData = Awaited<ReturnType<typeof getApiPeopleIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {

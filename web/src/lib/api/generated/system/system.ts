@@ -22,8 +22,8 @@ import type {
 } from '@tanstack/react-query'
 
 import type {
+  InternalApiHandlersAPIError,
   InternalApiHandlersAdminStatusEvent,
-  InternalApiHandlersErrorResponse,
   InternalApiHandlersRestartRequest,
   InternalApiHandlersRestartResponse,
   InternalApiHandlersSystemInfoResponse,
@@ -43,12 +43,12 @@ export type getApiAdminStatusStreamResponse200 = {
 }
 
 export type getApiAdminStatusStreamResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type getApiAdminStatusStreamResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
@@ -85,7 +85,7 @@ export const getGetApiAdminStatusStreamQueryKey = () => {
 
 export const getGetApiAdminStatusStreamQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiAdminStatusStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(options?: {
   query?: Partial<
     UseQueryOptions<Awaited<ReturnType<typeof getApiAdminStatusStream>>, TError, TData>
@@ -110,11 +110,11 @@ export const getGetApiAdminStatusStreamQueryOptions = <
 export type GetApiAdminStatusStreamQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiAdminStatusStream>>
 >
-export type GetApiAdminStatusStreamQueryError = InternalApiHandlersErrorResponse
+export type GetApiAdminStatusStreamQueryError = InternalApiHandlersAPIError
 
 export function useGetApiAdminStatusStream<
   TData = Awaited<ReturnType<typeof getApiAdminStatusStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options: {
     query: Partial<
@@ -134,7 +134,7 @@ export function useGetApiAdminStatusStream<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiAdminStatusStream<
   TData = Awaited<ReturnType<typeof getApiAdminStatusStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -154,7 +154,7 @@ export function useGetApiAdminStatusStream<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiAdminStatusStream<
   TData = Awaited<ReturnType<typeof getApiAdminStatusStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -170,7 +170,7 @@ export function useGetApiAdminStatusStream<
 
 export function useGetApiAdminStatusStream<
   TData = Awaited<ReturnType<typeof getApiAdminStatusStream>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -201,7 +201,7 @@ export type getApiAdminSystemRestartResponse200 = {
 }
 
 export type getApiAdminSystemRestartResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
@@ -235,7 +235,7 @@ export const getGetApiAdminSystemRestartQueryKey = () => {
 
 export const getGetApiAdminSystemRestartQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiAdminSystemRestart>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(options?: {
   query?: Partial<
     UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSystemRestart>>, TError, TData>
@@ -260,11 +260,11 @@ export const getGetApiAdminSystemRestartQueryOptions = <
 export type GetApiAdminSystemRestartQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiAdminSystemRestart>>
 >
-export type GetApiAdminSystemRestartQueryError = InternalApiHandlersErrorResponse
+export type GetApiAdminSystemRestartQueryError = InternalApiHandlersAPIError
 
 export function useGetApiAdminSystemRestart<
   TData = Awaited<ReturnType<typeof getApiAdminSystemRestart>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options: {
     query: Partial<
@@ -284,7 +284,7 @@ export function useGetApiAdminSystemRestart<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiAdminSystemRestart<
   TData = Awaited<ReturnType<typeof getApiAdminSystemRestart>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -304,7 +304,7 @@ export function useGetApiAdminSystemRestart<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiAdminSystemRestart<
   TData = Awaited<ReturnType<typeof getApiAdminSystemRestart>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -320,7 +320,7 @@ export function useGetApiAdminSystemRestart<
 
 export function useGetApiAdminSystemRestart<
   TData = Awaited<ReturnType<typeof getApiAdminSystemRestart>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -351,12 +351,12 @@ export type postApiAdminSystemRestartResponse200 = {
 }
 
 export type postApiAdminSystemRestartResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type postApiAdminSystemRestartResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
@@ -391,7 +391,7 @@ export const postApiAdminSystemRestart = async (
 }
 
 export const getPostApiAdminSystemRestartMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -430,13 +430,13 @@ export type PostApiAdminSystemRestartMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiAdminSystemRestart>>
 >
 export type PostApiAdminSystemRestartMutationBody = InternalApiHandlersRestartRequest
-export type PostApiAdminSystemRestartMutationError = InternalApiHandlersErrorResponse
+export type PostApiAdminSystemRestartMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Request server restart
  */
 export const usePostApiAdminSystemRestart = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {
@@ -469,17 +469,17 @@ export type deleteApiAdminSystemRestartResponse200 = {
 }
 
 export type deleteApiAdminSystemRestartResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type deleteApiAdminSystemRestartResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
 export type deleteApiAdminSystemRestartResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
@@ -512,7 +512,7 @@ export const deleteApiAdminSystemRestart = async (
 }
 
 export const getDeleteApiAdminSystemRestartMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -549,13 +549,13 @@ export type DeleteApiAdminSystemRestartMutationResult = NonNullable<
   Awaited<ReturnType<typeof deleteApiAdminSystemRestart>>
 >
 
-export type DeleteApiAdminSystemRestartMutationError = InternalApiHandlersErrorResponse
+export type DeleteApiAdminSystemRestartMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Cancel pending restart
  */
 export const useDeleteApiAdminSystemRestart = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {
@@ -588,12 +588,12 @@ export type postApiAdminSystemRestartNowResponse202 = {
 }
 
 export type postApiAdminSystemRestartNowResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type postApiAdminSystemRestartNowResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
@@ -629,7 +629,7 @@ export const postApiAdminSystemRestartNow = async (
 }
 
 export const getPostApiAdminSystemRestartNowMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -666,13 +666,13 @@ export type PostApiAdminSystemRestartNowMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiAdminSystemRestartNow>>
 >
 
-export type PostApiAdminSystemRestartNowMutationError = InternalApiHandlersErrorResponse
+export type PostApiAdminSystemRestartNowMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Execute restart immediately
  */
 export const usePostApiAdminSystemRestartNow = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {
@@ -705,7 +705,7 @@ export type getApiSystemInfoResponse200 = {
 }
 
 export type getApiSystemInfoResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
@@ -739,7 +739,7 @@ export const getGetApiSystemInfoQueryKey = () => {
 
 export const getGetApiSystemInfoQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiSystemInfo>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(options?: {
   query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSystemInfo>>, TError, TData>>
   request?: SecondParameter<typeof customInstance>
@@ -759,11 +759,11 @@ export const getGetApiSystemInfoQueryOptions = <
 }
 
 export type GetApiSystemInfoQueryResult = NonNullable<Awaited<ReturnType<typeof getApiSystemInfo>>>
-export type GetApiSystemInfoQueryError = InternalApiHandlersErrorResponse
+export type GetApiSystemInfoQueryError = InternalApiHandlersAPIError
 
 export function useGetApiSystemInfo<
   TData = Awaited<ReturnType<typeof getApiSystemInfo>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSystemInfo>>, TError, TData>> &
@@ -781,7 +781,7 @@ export function useGetApiSystemInfo<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSystemInfo<
   TData = Awaited<ReturnType<typeof getApiSystemInfo>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSystemInfo>>, TError, TData>> &
@@ -799,7 +799,7 @@ export function useGetApiSystemInfo<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSystemInfo<
   TData = Awaited<ReturnType<typeof getApiSystemInfo>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSystemInfo>>, TError, TData>>
@@ -813,7 +813,7 @@ export function useGetApiSystemInfo<
 
 export function useGetApiSystemInfo<
   TData = Awaited<ReturnType<typeof getApiSystemInfo>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSystemInfo>>, TError, TData>>

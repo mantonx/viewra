@@ -32,7 +32,7 @@ import type {
   GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest,
   GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody,
   GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse,
-  InternalApiHandlersErrorResponse,
+  InternalApiHandlersAPIError,
 } from '.././models'
 
 import { customInstance } from '../../mutator/index'
@@ -49,7 +49,7 @@ export type getApiProgressResponse200 = {
 }
 
 export type getApiProgressResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -92,7 +92,7 @@ export const getGetApiProgressQueryKey = (params?: GetApiProgressParams) => {
 
 export const getGetApiProgressQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiProgress>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiProgressParams,
   options?: {
@@ -115,11 +115,11 @@ export const getGetApiProgressQueryOptions = <
 }
 
 export type GetApiProgressQueryResult = NonNullable<Awaited<ReturnType<typeof getApiProgress>>>
-export type GetApiProgressQueryError = InternalApiHandlersErrorResponse
+export type GetApiProgressQueryError = InternalApiHandlersAPIError
 
 export function useGetApiProgress<
   TData = Awaited<ReturnType<typeof getApiProgress>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: undefined | GetApiProgressParams,
   options: {
@@ -138,7 +138,7 @@ export function useGetApiProgress<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiProgress<
   TData = Awaited<ReturnType<typeof getApiProgress>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiProgressParams,
   options?: {
@@ -157,7 +157,7 @@ export function useGetApiProgress<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiProgress<
   TData = Awaited<ReturnType<typeof getApiProgress>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiProgressParams,
   options?: {
@@ -172,7 +172,7 @@ export function useGetApiProgress<
 
 export function useGetApiProgress<
   TData = Awaited<ReturnType<typeof getApiProgress>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiProgressParams,
   options?: {
@@ -202,12 +202,12 @@ export type putApiProgressResponse200 = {
 }
 
 export type putApiProgressResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type putApiProgressResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -242,7 +242,7 @@ export const putApiProgress = async (
 }
 
 export const getPutApiProgressMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -280,12 +280,12 @@ export const getPutApiProgressMutationOptions = <
 export type PutApiProgressMutationResult = NonNullable<Awaited<ReturnType<typeof putApiProgress>>>
 export type PutApiProgressMutationBody =
   GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody
-export type PutApiProgressMutationError = InternalApiHandlersErrorResponse
+export type PutApiProgressMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Update watch progress
  */
-export const usePutApiProgress = <TError = InternalApiHandlersErrorResponse, TContext = unknown>(
+export const usePutApiProgress = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof putApiProgress>>,
@@ -316,12 +316,12 @@ export type postApiProgressResponse200 = {
 }
 
 export type postApiProgressResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiProgressResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -356,7 +356,7 @@ export const postApiProgress = async (
 }
 
 export const getPostApiProgressMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -394,12 +394,12 @@ export const getPostApiProgressMutationOptions = <
 export type PostApiProgressMutationResult = NonNullable<Awaited<ReturnType<typeof postApiProgress>>>
 export type PostApiProgressMutationBody =
   GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody
-export type PostApiProgressMutationError = InternalApiHandlersErrorResponse
+export type PostApiProgressMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Update watch progress
  */
-export const usePostApiProgress = <TError = InternalApiHandlersErrorResponse, TContext = unknown>(
+export const usePostApiProgress = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiProgress>>,
@@ -430,12 +430,12 @@ export type getApiProgressBatchResponse200 = {
 }
 
 export type getApiProgressBatchResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiProgressBatchResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -485,7 +485,7 @@ export const getGetApiProgressBatchQueryKey = (params?: GetApiProgressBatchParam
 
 export const getGetApiProgressBatchQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiProgressBatch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiProgressBatchParams,
   options?: {
@@ -510,11 +510,11 @@ export const getGetApiProgressBatchQueryOptions = <
 export type GetApiProgressBatchQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiProgressBatch>>
 >
-export type GetApiProgressBatchQueryError = InternalApiHandlersErrorResponse
+export type GetApiProgressBatchQueryError = InternalApiHandlersAPIError
 
 export function useGetApiProgressBatch<
   TData = Awaited<ReturnType<typeof getApiProgressBatch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiProgressBatchParams,
   options: {
@@ -535,7 +535,7 @@ export function useGetApiProgressBatch<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiProgressBatch<
   TData = Awaited<ReturnType<typeof getApiProgressBatch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiProgressBatchParams,
   options?: {
@@ -556,7 +556,7 @@ export function useGetApiProgressBatch<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiProgressBatch<
   TData = Awaited<ReturnType<typeof getApiProgressBatch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiProgressBatchParams,
   options?: {
@@ -571,7 +571,7 @@ export function useGetApiProgressBatch<
 
 export function useGetApiProgressBatch<
   TData = Awaited<ReturnType<typeof getApiProgressBatch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiProgressBatchParams,
   options?: {
@@ -601,7 +601,7 @@ export type getApiProgressInProgressResponse200 = {
 }
 
 export type getApiProgressInProgressResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -648,7 +648,7 @@ export const getGetApiProgressInProgressQueryKey = (params?: GetApiProgressInPro
 
 export const getGetApiProgressInProgressQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiProgressInProgress>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiProgressInProgressParams,
   options?: {
@@ -676,11 +676,11 @@ export const getGetApiProgressInProgressQueryOptions = <
 export type GetApiProgressInProgressQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiProgressInProgress>>
 >
-export type GetApiProgressInProgressQueryError = InternalApiHandlersErrorResponse
+export type GetApiProgressInProgressQueryError = InternalApiHandlersAPIError
 
 export function useGetApiProgressInProgress<
   TData = Awaited<ReturnType<typeof getApiProgressInProgress>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: undefined | GetApiProgressInProgressParams,
   options: {
@@ -701,7 +701,7 @@ export function useGetApiProgressInProgress<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiProgressInProgress<
   TData = Awaited<ReturnType<typeof getApiProgressInProgress>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiProgressInProgressParams,
   options?: {
@@ -722,7 +722,7 @@ export function useGetApiProgressInProgress<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiProgressInProgress<
   TData = Awaited<ReturnType<typeof getApiProgressInProgress>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiProgressInProgressParams,
   options?: {
@@ -739,7 +739,7 @@ export function useGetApiProgressInProgress<
 
 export function useGetApiProgressInProgress<
   TData = Awaited<ReturnType<typeof getApiProgressInProgress>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiProgressInProgressParams,
   options?: {
@@ -771,17 +771,17 @@ export type postApiProgressMarkUnwatchedResponse200 = {
 }
 
 export type postApiProgressMarkUnwatchedResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiProgressMarkUnwatchedResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type postApiProgressMarkUnwatchedResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -821,7 +821,7 @@ export const postApiProgressMarkUnwatched = async (
 }
 
 export const getPostApiProgressMarkUnwatchedMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -861,13 +861,13 @@ export type PostApiProgressMarkUnwatchedMutationResult = NonNullable<
 >
 export type PostApiProgressMarkUnwatchedMutationBody =
   GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest
-export type PostApiProgressMarkUnwatchedMutationError = InternalApiHandlersErrorResponse
+export type PostApiProgressMarkUnwatchedMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Mark as unwatched
  */
 export const usePostApiProgressMarkUnwatched = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {
@@ -900,12 +900,12 @@ export type postApiProgressMarkWatchedResponse200 = {
 }
 
 export type postApiProgressMarkWatchedResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiProgressMarkWatchedResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -940,7 +940,7 @@ export const postApiProgressMarkWatched = async (
 }
 
 export const getPostApiProgressMarkWatchedMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -980,13 +980,13 @@ export type PostApiProgressMarkWatchedMutationResult = NonNullable<
 >
 export type PostApiProgressMarkWatchedMutationBody =
   GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest
-export type PostApiProgressMarkWatchedMutationError = InternalApiHandlersErrorResponse
+export type PostApiProgressMarkWatchedMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Mark as watched
  */
 export const usePostApiProgressMarkWatched = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {
@@ -1019,7 +1019,7 @@ export type getApiProgressWatchedResponse200 = {
 }
 
 export type getApiProgressWatchedResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1066,7 +1066,7 @@ export const getGetApiProgressWatchedQueryKey = (params?: GetApiProgressWatchedP
 
 export const getGetApiProgressWatchedQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiProgressWatched>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiProgressWatchedParams,
   options?: {
@@ -1093,11 +1093,11 @@ export const getGetApiProgressWatchedQueryOptions = <
 export type GetApiProgressWatchedQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiProgressWatched>>
 >
-export type GetApiProgressWatchedQueryError = InternalApiHandlersErrorResponse
+export type GetApiProgressWatchedQueryError = InternalApiHandlersAPIError
 
 export function useGetApiProgressWatched<
   TData = Awaited<ReturnType<typeof getApiProgressWatched>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: undefined | GetApiProgressWatchedParams,
   options: {
@@ -1118,7 +1118,7 @@ export function useGetApiProgressWatched<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiProgressWatched<
   TData = Awaited<ReturnType<typeof getApiProgressWatched>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiProgressWatchedParams,
   options?: {
@@ -1139,7 +1139,7 @@ export function useGetApiProgressWatched<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiProgressWatched<
   TData = Awaited<ReturnType<typeof getApiProgressWatched>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiProgressWatchedParams,
   options?: {
@@ -1156,7 +1156,7 @@ export function useGetApiProgressWatched<
 
 export function useGetApiProgressWatched<
   TData = Awaited<ReturnType<typeof getApiProgressWatched>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiProgressWatchedParams,
   options?: {
@@ -1188,12 +1188,12 @@ export type getApiProgressIdResponse200 = {
 }
 
 export type getApiProgressIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiProgressIdResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1244,7 +1244,7 @@ export const getGetApiProgressIdQueryKey = (id?: number, params?: GetApiProgress
 
 export const getGetApiProgressIdQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiProgressId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiProgressIdParams,
@@ -1268,11 +1268,11 @@ export const getGetApiProgressIdQueryOptions = <
 }
 
 export type GetApiProgressIdQueryResult = NonNullable<Awaited<ReturnType<typeof getApiProgressId>>>
-export type GetApiProgressIdQueryError = InternalApiHandlersErrorResponse
+export type GetApiProgressIdQueryError = InternalApiHandlersAPIError
 
 export function useGetApiProgressId<
   TData = Awaited<ReturnType<typeof getApiProgressId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params: undefined | GetApiProgressIdParams,
@@ -1292,7 +1292,7 @@ export function useGetApiProgressId<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiProgressId<
   TData = Awaited<ReturnType<typeof getApiProgressId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiProgressIdParams,
@@ -1312,7 +1312,7 @@ export function useGetApiProgressId<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiProgressId<
   TData = Awaited<ReturnType<typeof getApiProgressId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiProgressIdParams,
@@ -1328,7 +1328,7 @@ export function useGetApiProgressId<
 
 export function useGetApiProgressId<
   TData = Awaited<ReturnType<typeof getApiProgressId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiProgressIdParams,
@@ -1359,17 +1359,17 @@ export type deleteApiProgressIdResponse204 = {
 }
 
 export type deleteApiProgressIdResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type deleteApiProgressIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type deleteApiProgressIdResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1403,7 +1403,7 @@ export const deleteApiProgressId = async (
 }
 
 export const getDeleteApiProgressIdMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -1442,15 +1442,12 @@ export type DeleteApiProgressIdMutationResult = NonNullable<
   Awaited<ReturnType<typeof deleteApiProgressId>>
 >
 
-export type DeleteApiProgressIdMutationError = InternalApiHandlersErrorResponse
+export type DeleteApiProgressIdMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Delete watch progress
  */
-export const useDeleteApiProgressId = <
-  TError = InternalApiHandlersErrorResponse,
-  TContext = unknown,
->(
+export const useDeleteApiProgressId = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof deleteApiProgressId>>,

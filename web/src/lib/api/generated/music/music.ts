@@ -28,7 +28,7 @@ import type {
   GithubComMantonxViewraInternalApplicationMusicListIDsResponse,
   GithubComMantonxViewraInternalApplicationMusicListTracksResponse,
   GithubComMantonxViewraInternalApplicationMusicMusicTrackResponse,
-  InternalApiHandlersErrorResponse,
+  InternalApiHandlersAPIError,
 } from '.././models'
 
 import { customInstance } from '../../mutator/index'
@@ -45,12 +45,12 @@ export type getApiMusicAlbumsIdImagesResponse200 = {
 }
 
 export type getApiMusicAlbumsIdImagesResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMusicAlbumsIdImagesResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -88,7 +88,7 @@ export const getGetApiMusicAlbumsIdImagesQueryKey = (id?: number) => {
 
 export const getGetApiMusicAlbumsIdImagesQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMusicAlbumsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -116,11 +116,11 @@ export const getGetApiMusicAlbumsIdImagesQueryOptions = <
 export type GetApiMusicAlbumsIdImagesQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMusicAlbumsIdImages>>
 >
-export type GetApiMusicAlbumsIdImagesQueryError = InternalApiHandlersErrorResponse
+export type GetApiMusicAlbumsIdImagesQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMusicAlbumsIdImages<
   TData = Awaited<ReturnType<typeof getApiMusicAlbumsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -141,7 +141,7 @@ export function useGetApiMusicAlbumsIdImages<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMusicAlbumsIdImages<
   TData = Awaited<ReturnType<typeof getApiMusicAlbumsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -162,7 +162,7 @@ export function useGetApiMusicAlbumsIdImages<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMusicAlbumsIdImages<
   TData = Awaited<ReturnType<typeof getApiMusicAlbumsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -179,7 +179,7 @@ export function useGetApiMusicAlbumsIdImages<
 
 export function useGetApiMusicAlbumsIdImages<
   TData = Awaited<ReturnType<typeof getApiMusicAlbumsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -211,17 +211,17 @@ export type getApiMusicAlbumsIdTracksResponse200 = {
 }
 
 export type getApiMusicAlbumsIdTracksResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMusicAlbumsIdTracksResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiMusicAlbumsIdTracksResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -260,7 +260,7 @@ export const getGetApiMusicAlbumsIdTracksQueryKey = (id?: number) => {
 
 export const getGetApiMusicAlbumsIdTracksQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMusicAlbumsIdTracks>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -288,11 +288,11 @@ export const getGetApiMusicAlbumsIdTracksQueryOptions = <
 export type GetApiMusicAlbumsIdTracksQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMusicAlbumsIdTracks>>
 >
-export type GetApiMusicAlbumsIdTracksQueryError = InternalApiHandlersErrorResponse
+export type GetApiMusicAlbumsIdTracksQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMusicAlbumsIdTracks<
   TData = Awaited<ReturnType<typeof getApiMusicAlbumsIdTracks>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -313,7 +313,7 @@ export function useGetApiMusicAlbumsIdTracks<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMusicAlbumsIdTracks<
   TData = Awaited<ReturnType<typeof getApiMusicAlbumsIdTracks>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -334,7 +334,7 @@ export function useGetApiMusicAlbumsIdTracks<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMusicAlbumsIdTracks<
   TData = Awaited<ReturnType<typeof getApiMusicAlbumsIdTracks>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -351,7 +351,7 @@ export function useGetApiMusicAlbumsIdTracks<
 
 export function useGetApiMusicAlbumsIdTracks<
   TData = Awaited<ReturnType<typeof getApiMusicAlbumsIdTracks>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -383,12 +383,12 @@ export type getApiMusicArtistsResponse200 = {
 }
 
 export type getApiMusicArtistsResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMusicArtistsResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -438,7 +438,7 @@ export const getGetApiMusicArtistsQueryKey = (params?: GetApiMusicArtistsParams)
 
 export const getGetApiMusicArtistsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMusicArtists>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMusicArtistsParams,
   options?: {
@@ -463,11 +463,11 @@ export const getGetApiMusicArtistsQueryOptions = <
 export type GetApiMusicArtistsQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMusicArtists>>
 >
-export type GetApiMusicArtistsQueryError = InternalApiHandlersErrorResponse
+export type GetApiMusicArtistsQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMusicArtists<
   TData = Awaited<ReturnType<typeof getApiMusicArtists>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMusicArtistsParams,
   options: {
@@ -486,7 +486,7 @@ export function useGetApiMusicArtists<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMusicArtists<
   TData = Awaited<ReturnType<typeof getApiMusicArtists>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMusicArtistsParams,
   options?: {
@@ -507,7 +507,7 @@ export function useGetApiMusicArtists<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMusicArtists<
   TData = Awaited<ReturnType<typeof getApiMusicArtists>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMusicArtistsParams,
   options?: {
@@ -522,7 +522,7 @@ export function useGetApiMusicArtists<
 
 export function useGetApiMusicArtists<
   TData = Awaited<ReturnType<typeof getApiMusicArtists>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMusicArtistsParams,
   options?: {
@@ -552,17 +552,17 @@ export type getApiMusicArtistsIdAlbumsResponse200 = {
 }
 
 export type getApiMusicArtistsIdAlbumsResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMusicArtistsIdAlbumsResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiMusicArtistsIdAlbumsResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -601,7 +601,7 @@ export const getGetApiMusicArtistsIdAlbumsQueryKey = (id?: number) => {
 
 export const getGetApiMusicArtistsIdAlbumsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMusicArtistsIdAlbums>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -629,11 +629,11 @@ export const getGetApiMusicArtistsIdAlbumsQueryOptions = <
 export type GetApiMusicArtistsIdAlbumsQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMusicArtistsIdAlbums>>
 >
-export type GetApiMusicArtistsIdAlbumsQueryError = InternalApiHandlersErrorResponse
+export type GetApiMusicArtistsIdAlbumsQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMusicArtistsIdAlbums<
   TData = Awaited<ReturnType<typeof getApiMusicArtistsIdAlbums>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -654,7 +654,7 @@ export function useGetApiMusicArtistsIdAlbums<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMusicArtistsIdAlbums<
   TData = Awaited<ReturnType<typeof getApiMusicArtistsIdAlbums>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -675,7 +675,7 @@ export function useGetApiMusicArtistsIdAlbums<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMusicArtistsIdAlbums<
   TData = Awaited<ReturnType<typeof getApiMusicArtistsIdAlbums>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -692,7 +692,7 @@ export function useGetApiMusicArtistsIdAlbums<
 
 export function useGetApiMusicArtistsIdAlbums<
   TData = Awaited<ReturnType<typeof getApiMusicArtistsIdAlbums>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -724,12 +724,12 @@ export type getApiMusicArtistsIdImagesResponse200 = {
 }
 
 export type getApiMusicArtistsIdImagesResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMusicArtistsIdImagesResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -767,7 +767,7 @@ export const getGetApiMusicArtistsIdImagesQueryKey = (id?: number) => {
 
 export const getGetApiMusicArtistsIdImagesQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMusicArtistsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -795,11 +795,11 @@ export const getGetApiMusicArtistsIdImagesQueryOptions = <
 export type GetApiMusicArtistsIdImagesQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMusicArtistsIdImages>>
 >
-export type GetApiMusicArtistsIdImagesQueryError = InternalApiHandlersErrorResponse
+export type GetApiMusicArtistsIdImagesQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMusicArtistsIdImages<
   TData = Awaited<ReturnType<typeof getApiMusicArtistsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -820,7 +820,7 @@ export function useGetApiMusicArtistsIdImages<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMusicArtistsIdImages<
   TData = Awaited<ReturnType<typeof getApiMusicArtistsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -841,7 +841,7 @@ export function useGetApiMusicArtistsIdImages<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMusicArtistsIdImages<
   TData = Awaited<ReturnType<typeof getApiMusicArtistsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -858,7 +858,7 @@ export function useGetApiMusicArtistsIdImages<
 
 export function useGetApiMusicArtistsIdImages<
   TData = Awaited<ReturnType<typeof getApiMusicArtistsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -890,12 +890,12 @@ export type getApiMusicIdsResponse200 = {
 }
 
 export type getApiMusicIdsResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMusicIdsResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -941,7 +941,7 @@ export const getGetApiMusicIdsQueryKey = (params?: GetApiMusicIdsParams) => {
 
 export const getGetApiMusicIdsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMusicIds>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMusicIdsParams,
   options?: {
@@ -964,11 +964,11 @@ export const getGetApiMusicIdsQueryOptions = <
 }
 
 export type GetApiMusicIdsQueryResult = NonNullable<Awaited<ReturnType<typeof getApiMusicIds>>>
-export type GetApiMusicIdsQueryError = InternalApiHandlersErrorResponse
+export type GetApiMusicIdsQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMusicIds<
   TData = Awaited<ReturnType<typeof getApiMusicIds>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMusicIdsParams,
   options: {
@@ -987,7 +987,7 @@ export function useGetApiMusicIds<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMusicIds<
   TData = Awaited<ReturnType<typeof getApiMusicIds>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMusicIdsParams,
   options?: {
@@ -1006,7 +1006,7 @@ export function useGetApiMusicIds<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMusicIds<
   TData = Awaited<ReturnType<typeof getApiMusicIds>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMusicIdsParams,
   options?: {
@@ -1021,7 +1021,7 @@ export function useGetApiMusicIds<
 
 export function useGetApiMusicIds<
   TData = Awaited<ReturnType<typeof getApiMusicIds>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMusicIdsParams,
   options?: {
@@ -1051,12 +1051,12 @@ export type getApiMusicSearchResponse200 = {
 }
 
 export type getApiMusicSearchResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMusicSearchResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1106,7 +1106,7 @@ export const getGetApiMusicSearchQueryKey = (params?: GetApiMusicSearchParams) =
 
 export const getGetApiMusicSearchQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMusicSearch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMusicSearchParams,
   options?: {
@@ -1131,11 +1131,11 @@ export const getGetApiMusicSearchQueryOptions = <
 export type GetApiMusicSearchQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMusicSearch>>
 >
-export type GetApiMusicSearchQueryError = InternalApiHandlersErrorResponse
+export type GetApiMusicSearchQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMusicSearch<
   TData = Awaited<ReturnType<typeof getApiMusicSearch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMusicSearchParams,
   options: {
@@ -1154,7 +1154,7 @@ export function useGetApiMusicSearch<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMusicSearch<
   TData = Awaited<ReturnType<typeof getApiMusicSearch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMusicSearchParams,
   options?: {
@@ -1173,7 +1173,7 @@ export function useGetApiMusicSearch<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMusicSearch<
   TData = Awaited<ReturnType<typeof getApiMusicSearch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMusicSearchParams,
   options?: {
@@ -1188,7 +1188,7 @@ export function useGetApiMusicSearch<
 
 export function useGetApiMusicSearch<
   TData = Awaited<ReturnType<typeof getApiMusicSearch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMusicSearchParams,
   options?: {
@@ -1218,17 +1218,17 @@ export type getApiMusicTracksIdResponse200 = {
 }
 
 export type getApiMusicTracksIdResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMusicTracksIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiMusicTracksIdResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1267,7 +1267,7 @@ export const getGetApiMusicTracksIdQueryKey = (id?: number) => {
 
 export const getGetApiMusicTracksIdQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMusicTracksId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1292,11 +1292,11 @@ export const getGetApiMusicTracksIdQueryOptions = <
 export type GetApiMusicTracksIdQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMusicTracksId>>
 >
-export type GetApiMusicTracksIdQueryError = InternalApiHandlersErrorResponse
+export type GetApiMusicTracksIdQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMusicTracksId<
   TData = Awaited<ReturnType<typeof getApiMusicTracksId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -1317,7 +1317,7 @@ export function useGetApiMusicTracksId<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMusicTracksId<
   TData = Awaited<ReturnType<typeof getApiMusicTracksId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1338,7 +1338,7 @@ export function useGetApiMusicTracksId<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMusicTracksId<
   TData = Awaited<ReturnType<typeof getApiMusicTracksId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1353,7 +1353,7 @@ export function useGetApiMusicTracksId<
 
 export function useGetApiMusicTracksId<
   TData = Awaited<ReturnType<typeof getApiMusicTracksId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {

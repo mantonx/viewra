@@ -18,7 +18,7 @@ import type {
   UseQueryResult,
 } from '@tanstack/react-query'
 
-import type { InternalApiHandlersErrorResponse } from '.././models'
+import type { InternalApiHandlersAPIError } from '.././models'
 
 import { customInstance } from '../../mutator/index'
 
@@ -39,22 +39,22 @@ export type getApiStreamIdResponse206 = {
 }
 
 export type getApiStreamIdResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiStreamIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiStreamIdResponse416 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 416
 }
 
 export type getApiStreamIdResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -95,7 +95,7 @@ export const getGetApiStreamIdQueryKey = (id?: number) => {
 
 export const getGetApiStreamIdQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiStreamId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -118,11 +118,11 @@ export const getGetApiStreamIdQueryOptions = <
 }
 
 export type GetApiStreamIdQueryResult = NonNullable<Awaited<ReturnType<typeof getApiStreamId>>>
-export type GetApiStreamIdQueryError = InternalApiHandlersErrorResponse
+export type GetApiStreamIdQueryError = InternalApiHandlersAPIError
 
 export function useGetApiStreamId<
   TData = Awaited<ReturnType<typeof getApiStreamId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -141,7 +141,7 @@ export function useGetApiStreamId<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiStreamId<
   TData = Awaited<ReturnType<typeof getApiStreamId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -160,7 +160,7 @@ export function useGetApiStreamId<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiStreamId<
   TData = Awaited<ReturnType<typeof getApiStreamId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -175,7 +175,7 @@ export function useGetApiStreamId<
 
 export function useGetApiStreamId<
   TData = Awaited<ReturnType<typeof getApiStreamId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {

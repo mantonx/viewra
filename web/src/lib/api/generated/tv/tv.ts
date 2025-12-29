@@ -30,7 +30,7 @@ import type {
   GithubComMantonxViewraInternalApplicationTvListTVShowsResponse,
   GithubComMantonxViewraInternalApplicationTvTVEpisodeResponse,
   GithubComMantonxViewraInternalApplicationTvTVShowDetailResponse,
-  InternalApiHandlersErrorResponse,
+  InternalApiHandlersAPIError,
 } from '.././models'
 
 import { customInstance } from '../../mutator/index'
@@ -47,17 +47,17 @@ export type getApiTvEpisodesIdResponse200 = {
 }
 
 export type getApiTvEpisodesIdResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiTvEpisodesIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiTvEpisodesIdResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -96,7 +96,7 @@ export const getGetApiTvEpisodesIdQueryKey = (id?: number) => {
 
 export const getGetApiTvEpisodesIdQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiTvEpisodesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -121,11 +121,11 @@ export const getGetApiTvEpisodesIdQueryOptions = <
 export type GetApiTvEpisodesIdQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiTvEpisodesId>>
 >
-export type GetApiTvEpisodesIdQueryError = InternalApiHandlersErrorResponse
+export type GetApiTvEpisodesIdQueryError = InternalApiHandlersAPIError
 
 export function useGetApiTvEpisodesId<
   TData = Awaited<ReturnType<typeof getApiTvEpisodesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -144,7 +144,7 @@ export function useGetApiTvEpisodesId<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvEpisodesId<
   TData = Awaited<ReturnType<typeof getApiTvEpisodesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -165,7 +165,7 @@ export function useGetApiTvEpisodesId<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvEpisodesId<
   TData = Awaited<ReturnType<typeof getApiTvEpisodesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -180,7 +180,7 @@ export function useGetApiTvEpisodesId<
 
 export function useGetApiTvEpisodesId<
   TData = Awaited<ReturnType<typeof getApiTvEpisodesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -210,17 +210,17 @@ export type getApiTvEpisodesIdCreditsResponse200 = {
 }
 
 export type getApiTvEpisodesIdCreditsResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiTvEpisodesIdCreditsResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiTvEpisodesIdCreditsResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -259,7 +259,7 @@ export const getGetApiTvEpisodesIdCreditsQueryKey = (id?: number) => {
 
 export const getGetApiTvEpisodesIdCreditsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -287,11 +287,11 @@ export const getGetApiTvEpisodesIdCreditsQueryOptions = <
 export type GetApiTvEpisodesIdCreditsQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>
 >
-export type GetApiTvEpisodesIdCreditsQueryError = InternalApiHandlersErrorResponse
+export type GetApiTvEpisodesIdCreditsQueryError = InternalApiHandlersAPIError
 
 export function useGetApiTvEpisodesIdCredits<
   TData = Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -312,7 +312,7 @@ export function useGetApiTvEpisodesIdCredits<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvEpisodesIdCredits<
   TData = Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -333,7 +333,7 @@ export function useGetApiTvEpisodesIdCredits<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvEpisodesIdCredits<
   TData = Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -350,7 +350,7 @@ export function useGetApiTvEpisodesIdCredits<
 
 export function useGetApiTvEpisodesIdCredits<
   TData = Awaited<ReturnType<typeof getApiTvEpisodesIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -382,12 +382,12 @@ export type getApiTvEpisodesIdImagesResponse200 = {
 }
 
 export type getApiTvEpisodesIdImagesResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiTvEpisodesIdImagesResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -425,7 +425,7 @@ export const getGetApiTvEpisodesIdImagesQueryKey = (id?: number) => {
 
 export const getGetApiTvEpisodesIdImagesQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiTvEpisodesIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -453,11 +453,11 @@ export const getGetApiTvEpisodesIdImagesQueryOptions = <
 export type GetApiTvEpisodesIdImagesQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiTvEpisodesIdImages>>
 >
-export type GetApiTvEpisodesIdImagesQueryError = InternalApiHandlersErrorResponse
+export type GetApiTvEpisodesIdImagesQueryError = InternalApiHandlersAPIError
 
 export function useGetApiTvEpisodesIdImages<
   TData = Awaited<ReturnType<typeof getApiTvEpisodesIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -478,7 +478,7 @@ export function useGetApiTvEpisodesIdImages<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvEpisodesIdImages<
   TData = Awaited<ReturnType<typeof getApiTvEpisodesIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -499,7 +499,7 @@ export function useGetApiTvEpisodesIdImages<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvEpisodesIdImages<
   TData = Awaited<ReturnType<typeof getApiTvEpisodesIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -516,7 +516,7 @@ export function useGetApiTvEpisodesIdImages<
 
 export function useGetApiTvEpisodesIdImages<
   TData = Awaited<ReturnType<typeof getApiTvEpisodesIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -548,12 +548,12 @@ export type getApiTvIdsResponse200 = {
 }
 
 export type getApiTvIdsResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiTvIdsResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -596,7 +596,7 @@ export const getGetApiTvIdsQueryKey = (params?: GetApiTvIdsParams) => {
 
 export const getGetApiTvIdsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiTvIds>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiTvIdsParams,
   options?: {
@@ -619,11 +619,11 @@ export const getGetApiTvIdsQueryOptions = <
 }
 
 export type GetApiTvIdsQueryResult = NonNullable<Awaited<ReturnType<typeof getApiTvIds>>>
-export type GetApiTvIdsQueryError = InternalApiHandlersErrorResponse
+export type GetApiTvIdsQueryError = InternalApiHandlersAPIError
 
 export function useGetApiTvIds<
   TData = Awaited<ReturnType<typeof getApiTvIds>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiTvIdsParams,
   options: {
@@ -642,7 +642,7 @@ export function useGetApiTvIds<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvIds<
   TData = Awaited<ReturnType<typeof getApiTvIds>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiTvIdsParams,
   options?: {
@@ -661,7 +661,7 @@ export function useGetApiTvIds<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvIds<
   TData = Awaited<ReturnType<typeof getApiTvIds>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiTvIdsParams,
   options?: {
@@ -676,7 +676,7 @@ export function useGetApiTvIds<
 
 export function useGetApiTvIds<
   TData = Awaited<ReturnType<typeof getApiTvIds>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiTvIdsParams,
   options?: {
@@ -706,12 +706,12 @@ export type getApiTvSearchResponse200 = {
 }
 
 export type getApiTvSearchResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiTvSearchResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -757,7 +757,7 @@ export const getGetApiTvSearchQueryKey = (params?: GetApiTvSearchParams) => {
 
 export const getGetApiTvSearchQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiTvSearch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiTvSearchParams,
   options?: {
@@ -780,11 +780,11 @@ export const getGetApiTvSearchQueryOptions = <
 }
 
 export type GetApiTvSearchQueryResult = NonNullable<Awaited<ReturnType<typeof getApiTvSearch>>>
-export type GetApiTvSearchQueryError = InternalApiHandlersErrorResponse
+export type GetApiTvSearchQueryError = InternalApiHandlersAPIError
 
 export function useGetApiTvSearch<
   TData = Awaited<ReturnType<typeof getApiTvSearch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiTvSearchParams,
   options: {
@@ -803,7 +803,7 @@ export function useGetApiTvSearch<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvSearch<
   TData = Awaited<ReturnType<typeof getApiTvSearch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiTvSearchParams,
   options?: {
@@ -822,7 +822,7 @@ export function useGetApiTvSearch<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvSearch<
   TData = Awaited<ReturnType<typeof getApiTvSearch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiTvSearchParams,
   options?: {
@@ -837,7 +837,7 @@ export function useGetApiTvSearch<
 
 export function useGetApiTvSearch<
   TData = Awaited<ReturnType<typeof getApiTvSearch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiTvSearchParams,
   options?: {
@@ -867,12 +867,12 @@ export type getApiTvSeasonsIdImagesResponse200 = {
 }
 
 export type getApiTvSeasonsIdImagesResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiTvSeasonsIdImagesResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -910,7 +910,7 @@ export const getGetApiTvSeasonsIdImagesQueryKey = (id?: number) => {
 
 export const getGetApiTvSeasonsIdImagesQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiTvSeasonsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -938,11 +938,11 @@ export const getGetApiTvSeasonsIdImagesQueryOptions = <
 export type GetApiTvSeasonsIdImagesQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiTvSeasonsIdImages>>
 >
-export type GetApiTvSeasonsIdImagesQueryError = InternalApiHandlersErrorResponse
+export type GetApiTvSeasonsIdImagesQueryError = InternalApiHandlersAPIError
 
 export function useGetApiTvSeasonsIdImages<
   TData = Awaited<ReturnType<typeof getApiTvSeasonsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -963,7 +963,7 @@ export function useGetApiTvSeasonsIdImages<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvSeasonsIdImages<
   TData = Awaited<ReturnType<typeof getApiTvSeasonsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -984,7 +984,7 @@ export function useGetApiTvSeasonsIdImages<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvSeasonsIdImages<
   TData = Awaited<ReturnType<typeof getApiTvSeasonsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1001,7 +1001,7 @@ export function useGetApiTvSeasonsIdImages<
 
 export function useGetApiTvSeasonsIdImages<
   TData = Awaited<ReturnType<typeof getApiTvSeasonsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1033,12 +1033,12 @@ export type getApiTvShowsResponse200 = {
 }
 
 export type getApiTvShowsResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiTvShowsResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1081,7 +1081,7 @@ export const getGetApiTvShowsQueryKey = (params?: GetApiTvShowsParams) => {
 
 export const getGetApiTvShowsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiTvShows>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiTvShowsParams,
   options?: {
@@ -1104,11 +1104,11 @@ export const getGetApiTvShowsQueryOptions = <
 }
 
 export type GetApiTvShowsQueryResult = NonNullable<Awaited<ReturnType<typeof getApiTvShows>>>
-export type GetApiTvShowsQueryError = InternalApiHandlersErrorResponse
+export type GetApiTvShowsQueryError = InternalApiHandlersAPIError
 
 export function useGetApiTvShows<
   TData = Awaited<ReturnType<typeof getApiTvShows>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiTvShowsParams,
   options: {
@@ -1127,7 +1127,7 @@ export function useGetApiTvShows<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvShows<
   TData = Awaited<ReturnType<typeof getApiTvShows>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiTvShowsParams,
   options?: {
@@ -1146,7 +1146,7 @@ export function useGetApiTvShows<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvShows<
   TData = Awaited<ReturnType<typeof getApiTvShows>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiTvShowsParams,
   options?: {
@@ -1161,7 +1161,7 @@ export function useGetApiTvShows<
 
 export function useGetApiTvShows<
   TData = Awaited<ReturnType<typeof getApiTvShows>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiTvShowsParams,
   options?: {
@@ -1191,17 +1191,17 @@ export type getApiTvShowsIdResponse200 = {
 }
 
 export type getApiTvShowsIdResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiTvShowsIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiTvShowsIdResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1238,7 +1238,7 @@ export const getGetApiTvShowsIdQueryKey = (id?: number) => {
 
 export const getGetApiTvShowsIdQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiTvShowsId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1261,11 +1261,11 @@ export const getGetApiTvShowsIdQueryOptions = <
 }
 
 export type GetApiTvShowsIdQueryResult = NonNullable<Awaited<ReturnType<typeof getApiTvShowsId>>>
-export type GetApiTvShowsIdQueryError = InternalApiHandlersErrorResponse
+export type GetApiTvShowsIdQueryError = InternalApiHandlersAPIError
 
 export function useGetApiTvShowsId<
   TData = Awaited<ReturnType<typeof getApiTvShowsId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -1284,7 +1284,7 @@ export function useGetApiTvShowsId<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvShowsId<
   TData = Awaited<ReturnType<typeof getApiTvShowsId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1303,7 +1303,7 @@ export function useGetApiTvShowsId<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvShowsId<
   TData = Awaited<ReturnType<typeof getApiTvShowsId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1318,7 +1318,7 @@ export function useGetApiTvShowsId<
 
 export function useGetApiTvShowsId<
   TData = Awaited<ReturnType<typeof getApiTvShowsId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1348,17 +1348,17 @@ export type getApiTvShowsIdCreditsResponse200 = {
 }
 
 export type getApiTvShowsIdCreditsResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiTvShowsIdCreditsResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiTvShowsIdCreditsResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1397,7 +1397,7 @@ export const getGetApiTvShowsIdCreditsQueryKey = (id?: number) => {
 
 export const getGetApiTvShowsIdCreditsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiTvShowsIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1424,11 +1424,11 @@ export const getGetApiTvShowsIdCreditsQueryOptions = <
 export type GetApiTvShowsIdCreditsQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiTvShowsIdCredits>>
 >
-export type GetApiTvShowsIdCreditsQueryError = InternalApiHandlersErrorResponse
+export type GetApiTvShowsIdCreditsQueryError = InternalApiHandlersAPIError
 
 export function useGetApiTvShowsIdCredits<
   TData = Awaited<ReturnType<typeof getApiTvShowsIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -1449,7 +1449,7 @@ export function useGetApiTvShowsIdCredits<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvShowsIdCredits<
   TData = Awaited<ReturnType<typeof getApiTvShowsIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1470,7 +1470,7 @@ export function useGetApiTvShowsIdCredits<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvShowsIdCredits<
   TData = Awaited<ReturnType<typeof getApiTvShowsIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1487,7 +1487,7 @@ export function useGetApiTvShowsIdCredits<
 
 export function useGetApiTvShowsIdCredits<
   TData = Awaited<ReturnType<typeof getApiTvShowsIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1519,17 +1519,17 @@ export type getApiTvShowsIdEpisodesResponse200 = {
 }
 
 export type getApiTvShowsIdEpisodesResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiTvShowsIdEpisodesResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiTvShowsIdEpisodesResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1568,7 +1568,7 @@ export const getGetApiTvShowsIdEpisodesQueryKey = (id?: number) => {
 
 export const getGetApiTvShowsIdEpisodesQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiTvShowsIdEpisodes>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1596,11 +1596,11 @@ export const getGetApiTvShowsIdEpisodesQueryOptions = <
 export type GetApiTvShowsIdEpisodesQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiTvShowsIdEpisodes>>
 >
-export type GetApiTvShowsIdEpisodesQueryError = InternalApiHandlersErrorResponse
+export type GetApiTvShowsIdEpisodesQueryError = InternalApiHandlersAPIError
 
 export function useGetApiTvShowsIdEpisodes<
   TData = Awaited<ReturnType<typeof getApiTvShowsIdEpisodes>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -1621,7 +1621,7 @@ export function useGetApiTvShowsIdEpisodes<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvShowsIdEpisodes<
   TData = Awaited<ReturnType<typeof getApiTvShowsIdEpisodes>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1642,7 +1642,7 @@ export function useGetApiTvShowsIdEpisodes<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvShowsIdEpisodes<
   TData = Awaited<ReturnType<typeof getApiTvShowsIdEpisodes>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1659,7 +1659,7 @@ export function useGetApiTvShowsIdEpisodes<
 
 export function useGetApiTvShowsIdEpisodes<
   TData = Awaited<ReturnType<typeof getApiTvShowsIdEpisodes>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1691,12 +1691,12 @@ export type getApiTvShowsIdImagesResponse200 = {
 }
 
 export type getApiTvShowsIdImagesResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiTvShowsIdImagesResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1734,7 +1734,7 @@ export const getGetApiTvShowsIdImagesQueryKey = (id?: number) => {
 
 export const getGetApiTvShowsIdImagesQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiTvShowsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1761,11 +1761,11 @@ export const getGetApiTvShowsIdImagesQueryOptions = <
 export type GetApiTvShowsIdImagesQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiTvShowsIdImages>>
 >
-export type GetApiTvShowsIdImagesQueryError = InternalApiHandlersErrorResponse
+export type GetApiTvShowsIdImagesQueryError = InternalApiHandlersAPIError
 
 export function useGetApiTvShowsIdImages<
   TData = Awaited<ReturnType<typeof getApiTvShowsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -1786,7 +1786,7 @@ export function useGetApiTvShowsIdImages<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvShowsIdImages<
   TData = Awaited<ReturnType<typeof getApiTvShowsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1807,7 +1807,7 @@ export function useGetApiTvShowsIdImages<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvShowsIdImages<
   TData = Awaited<ReturnType<typeof getApiTvShowsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1824,7 +1824,7 @@ export function useGetApiTvShowsIdImages<
 
 export function useGetApiTvShowsIdImages<
   TData = Awaited<ReturnType<typeof getApiTvShowsIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1856,17 +1856,17 @@ export type getApiTvShowsIdNextEpisodeResponse200 = {
 }
 
 export type getApiTvShowsIdNextEpisodeResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiTvShowsIdNextEpisodeResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiTvShowsIdNextEpisodeResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1905,7 +1905,7 @@ export const getGetApiTvShowsIdNextEpisodeQueryKey = (id?: number) => {
 
 export const getGetApiTvShowsIdNextEpisodeQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1933,11 +1933,11 @@ export const getGetApiTvShowsIdNextEpisodeQueryOptions = <
 export type GetApiTvShowsIdNextEpisodeQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>
 >
-export type GetApiTvShowsIdNextEpisodeQueryError = InternalApiHandlersErrorResponse
+export type GetApiTvShowsIdNextEpisodeQueryError = InternalApiHandlersAPIError
 
 export function useGetApiTvShowsIdNextEpisode<
   TData = Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -1958,7 +1958,7 @@ export function useGetApiTvShowsIdNextEpisode<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvShowsIdNextEpisode<
   TData = Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1979,7 +1979,7 @@ export function useGetApiTvShowsIdNextEpisode<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvShowsIdNextEpisode<
   TData = Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -1996,7 +1996,7 @@ export function useGetApiTvShowsIdNextEpisode<
 
 export function useGetApiTvShowsIdNextEpisode<
   TData = Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -2028,17 +2028,17 @@ export type getApiTvShowsShowTitleEpisodesResponse200 = {
 }
 
 export type getApiTvShowsShowTitleEpisodesResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiTvShowsShowTitleEpisodesResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiTvShowsShowTitleEpisodesResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -2100,7 +2100,7 @@ export const getGetApiTvShowsShowTitleEpisodesQueryKey = (
 
 export const getGetApiTvShowsShowTitleEpisodesQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiTvShowsShowTitleEpisodes>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   showTitle: string,
   params: GetApiTvShowsShowTitleEpisodesParams,
@@ -2130,11 +2130,11 @@ export const getGetApiTvShowsShowTitleEpisodesQueryOptions = <
 export type GetApiTvShowsShowTitleEpisodesQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiTvShowsShowTitleEpisodes>>
 >
-export type GetApiTvShowsShowTitleEpisodesQueryError = InternalApiHandlersErrorResponse
+export type GetApiTvShowsShowTitleEpisodesQueryError = InternalApiHandlersAPIError
 
 export function useGetApiTvShowsShowTitleEpisodes<
   TData = Awaited<ReturnType<typeof getApiTvShowsShowTitleEpisodes>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   showTitle: string,
   params: GetApiTvShowsShowTitleEpisodesParams,
@@ -2156,7 +2156,7 @@ export function useGetApiTvShowsShowTitleEpisodes<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvShowsShowTitleEpisodes<
   TData = Awaited<ReturnType<typeof getApiTvShowsShowTitleEpisodes>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   showTitle: string,
   params: GetApiTvShowsShowTitleEpisodesParams,
@@ -2178,7 +2178,7 @@ export function useGetApiTvShowsShowTitleEpisodes<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiTvShowsShowTitleEpisodes<
   TData = Awaited<ReturnType<typeof getApiTvShowsShowTitleEpisodes>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   showTitle: string,
   params: GetApiTvShowsShowTitleEpisodesParams,
@@ -2196,7 +2196,7 @@ export function useGetApiTvShowsShowTitleEpisodes<
 
 export function useGetApiTvShowsShowTitleEpisodes<
   TData = Awaited<ReturnType<typeof getApiTvShowsShowTitleEpisodes>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   showTitle: string,
   params: GetApiTvShowsShowTitleEpisodesParams,

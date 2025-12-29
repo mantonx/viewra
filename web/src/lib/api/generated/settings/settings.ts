@@ -24,8 +24,8 @@ import type {
 import type {
   InternalApiHandlersAISettingsRequest,
   InternalApiHandlersAISettingsResponse,
+  InternalApiHandlersAPIError,
   InternalApiHandlersEffectiveSettingsResponse,
-  InternalApiHandlersErrorResponse,
   InternalApiHandlersLocationPreferencesResponse,
   InternalApiHandlersProvidersResponse,
   InternalApiHandlersSetSystemRequest,
@@ -52,12 +52,12 @@ export type getApiSettingsAiResponse200 = {
 }
 
 export type getApiSettingsAiResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type getApiSettingsAiResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
@@ -94,7 +94,7 @@ export const getGetApiSettingsAiQueryKey = () => {
 
 export const getGetApiSettingsAiQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiSettingsAi>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(options?: {
   query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAi>>, TError, TData>>
   request?: SecondParameter<typeof customInstance>
@@ -114,11 +114,11 @@ export const getGetApiSettingsAiQueryOptions = <
 }
 
 export type GetApiSettingsAiQueryResult = NonNullable<Awaited<ReturnType<typeof getApiSettingsAi>>>
-export type GetApiSettingsAiQueryError = InternalApiHandlersErrorResponse
+export type GetApiSettingsAiQueryError = InternalApiHandlersAPIError
 
 export function useGetApiSettingsAi<
   TData = Awaited<ReturnType<typeof getApiSettingsAi>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAi>>, TError, TData>> &
@@ -136,7 +136,7 @@ export function useGetApiSettingsAi<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsAi<
   TData = Awaited<ReturnType<typeof getApiSettingsAi>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAi>>, TError, TData>> &
@@ -154,7 +154,7 @@ export function useGetApiSettingsAi<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsAi<
   TData = Awaited<ReturnType<typeof getApiSettingsAi>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAi>>, TError, TData>>
@@ -168,7 +168,7 @@ export function useGetApiSettingsAi<
 
 export function useGetApiSettingsAi<
   TData = Awaited<ReturnType<typeof getApiSettingsAi>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAi>>, TError, TData>>
@@ -197,17 +197,17 @@ export type putApiSettingsAiResponse200 = {
 }
 
 export type putApiSettingsAiResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type putApiSettingsAiResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type putApiSettingsAiResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
@@ -243,7 +243,7 @@ export const putApiSettingsAi = async (
 }
 
 export const getPutApiSettingsAiMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -282,12 +282,12 @@ export type PutApiSettingsAiMutationResult = NonNullable<
   Awaited<ReturnType<typeof putApiSettingsAi>>
 >
 export type PutApiSettingsAiMutationBody = InternalApiHandlersAISettingsRequest
-export type PutApiSettingsAiMutationError = InternalApiHandlersErrorResponse
+export type PutApiSettingsAiMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Update AI settings
  */
-export const usePutApiSettingsAi = <TError = InternalApiHandlersErrorResponse, TContext = unknown>(
+export const usePutApiSettingsAi = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof putApiSettingsAi>>,
@@ -318,7 +318,7 @@ export type getApiSettingsAiProvidersResponse200 = {
 }
 
 export type getApiSettingsAiProvidersResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
@@ -352,7 +352,7 @@ export const getGetApiSettingsAiProvidersQueryKey = () => {
 
 export const getGetApiSettingsAiProvidersQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiSettingsAiProviders>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(options?: {
   query?: Partial<
     UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsAiProviders>>, TError, TData>
@@ -377,11 +377,11 @@ export const getGetApiSettingsAiProvidersQueryOptions = <
 export type GetApiSettingsAiProvidersQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiSettingsAiProviders>>
 >
-export type GetApiSettingsAiProvidersQueryError = InternalApiHandlersErrorResponse
+export type GetApiSettingsAiProvidersQueryError = InternalApiHandlersAPIError
 
 export function useGetApiSettingsAiProviders<
   TData = Awaited<ReturnType<typeof getApiSettingsAiProviders>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options: {
     query: Partial<
@@ -401,7 +401,7 @@ export function useGetApiSettingsAiProviders<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsAiProviders<
   TData = Awaited<ReturnType<typeof getApiSettingsAiProviders>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -421,7 +421,7 @@ export function useGetApiSettingsAiProviders<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsAiProviders<
   TData = Awaited<ReturnType<typeof getApiSettingsAiProviders>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -437,7 +437,7 @@ export function useGetApiSettingsAiProviders<
 
 export function useGetApiSettingsAiProviders<
   TData = Awaited<ReturnType<typeof getApiSettingsAiProviders>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -468,7 +468,7 @@ export type getApiSettingsLocationResponse200 = {
 }
 
 export type getApiSettingsLocationResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
@@ -502,7 +502,7 @@ export const getGetApiSettingsLocationQueryKey = () => {
 
 export const getGetApiSettingsLocationQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiSettingsLocation>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(options?: {
   query?: Partial<
     UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsLocation>>, TError, TData>
@@ -526,11 +526,11 @@ export const getGetApiSettingsLocationQueryOptions = <
 export type GetApiSettingsLocationQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiSettingsLocation>>
 >
-export type GetApiSettingsLocationQueryError = InternalApiHandlersErrorResponse
+export type GetApiSettingsLocationQueryError = InternalApiHandlersAPIError
 
 export function useGetApiSettingsLocation<
   TData = Awaited<ReturnType<typeof getApiSettingsLocation>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options: {
     query: Partial<
@@ -550,7 +550,7 @@ export function useGetApiSettingsLocation<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsLocation<
   TData = Awaited<ReturnType<typeof getApiSettingsLocation>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -570,7 +570,7 @@ export function useGetApiSettingsLocation<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsLocation<
   TData = Awaited<ReturnType<typeof getApiSettingsLocation>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -586,7 +586,7 @@ export function useGetApiSettingsLocation<
 
 export function useGetApiSettingsLocation<
   TData = Awaited<ReturnType<typeof getApiSettingsLocation>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -617,12 +617,12 @@ export type putApiSettingsLocationResponse200 = {
 }
 
 export type putApiSettingsLocationResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type putApiSettingsLocationResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
@@ -657,7 +657,7 @@ export const putApiSettingsLocation = async (
 }
 
 export const getPutApiSettingsLocationMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -696,15 +696,12 @@ export type PutApiSettingsLocationMutationResult = NonNullable<
   Awaited<ReturnType<typeof putApiSettingsLocation>>
 >
 export type PutApiSettingsLocationMutationBody = InternalApiHandlersUpdateLocationPreferencesRequest
-export type PutApiSettingsLocationMutationError = InternalApiHandlersErrorResponse
+export type PutApiSettingsLocationMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Update location preferences
  */
-export const usePutApiSettingsLocation = <
-  TError = InternalApiHandlersErrorResponse,
-  TContext = unknown,
->(
+export const usePutApiSettingsLocation = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof putApiSettingsLocation>>,
@@ -735,7 +732,7 @@ export type getApiSettingsSchemaResponse200 = {
 }
 
 export type getApiSettingsSchemaResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
@@ -769,7 +766,7 @@ export const getGetApiSettingsSchemaQueryKey = () => {
 
 export const getGetApiSettingsSchemaQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiSettingsSchema>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(options?: {
   query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsSchema>>, TError, TData>>
   request?: SecondParameter<typeof customInstance>
@@ -791,11 +788,11 @@ export const getGetApiSettingsSchemaQueryOptions = <
 export type GetApiSettingsSchemaQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiSettingsSchema>>
 >
-export type GetApiSettingsSchemaQueryError = InternalApiHandlersErrorResponse
+export type GetApiSettingsSchemaQueryError = InternalApiHandlersAPIError
 
 export function useGetApiSettingsSchema<
   TData = Awaited<ReturnType<typeof getApiSettingsSchema>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options: {
     query: Partial<
@@ -815,7 +812,7 @@ export function useGetApiSettingsSchema<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsSchema<
   TData = Awaited<ReturnType<typeof getApiSettingsSchema>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -835,7 +832,7 @@ export function useGetApiSettingsSchema<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsSchema<
   TData = Awaited<ReturnType<typeof getApiSettingsSchema>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -851,7 +848,7 @@ export function useGetApiSettingsSchema<
 
 export function useGetApiSettingsSchema<
   TData = Awaited<ReturnType<typeof getApiSettingsSchema>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -882,12 +879,12 @@ export type getApiSettingsSystemResponse200 = {
 }
 
 export type getApiSettingsSystemResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type getApiSettingsSystemResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
@@ -924,7 +921,7 @@ export const getGetApiSettingsSystemQueryKey = () => {
 
 export const getGetApiSettingsSystemQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiSettingsSystem>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(options?: {
   query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsSystem>>, TError, TData>>
   request?: SecondParameter<typeof customInstance>
@@ -946,11 +943,11 @@ export const getGetApiSettingsSystemQueryOptions = <
 export type GetApiSettingsSystemQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiSettingsSystem>>
 >
-export type GetApiSettingsSystemQueryError = InternalApiHandlersErrorResponse
+export type GetApiSettingsSystemQueryError = InternalApiHandlersAPIError
 
 export function useGetApiSettingsSystem<
   TData = Awaited<ReturnType<typeof getApiSettingsSystem>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options: {
     query: Partial<
@@ -970,7 +967,7 @@ export function useGetApiSettingsSystem<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsSystem<
   TData = Awaited<ReturnType<typeof getApiSettingsSystem>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -990,7 +987,7 @@ export function useGetApiSettingsSystem<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsSystem<
   TData = Awaited<ReturnType<typeof getApiSettingsSystem>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -1006,7 +1003,7 @@ export function useGetApiSettingsSystem<
 
 export function useGetApiSettingsSystem<
   TData = Awaited<ReturnType<typeof getApiSettingsSystem>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -1037,12 +1034,12 @@ export type getApiSettingsSystemEffectiveResponse200 = {
 }
 
 export type getApiSettingsSystemEffectiveResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type getApiSettingsSystemEffectiveResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
@@ -1083,7 +1080,7 @@ export const getGetApiSettingsSystemEffectiveQueryKey = () => {
 
 export const getGetApiSettingsSystemEffectiveQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiSettingsSystemEffective>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(options?: {
   query?: Partial<
     UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsSystemEffective>>, TError, TData>
@@ -1108,11 +1105,11 @@ export const getGetApiSettingsSystemEffectiveQueryOptions = <
 export type GetApiSettingsSystemEffectiveQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiSettingsSystemEffective>>
 >
-export type GetApiSettingsSystemEffectiveQueryError = InternalApiHandlersErrorResponse
+export type GetApiSettingsSystemEffectiveQueryError = InternalApiHandlersAPIError
 
 export function useGetApiSettingsSystemEffective<
   TData = Awaited<ReturnType<typeof getApiSettingsSystemEffective>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options: {
     query: Partial<
@@ -1132,7 +1129,7 @@ export function useGetApiSettingsSystemEffective<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsSystemEffective<
   TData = Awaited<ReturnType<typeof getApiSettingsSystemEffective>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -1152,7 +1149,7 @@ export function useGetApiSettingsSystemEffective<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsSystemEffective<
   TData = Awaited<ReturnType<typeof getApiSettingsSystemEffective>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -1168,7 +1165,7 @@ export function useGetApiSettingsSystemEffective<
 
 export function useGetApiSettingsSystemEffective<
   TData = Awaited<ReturnType<typeof getApiSettingsSystemEffective>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -1199,17 +1196,17 @@ export type getApiSettingsSystemKeyResponse200 = {
 }
 
 export type getApiSettingsSystemKeyResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type getApiSettingsSystemKeyResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
 export type getApiSettingsSystemKeyResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
@@ -1248,7 +1245,7 @@ export const getGetApiSettingsSystemKeyQueryKey = (key?: string) => {
 
 export const getGetApiSettingsSystemKeyQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiSettingsSystemKey>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   key: string,
   options?: {
@@ -1276,11 +1273,11 @@ export const getGetApiSettingsSystemKeyQueryOptions = <
 export type GetApiSettingsSystemKeyQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiSettingsSystemKey>>
 >
-export type GetApiSettingsSystemKeyQueryError = InternalApiHandlersErrorResponse
+export type GetApiSettingsSystemKeyQueryError = InternalApiHandlersAPIError
 
 export function useGetApiSettingsSystemKey<
   TData = Awaited<ReturnType<typeof getApiSettingsSystemKey>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   key: string,
   options: {
@@ -1301,7 +1298,7 @@ export function useGetApiSettingsSystemKey<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsSystemKey<
   TData = Awaited<ReturnType<typeof getApiSettingsSystemKey>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   key: string,
   options?: {
@@ -1322,7 +1319,7 @@ export function useGetApiSettingsSystemKey<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsSystemKey<
   TData = Awaited<ReturnType<typeof getApiSettingsSystemKey>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   key: string,
   options?: {
@@ -1339,7 +1336,7 @@ export function useGetApiSettingsSystemKey<
 
 export function useGetApiSettingsSystemKey<
   TData = Awaited<ReturnType<typeof getApiSettingsSystemKey>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   key: string,
   options?: {
@@ -1371,22 +1368,22 @@ export type putApiSettingsSystemKeyResponse200 = {
 }
 
 export type putApiSettingsSystemKeyResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type putApiSettingsSystemKeyResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type putApiSettingsSystemKeyResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
 export type putApiSettingsSystemKeyResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
@@ -1424,7 +1421,7 @@ export const putApiSettingsSystemKey = async (
 }
 
 export const getPutApiSettingsSystemKeyMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -1463,13 +1460,13 @@ export type PutApiSettingsSystemKeyMutationResult = NonNullable<
   Awaited<ReturnType<typeof putApiSettingsSystemKey>>
 >
 export type PutApiSettingsSystemKeyMutationBody = InternalApiHandlersSetSystemRequest
-export type PutApiSettingsSystemKeyMutationError = InternalApiHandlersErrorResponse
+export type PutApiSettingsSystemKeyMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Update system setting
  */
 export const usePutApiSettingsSystemKey = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {
@@ -1502,7 +1499,7 @@ export type getApiSettingsUserResponse200 = {
 }
 
 export type getApiSettingsUserResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
@@ -1536,7 +1533,7 @@ export const getGetApiSettingsUserQueryKey = () => {
 
 export const getGetApiSettingsUserQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiSettingsUser>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(options?: {
   query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsUser>>, TError, TData>>
   request?: SecondParameter<typeof customInstance>
@@ -1558,11 +1555,11 @@ export const getGetApiSettingsUserQueryOptions = <
 export type GetApiSettingsUserQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiSettingsUser>>
 >
-export type GetApiSettingsUserQueryError = InternalApiHandlersErrorResponse
+export type GetApiSettingsUserQueryError = InternalApiHandlersAPIError
 
 export function useGetApiSettingsUser<
   TData = Awaited<ReturnType<typeof getApiSettingsUser>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsUser>>, TError, TData>> &
@@ -1580,7 +1577,7 @@ export function useGetApiSettingsUser<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsUser<
   TData = Awaited<ReturnType<typeof getApiSettingsUser>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -1600,7 +1597,7 @@ export function useGetApiSettingsUser<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsUser<
   TData = Awaited<ReturnType<typeof getApiSettingsUser>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsUser>>, TError, TData>>
@@ -1614,7 +1611,7 @@ export function useGetApiSettingsUser<
 
 export function useGetApiSettingsUser<
   TData = Awaited<ReturnType<typeof getApiSettingsUser>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiSettingsUser>>, TError, TData>>
@@ -1643,12 +1640,12 @@ export type getApiSettingsUserKeyResponse200 = {
 }
 
 export type getApiSettingsUserKeyResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type getApiSettingsUserKeyResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
@@ -1686,7 +1683,7 @@ export const getGetApiSettingsUserKeyQueryKey = (key?: string) => {
 
 export const getGetApiSettingsUserKeyQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiSettingsUserKey>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   key: string,
   options?: {
@@ -1713,11 +1710,11 @@ export const getGetApiSettingsUserKeyQueryOptions = <
 export type GetApiSettingsUserKeyQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiSettingsUserKey>>
 >
-export type GetApiSettingsUserKeyQueryError = InternalApiHandlersErrorResponse
+export type GetApiSettingsUserKeyQueryError = InternalApiHandlersAPIError
 
 export function useGetApiSettingsUserKey<
   TData = Awaited<ReturnType<typeof getApiSettingsUserKey>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   key: string,
   options: {
@@ -1738,7 +1735,7 @@ export function useGetApiSettingsUserKey<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsUserKey<
   TData = Awaited<ReturnType<typeof getApiSettingsUserKey>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   key: string,
   options?: {
@@ -1759,7 +1756,7 @@ export function useGetApiSettingsUserKey<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiSettingsUserKey<
   TData = Awaited<ReturnType<typeof getApiSettingsUserKey>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   key: string,
   options?: {
@@ -1776,7 +1773,7 @@ export function useGetApiSettingsUserKey<
 
 export function useGetApiSettingsUserKey<
   TData = Awaited<ReturnType<typeof getApiSettingsUserKey>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   key: string,
   options?: {
@@ -1808,17 +1805,17 @@ export type putApiSettingsUserKeyResponse200 = {
 }
 
 export type putApiSettingsUserKeyResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type putApiSettingsUserKeyResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type putApiSettingsUserKeyResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
@@ -1855,7 +1852,7 @@ export const putApiSettingsUserKey = async (
 }
 
 export const getPutApiSettingsUserKeyMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -1894,15 +1891,12 @@ export type PutApiSettingsUserKeyMutationResult = NonNullable<
   Awaited<ReturnType<typeof putApiSettingsUserKey>>
 >
 export type PutApiSettingsUserKeyMutationBody = InternalApiHandlersSetUserRequest
-export type PutApiSettingsUserKeyMutationError = InternalApiHandlersErrorResponse
+export type PutApiSettingsUserKeyMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Update user setting
  */
-export const usePutApiSettingsUserKey = <
-  TError = InternalApiHandlersErrorResponse,
-  TContext = unknown,
->(
+export const usePutApiSettingsUserKey = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof putApiSettingsUserKey>>,
@@ -1933,12 +1927,12 @@ export type deleteApiSettingsUserKeyResponse204 = {
 }
 
 export type deleteApiSettingsUserKeyResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type deleteApiSettingsUserKeyResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
@@ -1971,7 +1965,7 @@ export const deleteApiSettingsUserKey = async (
 }
 
 export const getDeleteApiSettingsUserKeyMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -2010,13 +2004,13 @@ export type DeleteApiSettingsUserKeyMutationResult = NonNullable<
   Awaited<ReturnType<typeof deleteApiSettingsUserKey>>
 >
 
-export type DeleteApiSettingsUserKeyMutationError = InternalApiHandlersErrorResponse
+export type DeleteApiSettingsUserKeyMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Delete user setting
  */
 export const useDeleteApiSettingsUserKey = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {

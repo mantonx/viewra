@@ -10,7 +10,10 @@ export interface GithubComMantonxViewraInternalApplicationMusicMusicTrackRespons
   album?: string
   album_artist?: string
   /** Music Track-specific fields */
+  album_id?: number
   artist?: string
+  /** Artist entity ID for navigation */
+  artist_id?: number
   audio_codec?: string
   /** Music-specific bitrate in kbps */
   bitrate?: number

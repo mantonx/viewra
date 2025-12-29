@@ -27,7 +27,7 @@ import type {
   GithubComMantonxViewraInternalApplicationMoviesListMoviesResponse,
   GithubComMantonxViewraInternalApplicationMoviesMovieResponse,
   GithubComMantonxViewraInternalApplicationPeopleCreditsResponse,
-  InternalApiHandlersErrorResponse,
+  InternalApiHandlersAPIError,
 } from '.././models'
 
 import { customInstance } from '../../mutator/index'
@@ -44,12 +44,12 @@ export type getApiMoviesResponse200 = {
 }
 
 export type getApiMoviesResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMoviesResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -92,7 +92,7 @@ export const getGetApiMoviesQueryKey = (params?: GetApiMoviesParams) => {
 
 export const getGetApiMoviesQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMovies>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMoviesParams,
   options?: {
@@ -115,11 +115,11 @@ export const getGetApiMoviesQueryOptions = <
 }
 
 export type GetApiMoviesQueryResult = NonNullable<Awaited<ReturnType<typeof getApiMovies>>>
-export type GetApiMoviesQueryError = InternalApiHandlersErrorResponse
+export type GetApiMoviesQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMovies<
   TData = Awaited<ReturnType<typeof getApiMovies>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMoviesParams,
   options: {
@@ -138,7 +138,7 @@ export function useGetApiMovies<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMovies<
   TData = Awaited<ReturnType<typeof getApiMovies>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMoviesParams,
   options?: {
@@ -157,7 +157,7 @@ export function useGetApiMovies<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMovies<
   TData = Awaited<ReturnType<typeof getApiMovies>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMoviesParams,
   options?: {
@@ -172,7 +172,7 @@ export function useGetApiMovies<
 
 export function useGetApiMovies<
   TData = Awaited<ReturnType<typeof getApiMovies>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMoviesParams,
   options?: {
@@ -202,12 +202,12 @@ export type getApiMoviesIdsResponse200 = {
 }
 
 export type getApiMoviesIdsResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMoviesIdsResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -253,7 +253,7 @@ export const getGetApiMoviesIdsQueryKey = (params?: GetApiMoviesIdsParams) => {
 
 export const getGetApiMoviesIdsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMoviesIds>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMoviesIdsParams,
   options?: {
@@ -276,11 +276,11 @@ export const getGetApiMoviesIdsQueryOptions = <
 }
 
 export type GetApiMoviesIdsQueryResult = NonNullable<Awaited<ReturnType<typeof getApiMoviesIds>>>
-export type GetApiMoviesIdsQueryError = InternalApiHandlersErrorResponse
+export type GetApiMoviesIdsQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMoviesIds<
   TData = Awaited<ReturnType<typeof getApiMoviesIds>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMoviesIdsParams,
   options: {
@@ -299,7 +299,7 @@ export function useGetApiMoviesIds<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMoviesIds<
   TData = Awaited<ReturnType<typeof getApiMoviesIds>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMoviesIdsParams,
   options?: {
@@ -318,7 +318,7 @@ export function useGetApiMoviesIds<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMoviesIds<
   TData = Awaited<ReturnType<typeof getApiMoviesIds>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMoviesIdsParams,
   options?: {
@@ -333,7 +333,7 @@ export function useGetApiMoviesIds<
 
 export function useGetApiMoviesIds<
   TData = Awaited<ReturnType<typeof getApiMoviesIds>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMoviesIdsParams,
   options?: {
@@ -363,12 +363,12 @@ export type getApiMoviesSearchResponse200 = {
 }
 
 export type getApiMoviesSearchResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMoviesSearchResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -418,7 +418,7 @@ export const getGetApiMoviesSearchQueryKey = (params?: GetApiMoviesSearchParams)
 
 export const getGetApiMoviesSearchQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMoviesSearch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMoviesSearchParams,
   options?: {
@@ -443,11 +443,11 @@ export const getGetApiMoviesSearchQueryOptions = <
 export type GetApiMoviesSearchQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMoviesSearch>>
 >
-export type GetApiMoviesSearchQueryError = InternalApiHandlersErrorResponse
+export type GetApiMoviesSearchQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMoviesSearch<
   TData = Awaited<ReturnType<typeof getApiMoviesSearch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMoviesSearchParams,
   options: {
@@ -466,7 +466,7 @@ export function useGetApiMoviesSearch<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMoviesSearch<
   TData = Awaited<ReturnType<typeof getApiMoviesSearch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMoviesSearchParams,
   options?: {
@@ -487,7 +487,7 @@ export function useGetApiMoviesSearch<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMoviesSearch<
   TData = Awaited<ReturnType<typeof getApiMoviesSearch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMoviesSearchParams,
   options?: {
@@ -502,7 +502,7 @@ export function useGetApiMoviesSearch<
 
 export function useGetApiMoviesSearch<
   TData = Awaited<ReturnType<typeof getApiMoviesSearch>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: GetApiMoviesSearchParams,
   options?: {
@@ -532,17 +532,17 @@ export type getApiMoviesIdResponse200 = {
 }
 
 export type getApiMoviesIdResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMoviesIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiMoviesIdResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -579,7 +579,7 @@ export const getGetApiMoviesIdQueryKey = (id?: number) => {
 
 export const getGetApiMoviesIdQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMoviesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -602,11 +602,11 @@ export const getGetApiMoviesIdQueryOptions = <
 }
 
 export type GetApiMoviesIdQueryResult = NonNullable<Awaited<ReturnType<typeof getApiMoviesId>>>
-export type GetApiMoviesIdQueryError = InternalApiHandlersErrorResponse
+export type GetApiMoviesIdQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMoviesId<
   TData = Awaited<ReturnType<typeof getApiMoviesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -625,7 +625,7 @@ export function useGetApiMoviesId<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMoviesId<
   TData = Awaited<ReturnType<typeof getApiMoviesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -644,7 +644,7 @@ export function useGetApiMoviesId<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMoviesId<
   TData = Awaited<ReturnType<typeof getApiMoviesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -659,7 +659,7 @@ export function useGetApiMoviesId<
 
 export function useGetApiMoviesId<
   TData = Awaited<ReturnType<typeof getApiMoviesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -689,17 +689,17 @@ export type getApiMoviesIdCreditsResponse200 = {
 }
 
 export type getApiMoviesIdCreditsResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMoviesIdCreditsResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiMoviesIdCreditsResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -738,7 +738,7 @@ export const getGetApiMoviesIdCreditsQueryKey = (id?: number) => {
 
 export const getGetApiMoviesIdCreditsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMoviesIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -765,11 +765,11 @@ export const getGetApiMoviesIdCreditsQueryOptions = <
 export type GetApiMoviesIdCreditsQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMoviesIdCredits>>
 >
-export type GetApiMoviesIdCreditsQueryError = InternalApiHandlersErrorResponse
+export type GetApiMoviesIdCreditsQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMoviesIdCredits<
   TData = Awaited<ReturnType<typeof getApiMoviesIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -790,7 +790,7 @@ export function useGetApiMoviesIdCredits<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMoviesIdCredits<
   TData = Awaited<ReturnType<typeof getApiMoviesIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -811,7 +811,7 @@ export function useGetApiMoviesIdCredits<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMoviesIdCredits<
   TData = Awaited<ReturnType<typeof getApiMoviesIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -828,7 +828,7 @@ export function useGetApiMoviesIdCredits<
 
 export function useGetApiMoviesIdCredits<
   TData = Awaited<ReturnType<typeof getApiMoviesIdCredits>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -860,12 +860,12 @@ export type getApiMoviesIdImagesResponse200 = {
 }
 
 export type getApiMoviesIdImagesResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMoviesIdImagesResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -903,7 +903,7 @@ export const getGetApiMoviesIdImagesQueryKey = (id?: number) => {
 
 export const getGetApiMoviesIdImagesQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMoviesIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -930,11 +930,11 @@ export const getGetApiMoviesIdImagesQueryOptions = <
 export type GetApiMoviesIdImagesQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMoviesIdImages>>
 >
-export type GetApiMoviesIdImagesQueryError = InternalApiHandlersErrorResponse
+export type GetApiMoviesIdImagesQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMoviesIdImages<
   TData = Awaited<ReturnType<typeof getApiMoviesIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -955,7 +955,7 @@ export function useGetApiMoviesIdImages<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMoviesIdImages<
   TData = Awaited<ReturnType<typeof getApiMoviesIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -976,7 +976,7 @@ export function useGetApiMoviesIdImages<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMoviesIdImages<
   TData = Awaited<ReturnType<typeof getApiMoviesIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -993,7 +993,7 @@ export function useGetApiMoviesIdImages<
 
 export function useGetApiMoviesIdImages<
   TData = Awaited<ReturnType<typeof getApiMoviesIdImages>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {

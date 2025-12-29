@@ -25,8 +25,8 @@ import type {
   GetApiUsersParams,
   GithubComMantonxViewraInternalApplicationAuthListUsersResponse,
   GithubComMantonxViewraInternalApplicationAuthUserResponse,
+  InternalApiHandlersAPIError,
   InternalApiHandlersCreateUserRequest,
-  InternalApiHandlersErrorResponse,
   InternalApiHandlersResetPasswordRequest,
   InternalApiHandlersUpdateUserRequest,
 } from '.././models'
@@ -45,12 +45,12 @@ export type getApiUsersResponse200 = {
 }
 
 export type getApiUsersResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type getApiUsersResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
@@ -93,7 +93,7 @@ export const getGetApiUsersQueryKey = (params?: GetApiUsersParams) => {
 
 export const getGetApiUsersQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiUsers>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiUsersParams,
   options?: {
@@ -116,11 +116,11 @@ export const getGetApiUsersQueryOptions = <
 }
 
 export type GetApiUsersQueryResult = NonNullable<Awaited<ReturnType<typeof getApiUsers>>>
-export type GetApiUsersQueryError = InternalApiHandlersErrorResponse
+export type GetApiUsersQueryError = InternalApiHandlersAPIError
 
 export function useGetApiUsers<
   TData = Awaited<ReturnType<typeof getApiUsers>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: undefined | GetApiUsersParams,
   options: {
@@ -139,7 +139,7 @@ export function useGetApiUsers<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiUsers<
   TData = Awaited<ReturnType<typeof getApiUsers>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiUsersParams,
   options?: {
@@ -158,7 +158,7 @@ export function useGetApiUsers<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiUsers<
   TData = Awaited<ReturnType<typeof getApiUsers>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiUsersParams,
   options?: {
@@ -173,7 +173,7 @@ export function useGetApiUsers<
 
 export function useGetApiUsers<
   TData = Awaited<ReturnType<typeof getApiUsers>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiUsersParams,
   options?: {
@@ -203,22 +203,22 @@ export type postApiUsersResponse201 = {
 }
 
 export type postApiUsersResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiUsersResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type postApiUsersResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
 export type postApiUsersResponse409 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 409
 }
 
@@ -253,7 +253,7 @@ export const postApiUsers = async (
 }
 
 export const getPostApiUsersMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -290,12 +290,12 @@ export const getPostApiUsersMutationOptions = <
 
 export type PostApiUsersMutationResult = NonNullable<Awaited<ReturnType<typeof postApiUsers>>>
 export type PostApiUsersMutationBody = InternalApiHandlersCreateUserRequest
-export type PostApiUsersMutationError = InternalApiHandlersErrorResponse
+export type PostApiUsersMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Create user
  */
-export const usePostApiUsers = <TError = InternalApiHandlersErrorResponse, TContext = unknown>(
+export const usePostApiUsers = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiUsers>>,
@@ -326,17 +326,17 @@ export type getApiUsersIdResponse200 = {
 }
 
 export type getApiUsersIdResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type getApiUsersIdResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
 export type getApiUsersIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
@@ -373,7 +373,7 @@ export const getGetApiUsersIdQueryKey = (id?: string) => {
 
 export const getGetApiUsersIdQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiUsersId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -396,11 +396,11 @@ export const getGetApiUsersIdQueryOptions = <
 }
 
 export type GetApiUsersIdQueryResult = NonNullable<Awaited<ReturnType<typeof getApiUsersId>>>
-export type GetApiUsersIdQueryError = InternalApiHandlersErrorResponse
+export type GetApiUsersIdQueryError = InternalApiHandlersAPIError
 
 export function useGetApiUsersId<
   TData = Awaited<ReturnType<typeof getApiUsersId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options: {
@@ -419,7 +419,7 @@ export function useGetApiUsersId<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiUsersId<
   TData = Awaited<ReturnType<typeof getApiUsersId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -438,7 +438,7 @@ export function useGetApiUsersId<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiUsersId<
   TData = Awaited<ReturnType<typeof getApiUsersId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -453,7 +453,7 @@ export function useGetApiUsersId<
 
 export function useGetApiUsersId<
   TData = Awaited<ReturnType<typeof getApiUsersId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -483,22 +483,22 @@ export type putApiUsersIdResponse200 = {
 }
 
 export type putApiUsersIdResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type putApiUsersIdResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type putApiUsersIdResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
 export type putApiUsersIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
@@ -534,7 +534,7 @@ export const putApiUsersId = async (
 }
 
 export const getPutApiUsersIdMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -571,12 +571,12 @@ export const getPutApiUsersIdMutationOptions = <
 
 export type PutApiUsersIdMutationResult = NonNullable<Awaited<ReturnType<typeof putApiUsersId>>>
 export type PutApiUsersIdMutationBody = InternalApiHandlersUpdateUserRequest
-export type PutApiUsersIdMutationError = InternalApiHandlersErrorResponse
+export type PutApiUsersIdMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Update user
  */
-export const usePutApiUsersId = <TError = InternalApiHandlersErrorResponse, TContext = unknown>(
+export const usePutApiUsersId = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof putApiUsersId>>,
@@ -607,17 +607,17 @@ export type deleteApiUsersIdResponse204 = {
 }
 
 export type deleteApiUsersIdResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type deleteApiUsersIdResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
 export type deleteApiUsersIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
@@ -651,7 +651,7 @@ export const deleteApiUsersId = async (
 }
 
 export const getDeleteApiUsersIdMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -690,12 +690,12 @@ export type DeleteApiUsersIdMutationResult = NonNullable<
   Awaited<ReturnType<typeof deleteApiUsersId>>
 >
 
-export type DeleteApiUsersIdMutationError = InternalApiHandlersErrorResponse
+export type DeleteApiUsersIdMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Delete user
  */
-export const useDeleteApiUsersId = <TError = InternalApiHandlersErrorResponse, TContext = unknown>(
+export const useDeleteApiUsersId = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof deleteApiUsersId>>,
@@ -726,22 +726,22 @@ export type postApiUsersIdResetPasswordResponse204 = {
 }
 
 export type postApiUsersIdResetPasswordResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiUsersIdResetPasswordResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type postApiUsersIdResetPasswordResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
 export type postApiUsersIdResetPasswordResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
@@ -782,7 +782,7 @@ export const postApiUsersIdResetPassword = async (
 }
 
 export const getPostApiUsersIdResetPasswordMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -821,13 +821,13 @@ export type PostApiUsersIdResetPasswordMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiUsersIdResetPassword>>
 >
 export type PostApiUsersIdResetPasswordMutationBody = InternalApiHandlersResetPasswordRequest
-export type PostApiUsersIdResetPasswordMutationError = InternalApiHandlersErrorResponse
+export type PostApiUsersIdResetPasswordMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Reset user password
  */
 export const usePostApiUsersIdResetPassword = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {

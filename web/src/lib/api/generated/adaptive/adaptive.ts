@@ -23,8 +23,8 @@ import type {
 
 import type {
   GetApiSpeedtestChunkParams,
+  InternalApiHandlersAPIError,
   InternalApiHandlersAdaptiveLadderResponse,
-  InternalApiHandlersErrorResponse,
   InternalApiHandlersQualityRecommendationResponse,
   InternalApiHandlersRecommendQualityRequestBody,
 } from '.././models'
@@ -43,7 +43,7 @@ export type postApiAdaptiveLadderResponse200 = {
 }
 
 export type postApiAdaptiveLadderResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
@@ -75,7 +75,7 @@ export const postApiAdaptiveLadder = async (
 }
 
 export const getPostApiAdaptiveLadderMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -114,15 +114,12 @@ export type PostApiAdaptiveLadderMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiAdaptiveLadder>>
 >
 export type PostApiAdaptiveLadderMutationBody = InternalApiHandlersRecommendQualityRequestBody
-export type PostApiAdaptiveLadderMutationError = InternalApiHandlersErrorResponse
+export type PostApiAdaptiveLadderMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Get adaptive bitrate ladder
  */
-export const usePostApiAdaptiveLadder = <
-  TError = InternalApiHandlersErrorResponse,
-  TContext = unknown,
->(
+export const usePostApiAdaptiveLadder = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiAdaptiveLadder>>,
@@ -153,7 +150,7 @@ export type postApiAdaptiveRecommendResponse200 = {
 }
 
 export type postApiAdaptiveRecommendResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
@@ -185,7 +182,7 @@ export const postApiAdaptiveRecommend = async (
 }
 
 export const getPostApiAdaptiveRecommendMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -224,13 +221,13 @@ export type PostApiAdaptiveRecommendMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiAdaptiveRecommend>>
 >
 export type PostApiAdaptiveRecommendMutationBody = InternalApiHandlersRecommendQualityRequestBody
-export type PostApiAdaptiveRecommendMutationError = InternalApiHandlersErrorResponse
+export type PostApiAdaptiveRecommendMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Recommend optimal quality profile
  */
 export const usePostApiAdaptiveRecommend = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {

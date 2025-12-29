@@ -19,7 +19,7 @@ import type {
 } from '@tanstack/react-query'
 
 import type {
-  InternalApiHandlersErrorResponse,
+  InternalApiHandlersAPIError,
   InternalApiHandlersWeatherContextResponse,
 } from '.././models'
 
@@ -37,7 +37,7 @@ export type getApiContextWeatherResponse200 = {
 }
 
 export type getApiContextWeatherResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
@@ -71,7 +71,7 @@ export const getGetApiContextWeatherQueryKey = () => {
 
 export const getGetApiContextWeatherQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiContextWeather>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(options?: {
   query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiContextWeather>>, TError, TData>>
   request?: SecondParameter<typeof customInstance>
@@ -93,11 +93,11 @@ export const getGetApiContextWeatherQueryOptions = <
 export type GetApiContextWeatherQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiContextWeather>>
 >
-export type GetApiContextWeatherQueryError = InternalApiHandlersErrorResponse
+export type GetApiContextWeatherQueryError = InternalApiHandlersAPIError
 
 export function useGetApiContextWeather<
   TData = Awaited<ReturnType<typeof getApiContextWeather>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options: {
     query: Partial<
@@ -117,7 +117,7 @@ export function useGetApiContextWeather<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiContextWeather<
   TData = Awaited<ReturnType<typeof getApiContextWeather>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -137,7 +137,7 @@ export function useGetApiContextWeather<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiContextWeather<
   TData = Awaited<ReturnType<typeof getApiContextWeather>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -153,7 +153,7 @@ export function useGetApiContextWeather<
 
 export function useGetApiContextWeather<
   TData = Awaited<ReturnType<typeof getApiContextWeather>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<

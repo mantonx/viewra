@@ -25,8 +25,8 @@ import type {
   GithubComMantonxViewraInternalApplicationAuthLoginResponse,
   GithubComMantonxViewraInternalApplicationAuthSessionResponse,
   GithubComMantonxViewraInternalApplicationAuthUserResponse,
+  InternalApiHandlersAPIError,
   InternalApiHandlersChangePasswordRequest,
-  InternalApiHandlersErrorResponse,
   InternalApiHandlersLoginRequest,
   InternalApiHandlersLogoutRequest,
   InternalApiHandlersRefreshRequest,
@@ -48,12 +48,12 @@ export type postApiAuthLoginResponse200 = {
 }
 
 export type postApiAuthLoginResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiAuthLoginResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
@@ -88,7 +88,7 @@ export const postApiAuthLogin = async (
 }
 
 export const getPostApiAuthLoginMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -127,12 +127,12 @@ export type PostApiAuthLoginMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiAuthLogin>>
 >
 export type PostApiAuthLoginMutationBody = InternalApiHandlersLoginRequest
-export type PostApiAuthLoginMutationError = InternalApiHandlersErrorResponse
+export type PostApiAuthLoginMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary User login
  */
-export const usePostApiAuthLogin = <TError = InternalApiHandlersErrorResponse, TContext = unknown>(
+export const usePostApiAuthLogin = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiAuthLogin>>,
@@ -163,7 +163,7 @@ export type postApiAuthLogoutResponse204 = {
 }
 
 export type postApiAuthLogoutResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
@@ -195,7 +195,7 @@ export const postApiAuthLogout = async (
 }
 
 export const getPostApiAuthLogoutMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -234,12 +234,12 @@ export type PostApiAuthLogoutMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiAuthLogout>>
 >
 export type PostApiAuthLogoutMutationBody = InternalApiHandlersLogoutRequest
-export type PostApiAuthLogoutMutationError = InternalApiHandlersErrorResponse
+export type PostApiAuthLogoutMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Logout
  */
-export const usePostApiAuthLogout = <TError = InternalApiHandlersErrorResponse, TContext = unknown>(
+export const usePostApiAuthLogout = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiAuthLogout>>,
@@ -270,7 +270,7 @@ export type postApiAuthLogoutAllResponse204 = {
 }
 
 export type postApiAuthLogoutAllResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
@@ -299,7 +299,7 @@ export const postApiAuthLogoutAll = async (
 }
 
 export const getPostApiAuthLogoutAllMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -336,15 +336,12 @@ export type PostApiAuthLogoutAllMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiAuthLogoutAll>>
 >
 
-export type PostApiAuthLogoutAllMutationError = InternalApiHandlersErrorResponse
+export type PostApiAuthLogoutAllMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Logout from all sessions
  */
-export const usePostApiAuthLogoutAll = <
-  TError = InternalApiHandlersErrorResponse,
-  TContext = unknown,
->(
+export const usePostApiAuthLogoutAll = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiAuthLogoutAll>>,
@@ -370,7 +367,7 @@ export type getApiAuthMeResponse200 = {
 }
 
 export type getApiAuthMeResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
@@ -400,7 +397,7 @@ export const getGetApiAuthMeQueryKey = () => {
 
 export const getGetApiAuthMeQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiAuthMe>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(options?: {
   query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAuthMe>>, TError, TData>>
   request?: SecondParameter<typeof customInstance>
@@ -420,11 +417,11 @@ export const getGetApiAuthMeQueryOptions = <
 }
 
 export type GetApiAuthMeQueryResult = NonNullable<Awaited<ReturnType<typeof getApiAuthMe>>>
-export type GetApiAuthMeQueryError = InternalApiHandlersErrorResponse
+export type GetApiAuthMeQueryError = InternalApiHandlersAPIError
 
 export function useGetApiAuthMe<
   TData = Awaited<ReturnType<typeof getApiAuthMe>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAuthMe>>, TError, TData>> &
@@ -442,7 +439,7 @@ export function useGetApiAuthMe<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiAuthMe<
   TData = Awaited<ReturnType<typeof getApiAuthMe>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAuthMe>>, TError, TData>> &
@@ -460,7 +457,7 @@ export function useGetApiAuthMe<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiAuthMe<
   TData = Awaited<ReturnType<typeof getApiAuthMe>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAuthMe>>, TError, TData>>
@@ -474,7 +471,7 @@ export function useGetApiAuthMe<
 
 export function useGetApiAuthMe<
   TData = Awaited<ReturnType<typeof getApiAuthMe>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAuthMe>>, TError, TData>>
@@ -503,12 +500,12 @@ export type putApiAuthPasswordResponse204 = {
 }
 
 export type putApiAuthPasswordResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type putApiAuthPasswordResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
@@ -543,7 +540,7 @@ export const putApiAuthPassword = async (
 }
 
 export const getPutApiAuthPasswordMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -582,15 +579,12 @@ export type PutApiAuthPasswordMutationResult = NonNullable<
   Awaited<ReturnType<typeof putApiAuthPassword>>
 >
 export type PutApiAuthPasswordMutationBody = InternalApiHandlersChangePasswordRequest
-export type PutApiAuthPasswordMutationError = InternalApiHandlersErrorResponse
+export type PutApiAuthPasswordMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Change password
  */
-export const usePutApiAuthPassword = <
-  TError = InternalApiHandlersErrorResponse,
-  TContext = unknown,
->(
+export const usePutApiAuthPassword = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof putApiAuthPassword>>,
@@ -621,12 +615,12 @@ export type postApiAuthRefreshResponse200 = {
 }
 
 export type postApiAuthRefreshResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiAuthRefreshResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
@@ -661,7 +655,7 @@ export const postApiAuthRefresh = async (
 }
 
 export const getPostApiAuthRefreshMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -700,15 +694,12 @@ export type PostApiAuthRefreshMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiAuthRefresh>>
 >
 export type PostApiAuthRefreshMutationBody = InternalApiHandlersRefreshRequest
-export type PostApiAuthRefreshMutationError = InternalApiHandlersErrorResponse
+export type PostApiAuthRefreshMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Refresh access token
  */
-export const usePostApiAuthRefresh = <
-  TError = InternalApiHandlersErrorResponse,
-  TContext = unknown,
->(
+export const usePostApiAuthRefresh = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiAuthRefresh>>,
@@ -739,7 +730,7 @@ export type getApiAuthSessionsResponse200 = {
 }
 
 export type getApiAuthSessionsResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
@@ -773,7 +764,7 @@ export const getGetApiAuthSessionsQueryKey = () => {
 
 export const getGetApiAuthSessionsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiAuthSessions>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(options?: {
   query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAuthSessions>>, TError, TData>>
   request?: SecondParameter<typeof customInstance>
@@ -795,11 +786,11 @@ export const getGetApiAuthSessionsQueryOptions = <
 export type GetApiAuthSessionsQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiAuthSessions>>
 >
-export type GetApiAuthSessionsQueryError = InternalApiHandlersErrorResponse
+export type GetApiAuthSessionsQueryError = InternalApiHandlersAPIError
 
 export function useGetApiAuthSessions<
   TData = Awaited<ReturnType<typeof getApiAuthSessions>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAuthSessions>>, TError, TData>> &
@@ -817,7 +808,7 @@ export function useGetApiAuthSessions<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiAuthSessions<
   TData = Awaited<ReturnType<typeof getApiAuthSessions>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<
@@ -837,7 +828,7 @@ export function useGetApiAuthSessions<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiAuthSessions<
   TData = Awaited<ReturnType<typeof getApiAuthSessions>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAuthSessions>>, TError, TData>>
@@ -851,7 +842,7 @@ export function useGetApiAuthSessions<
 
 export function useGetApiAuthSessions<
   TData = Awaited<ReturnType<typeof getApiAuthSessions>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiAuthSessions>>, TError, TData>>
@@ -880,12 +871,12 @@ export type deleteApiAuthSessionsIdResponse204 = {
 }
 
 export type deleteApiAuthSessionsIdResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type deleteApiAuthSessionsIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
@@ -918,7 +909,7 @@ export const deleteApiAuthSessionsId = async (
 }
 
 export const getDeleteApiAuthSessionsIdMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -957,13 +948,13 @@ export type DeleteApiAuthSessionsIdMutationResult = NonNullable<
   Awaited<ReturnType<typeof deleteApiAuthSessionsId>>
 >
 
-export type DeleteApiAuthSessionsIdMutationError = InternalApiHandlersErrorResponse
+export type DeleteApiAuthSessionsIdMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Revoke session
  */
 export const useDeleteApiAuthSessionsId = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {
@@ -1120,12 +1111,12 @@ export type postApiAuthSetupResponse201 = {
 }
 
 export type postApiAuthSetupResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiAuthSetupResponse409 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 409
 }
 
@@ -1160,7 +1151,7 @@ export const postApiAuthSetup = async (
 }
 
 export const getPostApiAuthSetupMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -1199,12 +1190,12 @@ export type PostApiAuthSetupMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiAuthSetup>>
 >
 export type PostApiAuthSetupMutationBody = InternalApiHandlersSetupRequest
-export type PostApiAuthSetupMutationError = InternalApiHandlersErrorResponse
+export type PostApiAuthSetupMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Initial setup
  */
-export const usePostApiAuthSetup = <TError = InternalApiHandlersErrorResponse, TContext = unknown>(
+export const usePostApiAuthSetup = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiAuthSetup>>,

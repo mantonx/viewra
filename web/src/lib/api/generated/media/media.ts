@@ -25,7 +25,7 @@ import type {
   GithubComMantonxViewraInternalApplicationMediaGetTracksResponse,
   GithubComMantonxViewraInternalApplicationMediaListMediaResponse,
   GithubComMantonxViewraInternalApplicationMediaStreamInfoResponse,
-  InternalApiHandlersErrorResponse,
+  InternalApiHandlersAPIError,
 } from '.././models'
 
 import { customInstance } from '../../mutator/index'
@@ -42,12 +42,12 @@ export type getApiMediaResponse200 = {
 }
 
 export type getApiMediaResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMediaResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -90,7 +90,7 @@ export const getGetApiMediaQueryKey = (params?: GetApiMediaParams) => {
 
 export const getGetApiMediaQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMedia>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiMediaParams,
   options?: {
@@ -113,11 +113,11 @@ export const getGetApiMediaQueryOptions = <
 }
 
 export type GetApiMediaQueryResult = NonNullable<Awaited<ReturnType<typeof getApiMedia>>>
-export type GetApiMediaQueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMedia<
   TData = Awaited<ReturnType<typeof getApiMedia>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: undefined | GetApiMediaParams,
   options: {
@@ -136,7 +136,7 @@ export function useGetApiMedia<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMedia<
   TData = Awaited<ReturnType<typeof getApiMedia>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiMediaParams,
   options?: {
@@ -155,7 +155,7 @@ export function useGetApiMedia<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMedia<
   TData = Awaited<ReturnType<typeof getApiMedia>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiMediaParams,
   options?: {
@@ -170,7 +170,7 @@ export function useGetApiMedia<
 
 export function useGetApiMedia<
   TData = Awaited<ReturnType<typeof getApiMedia>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiMediaParams,
   options?: {
@@ -200,17 +200,17 @@ export type getApiMediaIdResponse200 = {
 }
 
 export type getApiMediaIdResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMediaIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiMediaIdResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -247,7 +247,7 @@ export const getGetApiMediaIdQueryKey = (id?: number) => {
 
 export const getGetApiMediaIdQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMediaId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -270,11 +270,11 @@ export const getGetApiMediaIdQueryOptions = <
 }
 
 export type GetApiMediaIdQueryResult = NonNullable<Awaited<ReturnType<typeof getApiMediaId>>>
-export type GetApiMediaIdQueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaIdQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMediaId<
   TData = Awaited<ReturnType<typeof getApiMediaId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -293,7 +293,7 @@ export function useGetApiMediaId<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaId<
   TData = Awaited<ReturnType<typeof getApiMediaId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -312,7 +312,7 @@ export function useGetApiMediaId<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaId<
   TData = Awaited<ReturnType<typeof getApiMediaId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -327,7 +327,7 @@ export function useGetApiMediaId<
 
 export function useGetApiMediaId<
   TData = Awaited<ReturnType<typeof getApiMediaId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -360,17 +360,17 @@ export type getApiMediaIdStreamInfoResponse200 = {
 }
 
 export type getApiMediaIdStreamInfoResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMediaIdStreamInfoResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiMediaIdStreamInfoResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -431,7 +431,7 @@ export const getGetApiMediaIdStreamInfoQueryKey = (
 
 export const getGetApiMediaIdStreamInfoQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMediaIdStreamInfo>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiMediaIdStreamInfoParams,
@@ -460,11 +460,11 @@ export const getGetApiMediaIdStreamInfoQueryOptions = <
 export type GetApiMediaIdStreamInfoQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMediaIdStreamInfo>>
 >
-export type GetApiMediaIdStreamInfoQueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaIdStreamInfoQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMediaIdStreamInfo<
   TData = Awaited<ReturnType<typeof getApiMediaIdStreamInfo>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params: undefined | GetApiMediaIdStreamInfoParams,
@@ -486,7 +486,7 @@ export function useGetApiMediaIdStreamInfo<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaIdStreamInfo<
   TData = Awaited<ReturnType<typeof getApiMediaIdStreamInfo>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiMediaIdStreamInfoParams,
@@ -508,7 +508,7 @@ export function useGetApiMediaIdStreamInfo<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaIdStreamInfo<
   TData = Awaited<ReturnType<typeof getApiMediaIdStreamInfo>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiMediaIdStreamInfoParams,
@@ -526,7 +526,7 @@ export function useGetApiMediaIdStreamInfo<
 
 export function useGetApiMediaIdStreamInfo<
   TData = Awaited<ReturnType<typeof getApiMediaIdStreamInfo>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   params?: GetApiMediaIdStreamInfoParams,
@@ -559,17 +559,17 @@ export type getApiMediaIdTracksResponse200 = {
 }
 
 export type getApiMediaIdTracksResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiMediaIdTracksResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiMediaIdTracksResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -608,7 +608,7 @@ export const getGetApiMediaIdTracksQueryKey = (id?: number) => {
 
 export const getGetApiMediaIdTracksQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMediaIdTracks>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -633,11 +633,11 @@ export const getGetApiMediaIdTracksQueryOptions = <
 export type GetApiMediaIdTracksQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMediaIdTracks>>
 >
-export type GetApiMediaIdTracksQueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaIdTracksQueryError = InternalApiHandlersAPIError
 
 export function useGetApiMediaIdTracks<
   TData = Awaited<ReturnType<typeof getApiMediaIdTracks>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -658,7 +658,7 @@ export function useGetApiMediaIdTracks<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaIdTracks<
   TData = Awaited<ReturnType<typeof getApiMediaIdTracks>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -679,7 +679,7 @@ export function useGetApiMediaIdTracks<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaIdTracks<
   TData = Awaited<ReturnType<typeof getApiMediaIdTracks>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -694,7 +694,7 @@ export function useGetApiMediaIdTracks<
 
 export function useGetApiMediaIdTracks<
   TData = Awaited<ReturnType<typeof getApiMediaIdTracks>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {

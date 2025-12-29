@@ -28,7 +28,7 @@ import type {
   GithubComMantonxViewraInternalApplicationLibraryListLibrariesResponse,
   GithubComMantonxViewraInternalApplicationLibraryStartScanResponse,
   GithubComMantonxViewraInternalApplicationLibraryUpdateLibraryRequest,
-  InternalApiHandlersErrorResponse,
+  InternalApiHandlersAPIError,
 } from '.././models'
 
 import { customInstance } from '../../mutator/index'
@@ -45,7 +45,7 @@ export type getApiLibrariesResponse200 = {
 }
 
 export type getApiLibrariesResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -75,7 +75,7 @@ export const getGetApiLibrariesQueryKey = () => {
 
 export const getGetApiLibrariesQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiLibraries>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(options?: {
   query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibraries>>, TError, TData>>
   request?: SecondParameter<typeof customInstance>
@@ -95,11 +95,11 @@ export const getGetApiLibrariesQueryOptions = <
 }
 
 export type GetApiLibrariesQueryResult = NonNullable<Awaited<ReturnType<typeof getApiLibraries>>>
-export type GetApiLibrariesQueryError = InternalApiHandlersErrorResponse
+export type GetApiLibrariesQueryError = InternalApiHandlersAPIError
 
 export function useGetApiLibraries<
   TData = Awaited<ReturnType<typeof getApiLibraries>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibraries>>, TError, TData>> &
@@ -117,7 +117,7 @@ export function useGetApiLibraries<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibraries<
   TData = Awaited<ReturnType<typeof getApiLibraries>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibraries>>, TError, TData>> &
@@ -135,7 +135,7 @@ export function useGetApiLibraries<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibraries<
   TData = Awaited<ReturnType<typeof getApiLibraries>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibraries>>, TError, TData>>
@@ -149,7 +149,7 @@ export function useGetApiLibraries<
 
 export function useGetApiLibraries<
   TData = Awaited<ReturnType<typeof getApiLibraries>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibraries>>, TError, TData>>
@@ -178,12 +178,12 @@ export type postApiLibrariesResponse201 = {
 }
 
 export type postApiLibrariesResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiLibrariesResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -218,7 +218,7 @@ export const postApiLibraries = async (
 }
 
 export const getPostApiLibrariesMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -258,12 +258,12 @@ export type PostApiLibrariesMutationResult = NonNullable<
 >
 export type PostApiLibrariesMutationBody =
   GithubComMantonxViewraInternalApplicationLibraryCreateLibraryRequest
-export type PostApiLibrariesMutationError = InternalApiHandlersErrorResponse
+export type PostApiLibrariesMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Create a new library
  */
-export const usePostApiLibraries = <TError = InternalApiHandlersErrorResponse, TContext = unknown>(
+export const usePostApiLibraries = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiLibraries>>,
@@ -294,17 +294,17 @@ export type getApiLibrariesIdResponse200 = {
 }
 
 export type getApiLibrariesIdResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiLibrariesIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiLibrariesIdResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -343,7 +343,7 @@ export const getGetApiLibrariesIdQueryKey = (id?: number) => {
 
 export const getGetApiLibrariesIdQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiLibrariesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -368,11 +368,11 @@ export const getGetApiLibrariesIdQueryOptions = <
 export type GetApiLibrariesIdQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiLibrariesId>>
 >
-export type GetApiLibrariesIdQueryError = InternalApiHandlersErrorResponse
+export type GetApiLibrariesIdQueryError = InternalApiHandlersAPIError
 
 export function useGetApiLibrariesId<
   TData = Awaited<ReturnType<typeof getApiLibrariesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options: {
@@ -391,7 +391,7 @@ export function useGetApiLibrariesId<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesId<
   TData = Awaited<ReturnType<typeof getApiLibrariesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -410,7 +410,7 @@ export function useGetApiLibrariesId<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiLibrariesId<
   TData = Awaited<ReturnType<typeof getApiLibrariesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -425,7 +425,7 @@ export function useGetApiLibrariesId<
 
 export function useGetApiLibrariesId<
   TData = Awaited<ReturnType<typeof getApiLibrariesId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: number,
   options?: {
@@ -455,17 +455,17 @@ export type putApiLibrariesIdResponse200 = {
 }
 
 export type putApiLibrariesIdResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type putApiLibrariesIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type putApiLibrariesIdResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -502,7 +502,7 @@ export const putApiLibrariesId = async (
 }
 
 export const getPutApiLibrariesIdMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -542,12 +542,12 @@ export type PutApiLibrariesIdMutationResult = NonNullable<
 >
 export type PutApiLibrariesIdMutationBody =
   GithubComMantonxViewraInternalApplicationLibraryUpdateLibraryRequest
-export type PutApiLibrariesIdMutationError = InternalApiHandlersErrorResponse
+export type PutApiLibrariesIdMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Update a library
  */
-export const usePutApiLibrariesId = <TError = InternalApiHandlersErrorResponse, TContext = unknown>(
+export const usePutApiLibrariesId = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof putApiLibrariesId>>,
@@ -578,17 +578,17 @@ export type deleteApiLibrariesIdResponse204 = {
 }
 
 export type deleteApiLibrariesIdResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type deleteApiLibrariesIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type deleteApiLibrariesIdResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -622,7 +622,7 @@ export const deleteApiLibrariesId = async (
 }
 
 export const getDeleteApiLibrariesIdMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -661,15 +661,12 @@ export type DeleteApiLibrariesIdMutationResult = NonNullable<
   Awaited<ReturnType<typeof deleteApiLibrariesId>>
 >
 
-export type DeleteApiLibrariesIdMutationError = InternalApiHandlersErrorResponse
+export type DeleteApiLibrariesIdMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Delete a library
  */
-export const useDeleteApiLibrariesId = <
-  TError = InternalApiHandlersErrorResponse,
-  TContext = unknown,
->(
+export const useDeleteApiLibrariesId = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof deleteApiLibrariesId>>,
@@ -700,22 +697,22 @@ export type postApiLibrariesIdScanResponse202 = {
 }
 
 export type postApiLibrariesIdScanResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiLibrariesIdScanResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type postApiLibrariesIdScanResponse409 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 409
 }
 
 export type postApiLibrariesIdScanResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -750,7 +747,7 @@ export const postApiLibrariesIdScan = async (
 }
 
 export const getPostApiLibrariesIdScanMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -789,15 +786,12 @@ export type PostApiLibrariesIdScanMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiLibrariesIdScan>>
 >
 
-export type PostApiLibrariesIdScanMutationError = InternalApiHandlersErrorResponse
+export type PostApiLibrariesIdScanMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Scan a library
  */
-export const usePostApiLibrariesIdScan = <
-  TError = InternalApiHandlersErrorResponse,
-  TContext = unknown,
->(
+export const usePostApiLibrariesIdScan = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiLibrariesIdScan>>,

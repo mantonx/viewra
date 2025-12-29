@@ -63,10 +63,8 @@ const AlbumDetail = () => {
 
   // Handle back - navigate to artist detail if we have artist info
   const handleBack = () => {
-    if (albumMetadata) {
-      // Try to navigate to artist using the first track's ID as artist ID
-      // This is a bit of a hack but works since we need an artist track ID
-      navigate({ to: '/music', search: { q: undefined, sort: undefined, view: undefined } })
+    if (albumMetadata?.artist_id) {
+      navigate({ to: `/music/artists/${albumMetadata.artist_id}` })
     } else {
       navigate({ to: '/music', search: { q: undefined, sort: undefined, view: undefined } })
     }
@@ -86,7 +84,7 @@ const AlbumDetail = () => {
       <div className="mb-4">
         <Button onClick={handleBack} variant="secondary">
           <span className="mr-2">←</span>
-          Back to Music
+          {albumMetadata?.artist_id ? 'Back to Artist' : 'Back to Music'}
         </Button>
       </div>
 

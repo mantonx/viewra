@@ -9,7 +9,9 @@
 export interface GithubComMantonxViewraInternalApplicationMusicAlbumSummary {
   album?: string
   artist?: string
-  /** Representative media_id (first track) */
+  /** Artist entity ID for navigation */
+  artist_id?: number
+  /** Album entity ID */
   id?: number
   track_count?: number
   year?: number

@@ -10,16 +10,17 @@ import (
 
 // ArtistSummary represents an artist with aggregated metadata (for list view)
 type ArtistSummary struct {
-	ID         int64            `json:"id" binding:"required"`         // Representative media_id (first track)
-	Name       string           `json:"name" binding:"required"`
-	AlbumCount int              `json:"album_count"`
-	TrackCount int              `json:"track_count"`
-	Albums     map[string]bool  `json:"-"` // Internal use only for aggregation
+	ID         int64           `json:"id" binding:"required"` // Representative media_id (first track)
+	Name       string          `json:"name" binding:"required"`
+	AlbumCount int             `json:"album_count"`
+	TrackCount int             `json:"track_count"`
+	Albums     map[string]bool `json:"-"` // Internal use only for aggregation
 }
 
 // AlbumSummary represents an album with aggregated metadata (for list view)
 type AlbumSummary struct {
-	ID         int64  `json:"id"`         // Representative media_id (first track)
+	ID         int64  `json:"id"`        // Album entity ID
+	ArtistID   int64  `json:"artist_id"` // Artist entity ID for navigation
 	Album      string `json:"album"`
 	Artist     string `json:"artist"`
 	Year       int    `json:"year,omitempty"`
@@ -29,24 +30,26 @@ type AlbumSummary struct {
 // MusicTrackResponse represents a music track with all its metadata
 type MusicTrackResponse struct {
 	// Base Media fields
-	ID        int64     `json:"id"`
-	LibraryID int64     `json:"library_id"`
-	Title     string    `json:"title"`
-	FilePath  string    `json:"file_path"`
-	FileSize  int64     `json:"file_size"`
-	Duration  int       `json:"duration"` // in seconds
-	IsExtra   bool      `json:"is_extra"`
+	ID        int64  `json:"id"`
+	LibraryID int64  `json:"library_id"`
+	Title     string `json:"title"`
+	FilePath  string `json:"file_path"`
+	FileSize  int64  `json:"file_size"`
+	Duration  int    `json:"duration"` // in seconds
+	IsExtra   bool   `json:"is_extra"`
 
 	// Technical metadata
 	Width           int     `json:"width,omitempty"`
 	Height          int     `json:"height,omitempty"`
 	VideoCodec      string  `json:"video_codec,omitempty"`
 	AudioCodec      string  `json:"audio_codec,omitempty"`
-	MediaBitrate    int64   `json:"media_bitrate,omitempty"`   // From base media
+	MediaBitrate    int64   `json:"media_bitrate,omitempty"` // From base media
 	FrameRate       float64 `json:"frame_rate,omitempty"`
 	ContainerFormat string  `json:"container_format,omitempty"`
 
 	// Music Track-specific fields
+	AlbumID     int64  `json:"album_id,omitempty"`  // Album entity ID for navigation
+	ArtistID    int64  `json:"artist_id,omitempty"` // Artist entity ID for navigation
 	Artist      string `json:"artist,omitempty"`
 	Album       string `json:"album,omitempty"`
 	AlbumArtist string `json:"album_artist,omitempty"`
@@ -97,9 +100,11 @@ func ToMusicTrackResponse(t *media.MusicTrack) MusicTrackResponse {
 		Height:          t.Height,
 		VideoCodec:      t.VideoCodec,
 		AudioCodec:      t.AudioCodec,
-		MediaBitrate:    t.Media.Bitrate,      // Base media bitrate
+		MediaBitrate:    t.Media.Bitrate, // Base media bitrate
 		FrameRate:       t.FrameRate,
 		ContainerFormat: t.ContainerFormat,
+		AlbumID:         t.AlbumID,
+		ArtistID:        t.ArtistID,
 		Artist:          t.Artist,
 		Album:           t.Album,
 		AlbumArtist:     t.AlbumArtist,
@@ -109,7 +114,7 @@ func ToMusicTrackResponse(t *media.MusicTrack) MusicTrackResponse {
 		Genre:           t.Genre,
 		Composer:        t.Composer,
 		Publisher:       t.Publisher,
-		Bitrate:         t.Bitrate,             // Music-specific bitrate
+		Bitrate:         t.Bitrate, // Music-specific bitrate
 		CreatedAt:       t.CreatedAt,
 		UpdatedAt:       t.UpdatedAt,
 	}

@@ -24,7 +24,7 @@ import type {
 import type {
   GetApiAnalyticsSessionsParams,
   GetApiAnalyticsSummaryParams,
-  InternalApiHandlersErrorResponse,
+  InternalApiHandlersAPIError,
   InternalApiHandlersListSessionsResponse,
   InternalApiHandlersPlaybackAnalyticsRequest,
   InternalApiHandlersPlaybackSessionResponse,
@@ -46,7 +46,7 @@ export type postApiAnalyticsPlaybackResponse200 = {
 }
 
 export type postApiAnalyticsPlaybackResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
@@ -78,7 +78,7 @@ export const postApiAnalyticsPlayback = async (
 }
 
 export const getPostApiAnalyticsPlaybackMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -117,13 +117,13 @@ export type PostApiAnalyticsPlaybackMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiAnalyticsPlayback>>
 >
 export type PostApiAnalyticsPlaybackMutationBody = InternalApiHandlersPlaybackAnalyticsRequest
-export type PostApiAnalyticsPlaybackMutationError = InternalApiHandlersErrorResponse
+export type PostApiAnalyticsPlaybackMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Record playback analytics
  */
 export const usePostApiAnalyticsPlayback = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {
@@ -156,7 +156,7 @@ export type getApiAnalyticsSessionsResponse200 = {
 }
 
 export type getApiAnalyticsSessionsResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
@@ -203,7 +203,7 @@ export const getGetApiAnalyticsSessionsQueryKey = (params?: GetApiAnalyticsSessi
 
 export const getGetApiAnalyticsSessionsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiAnalyticsSessions>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiAnalyticsSessionsParams,
   options?: {
@@ -231,11 +231,11 @@ export const getGetApiAnalyticsSessionsQueryOptions = <
 export type GetApiAnalyticsSessionsQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiAnalyticsSessions>>
 >
-export type GetApiAnalyticsSessionsQueryError = InternalApiHandlersErrorResponse
+export type GetApiAnalyticsSessionsQueryError = InternalApiHandlersAPIError
 
 export function useGetApiAnalyticsSessions<
   TData = Awaited<ReturnType<typeof getApiAnalyticsSessions>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: undefined | GetApiAnalyticsSessionsParams,
   options: {
@@ -256,7 +256,7 @@ export function useGetApiAnalyticsSessions<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiAnalyticsSessions<
   TData = Awaited<ReturnType<typeof getApiAnalyticsSessions>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiAnalyticsSessionsParams,
   options?: {
@@ -277,7 +277,7 @@ export function useGetApiAnalyticsSessions<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiAnalyticsSessions<
   TData = Awaited<ReturnType<typeof getApiAnalyticsSessions>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiAnalyticsSessionsParams,
   options?: {
@@ -294,7 +294,7 @@ export function useGetApiAnalyticsSessions<
 
 export function useGetApiAnalyticsSessions<
   TData = Awaited<ReturnType<typeof getApiAnalyticsSessions>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiAnalyticsSessionsParams,
   options?: {
@@ -326,7 +326,7 @@ export type getApiAnalyticsSessionsIdResponse200 = {
 }
 
 export type getApiAnalyticsSessionsIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
@@ -361,7 +361,7 @@ export const getGetApiAnalyticsSessionsIdQueryKey = (id?: string) => {
 
 export const getGetApiAnalyticsSessionsIdQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -389,11 +389,11 @@ export const getGetApiAnalyticsSessionsIdQueryOptions = <
 export type GetApiAnalyticsSessionsIdQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>
 >
-export type GetApiAnalyticsSessionsIdQueryError = InternalApiHandlersErrorResponse
+export type GetApiAnalyticsSessionsIdQueryError = InternalApiHandlersAPIError
 
 export function useGetApiAnalyticsSessionsId<
   TData = Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options: {
@@ -414,7 +414,7 @@ export function useGetApiAnalyticsSessionsId<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiAnalyticsSessionsId<
   TData = Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -435,7 +435,7 @@ export function useGetApiAnalyticsSessionsId<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiAnalyticsSessionsId<
   TData = Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -452,7 +452,7 @@ export function useGetApiAnalyticsSessionsId<
 
 export function useGetApiAnalyticsSessionsId<
   TData = Awaited<ReturnType<typeof getApiAnalyticsSessionsId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {

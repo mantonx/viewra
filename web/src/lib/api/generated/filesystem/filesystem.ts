@@ -21,7 +21,7 @@ import type {
 import type {
   GetApiFilesystemBrowseParams,
   GithubComMantonxViewraInternalDomainLibraryBrowseResult,
-  InternalApiHandlersErrorResponse,
+  InternalApiHandlersAPIError,
 } from '.././models'
 
 import { customInstance } from '../../mutator/index'
@@ -38,17 +38,17 @@ export type getApiFilesystemBrowseResponse200 = {
 }
 
 export type getApiFilesystemBrowseResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type getApiFilesystemBrowseResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
 export type getApiFilesystemBrowseResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
@@ -99,7 +99,7 @@ export const getGetApiFilesystemBrowseQueryKey = (params?: GetApiFilesystemBrows
 
 export const getGetApiFilesystemBrowseQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiFilesystemBrowse>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiFilesystemBrowseParams,
   options?: {
@@ -126,11 +126,11 @@ export const getGetApiFilesystemBrowseQueryOptions = <
 export type GetApiFilesystemBrowseQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiFilesystemBrowse>>
 >
-export type GetApiFilesystemBrowseQueryError = InternalApiHandlersErrorResponse
+export type GetApiFilesystemBrowseQueryError = InternalApiHandlersAPIError
 
 export function useGetApiFilesystemBrowse<
   TData = Awaited<ReturnType<typeof getApiFilesystemBrowse>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params: undefined | GetApiFilesystemBrowseParams,
   options: {
@@ -151,7 +151,7 @@ export function useGetApiFilesystemBrowse<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiFilesystemBrowse<
   TData = Awaited<ReturnType<typeof getApiFilesystemBrowse>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiFilesystemBrowseParams,
   options?: {
@@ -172,7 +172,7 @@ export function useGetApiFilesystemBrowse<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiFilesystemBrowse<
   TData = Awaited<ReturnType<typeof getApiFilesystemBrowse>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiFilesystemBrowseParams,
   options?: {
@@ -189,7 +189,7 @@ export function useGetApiFilesystemBrowse<
 
 export function useGetApiFilesystemBrowse<
   TData = Awaited<ReturnType<typeof getApiFilesystemBrowse>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   params?: GetApiFilesystemBrowseParams,
   options?: {

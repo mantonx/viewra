@@ -11,7 +11,8 @@ export interface ArtistSummary {
 }
 
 export interface AlbumSummary {
-  id?: number // Representative media_id (first track)
+  id?: number // Album entity ID
+  artist_id?: number // Artist entity ID for navigation
   album?: string
   artist?: string
   year?: number
@@ -38,6 +39,8 @@ export interface MusicTrackResponse {
   container_format?: string
 
   // Music Track-specific fields
+  album_id?: number // Album entity ID for navigation
+  artist_id?: number // Artist entity ID for navigation
   artist?: string
   album?: string
   album_artist?: string

@@ -37,6 +37,7 @@ func (uc *ListAlbumsByArtistIDUseCase) Execute(ctx context.Context, artistID int
 		if album.ArtistID == artist.ID {
 			albumSummaries = append(albumSummaries, AlbumSummary{
 				ID:         album.ID,
+				ArtistID:   album.ArtistID,
 				Album:      album.Title,
 				Artist:     album.AlbumArtist,
 				Year:       album.Year,

@@ -26,7 +26,7 @@ import type {
   GithubComMantonxViewraInternalApplicationPluginsPluginDetail,
   GithubComMantonxViewraInternalApplicationPluginsPluginHealthDetail,
   GithubComMantonxViewraInternalApplicationPluginsPluginSettings,
-  InternalApiHandlersErrorResponse,
+  InternalApiHandlersAPIError,
   InternalApiHandlersPluginListResponse,
   InternalApiHandlersPluginLogsResponse,
   InternalApiHandlersSuccessResponse,
@@ -47,12 +47,12 @@ export type getApiPluginsResponse200 = {
 }
 
 export type getApiPluginsResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type getApiPluginsResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -82,7 +82,7 @@ export const getGetApiPluginsQueryKey = () => {
 
 export const getGetApiPluginsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiPlugins>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(options?: {
   query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiPlugins>>, TError, TData>>
   request?: SecondParameter<typeof customInstance>
@@ -102,11 +102,11 @@ export const getGetApiPluginsQueryOptions = <
 }
 
 export type GetApiPluginsQueryResult = NonNullable<Awaited<ReturnType<typeof getApiPlugins>>>
-export type GetApiPluginsQueryError = InternalApiHandlersErrorResponse
+export type GetApiPluginsQueryError = InternalApiHandlersAPIError
 
 export function useGetApiPlugins<
   TData = Awaited<ReturnType<typeof getApiPlugins>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiPlugins>>, TError, TData>> &
@@ -124,7 +124,7 @@ export function useGetApiPlugins<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiPlugins<
   TData = Awaited<ReturnType<typeof getApiPlugins>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiPlugins>>, TError, TData>> &
@@ -142,7 +142,7 @@ export function useGetApiPlugins<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiPlugins<
   TData = Awaited<ReturnType<typeof getApiPlugins>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiPlugins>>, TError, TData>>
@@ -156,7 +156,7 @@ export function useGetApiPlugins<
 
 export function useGetApiPlugins<
   TData = Awaited<ReturnType<typeof getApiPlugins>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiPlugins>>, TError, TData>>
@@ -185,17 +185,17 @@ export type getApiPluginsIdResponse200 = {
 }
 
 export type getApiPluginsIdResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type getApiPluginsIdResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiPluginsIdResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -232,7 +232,7 @@ export const getGetApiPluginsIdQueryKey = (id?: string) => {
 
 export const getGetApiPluginsIdQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiPluginsId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -255,11 +255,11 @@ export const getGetApiPluginsIdQueryOptions = <
 }
 
 export type GetApiPluginsIdQueryResult = NonNullable<Awaited<ReturnType<typeof getApiPluginsId>>>
-export type GetApiPluginsIdQueryError = InternalApiHandlersErrorResponse
+export type GetApiPluginsIdQueryError = InternalApiHandlersAPIError
 
 export function useGetApiPluginsId<
   TData = Awaited<ReturnType<typeof getApiPluginsId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options: {
@@ -278,7 +278,7 @@ export function useGetApiPluginsId<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiPluginsId<
   TData = Awaited<ReturnType<typeof getApiPluginsId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -297,7 +297,7 @@ export function useGetApiPluginsId<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiPluginsId<
   TData = Awaited<ReturnType<typeof getApiPluginsId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -312,7 +312,7 @@ export function useGetApiPluginsId<
 
 export function useGetApiPluginsId<
   TData = Awaited<ReturnType<typeof getApiPluginsId>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -342,27 +342,27 @@ export type postApiPluginsIdDisableResponse200 = {
 }
 
 export type postApiPluginsIdDisableResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type postApiPluginsIdDisableResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type postApiPluginsIdDisableResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
 export type postApiPluginsIdDisableResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type postApiPluginsIdDisableResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -398,7 +398,7 @@ export const postApiPluginsIdDisable = async (
 }
 
 export const getPostApiPluginsIdDisableMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -437,13 +437,13 @@ export type PostApiPluginsIdDisableMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiPluginsIdDisable>>
 >
 
-export type PostApiPluginsIdDisableMutationError = InternalApiHandlersErrorResponse
+export type PostApiPluginsIdDisableMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Disable plugin
  */
 export const usePostApiPluginsIdDisable = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {
@@ -476,22 +476,22 @@ export type postApiPluginsIdEnableResponse200 = {
 }
 
 export type postApiPluginsIdEnableResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type postApiPluginsIdEnableResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
 export type postApiPluginsIdEnableResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type postApiPluginsIdEnableResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -526,7 +526,7 @@ export const postApiPluginsIdEnable = async (
 }
 
 export const getPostApiPluginsIdEnableMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -565,15 +565,12 @@ export type PostApiPluginsIdEnableMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiPluginsIdEnable>>
 >
 
-export type PostApiPluginsIdEnableMutationError = InternalApiHandlersErrorResponse
+export type PostApiPluginsIdEnableMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Enable plugin
  */
-export const usePostApiPluginsIdEnable = <
-  TError = InternalApiHandlersErrorResponse,
-  TContext = unknown,
->(
+export const usePostApiPluginsIdEnable = <TError = InternalApiHandlersAPIError, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiPluginsIdEnable>>,
@@ -604,17 +601,17 @@ export type getApiPluginsIdHealthResponse200 = {
 }
 
 export type getApiPluginsIdHealthResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type getApiPluginsIdHealthResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiPluginsIdHealthResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -653,7 +650,7 @@ export const getGetApiPluginsIdHealthQueryKey = (id?: string) => {
 
 export const getGetApiPluginsIdHealthQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiPluginsIdHealth>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -680,11 +677,11 @@ export const getGetApiPluginsIdHealthQueryOptions = <
 export type GetApiPluginsIdHealthQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiPluginsIdHealth>>
 >
-export type GetApiPluginsIdHealthQueryError = InternalApiHandlersErrorResponse
+export type GetApiPluginsIdHealthQueryError = InternalApiHandlersAPIError
 
 export function useGetApiPluginsIdHealth<
   TData = Awaited<ReturnType<typeof getApiPluginsIdHealth>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options: {
@@ -705,7 +702,7 @@ export function useGetApiPluginsIdHealth<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiPluginsIdHealth<
   TData = Awaited<ReturnType<typeof getApiPluginsIdHealth>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -726,7 +723,7 @@ export function useGetApiPluginsIdHealth<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiPluginsIdHealth<
   TData = Awaited<ReturnType<typeof getApiPluginsIdHealth>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -743,7 +740,7 @@ export function useGetApiPluginsIdHealth<
 
 export function useGetApiPluginsIdHealth<
   TData = Awaited<ReturnType<typeof getApiPluginsIdHealth>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -775,22 +772,22 @@ export type getApiPluginsIdLogsResponse200 = {
 }
 
 export type getApiPluginsIdLogsResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type getApiPluginsIdLogsResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
 export type getApiPluginsIdLogsResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiPluginsIdLogsResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -843,7 +840,7 @@ export const getGetApiPluginsIdLogsQueryKey = (id?: string, params?: GetApiPlugi
 
 export const getGetApiPluginsIdLogsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiPluginsIdLogs>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   params?: GetApiPluginsIdLogsParams,
@@ -869,11 +866,11 @@ export const getGetApiPluginsIdLogsQueryOptions = <
 export type GetApiPluginsIdLogsQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiPluginsIdLogs>>
 >
-export type GetApiPluginsIdLogsQueryError = InternalApiHandlersErrorResponse
+export type GetApiPluginsIdLogsQueryError = InternalApiHandlersAPIError
 
 export function useGetApiPluginsIdLogs<
   TData = Awaited<ReturnType<typeof getApiPluginsIdLogs>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   params: undefined | GetApiPluginsIdLogsParams,
@@ -895,7 +892,7 @@ export function useGetApiPluginsIdLogs<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiPluginsIdLogs<
   TData = Awaited<ReturnType<typeof getApiPluginsIdLogs>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   params?: GetApiPluginsIdLogsParams,
@@ -917,7 +914,7 @@ export function useGetApiPluginsIdLogs<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiPluginsIdLogs<
   TData = Awaited<ReturnType<typeof getApiPluginsIdLogs>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   params?: GetApiPluginsIdLogsParams,
@@ -933,7 +930,7 @@ export function useGetApiPluginsIdLogs<
 
 export function useGetApiPluginsIdLogs<
   TData = Awaited<ReturnType<typeof getApiPluginsIdLogs>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   params?: GetApiPluginsIdLogsParams,
@@ -964,22 +961,22 @@ export type postApiPluginsIdRestartResponse200 = {
 }
 
 export type postApiPluginsIdRestartResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type postApiPluginsIdRestartResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
 export type postApiPluginsIdRestartResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type postApiPluginsIdRestartResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1014,7 +1011,7 @@ export const postApiPluginsIdRestart = async (
 }
 
 export const getPostApiPluginsIdRestartMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -1053,13 +1050,13 @@ export type PostApiPluginsIdRestartMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiPluginsIdRestart>>
 >
 
-export type PostApiPluginsIdRestartMutationError = InternalApiHandlersErrorResponse
+export type PostApiPluginsIdRestartMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Restart plugin
  */
 export const usePostApiPluginsIdRestart = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {
@@ -1092,17 +1089,17 @@ export type getApiPluginsIdSettingsResponse200 = {
 }
 
 export type getApiPluginsIdSettingsResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type getApiPluginsIdSettingsResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type getApiPluginsIdSettingsResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1141,7 +1138,7 @@ export const getGetApiPluginsIdSettingsQueryKey = (id?: string) => {
 
 export const getGetApiPluginsIdSettingsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiPluginsIdSettings>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -1169,11 +1166,11 @@ export const getGetApiPluginsIdSettingsQueryOptions = <
 export type GetApiPluginsIdSettingsQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiPluginsIdSettings>>
 >
-export type GetApiPluginsIdSettingsQueryError = InternalApiHandlersErrorResponse
+export type GetApiPluginsIdSettingsQueryError = InternalApiHandlersAPIError
 
 export function useGetApiPluginsIdSettings<
   TData = Awaited<ReturnType<typeof getApiPluginsIdSettings>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options: {
@@ -1194,7 +1191,7 @@ export function useGetApiPluginsIdSettings<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiPluginsIdSettings<
   TData = Awaited<ReturnType<typeof getApiPluginsIdSettings>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -1215,7 +1212,7 @@ export function useGetApiPluginsIdSettings<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiPluginsIdSettings<
   TData = Awaited<ReturnType<typeof getApiPluginsIdSettings>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -1232,7 +1229,7 @@ export function useGetApiPluginsIdSettings<
 
 export function useGetApiPluginsIdSettings<
   TData = Awaited<ReturnType<typeof getApiPluginsIdSettings>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
 >(
   id: string,
   options?: {
@@ -1264,27 +1261,27 @@ export type putApiPluginsIdSettingsResponse200 = {
 }
 
 export type putApiPluginsIdSettingsResponse400 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 400
 }
 
 export type putApiPluginsIdSettingsResponse401 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 401
 }
 
 export type putApiPluginsIdSettingsResponse403 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 403
 }
 
 export type putApiPluginsIdSettingsResponse404 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 404
 }
 
 export type putApiPluginsIdSettingsResponse500 = {
-  data: InternalApiHandlersErrorResponse
+  data: InternalApiHandlersAPIError
   status: 500
 }
 
@@ -1323,7 +1320,7 @@ export const putApiPluginsIdSettings = async (
 }
 
 export const getPutApiPluginsIdSettingsMutationOptions = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -1362,13 +1359,13 @@ export type PutApiPluginsIdSettingsMutationResult = NonNullable<
   Awaited<ReturnType<typeof putApiPluginsIdSettings>>
 >
 export type PutApiPluginsIdSettingsMutationBody = InternalApiHandlersUpdatePluginSettingsRequest
-export type PutApiPluginsIdSettingsMutationError = InternalApiHandlersErrorResponse
+export type PutApiPluginsIdSettingsMutationError = InternalApiHandlersAPIError
 
 /**
  * @summary Update plugin settings
  */
 export const usePutApiPluginsIdSettings = <
-  TError = InternalApiHandlersErrorResponse,
+  TError = InternalApiHandlersAPIError,
   TContext = unknown,
 >(
   options?: {
