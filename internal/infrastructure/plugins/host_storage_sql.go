@@ -39,21 +39,25 @@ var forbiddenPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)\bREVOKE\b`),
 }
 
-// Table name patterns for rewriting
-// These capture table names in common SQL contexts
-var tablePatterns = []struct {
-	pattern *regexp.Regexp
-	replace func(prefix, match string) string
-}{
-	// CREATE TABLE [IF NOT EXISTS] name
-	{
-		pattern: regexp.MustCompile(`(?i)\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)`),
-		replace: func(prefix, match string) string {
-			return strings.Replace(match, regexp.MustCompile(`(?i)\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)`).FindStringSubmatch(match)[1],
-				prefix+regexp.MustCompile(`(?i)\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)`).FindStringSubmatch(match)[1], 1)
-		},
-	},
-}
+// Pre-compiled regexes for sanitizePluginID
+var (
+	nonAlphanumericRe    = regexp.MustCompile(`[^a-zA-Z0-9]`)
+	consecutiveUnderscRe = regexp.MustCompile(`_+`)
+)
+
+// Pre-compiled regexes for rewriteTableNames
+var (
+	createTableRe   = regexp.MustCompile(`(?i)(\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?)([a-zA-Z_][a-zA-Z0-9_]*)`)
+	dropTableRe     = regexp.MustCompile(`(?i)(\bDROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?)([a-zA-Z_][a-zA-Z0-9_]*)`)
+	createIndexRe   = regexp.MustCompile(`(?i)(\bCREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?)([a-zA-Z_][a-zA-Z0-9_]*)(\s+ON\s+)([a-zA-Z_][a-zA-Z0-9_]*)`)
+	dropIndexRe     = regexp.MustCompile(`(?i)(\bDROP\s+INDEX\s+(?:IF\s+EXISTS\s+)?)([a-zA-Z_][a-zA-Z0-9_]*)`)
+	fromTableRe     = regexp.MustCompile(`(?i)(\bFROM\s+)([a-zA-Z_][a-zA-Z0-9_]*)`)
+	joinTableRe     = regexp.MustCompile(`(?i)(\bJOIN\s+)([a-zA-Z_][a-zA-Z0-9_]*)`)
+	intoTableRe     = regexp.MustCompile(`(?i)(\bINTO\s+)([a-zA-Z_][a-zA-Z0-9_]*)`)
+	updateTableRe   = regexp.MustCompile(`(?i)(\bUPDATE\s+)([a-zA-Z_][a-zA-Z0-9_]*)`)
+	alterTableRe    = regexp.MustCompile(`(?i)(\bALTER\s+TABLE\s+)([a-zA-Z_][a-zA-Z0-9_]*)`)
+	truncateTableRe = regexp.MustCompile(`(?i)(\bTRUNCATE\s+(?:TABLE\s+)?)([a-zA-Z_][a-zA-Z0-9_]*)`)
+)
 
 // ExecuteSQL runs DDL/DML statements on plugin's namespaced tables.
 func (s *HostStorageServer) ExecuteSQL(ctx context.Context, req *pluginv1.SQLRequest) (*pluginv1.SQLExecResult, error) {
@@ -208,9 +212,9 @@ func validateSQL(sql string) error {
 // e.g., "semantic-search" -> "semantic_search"
 func sanitizePluginID(pluginID string) string {
 	// Replace non-alphanumeric chars with underscore
-	safe := regexp.MustCompile(`[^a-zA-Z0-9]`).ReplaceAllString(pluginID, "_")
+	safe := nonAlphanumericRe.ReplaceAllString(pluginID, "_")
 	// Remove consecutive underscores
-	safe = regexp.MustCompile(`_+`).ReplaceAllString(safe, "_")
+	safe = consecutiveUnderscRe.ReplaceAllString(safe, "_")
 	// Trim underscores from ends
 	safe = strings.Trim(safe, "_")
 	return safe
@@ -220,50 +224,37 @@ func sanitizePluginID(pluginID string) string {
 func rewriteTableNames(sqlStr, pluginID string) (string, error) {
 	prefix := "plugin_" + pluginID + "_"
 
-	// Patterns to match table names in different SQL contexts
-	// We use a simple but effective approach: find keywords followed by identifiers
-
 	result := sqlStr
 
 	// CREATE TABLE [IF NOT EXISTS] name
-	result = regexp.MustCompile(`(?i)(\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?)([a-zA-Z_][a-zA-Z0-9_]*)`).
-		ReplaceAllString(result, "${1}"+prefix+"$2")
+	result = createTableRe.ReplaceAllString(result, "${1}"+prefix+"$2")
 
 	// DROP TABLE [IF EXISTS] name
-	result = regexp.MustCompile(`(?i)(\bDROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?)([a-zA-Z_][a-zA-Z0-9_]*)`).
-		ReplaceAllString(result, "${1}"+prefix+"$2")
+	result = dropTableRe.ReplaceAllString(result, "${1}"+prefix+"$2")
 
 	// CREATE [UNIQUE] INDEX [IF NOT EXISTS] name ON table
-	result = regexp.MustCompile(`(?i)(\bCREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?)([a-zA-Z_][a-zA-Z0-9_]*)(\s+ON\s+)([a-zA-Z_][a-zA-Z0-9_]*)`).
-		ReplaceAllString(result, "${1}"+prefix+"$2${3}"+prefix+"$4")
+	result = createIndexRe.ReplaceAllString(result, "${1}"+prefix+"$2${3}"+prefix+"$4")
 
 	// DROP INDEX [IF EXISTS] name
-	result = regexp.MustCompile(`(?i)(\bDROP\s+INDEX\s+(?:IF\s+EXISTS\s+)?)([a-zA-Z_][a-zA-Z0-9_]*)`).
-		ReplaceAllString(result, "${1}"+prefix+"$2")
+	result = dropIndexRe.ReplaceAllString(result, "${1}"+prefix+"$2")
 
 	// FROM table (including JOIN variants)
-	result = regexp.MustCompile(`(?i)(\bFROM\s+)([a-zA-Z_][a-zA-Z0-9_]*)`).
-		ReplaceAllString(result, "${1}"+prefix+"$2")
+	result = fromTableRe.ReplaceAllString(result, "${1}"+prefix+"$2")
 
 	// JOIN table
-	result = regexp.MustCompile(`(?i)(\bJOIN\s+)([a-zA-Z_][a-zA-Z0-9_]*)`).
-		ReplaceAllString(result, "${1}"+prefix+"$2")
+	result = joinTableRe.ReplaceAllString(result, "${1}"+prefix+"$2")
 
 	// INTO table
-	result = regexp.MustCompile(`(?i)(\bINTO\s+)([a-zA-Z_][a-zA-Z0-9_]*)`).
-		ReplaceAllString(result, "${1}"+prefix+"$2")
+	result = intoTableRe.ReplaceAllString(result, "${1}"+prefix+"$2")
 
 	// UPDATE table
-	result = regexp.MustCompile(`(?i)(\bUPDATE\s+)([a-zA-Z_][a-zA-Z0-9_]*)`).
-		ReplaceAllString(result, "${1}"+prefix+"$2")
+	result = updateTableRe.ReplaceAllString(result, "${1}"+prefix+"$2")
 
 	// ALTER TABLE table (future-proofing)
-	result = regexp.MustCompile(`(?i)(\bALTER\s+TABLE\s+)([a-zA-Z_][a-zA-Z0-9_]*)`).
-		ReplaceAllString(result, "${1}"+prefix+"$2")
+	result = alterTableRe.ReplaceAllString(result, "${1}"+prefix+"$2")
 
 	// TRUNCATE [TABLE] table
-	result = regexp.MustCompile(`(?i)(\bTRUNCATE\s+(?:TABLE\s+)?)([a-zA-Z_][a-zA-Z0-9_]*)`).
-		ReplaceAllString(result, "${1}"+prefix+"$2")
+	result = truncateTableRe.ReplaceAllString(result, "${1}"+prefix+"$2")
 
 	return result, nil
 }
