@@ -3,6 +3,7 @@ package internal
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -137,6 +138,54 @@ func (p *MusicBrainzPlugin) Shutdown(ctx context.Context) error {
 	if p.client != nil {
 		p.client.Close()
 	}
+	return nil
+}
+
+// GetSettingsSchema returns the JSON Schema for plugin settings.
+func (p *MusicBrainzPlugin) GetSettingsSchema() ([]byte, error) {
+	return SettingsSchema().Build()
+}
+
+// Configure applies new settings to the plugin.
+func (p *MusicBrainzPlugin) Configure(settings []byte) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	var newSettings struct {
+		ContactEmail      string  `json:"contact_email"`
+		MinConfidence     float32 `json:"min_confidence"`
+		CacheTTLHours     int     `json:"cache_ttl_hours"`
+		FetchCoverArt     bool    `json:"fetch_cover_art"`
+		CoverArtSize      string  `json:"cover_art_size"`
+		FetchArtistImages bool    `json:"fetch_artist_images"`
+	}
+	if err := json.Unmarshal(settings, &newSettings); err != nil {
+		return fmt.Errorf("failed to parse settings: %w", err)
+	}
+
+	// Apply settings to config
+	if newSettings.ContactEmail != "" {
+		p.config.ContactEmail = newSettings.ContactEmail
+	}
+	if newSettings.MinConfidence > 0 {
+		p.config.MinConfidence = newSettings.MinConfidence
+	}
+	if newSettings.CacheTTLHours > 0 {
+		p.config.CacheTTLHours = newSettings.CacheTTLHours
+	}
+	p.config.FetchCoverArt = newSettings.FetchCoverArt
+	if newSettings.CoverArtSize != "" {
+		p.config.CoverArtSize = newSettings.CoverArtSize
+	}
+
+	p.logger.Debug("configuration updated",
+		"contact_email", p.config.ContactEmail,
+		"min_confidence", p.config.MinConfidence,
+		"cache_ttl_hours", p.config.CacheTTLHours,
+		"fetch_cover_art", p.config.FetchCoverArt,
+		"cover_art_size", p.config.CoverArtSize,
+	)
+
 	return nil
 }
 

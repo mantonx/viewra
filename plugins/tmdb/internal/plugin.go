@@ -19,6 +19,14 @@ type Config struct {
 	RateLimit     int    `yaml:"rate_limit" json:"rate_limit"`           // requests per 10 seconds (default: 40)
 	CacheTTLHours int    `yaml:"cache_ttl_hours" json:"cache_ttl_hours"` // cache duration (default: 24)
 	Language      string `yaml:"language" json:"language"`               // preferred language (default: en-US)
+
+	// Settings from UI
+	IncludeAdult     bool     `yaml:"include_adult" json:"include_adult"`
+	FetchImages      bool     `yaml:"fetch_images" json:"fetch_images"`
+	ImageTypes       []string `yaml:"image_types" json:"image_types"`
+	ImageSize        string   `yaml:"image_size" json:"image_size"`
+	FetchActorPhotos bool     `yaml:"fetch_actor_photos" json:"fetch_actor_photos"`
+	MaxActorPhotos   int      `yaml:"max_actor_photos" json:"max_actor_photos"`
 }
 
 // TMDbPlugin implements sdk.EnricherPlugin for TMDb.
@@ -134,6 +142,62 @@ func (p *TMDbPlugin) Shutdown(ctx context.Context) error {
 	if p.client != nil {
 		p.client.Close()
 	}
+	return nil
+}
+
+// GetSettingsSchema returns the JSON Schema for plugin settings.
+func (p *TMDbPlugin) GetSettingsSchema() ([]byte, error) {
+	return SettingsSchema().Build()
+}
+
+// Configure applies new settings to the plugin.
+func (p *TMDbPlugin) Configure(settings []byte) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	var newSettings struct {
+		Language         string   `json:"language"`
+		IncludeAdult     bool     `json:"include_adult"`
+		CacheTTLHours    int      `json:"cache_ttl_hours"`
+		FetchImages      bool     `json:"fetch_images"`
+		ImageTypes       []string `json:"image_types"`
+		ImageSize        string   `json:"image_size"`
+		FetchActorPhotos bool     `json:"fetch_actor_photos"`
+		MaxActorPhotos   int      `json:"max_actor_photos"`
+	}
+	if err := json.Unmarshal(settings, &newSettings); err != nil {
+		return fmt.Errorf("failed to parse settings: %w", err)
+	}
+
+	// Apply settings to config
+	if newSettings.Language != "" {
+		p.config.Language = newSettings.Language
+	}
+	p.config.IncludeAdult = newSettings.IncludeAdult
+	if newSettings.CacheTTLHours > 0 {
+		p.config.CacheTTLHours = newSettings.CacheTTLHours
+	}
+	p.config.FetchImages = newSettings.FetchImages
+	if len(newSettings.ImageTypes) > 0 {
+		p.config.ImageTypes = newSettings.ImageTypes
+	}
+	if newSettings.ImageSize != "" {
+		p.config.ImageSize = newSettings.ImageSize
+	}
+	p.config.FetchActorPhotos = newSettings.FetchActorPhotos
+	if newSettings.MaxActorPhotos > 0 {
+		p.config.MaxActorPhotos = newSettings.MaxActorPhotos
+	}
+
+	p.logger.Debug("configuration updated",
+		"language", p.config.Language,
+		"include_adult", p.config.IncludeAdult,
+		"cache_ttl_hours", p.config.CacheTTLHours,
+		"fetch_images", p.config.FetchImages,
+		"image_types", p.config.ImageTypes,
+		"fetch_actor_photos", p.config.FetchActorPhotos,
+	)
+
 	return nil
 }
 

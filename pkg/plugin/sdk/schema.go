@@ -322,7 +322,7 @@ const (
 )
 
 // Property represents a JSON Schema property (a settings field).
-// Use String(), Number(), Boolean(), or Integer() to create one.
+// Use String(), Number(), Boolean(), Integer(), or Array() to create one.
 type Property struct {
 	propType    PropertyType
 	title       string
@@ -333,6 +333,10 @@ type Property struct {
 	required    bool
 	minimum     *float64
 	maximum     *float64
+
+	// Array items configuration (for multi-select)
+	itemsType PropertyType // Type of array items
+	itemsEnum []any        // Enum values for array items
 
 	// Conditional visibility
 	dependsOn *DependsOnConfig
@@ -399,6 +403,18 @@ func Integer() *Property {
 //	sdk.Boolean().Title("Enable Feature").Default(true)
 func Boolean() *Property {
 	return &Property{propType: TypeBoolean}
+}
+
+// Array creates an array property builder.
+// Array properties can be used for multi-select with ItemsEnum().
+//
+// Example:
+//
+//	sdk.Array().Title("Image Types").
+//	    ItemsEnum("poster", "backdrop", "logo").
+//	    Default([]string{"poster", "backdrop"})
+func Array() *Property {
+	return &Property{propType: TypeArray}
 }
 
 // PluginRef creates a plugin reference property builder.
@@ -515,6 +531,23 @@ func (p *Property) EnumStrings(values ...string) *Property {
 	return p
 }
 
+// ItemsEnum sets the allowed values for array items (multi-select).
+// When used with Array(), renders as a multi-select dropdown.
+//
+// Example:
+//
+//	sdk.Array().Title("Image Types").
+//	    ItemsEnum("poster", "backdrop", "logo").
+//	    Default([]string{"poster"})
+func (p *Property) ItemsEnum(values ...string) *Property {
+	p.itemsType = TypeString
+	p.itemsEnum = make([]any, len(values))
+	for i, v := range values {
+		p.itemsEnum[i] = v
+	}
+	return p
+}
+
 // Required marks this property as required.
 // Required fields must have a value before saving.
 //
@@ -581,6 +614,14 @@ func (p *Property) build() map[string]any {
 	}
 	if p.maximum != nil {
 		prop["maximum"] = *p.maximum
+	}
+	// Array items configuration (for multi-select)
+	if p.propType == TypeArray && len(p.itemsEnum) > 0 {
+		prop["items"] = map[string]any{
+			"type": string(p.itemsType),
+			"enum": p.itemsEnum,
+		}
+		prop["uniqueItems"] = true // Prevent duplicate selections
 	}
 	if p.pluginRef != nil {
 		prop["x-viewra-plugin-ref"] = map[string]any{

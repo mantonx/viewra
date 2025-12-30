@@ -7,7 +7,13 @@ import { Button } from '@/components/ui'
 import { useCallback, useMemo } from 'react'
 // Note: parseDependsOn, shouldShowField, parsePropertyOrder are used in PluginSettingsForm
 // to filter the schema before passing to JsonSchemaForm
-import { TextWidget, PasswordWidget, CheckboxWidget, SelectWidget } from './widgets'
+import {
+  TextWidget,
+  PasswordWidget,
+  CheckboxWidget,
+  SelectWidget,
+  MultiSelectWidget,
+} from './widgets'
 import { PluginRefField } from './fields'
 import { hasPluginRef } from '@/lib/types/schema-actions'
 
@@ -141,6 +147,7 @@ const widgets: RegistryWidgetsType = {
   PasswordWidget,
   CheckboxWidget,
   SelectWidget,
+  MultiSelectWidget,
 }
 
 // Custom fields for specialized property types
@@ -216,6 +223,19 @@ export const JsonSchemaForm = ({
           result[key] = {
             ...result[key],
             'ui:field': 'PluginRefField',
+          }
+        }
+
+        // Array with enum items -> MultiSelectWidget
+        if (
+          prop.type === 'array' &&
+          prop.items &&
+          typeof prop.items === 'object' &&
+          'enum' in prop.items
+        ) {
+          result[key] = {
+            ...result[key],
+            'ui:widget': 'MultiSelectWidget',
           }
         }
       })

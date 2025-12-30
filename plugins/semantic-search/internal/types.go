@@ -16,9 +16,10 @@ type MoodTagConfig struct {
 
 // IndexingConfig configures media indexing behavior.
 type IndexingConfig struct {
-	BatchSize     int  `yaml:"batch_size" json:"batch_size"`
-	AutoIndex     bool `yaml:"auto_index" json:"auto_index"`
-	StagePosition int  `yaml:"stage_position" json:"stage_position"`
+	BatchSize               int  `yaml:"batch_size" json:"batch_size"`
+	AutoIndex               bool `yaml:"auto_index" json:"auto_index"`
+	ReindexOnMetadataChange bool `yaml:"reindex_on_metadata_change" json:"reindex_on_metadata_change"`
+	StagePosition           int  `yaml:"stage_position" json:"stage_position"`
 }
 
 // SearchConfig configures search behavior.

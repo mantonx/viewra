@@ -18,6 +18,10 @@ func SettingsSchema() *sdk.Schema {
 			Title("Auto-Index New Media").
 			Description("Automatically index media during enrichment pipeline").
 			Default(true)).
+		Property("reindex_on_metadata_change", sdk.Boolean().
+			Title("Re-index on Metadata Change").
+			Description("Re-index media when its metadata is updated by enrichers").
+			Default(true)).
 		Property("batch_size", sdk.Integer().
 			Title("Batch Size").
 			Description("Number of items to process in each indexing batch").
@@ -45,7 +49,7 @@ func SettingsSchema() *sdk.Schema {
 		// Sections for UI grouping
 		Section(sdk.NewSection("indexing").
 			Title("Indexing").
-			Properties("auto_index", "batch_size")).
+			Properties("auto_index", "reindex_on_metadata_change", "batch_size")).
 		Section(sdk.NewSection("search").
 			Title("Search").
 			Properties("default_limit", "min_similarity")).

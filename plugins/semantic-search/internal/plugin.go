@@ -122,6 +122,54 @@ func (p *SemanticSearchPlugin) GetSettingsSchema() ([]byte, error) {
 	return SettingsSchema().Build()
 }
 
+// Configure applies new settings to the plugin.
+func (p *SemanticSearchPlugin) Configure(settings []byte) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// Parse the flat settings from the UI
+	var flat struct {
+		AutoIndex               bool    `json:"auto_index"`
+		ReindexOnMetadataChange bool    `json:"reindex_on_metadata_change"`
+		BatchSize               int     `json:"batch_size"`
+		DefaultLimit            int     `json:"default_limit"`
+		MinSimilarity           float32 `json:"min_similarity"`
+		MoodTagsEnabled         bool    `json:"mood_tags_enabled"`
+	}
+	if err := json.Unmarshal(settings, &flat); err != nil {
+		return fmt.Errorf("failed to parse settings: %w", err)
+	}
+
+	// Apply settings to config
+	p.config.Indexing.AutoIndex = flat.AutoIndex
+	p.config.Indexing.ReindexOnMetadataChange = flat.ReindexOnMetadataChange
+	if flat.BatchSize > 0 {
+		p.config.Indexing.BatchSize = flat.BatchSize
+	}
+	if flat.DefaultLimit > 0 {
+		p.config.Search.DefaultLimit = flat.DefaultLimit
+	}
+	if flat.MinSimilarity > 0 {
+		p.config.Search.MinSimilarity = flat.MinSimilarity
+	}
+	p.config.MoodTags.Enabled = flat.MoodTagsEnabled
+
+	p.Log().Debug("configuration updated",
+		"auto_index", p.config.Indexing.AutoIndex,
+		"reindex_on_metadata_change", p.config.Indexing.ReindexOnMetadataChange,
+		"batch_size", p.config.Indexing.BatchSize,
+		"default_limit", p.config.Search.DefaultLimit,
+		"min_similarity", p.config.Search.MinSimilarity,
+		"mood_tags_enabled", p.config.MoodTags.Enabled,
+	)
+
+	// Reinitialize services if mood tags setting changed
+	// (mood tag service is only created when enabled)
+	p.initializeServices()
+
+	return nil
+}
+
 // Shutdown is called before the plugin is unloaded.
 func (p *SemanticSearchPlugin) Shutdown(ctx context.Context) error {
 	p.Log().Debug("shutting down Semantic Search plugin")
