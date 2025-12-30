@@ -23,29 +23,18 @@ const (
 
 // ProviderCapabilities describes what an AI provider plugin supports.
 type ProviderCapabilities struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Unique provider identifier, e.g., "ollama", "openai", "anthropic"
-	ProviderId string `protobuf:"bytes,1,opt,name=provider_id,json=providerId,proto3" json:"provider_id,omitempty"`
-	// Human-readable display name, e.g., "Ollama (Local)"
-	DisplayName string `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	// Description of the provider
-	Description string `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	// Whether this provider supports chat completions
-	SupportsChat bool `protobuf:"varint,4,opt,name=supports_chat,json=supportsChat,proto3" json:"supports_chat,omitempty"`
-	// Whether this provider supports embedding generation
-	SupportsEmbeddings bool `protobuf:"varint,5,opt,name=supports_embeddings,json=supportsEmbeddings,proto3" json:"supports_embeddings,omitempty"`
-	// Whether this provider supports streaming responses
-	SupportsStreaming bool `protobuf:"varint,6,opt,name=supports_streaming,json=supportsStreaming,proto3" json:"supports_streaming,omitempty"`
-	// Whether this provider requires an API key
-	RequiresApiKey bool `protobuf:"varint,7,opt,name=requires_api_key,json=requiresApiKey,proto3" json:"requires_api_key,omitempty"`
-	// Whether this provider requires a custom URL (e.g., Ollama)
-	RequiresUrl bool `protobuf:"varint,8,opt,name=requires_url,json=requiresUrl,proto3" json:"requires_url,omitempty"`
-	// Whether this provider runs locally (affects UI display)
-	IsLocal bool `protobuf:"varint,9,opt,name=is_local,json=isLocal,proto3" json:"is_local,omitempty"`
-	// Default chat model ID
-	DefaultChatModel string `protobuf:"bytes,10,opt,name=default_chat_model,json=defaultChatModel,proto3" json:"default_chat_model,omitempty"`
-	// Default embedding model ID
-	DefaultEmbeddingModel string `protobuf:"bytes,11,opt,name=default_embedding_model,json=defaultEmbeddingModel,proto3" json:"default_embedding_model,omitempty"`
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	ProviderId            string                 `protobuf:"bytes,1,opt,name=provider_id,json=providerId,proto3" json:"provider_id,omitempty"`
+	DisplayName           string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	Description           string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	SupportsChat          bool                   `protobuf:"varint,4,opt,name=supports_chat,json=supportsChat,proto3" json:"supports_chat,omitempty"`
+	SupportsEmbeddings    bool                   `protobuf:"varint,5,opt,name=supports_embeddings,json=supportsEmbeddings,proto3" json:"supports_embeddings,omitempty"`
+	SupportsStreaming     bool                   `protobuf:"varint,6,opt,name=supports_streaming,json=supportsStreaming,proto3" json:"supports_streaming,omitempty"`
+	RequiresApiKey        bool                   `protobuf:"varint,7,opt,name=requires_api_key,json=requiresApiKey,proto3" json:"requires_api_key,omitempty"`
+	RequiresUrl           bool                   `protobuf:"varint,8,opt,name=requires_url,json=requiresUrl,proto3" json:"requires_url,omitempty"`
+	IsLocal               bool                   `protobuf:"varint,9,opt,name=is_local,json=isLocal,proto3" json:"is_local,omitempty"`
+	DefaultChatModel      string                 `protobuf:"bytes,10,opt,name=default_chat_model,json=defaultChatModel,proto3" json:"default_chat_model,omitempty"`
+	DefaultEmbeddingModel string                 `protobuf:"bytes,11,opt,name=default_embedding_model,json=defaultEmbeddingModel,proto3" json:"default_embedding_model,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -204,27 +193,18 @@ func (x *ProviderModelList) GetModels() []*ProviderModel {
 
 // ProviderModel describes a model available from a provider.
 type ProviderModel struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Model identifier, e.g., "llama3.2", "gpt-4o-mini"
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// Human-readable name
-	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	// Description of the model
-	Description string `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	// Whether this is a chat/completion model
-	IsChat bool `protobuf:"varint,4,opt,name=is_chat,json=isChat,proto3" json:"is_chat,omitempty"`
-	// Whether this is an embedding model
-	IsEmbedding bool `protobuf:"varint,5,opt,name=is_embedding,json=isEmbedding,proto3" json:"is_embedding,omitempty"`
-	// Context window size (for chat models)
-	ContextLength int32 `protobuf:"varint,6,opt,name=context_length,json=contextLength,proto3" json:"context_length,omitempty"`
-	// Embedding dimensions (for embedding models)
-	EmbeddingDimensions int32 `protobuf:"varint,7,opt,name=embedding_dimensions,json=embeddingDimensions,proto3" json:"embedding_dimensions,omitempty"`
-	// Model size for display (e.g., "7B", "3.8GB")
-	Size string `protobuf:"bytes,8,opt,name=size,proto3" json:"size,omitempty"`
-	// Whether this model is recommended
-	Recommended   bool `protobuf:"varint,9,opt,name=recommended,proto3" json:"recommended,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Id                  string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name                string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Description         string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	IsChat              bool                   `protobuf:"varint,4,opt,name=is_chat,json=isChat,proto3" json:"is_chat,omitempty"`
+	IsEmbedding         bool                   `protobuf:"varint,5,opt,name=is_embedding,json=isEmbedding,proto3" json:"is_embedding,omitempty"`
+	ContextLength       int32                  `protobuf:"varint,6,opt,name=context_length,json=contextLength,proto3" json:"context_length,omitempty"`
+	EmbeddingDimensions int32                  `protobuf:"varint,7,opt,name=embedding_dimensions,json=embeddingDimensions,proto3" json:"embedding_dimensions,omitempty"`
+	Size                string                 `protobuf:"bytes,8,opt,name=size,proto3" json:"size,omitempty"`
+	Recommended         bool                   `protobuf:"varint,9,opt,name=recommended,proto3" json:"recommended,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ProviderModel) Reset() {
@@ -320,13 +300,11 @@ func (x *ProviderModel) GetRecommended() bool {
 	return false
 }
 
-// ProviderEmbeddingRequest is sent to a provider plugin for embedding generation.
+// ProviderEmbeddingRequest is sent to a provider for embedding generation.
 type ProviderEmbeddingRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Text to generate embedding for
-	Text string `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`
-	// Model to use (uses plugin default if empty)
-	Model         string `protobuf:"bytes,2,opt,name=model,proto3" json:"model,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Text          string                 `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`
+	Model         string                 `protobuf:"bytes,2,opt,name=model,proto3" json:"model,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -375,20 +353,79 @@ func (x *ProviderEmbeddingRequest) GetModel() string {
 	return ""
 }
 
+// ProviderEmbeddingResponse is returned from embedding generation.
+type ProviderEmbeddingResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Embedding     []float32              `protobuf:"fixed32,1,rep,packed,name=embedding,proto3" json:"embedding,omitempty"`
+	Dimensions    int32                  `protobuf:"varint,2,opt,name=dimensions,proto3" json:"dimensions,omitempty"`
+	TokensUsed    int32                  `protobuf:"varint,3,opt,name=tokens_used,json=tokensUsed,proto3" json:"tokens_used,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProviderEmbeddingResponse) Reset() {
+	*x = ProviderEmbeddingResponse{}
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProviderEmbeddingResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProviderEmbeddingResponse) ProtoMessage() {}
+
+func (x *ProviderEmbeddingResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProviderEmbeddingResponse.ProtoReflect.Descriptor instead.
+func (*ProviderEmbeddingResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_provider_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ProviderEmbeddingResponse) GetEmbedding() []float32 {
+	if x != nil {
+		return x.Embedding
+	}
+	return nil
+}
+
+func (x *ProviderEmbeddingResponse) GetDimensions() int32 {
+	if x != nil {
+		return x.Dimensions
+	}
+	return 0
+}
+
+func (x *ProviderEmbeddingResponse) GetTokensUsed() int32 {
+	if x != nil {
+		return x.TokensUsed
+	}
+	return 0
+}
+
 // ProviderEmbeddingBatchRequest is sent for batch embedding generation.
 type ProviderEmbeddingBatchRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Texts to generate embeddings for
-	Texts []string `protobuf:"bytes,1,rep,name=texts,proto3" json:"texts,omitempty"`
-	// Model to use (uses plugin default if empty)
-	Model         string `protobuf:"bytes,2,opt,name=model,proto3" json:"model,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Texts         []string               `protobuf:"bytes,1,rep,name=texts,proto3" json:"texts,omitempty"`
+	Model         string                 `protobuf:"bytes,2,opt,name=model,proto3" json:"model,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ProviderEmbeddingBatchRequest) Reset() {
 	*x = ProviderEmbeddingBatchRequest{}
-	mi := &file_api_proto_plugin_provider_proto_msgTypes[4]
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -400,7 +437,7 @@ func (x *ProviderEmbeddingBatchRequest) String() string {
 func (*ProviderEmbeddingBatchRequest) ProtoMessage() {}
 
 func (x *ProviderEmbeddingBatchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_provider_proto_msgTypes[4]
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -413,7 +450,7 @@ func (x *ProviderEmbeddingBatchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProviderEmbeddingBatchRequest.ProtoReflect.Descriptor instead.
 func (*ProviderEmbeddingBatchRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_provider_proto_rawDescGZIP(), []int{4}
+	return file_api_proto_plugin_provider_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ProviderEmbeddingBatchRequest) GetTexts() []string {
@@ -430,24 +467,179 @@ func (x *ProviderEmbeddingBatchRequest) GetModel() string {
 	return ""
 }
 
-// ProviderChatRequest is sent to a provider plugin for chat completion.
+// ProviderEmbeddingBatchResponse is returned from batch embedding generation.
+type ProviderEmbeddingBatchResponse struct {
+	state         protoimpl.MessageState     `protogen:"open.v1"`
+	Embeddings    []*ProviderEmbeddingResult `protobuf:"bytes,1,rep,name=embeddings,proto3" json:"embeddings,omitempty"`
+	TotalTokens   int32                      `protobuf:"varint,2,opt,name=total_tokens,json=totalTokens,proto3" json:"total_tokens,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProviderEmbeddingBatchResponse) Reset() {
+	*x = ProviderEmbeddingBatchResponse{}
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProviderEmbeddingBatchResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProviderEmbeddingBatchResponse) ProtoMessage() {}
+
+func (x *ProviderEmbeddingBatchResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProviderEmbeddingBatchResponse.ProtoReflect.Descriptor instead.
+func (*ProviderEmbeddingBatchResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_provider_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ProviderEmbeddingBatchResponse) GetEmbeddings() []*ProviderEmbeddingResult {
+	if x != nil {
+		return x.Embeddings
+	}
+	return nil
+}
+
+func (x *ProviderEmbeddingBatchResponse) GetTotalTokens() int32 {
+	if x != nil {
+		return x.TotalTokens
+	}
+	return 0
+}
+
+// ProviderEmbeddingResult represents a single embedding in a batch response.
+type ProviderEmbeddingResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Embedding     []float32              `protobuf:"fixed32,1,rep,packed,name=embedding,proto3" json:"embedding,omitempty"`
+	Dimensions    int32                  `protobuf:"varint,2,opt,name=dimensions,proto3" json:"dimensions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProviderEmbeddingResult) Reset() {
+	*x = ProviderEmbeddingResult{}
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProviderEmbeddingResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProviderEmbeddingResult) ProtoMessage() {}
+
+func (x *ProviderEmbeddingResult) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProviderEmbeddingResult.ProtoReflect.Descriptor instead.
+func (*ProviderEmbeddingResult) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_provider_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ProviderEmbeddingResult) GetEmbedding() []float32 {
+	if x != nil {
+		return x.Embedding
+	}
+	return nil
+}
+
+func (x *ProviderEmbeddingResult) GetDimensions() int32 {
+	if x != nil {
+		return x.Dimensions
+	}
+	return 0
+}
+
+// ProviderChatMessage represents a single message in a chat conversation.
+type ProviderChatMessage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Role          string                 `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"` // "system", "user", "assistant"
+	Content       string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProviderChatMessage) Reset() {
+	*x = ProviderChatMessage{}
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProviderChatMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProviderChatMessage) ProtoMessage() {}
+
+func (x *ProviderChatMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProviderChatMessage.ProtoReflect.Descriptor instead.
+func (*ProviderChatMessage) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_provider_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ProviderChatMessage) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *ProviderChatMessage) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+// ProviderChatRequest is sent to a provider for chat completion.
 type ProviderChatRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Chat messages
-	Messages []*ChatMessage `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages,omitempty"`
-	// Model to use (uses plugin default if empty)
-	Model string `protobuf:"bytes,2,opt,name=model,proto3" json:"model,omitempty"`
-	// Temperature (0.0 - 2.0)
-	Temperature float32 `protobuf:"fixed32,3,opt,name=temperature,proto3" json:"temperature,omitempty"`
-	// Maximum tokens to generate
-	MaxTokens     int32 `protobuf:"varint,4,opt,name=max_tokens,json=maxTokens,proto3" json:"max_tokens,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Messages      []*ProviderChatMessage `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages,omitempty"`
+	Model         string                 `protobuf:"bytes,2,opt,name=model,proto3" json:"model,omitempty"`
+	Temperature   float32                `protobuf:"fixed32,3,opt,name=temperature,proto3" json:"temperature,omitempty"`
+	MaxTokens     int32                  `protobuf:"varint,4,opt,name=max_tokens,json=maxTokens,proto3" json:"max_tokens,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ProviderChatRequest) Reset() {
 	*x = ProviderChatRequest{}
-	mi := &file_api_proto_plugin_provider_proto_msgTypes[5]
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -459,7 +651,7 @@ func (x *ProviderChatRequest) String() string {
 func (*ProviderChatRequest) ProtoMessage() {}
 
 func (x *ProviderChatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_provider_proto_msgTypes[5]
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -472,10 +664,10 @@ func (x *ProviderChatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProviderChatRequest.ProtoReflect.Descriptor instead.
 func (*ProviderChatRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_provider_proto_rawDescGZIP(), []int{5}
+	return file_api_proto_plugin_provider_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *ProviderChatRequest) GetMessages() []*ChatMessage {
+func (x *ProviderChatRequest) GetMessages() []*ProviderChatMessage {
 	if x != nil {
 		return x.Messages
 	}
@@ -503,24 +695,150 @@ func (x *ProviderChatRequest) GetMaxTokens() int32 {
 	return 0
 }
 
+// ProviderChatResponse is returned from chat completion.
+type ProviderChatResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Content          string                 `protobuf:"bytes,1,opt,name=content,proto3" json:"content,omitempty"`
+	FinishReason     string                 `protobuf:"bytes,2,opt,name=finish_reason,json=finishReason,proto3" json:"finish_reason,omitempty"`
+	PromptTokens     int32                  `protobuf:"varint,3,opt,name=prompt_tokens,json=promptTokens,proto3" json:"prompt_tokens,omitempty"`
+	CompletionTokens int32                  `protobuf:"varint,4,opt,name=completion_tokens,json=completionTokens,proto3" json:"completion_tokens,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ProviderChatResponse) Reset() {
+	*x = ProviderChatResponse{}
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProviderChatResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProviderChatResponse) ProtoMessage() {}
+
+func (x *ProviderChatResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProviderChatResponse.ProtoReflect.Descriptor instead.
+func (*ProviderChatResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_provider_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ProviderChatResponse) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *ProviderChatResponse) GetFinishReason() string {
+	if x != nil {
+		return x.FinishReason
+	}
+	return ""
+}
+
+func (x *ProviderChatResponse) GetPromptTokens() int32 {
+	if x != nil {
+		return x.PromptTokens
+	}
+	return 0
+}
+
+func (x *ProviderChatResponse) GetCompletionTokens() int32 {
+	if x != nil {
+		return x.CompletionTokens
+	}
+	return 0
+}
+
+// ProviderChatStreamChunk is sent during streaming chat completions.
+type ProviderChatStreamChunk struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Content       string                 `protobuf:"bytes,1,opt,name=content,proto3" json:"content,omitempty"`
+	Done          bool                   `protobuf:"varint,2,opt,name=done,proto3" json:"done,omitempty"`
+	FinishReason  string                 `protobuf:"bytes,3,opt,name=finish_reason,json=finishReason,proto3" json:"finish_reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProviderChatStreamChunk) Reset() {
+	*x = ProviderChatStreamChunk{}
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProviderChatStreamChunk) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProviderChatStreamChunk) ProtoMessage() {}
+
+func (x *ProviderChatStreamChunk) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProviderChatStreamChunk.ProtoReflect.Descriptor instead.
+func (*ProviderChatStreamChunk) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_provider_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ProviderChatStreamChunk) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *ProviderChatStreamChunk) GetDone() bool {
+	if x != nil {
+		return x.Done
+	}
+	return false
+}
+
+func (x *ProviderChatStreamChunk) GetFinishReason() string {
+	if x != nil {
+		return x.FinishReason
+	}
+	return ""
+}
+
 // ProviderHealthStatus indicates the health of a provider.
 type ProviderHealthStatus struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Whether the provider is healthy and ready to serve requests
-	Healthy bool `protobuf:"varint,1,opt,name=healthy,proto3" json:"healthy,omitempty"`
-	// Human-readable status message
-	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	// Latency of the health check in milliseconds
-	LatencyMs int64 `protobuf:"varint,3,opt,name=latency_ms,json=latencyMs,proto3" json:"latency_ms,omitempty"`
-	// Error message if unhealthy
-	Error         string `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Healthy       bool                   `protobuf:"varint,1,opt,name=healthy,proto3" json:"healthy,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	LatencyMs     int64                  `protobuf:"varint,3,opt,name=latency_ms,json=latencyMs,proto3" json:"latency_ms,omitempty"`
+	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ProviderHealthStatus) Reset() {
 	*x = ProviderHealthStatus{}
-	mi := &file_api_proto_plugin_provider_proto_msgTypes[6]
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -532,7 +850,7 @@ func (x *ProviderHealthStatus) String() string {
 func (*ProviderHealthStatus) ProtoMessage() {}
 
 func (x *ProviderHealthStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_provider_proto_msgTypes[6]
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -545,7 +863,7 @@ func (x *ProviderHealthStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProviderHealthStatus.ProtoReflect.Descriptor instead.
 func (*ProviderHealthStatus) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_provider_proto_rawDescGZIP(), []int{6}
+	return file_api_proto_plugin_provider_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ProviderHealthStatus) GetHealthy() bool {
@@ -580,7 +898,7 @@ var File_api_proto_plugin_provider_proto protoreflect.FileDescriptor
 
 const file_api_proto_plugin_provider_proto_rawDesc = "" +
 	"\n" +
-	"\x1fapi/proto/plugin/provider.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\x1a\x1eapi/proto/plugin/host_ai.proto\"\xcf\x03\n" +
+	"\x1fapi/proto/plugin/provider.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"\xcf\x03\n" +
 	"\x14ProviderCapabilities\x12\x1f\n" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
 	"providerId\x12!\n" +
@@ -609,31 +927,60 @@ const file_api_proto_plugin_provider_proto_rawDesc = "" +
 	"\vrecommended\x18\t \x01(\bR\vrecommended\"D\n" +
 	"\x18ProviderEmbeddingRequest\x12\x12\n" +
 	"\x04text\x18\x01 \x01(\tR\x04text\x12\x14\n" +
-	"\x05model\x18\x02 \x01(\tR\x05model\"K\n" +
+	"\x05model\x18\x02 \x01(\tR\x05model\"z\n" +
+	"\x19ProviderEmbeddingResponse\x12\x1c\n" +
+	"\tembedding\x18\x01 \x03(\x02R\tembedding\x12\x1e\n" +
+	"\n" +
+	"dimensions\x18\x02 \x01(\x05R\n" +
+	"dimensions\x12\x1f\n" +
+	"\vtokens_used\x18\x03 \x01(\x05R\n" +
+	"tokensUsed\"K\n" +
 	"\x1dProviderEmbeddingBatchRequest\x12\x14\n" +
 	"\x05texts\x18\x01 \x03(\tR\x05texts\x12\x14\n" +
-	"\x05model\x18\x02 \x01(\tR\x05model\"\xa7\x01\n" +
-	"\x13ProviderChatRequest\x129\n" +
-	"\bmessages\x18\x01 \x03(\v2\x1d.viewra.plugin.v1.ChatMessageR\bmessages\x12\x14\n" +
+	"\x05model\x18\x02 \x01(\tR\x05model\"\x8e\x01\n" +
+	"\x1eProviderEmbeddingBatchResponse\x12I\n" +
+	"\n" +
+	"embeddings\x18\x01 \x03(\v2).viewra.plugin.v1.ProviderEmbeddingResultR\n" +
+	"embeddings\x12!\n" +
+	"\ftotal_tokens\x18\x02 \x01(\x05R\vtotalTokens\"W\n" +
+	"\x17ProviderEmbeddingResult\x12\x1c\n" +
+	"\tembedding\x18\x01 \x03(\x02R\tembedding\x12\x1e\n" +
+	"\n" +
+	"dimensions\x18\x02 \x01(\x05R\n" +
+	"dimensions\"C\n" +
+	"\x13ProviderChatMessage\x12\x12\n" +
+	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\"\xaf\x01\n" +
+	"\x13ProviderChatRequest\x12A\n" +
+	"\bmessages\x18\x01 \x03(\v2%.viewra.plugin.v1.ProviderChatMessageR\bmessages\x12\x14\n" +
 	"\x05model\x18\x02 \x01(\tR\x05model\x12 \n" +
 	"\vtemperature\x18\x03 \x01(\x02R\vtemperature\x12\x1d\n" +
 	"\n" +
-	"max_tokens\x18\x04 \x01(\x05R\tmaxTokens\"\x7f\n" +
+	"max_tokens\x18\x04 \x01(\x05R\tmaxTokens\"\xa7\x01\n" +
+	"\x14ProviderChatResponse\x12\x18\n" +
+	"\acontent\x18\x01 \x01(\tR\acontent\x12#\n" +
+	"\rfinish_reason\x18\x02 \x01(\tR\ffinishReason\x12#\n" +
+	"\rprompt_tokens\x18\x03 \x01(\x05R\fpromptTokens\x12+\n" +
+	"\x11completion_tokens\x18\x04 \x01(\x05R\x10completionTokens\"l\n" +
+	"\x17ProviderChatStreamChunk\x12\x18\n" +
+	"\acontent\x18\x01 \x01(\tR\acontent\x12\x12\n" +
+	"\x04done\x18\x02 \x01(\bR\x04done\x12#\n" +
+	"\rfinish_reason\x18\x03 \x01(\tR\ffinishReason\"\x7f\n" +
 	"\x14ProviderHealthStatus\x12\x18\n" +
 	"\ahealthy\x18\x01 \x01(\bR\ahealthy\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x1d\n" +
 	"\n" +
 	"latency_ms\x18\x03 \x01(\x03R\tlatencyMs\x12\x14\n" +
-	"\x05error\x18\x04 \x01(\tR\x05error2\x84\x05\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error2\xa4\x05\n" +
 	"\x0ePluginProvider\x12R\n" +
 	"\x0fGetCapabilities\x12\x17.viewra.plugin.v1.Empty\x1a&.viewra.plugin.v1.ProviderCapabilities\x12J\n" +
 	"\n" +
-	"ListModels\x12\x17.viewra.plugin.v1.Empty\x1a#.viewra.plugin.v1.ProviderModelList\x12d\n" +
-	"\x11GenerateEmbedding\x12*.viewra.plugin.v1.ProviderEmbeddingRequest\x1a#.viewra.plugin.v1.EmbeddingResponse\x12s\n" +
-	"\x16GenerateEmbeddingBatch\x12/.viewra.plugin.v1.ProviderEmbeddingBatchRequest\x1a(.viewra.plugin.v1.EmbeddingBatchResponse\x12M\n" +
-	"\x04Chat\x12%.viewra.plugin.v1.ProviderChatRequest\x1a\x1e.viewra.plugin.v1.ChatResponse\x12X\n" +
+	"ListModels\x12\x17.viewra.plugin.v1.Empty\x1a#.viewra.plugin.v1.ProviderModelList\x12l\n" +
+	"\x11GenerateEmbedding\x12*.viewra.plugin.v1.ProviderEmbeddingRequest\x1a+.viewra.plugin.v1.ProviderEmbeddingResponse\x12{\n" +
+	"\x16GenerateEmbeddingBatch\x12/.viewra.plugin.v1.ProviderEmbeddingBatchRequest\x1a0.viewra.plugin.v1.ProviderEmbeddingBatchResponse\x12U\n" +
+	"\x04Chat\x12%.viewra.plugin.v1.ProviderChatRequest\x1a&.viewra.plugin.v1.ProviderChatResponse\x12`\n" +
 	"\n" +
-	"ChatStream\x12%.viewra.plugin.v1.ProviderChatRequest\x1a!.viewra.plugin.v1.ChatStreamChunk0\x01\x12N\n" +
+	"ChatStream\x12%.viewra.plugin.v1.ProviderChatRequest\x1a).viewra.plugin.v1.ProviderChatStreamChunk0\x01\x12N\n" +
 	"\vHealthCheck\x12\x17.viewra.plugin.v1.Empty\x1a&.viewra.plugin.v1.ProviderHealthStatusB8Z6github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1b\x06proto3"
 
 var (
@@ -648,44 +995,46 @@ func file_api_proto_plugin_provider_proto_rawDescGZIP() []byte {
 	return file_api_proto_plugin_provider_proto_rawDescData
 }
 
-var file_api_proto_plugin_provider_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_api_proto_plugin_provider_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_api_proto_plugin_provider_proto_goTypes = []any{
-	(*ProviderCapabilities)(nil),          // 0: viewra.plugin.v1.ProviderCapabilities
-	(*ProviderModelList)(nil),             // 1: viewra.plugin.v1.ProviderModelList
-	(*ProviderModel)(nil),                 // 2: viewra.plugin.v1.ProviderModel
-	(*ProviderEmbeddingRequest)(nil),      // 3: viewra.plugin.v1.ProviderEmbeddingRequest
-	(*ProviderEmbeddingBatchRequest)(nil), // 4: viewra.plugin.v1.ProviderEmbeddingBatchRequest
-	(*ProviderChatRequest)(nil),           // 5: viewra.plugin.v1.ProviderChatRequest
-	(*ProviderHealthStatus)(nil),          // 6: viewra.plugin.v1.ProviderHealthStatus
-	(*ChatMessage)(nil),                   // 7: viewra.plugin.v1.ChatMessage
-	(*Empty)(nil),                         // 8: viewra.plugin.v1.Empty
-	(*EmbeddingResponse)(nil),             // 9: viewra.plugin.v1.EmbeddingResponse
-	(*EmbeddingBatchResponse)(nil),        // 10: viewra.plugin.v1.EmbeddingBatchResponse
-	(*ChatResponse)(nil),                  // 11: viewra.plugin.v1.ChatResponse
-	(*ChatStreamChunk)(nil),               // 12: viewra.plugin.v1.ChatStreamChunk
+	(*ProviderCapabilities)(nil),           // 0: viewra.plugin.v1.ProviderCapabilities
+	(*ProviderModelList)(nil),              // 1: viewra.plugin.v1.ProviderModelList
+	(*ProviderModel)(nil),                  // 2: viewra.plugin.v1.ProviderModel
+	(*ProviderEmbeddingRequest)(nil),       // 3: viewra.plugin.v1.ProviderEmbeddingRequest
+	(*ProviderEmbeddingResponse)(nil),      // 4: viewra.plugin.v1.ProviderEmbeddingResponse
+	(*ProviderEmbeddingBatchRequest)(nil),  // 5: viewra.plugin.v1.ProviderEmbeddingBatchRequest
+	(*ProviderEmbeddingBatchResponse)(nil), // 6: viewra.plugin.v1.ProviderEmbeddingBatchResponse
+	(*ProviderEmbeddingResult)(nil),        // 7: viewra.plugin.v1.ProviderEmbeddingResult
+	(*ProviderChatMessage)(nil),            // 8: viewra.plugin.v1.ProviderChatMessage
+	(*ProviderChatRequest)(nil),            // 9: viewra.plugin.v1.ProviderChatRequest
+	(*ProviderChatResponse)(nil),           // 10: viewra.plugin.v1.ProviderChatResponse
+	(*ProviderChatStreamChunk)(nil),        // 11: viewra.plugin.v1.ProviderChatStreamChunk
+	(*ProviderHealthStatus)(nil),           // 12: viewra.plugin.v1.ProviderHealthStatus
+	(*Empty)(nil),                          // 13: viewra.plugin.v1.Empty
 }
 var file_api_proto_plugin_provider_proto_depIdxs = []int32{
 	2,  // 0: viewra.plugin.v1.ProviderModelList.models:type_name -> viewra.plugin.v1.ProviderModel
-	7,  // 1: viewra.plugin.v1.ProviderChatRequest.messages:type_name -> viewra.plugin.v1.ChatMessage
-	8,  // 2: viewra.plugin.v1.PluginProvider.GetCapabilities:input_type -> viewra.plugin.v1.Empty
-	8,  // 3: viewra.plugin.v1.PluginProvider.ListModels:input_type -> viewra.plugin.v1.Empty
-	3,  // 4: viewra.plugin.v1.PluginProvider.GenerateEmbedding:input_type -> viewra.plugin.v1.ProviderEmbeddingRequest
-	4,  // 5: viewra.plugin.v1.PluginProvider.GenerateEmbeddingBatch:input_type -> viewra.plugin.v1.ProviderEmbeddingBatchRequest
-	5,  // 6: viewra.plugin.v1.PluginProvider.Chat:input_type -> viewra.plugin.v1.ProviderChatRequest
-	5,  // 7: viewra.plugin.v1.PluginProvider.ChatStream:input_type -> viewra.plugin.v1.ProviderChatRequest
-	8,  // 8: viewra.plugin.v1.PluginProvider.HealthCheck:input_type -> viewra.plugin.v1.Empty
-	0,  // 9: viewra.plugin.v1.PluginProvider.GetCapabilities:output_type -> viewra.plugin.v1.ProviderCapabilities
-	1,  // 10: viewra.plugin.v1.PluginProvider.ListModels:output_type -> viewra.plugin.v1.ProviderModelList
-	9,  // 11: viewra.plugin.v1.PluginProvider.GenerateEmbedding:output_type -> viewra.plugin.v1.EmbeddingResponse
-	10, // 12: viewra.plugin.v1.PluginProvider.GenerateEmbeddingBatch:output_type -> viewra.plugin.v1.EmbeddingBatchResponse
-	11, // 13: viewra.plugin.v1.PluginProvider.Chat:output_type -> viewra.plugin.v1.ChatResponse
-	12, // 14: viewra.plugin.v1.PluginProvider.ChatStream:output_type -> viewra.plugin.v1.ChatStreamChunk
-	6,  // 15: viewra.plugin.v1.PluginProvider.HealthCheck:output_type -> viewra.plugin.v1.ProviderHealthStatus
-	9,  // [9:16] is the sub-list for method output_type
-	2,  // [2:9] is the sub-list for method input_type
-	2,  // [2:2] is the sub-list for extension type_name
-	2,  // [2:2] is the sub-list for extension extendee
-	0,  // [0:2] is the sub-list for field type_name
+	7,  // 1: viewra.plugin.v1.ProviderEmbeddingBatchResponse.embeddings:type_name -> viewra.plugin.v1.ProviderEmbeddingResult
+	8,  // 2: viewra.plugin.v1.ProviderChatRequest.messages:type_name -> viewra.plugin.v1.ProviderChatMessage
+	13, // 3: viewra.plugin.v1.PluginProvider.GetCapabilities:input_type -> viewra.plugin.v1.Empty
+	13, // 4: viewra.plugin.v1.PluginProvider.ListModels:input_type -> viewra.plugin.v1.Empty
+	3,  // 5: viewra.plugin.v1.PluginProvider.GenerateEmbedding:input_type -> viewra.plugin.v1.ProviderEmbeddingRequest
+	5,  // 6: viewra.plugin.v1.PluginProvider.GenerateEmbeddingBatch:input_type -> viewra.plugin.v1.ProviderEmbeddingBatchRequest
+	9,  // 7: viewra.plugin.v1.PluginProvider.Chat:input_type -> viewra.plugin.v1.ProviderChatRequest
+	9,  // 8: viewra.plugin.v1.PluginProvider.ChatStream:input_type -> viewra.plugin.v1.ProviderChatRequest
+	13, // 9: viewra.plugin.v1.PluginProvider.HealthCheck:input_type -> viewra.plugin.v1.Empty
+	0,  // 10: viewra.plugin.v1.PluginProvider.GetCapabilities:output_type -> viewra.plugin.v1.ProviderCapabilities
+	1,  // 11: viewra.plugin.v1.PluginProvider.ListModels:output_type -> viewra.plugin.v1.ProviderModelList
+	4,  // 12: viewra.plugin.v1.PluginProvider.GenerateEmbedding:output_type -> viewra.plugin.v1.ProviderEmbeddingResponse
+	6,  // 13: viewra.plugin.v1.PluginProvider.GenerateEmbeddingBatch:output_type -> viewra.plugin.v1.ProviderEmbeddingBatchResponse
+	10, // 14: viewra.plugin.v1.PluginProvider.Chat:output_type -> viewra.plugin.v1.ProviderChatResponse
+	11, // 15: viewra.plugin.v1.PluginProvider.ChatStream:output_type -> viewra.plugin.v1.ProviderChatStreamChunk
+	12, // 16: viewra.plugin.v1.PluginProvider.HealthCheck:output_type -> viewra.plugin.v1.ProviderHealthStatus
+	10, // [10:17] is the sub-list for method output_type
+	3,  // [3:10] is the sub-list for method input_type
+	3,  // [3:3] is the sub-list for extension type_name
+	3,  // [3:3] is the sub-list for extension extendee
+	0,  // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_plugin_provider_proto_init() }
@@ -694,14 +1043,13 @@ func file_api_proto_plugin_provider_proto_init() {
 		return
 	}
 	file_api_proto_plugin_common_proto_init()
-	file_api_proto_plugin_host_ai_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_plugin_provider_proto_rawDesc), len(file_api_proto_plugin_provider_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

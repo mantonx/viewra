@@ -319,6 +319,21 @@ type Property struct {
 	defaultVal  any
 	enum        []any
 	required    bool
+
+	// Plugin reference fields (for PluginRef type)
+	pluginRef *PluginRefConfig
+}
+
+// PluginRefConfig configures a plugin reference property.
+// Used to embed another plugin's settings inline within this plugin's form.
+type PluginRefConfig struct {
+	// Capability is the capability to filter plugins by (e.g., "embedding", "chat").
+	// Only plugins providing this capability appear in the dropdown.
+	Capability string
+
+	// SettingsKey is the key where the referenced plugin's settings are stored.
+	// If empty, defaults to "{capability}_provider_settings".
+	SettingsKey string
 }
 
 // String creates a string property builder.
@@ -359,6 +374,50 @@ func Integer() *Property {
 //	sdk.Boolean().Title("Enable Feature").Default(true)
 func Boolean() *Property {
 	return &Property{propType: TypeBoolean}
+}
+
+// PluginRef creates a plugin reference property builder.
+// This renders as a dropdown to select a provider plugin, with the selected
+// plugin's settings shown inline below the dropdown.
+//
+// Use this in configuration plugins (like ai-local) to let users select
+// and configure provider plugins for specific capabilities.
+//
+// The property value is the selected plugin ID (string).
+// The referenced plugin's settings are stored separately under the settingsKey.
+//
+// Example:
+//
+//	// In ai-local schema:
+//	sdk.PluginRef("embedding").
+//	    Title("Embedding Provider").
+//	    Description("Select which plugin provides embeddings")
+//
+// This generates a UI with:
+//   - A dropdown listing all plugins providing the "embedding" capability
+//   - When a plugin is selected, its settings form appears inline
+//   - The selected plugin's settings are saved under "embedding_provider_settings"
+func PluginRef(capability string) *Property {
+	return &Property{
+		propType: TypeString, // The value is the selected plugin ID
+		pluginRef: &PluginRefConfig{
+			Capability:  capability,
+			SettingsKey: capability + "_provider_settings",
+		},
+	}
+}
+
+// SettingsKey sets the key where the referenced plugin's settings are stored.
+// Default is "{capability}_provider_settings".
+//
+// Example:
+//
+//	sdk.PluginRef("embedding").SettingsKey("custom_embedding_config")
+func (p *Property) SettingsKey(key string) *Property {
+	if p.pluginRef != nil {
+		p.pluginRef.SettingsKey = key
+	}
+	return p
 }
 
 // Title sets the property title shown as the field label.
@@ -460,6 +519,12 @@ func (p *Property) build() map[string]any {
 	}
 	if len(p.enum) > 0 {
 		prop["enum"] = p.enum
+	}
+	if p.pluginRef != nil {
+		prop["x-viewra-plugin-ref"] = map[string]any{
+			"capability":  p.pluginRef.Capability,
+			"settingsKey": p.pluginRef.SettingsKey,
+		}
 	}
 	return prop
 }

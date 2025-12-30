@@ -184,109 +184,6 @@ func (w *hostStorageContextWrapper) GetDatabaseStats(ctx context.Context, req *p
 	return w.impl.GetDatabaseStats(ctx, req)
 }
 
-// HostLLMGRPCPlugin is the go-plugin implementation for the HostLLM service.
-// On the host side, this starts a gRPC server on a broker ID that the plugin can connect to.
-type HostLLMGRPCPlugin struct {
-	plugin.Plugin
-	Impl   pluginv1.HostLLMServer
-	Logger *slog.Logger
-}
-
-func (p *HostLLMGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
-	// Plugin side - we don't serve, the host does
-	return nil
-}
-
-func (p *HostLLMGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
-	// Host side - start a server on a broker ID that the plugin can connect to
-	if p.Impl == nil {
-		// No implementation provided - return nil (LLM not available)
-		return (*HostLLMBrokerInfo)(nil), nil
-	}
-
-	// Get a unique broker ID
-	brokerID := broker.NextId()
-
-	// Start the LLM server on this broker ID with logging interceptor
-	go broker.AcceptAndServe(brokerID, func(opts []grpc.ServerOption) *grpc.Server {
-		if p.Logger != nil {
-			opts = append(opts,
-				grpc.UnaryInterceptor(LoggingInterceptor(p.Logger)),
-				grpc.StreamInterceptor(LoggingStreamInterceptor(p.Logger)),
-			)
-		}
-		s := grpc.NewServer(opts...)
-		pluginv1.RegisterHostLLMServer(s, p.Impl)
-		return s
-	})
-
-	return &HostLLMBrokerInfo{BrokerID: brokerID}, nil
-}
-
-// HostLLMBrokerInfo contains the broker ID for connecting to the host LLM service.
-type HostLLMBrokerInfo struct {
-	BrokerID uint32
-}
-
-// HostEmbeddingsGRPCPlugin is the go-plugin implementation for the HostEmbeddings service.
-// On the host side, this starts a gRPC server on a broker ID that the plugin can connect to.
-type HostEmbeddingsGRPCPlugin struct {
-	plugin.Plugin
-	Impl   pluginv1.HostEmbeddingsServer
-	Logger *slog.Logger
-}
-
-func (p *HostEmbeddingsGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
-	// Plugin side - we don't serve, the host does
-	return nil
-}
-
-func (p *HostEmbeddingsGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
-	// Host side - start a server on a broker ID that the plugin can connect to
-	if p.Impl == nil {
-		// No implementation provided - return nil (embeddings not available)
-		return (*HostEmbeddingsBrokerInfo)(nil), nil
-	}
-
-	// Get a unique broker ID
-	brokerID := broker.NextId()
-
-	// Start the embeddings server on this broker ID with logging interceptor
-	go broker.AcceptAndServe(brokerID, func(opts []grpc.ServerOption) *grpc.Server {
-		if p.Logger != nil {
-			opts = append(opts,
-				grpc.UnaryInterceptor(LoggingInterceptor(p.Logger)),
-				grpc.StreamInterceptor(LoggingStreamInterceptor(p.Logger)),
-			)
-		}
-		s := grpc.NewServer(opts...)
-		pluginv1.RegisterHostEmbeddingsServer(s, p.Impl)
-		return s
-	})
-
-	return &HostEmbeddingsBrokerInfo{BrokerID: brokerID}, nil
-}
-
-// HostEmbeddingsBrokerInfo contains the broker ID for connecting to the host embeddings service.
-type HostEmbeddingsBrokerInfo struct {
-	BrokerID uint32
-}
-
-// AISearchGRPCPlugin is the go-plugin implementation for the AISearch service.
-// This allows the host to call the plugin's semantic search methods.
-type AISearchGRPCPlugin struct {
-	plugin.Plugin
-}
-
-func (p *AISearchGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
-	// Plugin serves this, host doesn't
-	return nil
-}
-
-func (p *AISearchGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
-	return pluginv1.NewAISearchClient(c), nil
-}
-
 // PluginProviderGRPCPlugin is the go-plugin implementation for the PluginProvider service.
 // This allows the host to call the plugin's AI provider methods (chat, embeddings, etc.).
 // Provider plugins (e.g., provider-ollama, provider-openai) implement this service.
@@ -345,5 +242,50 @@ func (p *HostWeatherGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.G
 
 // HostWeatherBrokerInfo contains the broker ID for connecting to the host weather service.
 type HostWeatherBrokerInfo struct {
+	BrokerID uint32
+}
+
+// HostPluginsGRPCPlugin is the go-plugin implementation for the HostPlugins service.
+// On the host side, this starts a gRPC server on a broker ID that the plugin can connect to.
+// This provides capability-based plugin discovery for inter-plugin communication.
+type HostPluginsGRPCPlugin struct {
+	plugin.Plugin
+	Impl   pluginv1.HostPluginsServer
+	Logger *slog.Logger
+}
+
+func (p *HostPluginsGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
+	// Plugin side - we don't serve, the host does
+	return nil
+}
+
+func (p *HostPluginsGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+	// Host side - start a server on a broker ID that the plugin can connect to
+	if p.Impl == nil {
+		// No implementation provided - return nil (plugins service not available)
+		return (*HostPluginsBrokerInfo)(nil), nil
+	}
+
+	// Get a unique broker ID
+	brokerID := broker.NextId()
+
+	// Start the plugins server on this broker ID with logging interceptor
+	go broker.AcceptAndServe(brokerID, func(opts []grpc.ServerOption) *grpc.Server {
+		if p.Logger != nil {
+			opts = append(opts,
+				grpc.UnaryInterceptor(LoggingInterceptor(p.Logger)),
+				grpc.StreamInterceptor(LoggingStreamInterceptor(p.Logger)),
+			)
+		}
+		s := grpc.NewServer(opts...)
+		pluginv1.RegisterHostPluginsServer(s, p.Impl)
+		return s
+	})
+
+	return &HostPluginsBrokerInfo{BrokerID: brokerID}, nil
+}
+
+// HostPluginsBrokerInfo contains the broker ID for connecting to the host plugins service.
+type HostPluginsBrokerInfo struct {
 	BrokerID uint32
 }

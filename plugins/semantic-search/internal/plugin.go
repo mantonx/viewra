@@ -13,17 +13,17 @@ import (
 )
 
 // SemanticSearchPlugin implements the Semantic Search plugin.
-// It embeds sdk.Base to satisfy the sdk.AISearchEnricherPlugin interface.
+// It embeds sdk.Base to satisfy the sdk.VectorSearchEnricherPlugin interface.
 type SemanticSearchPlugin struct {
 	sdk.Base // Provides mustEmbedBase(), logging, metrics, data dir
 
 	config Config
 
 	// Host service clients (set during Initialize via HostServices)
-	llm        *sdk.LLMClient
-	embeddings *sdk.EmbeddingsClient
-	data       *sdk.DataClient
-	weather    *sdk.WeatherClient
+	plugins *sdk.PluginsClient // For capability broker (embedding provider)
+	vector  *sdk.VectorClient  // For vector storage
+	data    *sdk.DataClient    // For media data access
+	weather *sdk.WeatherClient // For weather/location context
 
 	// Services
 	embeddingService *EmbeddingService
@@ -36,8 +36,8 @@ type SemanticSearchPlugin struct {
 	mu sync.RWMutex
 }
 
-// Compile-time check that SemanticSearchPlugin implements sdk.AISearchEnricherPlugin
-var _ sdk.AISearchEnricherPlugin = (*SemanticSearchPlugin)(nil)
+// Compile-time check that SemanticSearchPlugin implements sdk.VectorSearchEnricherPlugin
+var _ sdk.VectorSearchEnricherPlugin = (*SemanticSearchPlugin)(nil)
 
 // NewSemanticSearchPlugin creates a new Semantic Search plugin instance.
 func NewSemanticSearchPlugin(logger *slog.Logger) *SemanticSearchPlugin {
@@ -98,8 +98,10 @@ func (p *SemanticSearchPlugin) Initialize(ctx context.Context, dataDir string, c
 
 	// Store host service clients
 	if services != nil {
-		p.llm = services.LLM
-		p.embeddings = services.Embeddings
+		p.plugins = services.Plugins
+		if services.Storage != nil {
+			p.vector = services.Storage.Vector()
+		}
 		p.data = services.Data
 		p.weather = services.Weather
 	}
@@ -290,13 +292,13 @@ func (p *SemanticSearchPlugin) FindSimilar(ctx context.Context, req *sdk.FindSim
 }
 
 // GetStatus returns the current indexing status and statistics.
-func (p *SemanticSearchPlugin) GetStatus(ctx context.Context) (*sdk.AISearchStatus, error) {
+func (p *SemanticSearchPlugin) GetStatus(ctx context.Context) (*sdk.VectorSearchStatus, error) {
 	p.mu.RLock()
 	searchService := p.searchService
 	indexingService := p.indexingService
 	p.mu.RUnlock()
 
-	status := &sdk.AISearchStatus{}
+	status := &sdk.VectorSearchStatus{}
 
 	// Get indexing progress
 	if indexingService != nil {
@@ -481,26 +483,26 @@ func (p *SemanticSearchPlugin) HandleHTTP(ctx context.Context, req *sdk.HTTPRequ
 func (p *SemanticSearchPlugin) initializeServices() {
 	logger := p.Log()
 
-	// Create embedding service
-	if p.llm != nil {
-		p.embeddingService = NewEmbeddingService(p.llm, logger)
+	// Create embedding service (uses capability broker)
+	if p.plugins != nil {
+		p.embeddingService = NewEmbeddingService(p.plugins, logger)
 	}
 
-	// Create search service
-	if p.embeddingService != nil && p.embeddings != nil {
+	// Create search service (uses vector storage)
+	if p.embeddingService != nil && p.vector != nil {
 		p.searchService = NewSearchService(
 			p.embeddingService,
-			p.embeddings,
+			p.vector,
 			p.config.Search,
 			logger,
 		)
 	}
 
-	// Create indexing service
-	if p.embeddingService != nil && p.embeddings != nil && p.data != nil {
+	// Create indexing service (uses vector storage)
+	if p.embeddingService != nil && p.vector != nil && p.data != nil {
 		p.indexingService = NewIndexingService(
 			p.embeddingService,
-			p.embeddings,
+			p.vector,
 			p.data,
 			p.config.Indexing,
 			logger,
@@ -508,9 +510,10 @@ func (p *SemanticSearchPlugin) initializeServices() {
 	}
 
 	// Create mood tag service (if enabled)
-	if p.config.MoodTags.Enabled && p.llm != nil && p.data != nil {
+	// Note: MoodTagService needs chat capability - disabled for now until refactored
+	if p.config.MoodTags.Enabled && p.plugins != nil && p.data != nil {
 		p.moodTagService = NewMoodTagService(
-			p.llm,
+			p.plugins,
 			p.data,
 			logger,
 		)
@@ -519,8 +522,9 @@ func (p *SemanticSearchPlugin) initializeServices() {
 	// Create context enricher for location-aware search
 	p.contextEnricher = NewContextEnricher(p.weather, logger)
 
-	// Create query rewriter
-	p.queryRewriter = NewQueryRewriter(p.llm, logger)
+	// Create query rewriter (uses chat capability)
+	// Note: QueryRewriter needs chat capability - disabled for now until refactored
+	p.queryRewriter = NewQueryRewriter(p.plugins, logger)
 }
 
 // =============================================================================
@@ -709,18 +713,18 @@ func (p *SemanticSearchPlugin) handleClearIndex(ctx context.Context, req *sdk.HT
 	}
 
 	p.mu.RLock()
-	embeddingsClient := p.embeddings
+	vectorClient := p.vector
 	p.mu.RUnlock()
 
-	if embeddingsClient == nil {
-		return jsonResponse(http.StatusServiceUnavailable, map[string]string{"error": "embeddings client not available"})
+	if vectorClient == nil {
+		return jsonResponse(http.StatusServiceUnavailable, map[string]string{"error": "vector client not available"})
 	}
 
 	entityTypes := []string{"movie", "tv", "tv_show", "tv_episode", "music_artist", "music_album", "music_track"}
 	var totalDeleted int64
 
 	for _, entityType := range entityTypes {
-		count, err := embeddingsClient.DeleteByType(ctx, entityType)
+		count, err := vectorClient.DeleteByType(ctx, entityType)
 		if err != nil {
 			p.Log().Warn("failed to delete embeddings", "type", entityType, "error", err)
 			continue
@@ -742,7 +746,7 @@ func (p *SemanticSearchPlugin) handleMoodTagsGenerate(ctx context.Context, req *
 	p.mu.RLock()
 	moodTagService := p.moodTagService
 	embeddingService := p.embeddingService
-	embeddingsClient := p.embeddings
+	vectorClient := p.vector
 	dataClient := p.data
 	logger := p.Log()
 	p.mu.RUnlock()
@@ -750,7 +754,7 @@ func (p *SemanticSearchPlugin) handleMoodTagsGenerate(ctx context.Context, req *
 	if moodTagService == nil {
 		return jsonResponse(http.StatusServiceUnavailable, map[string]string{
 			"error":   "mood tag service not available",
-			"details": "mood tag generation is disabled in config or LLM client not connected",
+			"details": "mood tag generation is disabled in config or chat provider not connected",
 		})
 	}
 
@@ -805,7 +809,12 @@ func (p *SemanticSearchPlugin) handleMoodTagsGenerate(ctx context.Context, req *
 				return fmt.Errorf("generate embedding: %w", err)
 			}
 
-			return embeddingsClient.Store(context.Background(), string(entityType), entityID, embedding, text)
+			return vectorClient.Store(context.Background(), sdk.Embedding{
+				EntityType: string(entityType),
+				EntityID:   entityID,
+				Vector:     embedding,
+				Text:       text,
+			})
 		}
 
 		logger.Debug("calling GenerateForLibrary", "library_id", libraryID)

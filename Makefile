@@ -184,10 +184,9 @@ proto-gen: ## Generate Go code from protobuf definitions
 		api/proto/plugin/common.proto \
 		api/proto/plugin/enricher.proto \
 		api/proto/plugin/host_services.proto \
-		api/proto/plugin/host_ai.proto \
-		api/proto/plugin/plugin_ai.proto \
 		api/proto/plugin/plugin_core.proto \
-		api/proto/plugin/provider.proto
+		api/proto/plugin/provider.proto \
+		api/proto/plugin/vector_search.proto
 	@echo "✓ Protobuf code generated"
 
 setup: install-tools ## Initial project setup

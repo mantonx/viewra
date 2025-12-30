@@ -295,59 +295,13 @@ var SystemSettingDefinitions = []Definition{
 	// ============================================================
 	// AI / LLM SETTINGS
 	// ============================================================
-	{
-		Key:         "ai.enabled",
-		Type:        TypeBool,
-		Category:    CategoryAI,
-		Label:       "Enable AI Features",
-		Description: "Enable AI-powered search and recommendations",
-		Default:     false,
-		EnvVar:      "AI_ENABLED",
-		AdminOnly:   true,
-		Restartable: true,
-	},
-
-	// --- Embedding Provider Settings ---
-	{
-		Key:         "ai.embedding_provider",
-		Type:        TypeString,
-		Category:    CategoryAI,
-		Label:       "Embedding Provider",
-		Description: "Provider for generating embeddings (semantic search)",
-		Default:     "ollama",
-		EnvVar:      "AI_EMBEDDING_PROVIDER",
-		Options: []Option{
-			{Value: "ollama", Label: "Ollama (Local)"},
-			{Value: "openai", Label: "OpenAI"},
-			{Value: "voyage", Label: "Voyage AI"},
-		},
-		AdminOnly:   true,
-		Restartable: true,
-	},
-
-	// --- Chat Provider Settings ---
-	{
-		Key:         "ai.chat_provider",
-		Type:        TypeString,
-		Category:    CategoryAI,
-		Label:       "Chat Provider",
-		Description: "Provider for AI chat and recommendations",
-		Default:     "ollama",
-		EnvVar:      "AI_CHAT_PROVIDER",
-		Options: []Option{
-			{Value: "ollama", Label: "Ollama (Local)"},
-			{Value: "openai", Label: "OpenAI"},
-			{Value: "anthropic", Label: "Anthropic (Claude)"},
-			{Value: "openrouter", Label: "OpenRouter"},
-		},
-		AdminOnly:   true,
-		Restartable: true,
-	},
+	// NOTE: Core AI settings (enabled, provider selection) are now managed by the
+	// ai-local plugin. Configure at: Settings > Plugins > AI Features
+	//
+	// Provider-specific settings (API keys, models, URLs) are also managed by plugins.
+	// Each provider plugin defines its own settings schema via GetSettingsSchema().
 
 	// --- Search Settings ---
-	// NOTE: Provider-specific settings (API keys, models, URLs) are managed by plugins.
-	// Each provider plugin defines its own settings schema via GetSettingsSchema().
-	// Configure providers at: Settings > Plugins > [Provider Name]
 	{
 		Key:         "ai.max_results",
 		Type:        TypeInt,

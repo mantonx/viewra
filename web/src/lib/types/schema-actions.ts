@@ -238,3 +238,42 @@ export const getSectionsForCapability = (
   sections: SchemaSection[],
   capability: Capability
 ): SchemaSection[] => sections.filter((s) => s.capabilities.includes(capability))
+
+// ============================================================================
+// Plugin Reference Types (x-viewra-plugin-ref)
+// ============================================================================
+
+/**
+ * Plugin reference configuration from x-viewra-plugin-ref.
+ * Used to embed another plugin's settings inline within a form.
+ *
+ * When a property has this extension, it renders as:
+ * 1. A dropdown listing all plugins providing the capability
+ * 2. The selected plugin's settings form shown inline below
+ *
+ * The property value is the selected plugin ID (string).
+ * The referenced plugin's settings are stored under settingsKey.
+ */
+export type PluginRefConfig = {
+  /** Capability to filter plugins by (e.g., "embedding", "chat") */
+  capability: string
+  /** Key where the referenced plugin's settings are stored */
+  settingsKey: string
+}
+
+/** Parse x-viewra-plugin-ref from a property schema */
+export const parsePluginRef = (propertySchema: unknown): PluginRefConfig | null => {
+  if (!propertySchema || typeof propertySchema !== 'object') {
+    return null
+  }
+  const s = propertySchema as Record<string, unknown>
+  const ref = s['x-viewra-plugin-ref']
+  if (!ref || typeof ref !== 'object') {
+    return null
+  }
+  return ref as PluginRefConfig
+}
+
+/** Check if a property schema has a plugin reference */
+export const hasPluginRef = (propertySchema: unknown): boolean =>
+  parsePluginRef(propertySchema) !== null

@@ -29,6 +29,7 @@ const (
 	PluginCore_GetRoutes_FullMethodName         = "/viewra.plugin.v1.PluginCore/GetRoutes"
 	PluginCore_HandleHTTP_FullMethodName        = "/viewra.plugin.v1.PluginCore/HandleHTTP"
 	PluginCore_HandleHTTPStream_FullMethodName  = "/viewra.plugin.v1.PluginCore/HandleHTTPStream"
+	PluginCore_ExposeService_FullMethodName     = "/viewra.plugin.v1.PluginCore/ExposeService"
 )
 
 // PluginCoreClient is the client API for PluginCore service.
@@ -64,6 +65,11 @@ type PluginCoreClient interface {
 	// HandleHTTPStream handles streaming requests/responses.
 	// Used for large uploads/downloads or real-time data.
 	HandleHTTPStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[PluginHTTPChunk, PluginHTTPChunk], error)
+	// ExposeService exposes a plugin service for other plugins to connect to.
+	// Called by the host when another plugin requests a capability this plugin provides.
+	// The plugin should start its service on a new broker ID and return that ID.
+	// The consuming plugin can then dial this broker ID to connect.
+	ExposeService(ctx context.Context, in *ExposeServiceRequest, opts ...grpc.CallOption) (*ExposeServiceResponse, error)
 }
 
 type pluginCoreClient struct {
@@ -177,6 +183,16 @@ func (c *pluginCoreClient) HandleHTTPStream(ctx context.Context, opts ...grpc.Ca
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type PluginCore_HandleHTTPStreamClient = grpc.BidiStreamingClient[PluginHTTPChunk, PluginHTTPChunk]
 
+func (c *pluginCoreClient) ExposeService(ctx context.Context, in *ExposeServiceRequest, opts ...grpc.CallOption) (*ExposeServiceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExposeServiceResponse)
+	err := c.cc.Invoke(ctx, PluginCore_ExposeService_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PluginCoreServer is the server API for PluginCore service.
 // All implementations must embed UnimplementedPluginCoreServer
 // for forward compatibility.
@@ -210,6 +226,11 @@ type PluginCoreServer interface {
 	// HandleHTTPStream handles streaming requests/responses.
 	// Used for large uploads/downloads or real-time data.
 	HandleHTTPStream(grpc.BidiStreamingServer[PluginHTTPChunk, PluginHTTPChunk]) error
+	// ExposeService exposes a plugin service for other plugins to connect to.
+	// Called by the host when another plugin requests a capability this plugin provides.
+	// The plugin should start its service on a new broker ID and return that ID.
+	// The consuming plugin can then dial this broker ID to connect.
+	ExposeService(context.Context, *ExposeServiceRequest) (*ExposeServiceResponse, error)
 	mustEmbedUnimplementedPluginCoreServer()
 }
 
@@ -249,6 +270,9 @@ func (UnimplementedPluginCoreServer) HandleHTTP(context.Context, *PluginHTTPRequ
 }
 func (UnimplementedPluginCoreServer) HandleHTTPStream(grpc.BidiStreamingServer[PluginHTTPChunk, PluginHTTPChunk]) error {
 	return status.Errorf(codes.Unimplemented, "method HandleHTTPStream not implemented")
+}
+func (UnimplementedPluginCoreServer) ExposeService(context.Context, *ExposeServiceRequest) (*ExposeServiceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExposeService not implemented")
 }
 func (UnimplementedPluginCoreServer) mustEmbedUnimplementedPluginCoreServer() {}
 func (UnimplementedPluginCoreServer) testEmbeddedByValue()                    {}
@@ -440,6 +464,24 @@ func _PluginCore_HandleHTTPStream_Handler(srv interface{}, stream grpc.ServerStr
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type PluginCore_HandleHTTPStreamServer = grpc.BidiStreamingServer[PluginHTTPChunk, PluginHTTPChunk]
 
+func _PluginCore_ExposeService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExposeServiceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PluginCoreServer).ExposeService(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PluginCore_ExposeService_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PluginCoreServer).ExposeService(ctx, req.(*ExposeServiceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PluginCore_ServiceDesc is the grpc.ServiceDesc for PluginCore service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -482,6 +524,10 @@ var PluginCore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "HandleHTTP",
 			Handler:    _PluginCore_HandleHTTP_Handler,
+		},
+		{
+			MethodName: "ExposeService",
+			Handler:    _PluginCore_ExposeService_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -91,21 +91,22 @@ type HTTPEnricher interface {
 
 // HostServices provides access to host-provided services.
 // Fields may be nil if the service is not available.
+//
+// For AI capabilities (embeddings, chat), use the Plugins client with capability-based
+// discovery. Call Plugins.GetConnection("embeddings") or Plugins.GetConnection("chat")
+// to get a connection to a provider plugin.
 type HostServices struct {
-	// Storage provides key-value storage for caching
+	// Storage provides key-value, SQL, and vector storage for plugins
 	Storage *StorageClient
-
-	// LLM provides access to chat/completion models
-	LLM *LLMClient
-
-	// Embeddings provides access to vector storage
-	Embeddings *EmbeddingsClient
 
 	// Data provides access to media database
 	Data *DataClient
 
 	// Weather provides weather/location data
 	Weather *WeatherClient
+
+	// Plugins provides capability-based access to other plugins
+	Plugins *PluginsClient
 }
 
 // EnricherCapabilities describes what an enricher provides and requires.
@@ -297,27 +298,6 @@ func (s *enricherGRPCServer) connectHostServices(req *pluginv1.InitRequest) {
 	}
 
 	// LLM service
-	if req.HostLlmBrokerId > 0 {
-		conn, err := s.broker.Dial(req.HostLlmBrokerId)
-		if err != nil {
-			logger.Error("failed to dial host LLM", "error", err)
-		} else {
-			s.services.LLM = &LLMClient{client: pluginv1.NewHostLLMClient(conn)}
-			logger.Debug("connected to host LLM service")
-		}
-	}
-
-	// Embeddings service
-	if req.HostEmbeddingsBrokerId > 0 {
-		conn, err := s.broker.Dial(req.HostEmbeddingsBrokerId)
-		if err != nil {
-			logger.Error("failed to dial host embeddings", "error", err)
-		} else {
-			s.services.Embeddings = &EmbeddingsClient{client: pluginv1.NewHostEmbeddingsClient(conn)}
-			logger.Debug("connected to host embeddings service")
-		}
-	}
-
 	// Data service
 	if req.HostDataBrokerId > 0 {
 		conn, err := s.broker.Dial(req.HostDataBrokerId)
@@ -337,6 +317,17 @@ func (s *enricherGRPCServer) connectHostServices(req *pluginv1.InitRequest) {
 		} else {
 			s.services.Weather = &WeatherClient{client: pluginv1.NewHostWeatherClient(conn)}
 			logger.Debug("connected to host weather service")
+		}
+	}
+
+	// Plugins service (for capability-based plugin discovery)
+	if req.HostPluginsBrokerId > 0 {
+		conn, err := s.broker.Dial(req.HostPluginsBrokerId)
+		if err != nil {
+			logger.Error("failed to dial host plugins", "error", err)
+		} else {
+			s.services.Plugins = NewPluginsClient(conn, s.broker)
+			logger.Debug("connected to host plugins service")
 		}
 	}
 }
@@ -750,24 +741,6 @@ func (p *HostStorageGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.G
 	return pluginv1.NewHostStorageClient(c), nil
 }
 
-type HostLLMGRPCPlugin struct{ plugin.Plugin }
-
-func (p *HostLLMGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
-	return nil
-}
-func (p *HostLLMGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
-	return pluginv1.NewHostLLMClient(c), nil
-}
-
-type HostEmbeddingsGRPCPlugin struct{ plugin.Plugin }
-
-func (p *HostEmbeddingsGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
-	return nil
-}
-func (p *HostEmbeddingsGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
-	return pluginv1.NewHostEmbeddingsClient(c), nil
-}
-
 type HostDataGRPCPlugin struct{ plugin.Plugin }
 
 func (p *HostDataGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
@@ -784,6 +757,15 @@ func (p *HostWeatherGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Se
 }
 func (p *HostWeatherGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
 	return pluginv1.NewHostWeatherClient(c), nil
+}
+
+type HostPluginsGRPCPlugin struct{ plugin.Plugin }
+
+func (p *HostPluginsGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
+	return nil
+}
+func (p *HostPluginsGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+	return pluginv1.NewHostPluginsClient(c), nil
 }
 
 // --- ServeEnricher ---
@@ -804,13 +786,12 @@ func ServeEnricher(impl EnricherPlugin, logger hclog.Logger) {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"core":            &EnricherCoreGRPCPlugin{Impl: impl, base: base},
-			"enricher":        &EnricherGRPCPlugin{Impl: impl, base: base},
-			"host_storage":    &HostStorageGRPCPlugin{},
-			"host_llm":        &HostLLMGRPCPlugin{},
-			"host_embeddings": &HostEmbeddingsGRPCPlugin{},
-			"host_data":       &HostDataGRPCPlugin{},
-			"host_weather":    &HostWeatherGRPCPlugin{},
+			"core":         &EnricherCoreGRPCPlugin{Impl: impl, base: base},
+			"enricher":     &EnricherGRPCPlugin{Impl: impl, base: base},
+			"host_storage": &HostStorageGRPCPlugin{},
+			"host_data":    &HostDataGRPCPlugin{},
+			"host_weather": &HostWeatherGRPCPlugin{},
+			"host_plugins": &HostPluginsGRPCPlugin{},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 		Logger:     logger,
@@ -820,26 +801,25 @@ func ServeEnricher(impl EnricherPlugin, logger hclog.Logger) {
 // ServeEnricherWithExtra starts an enricher plugin server with additional gRPC services.
 // Use this when your plugin exposes additional interfaces beyond the standard enricher.
 //
-// Example (ai-search plugin):
+// Example (vector-search plugin):
 //
 //	func main() {
-//	    hclogger, logger := sdk.NewLogger("ai-search")
-//	    p := NewAISearchPlugin()
+//	    hclogger, logger := sdk.NewLogger("semantic-search")
+//	    p := NewVectorSearchPlugin()
 //	    p.SetLogger(logger)
 //	    sdk.ServeEnricherWithExtra(p, hclogger, map[string]plugin.Plugin{
-//	        "ai_search": &AISearchGRPCPlugin{Impl: p},
+//	        "vector_search": &VectorSearchGRPCPlugin{Impl: p},
 //	    })
 //	}
 func ServeEnricherWithExtra(impl EnricherPlugin, logger hclog.Logger, extra map[string]plugin.Plugin) {
 	base := &Base{}
 	plugins := map[string]plugin.Plugin{
-		"core":            &EnricherCoreGRPCPlugin{Impl: impl, base: base},
-		"enricher":        &EnricherGRPCPlugin{Impl: impl, base: base},
-		"host_storage":    &HostStorageGRPCPlugin{},
-		"host_llm":        &HostLLMGRPCPlugin{},
-		"host_embeddings": &HostEmbeddingsGRPCPlugin{},
-		"host_data":       &HostDataGRPCPlugin{},
-		"host_weather":    &HostWeatherGRPCPlugin{},
+		"core":         &EnricherCoreGRPCPlugin{Impl: impl, base: base},
+		"enricher":     &EnricherGRPCPlugin{Impl: impl, base: base},
+		"host_storage": &HostStorageGRPCPlugin{},
+		"host_data":    &HostDataGRPCPlugin{},
+		"host_weather": &HostWeatherGRPCPlugin{},
+		"host_plugins": &HostPluginsGRPCPlugin{},
 	}
 
 	// Add extra plugins

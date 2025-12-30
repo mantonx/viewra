@@ -491,13 +491,23 @@ var HostData_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	HostStorage_KVGet_FullMethodName            = "/viewra.plugin.v1.HostStorage/KVGet"
-	HostStorage_KVSet_FullMethodName            = "/viewra.plugin.v1.HostStorage/KVSet"
-	HostStorage_KVDelete_FullMethodName         = "/viewra.plugin.v1.HostStorage/KVDelete"
-	HostStorage_KVList_FullMethodName           = "/viewra.plugin.v1.HostStorage/KVList"
-	HostStorage_GetDatabasePath_FullMethodName  = "/viewra.plugin.v1.HostStorage/GetDatabasePath"
-	HostStorage_RegisterSchema_FullMethodName   = "/viewra.plugin.v1.HostStorage/RegisterSchema"
-	HostStorage_GetDatabaseStats_FullMethodName = "/viewra.plugin.v1.HostStorage/GetDatabaseStats"
+	HostStorage_KVGet_FullMethodName                = "/viewra.plugin.v1.HostStorage/KVGet"
+	HostStorage_KVSet_FullMethodName                = "/viewra.plugin.v1.HostStorage/KVSet"
+	HostStorage_KVDelete_FullMethodName             = "/viewra.plugin.v1.HostStorage/KVDelete"
+	HostStorage_KVList_FullMethodName               = "/viewra.plugin.v1.HostStorage/KVList"
+	HostStorage_GetDatabasePath_FullMethodName      = "/viewra.plugin.v1.HostStorage/GetDatabasePath"
+	HostStorage_RegisterSchema_FullMethodName       = "/viewra.plugin.v1.HostStorage/RegisterSchema"
+	HostStorage_GetDatabaseStats_FullMethodName     = "/viewra.plugin.v1.HostStorage/GetDatabaseStats"
+	HostStorage_ExecuteSQL_FullMethodName           = "/viewra.plugin.v1.HostStorage/ExecuteSQL"
+	HostStorage_QuerySQL_FullMethodName             = "/viewra.plugin.v1.HostStorage/QuerySQL"
+	HostStorage_VectorStoreEmbedding_FullMethodName = "/viewra.plugin.v1.HostStorage/VectorStoreEmbedding"
+	HostStorage_VectorStoreBatch_FullMethodName     = "/viewra.plugin.v1.HostStorage/VectorStoreBatch"
+	HostStorage_VectorSearch_FullMethodName         = "/viewra.plugin.v1.HostStorage/VectorSearch"
+	HostStorage_VectorSearchText_FullMethodName     = "/viewra.plugin.v1.HostStorage/VectorSearchText"
+	HostStorage_VectorGet_FullMethodName            = "/viewra.plugin.v1.HostStorage/VectorGet"
+	HostStorage_VectorDelete_FullMethodName         = "/viewra.plugin.v1.HostStorage/VectorDelete"
+	HostStorage_VectorDeleteByType_FullMethodName   = "/viewra.plugin.v1.HostStorage/VectorDeleteByType"
+	HostStorage_VectorCount_FullMethodName          = "/viewra.plugin.v1.HostStorage/VectorCount"
 )
 
 // HostStorageClient is the client API for HostStorage service.
@@ -516,11 +526,39 @@ type HostStorageClient interface {
 	// KVList lists keys with an optional prefix.
 	KVList(ctx context.Context, in *KVListRequest, opts ...grpc.CallOption) (*KVKeyList, error)
 	// GetDatabasePath returns the path to the plugin's SQLite database.
+	// DEPRECATED: Use ExecuteSQL/QuerySQL instead for managed storage.
 	GetDatabasePath(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*DatabasePath, error)
 	// RegisterSchema registers a schema version for migration tracking.
+	// DEPRECATED: Use ExecuteSQL with migration tracking instead.
 	RegisterSchema(ctx context.Context, in *SchemaVersion, opts ...grpc.CallOption) (*Empty, error)
 	// GetDatabaseStats returns storage usage statistics.
 	GetDatabaseStats(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*DatabaseStats, error)
+	// ExecuteSQL runs DDL/DML statements on plugin's namespaced tables.
+	// Table names are automatically prefixed with plugin_{id}_
+	// Allowed: CREATE TABLE, CREATE INDEX, DROP TABLE, DROP INDEX,
+	//
+	//	INSERT, UPDATE, DELETE
+	ExecuteSQL(ctx context.Context, in *SQLRequest, opts ...grpc.CallOption) (*SQLExecResult, error)
+	// QuerySQL runs SELECT queries on plugin's namespaced tables.
+	// Table names are automatically prefixed with plugin_{id}_
+	QuerySQL(ctx context.Context, in *SQLRequest, opts ...grpc.CallOption) (*SQLQueryResult, error)
+	// VectorStoreEmbedding stores or updates an embedding for an entity.
+	VectorStoreEmbedding(ctx context.Context, in *VectorStoreRequest, opts ...grpc.CallOption) (*Empty, error)
+	// VectorStoreBatch stores multiple embeddings in a single transaction.
+	VectorStoreBatch(ctx context.Context, in *VectorStoreBatchRequest, opts ...grpc.CallOption) (*Empty, error)
+	// VectorSearch performs similarity search using the query vector.
+	VectorSearch(ctx context.Context, in *VectorSearchRequest, opts ...grpc.CallOption) (*VectorSearchResponse, error)
+	// VectorSearchText finds embeddings where text contains the query keywords.
+	// This is useful for name/title searches where semantic search may fail.
+	VectorSearchText(ctx context.Context, in *VectorTextSearchRequest, opts ...grpc.CallOption) (*VectorSearchResponse, error)
+	// VectorGet retrieves an embedding by entity type and ID.
+	VectorGet(ctx context.Context, in *VectorQuery, opts ...grpc.CallOption) (*VectorGetResponse, error)
+	// VectorDelete removes an embedding.
+	VectorDelete(ctx context.Context, in *VectorQuery, opts ...grpc.CallOption) (*Empty, error)
+	// VectorDeleteByType removes all embeddings for an entity type.
+	VectorDeleteByType(ctx context.Context, in *VectorTypeQuery, opts ...grpc.CallOption) (*VectorDeleteResponse, error)
+	// VectorCount returns the number of embeddings.
+	VectorCount(ctx context.Context, in *VectorTypeQuery, opts ...grpc.CallOption) (*VectorCountResponse, error)
 }
 
 type hostStorageClient struct {
@@ -601,6 +639,106 @@ func (c *hostStorageClient) GetDatabaseStats(ctx context.Context, in *Empty, opt
 	return out, nil
 }
 
+func (c *hostStorageClient) ExecuteSQL(ctx context.Context, in *SQLRequest, opts ...grpc.CallOption) (*SQLExecResult, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SQLExecResult)
+	err := c.cc.Invoke(ctx, HostStorage_ExecuteSQL_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostStorageClient) QuerySQL(ctx context.Context, in *SQLRequest, opts ...grpc.CallOption) (*SQLQueryResult, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SQLQueryResult)
+	err := c.cc.Invoke(ctx, HostStorage_QuerySQL_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostStorageClient) VectorStoreEmbedding(ctx context.Context, in *VectorStoreRequest, opts ...grpc.CallOption) (*Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, HostStorage_VectorStoreEmbedding_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostStorageClient) VectorStoreBatch(ctx context.Context, in *VectorStoreBatchRequest, opts ...grpc.CallOption) (*Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, HostStorage_VectorStoreBatch_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostStorageClient) VectorSearch(ctx context.Context, in *VectorSearchRequest, opts ...grpc.CallOption) (*VectorSearchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VectorSearchResponse)
+	err := c.cc.Invoke(ctx, HostStorage_VectorSearch_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostStorageClient) VectorSearchText(ctx context.Context, in *VectorTextSearchRequest, opts ...grpc.CallOption) (*VectorSearchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VectorSearchResponse)
+	err := c.cc.Invoke(ctx, HostStorage_VectorSearchText_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostStorageClient) VectorGet(ctx context.Context, in *VectorQuery, opts ...grpc.CallOption) (*VectorGetResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VectorGetResponse)
+	err := c.cc.Invoke(ctx, HostStorage_VectorGet_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostStorageClient) VectorDelete(ctx context.Context, in *VectorQuery, opts ...grpc.CallOption) (*Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, HostStorage_VectorDelete_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostStorageClient) VectorDeleteByType(ctx context.Context, in *VectorTypeQuery, opts ...grpc.CallOption) (*VectorDeleteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VectorDeleteResponse)
+	err := c.cc.Invoke(ctx, HostStorage_VectorDeleteByType_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostStorageClient) VectorCount(ctx context.Context, in *VectorTypeQuery, opts ...grpc.CallOption) (*VectorCountResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VectorCountResponse)
+	err := c.cc.Invoke(ctx, HostStorage_VectorCount_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HostStorageServer is the server API for HostStorage service.
 // All implementations must embed UnimplementedHostStorageServer
 // for forward compatibility.
@@ -617,11 +755,39 @@ type HostStorageServer interface {
 	// KVList lists keys with an optional prefix.
 	KVList(context.Context, *KVListRequest) (*KVKeyList, error)
 	// GetDatabasePath returns the path to the plugin's SQLite database.
+	// DEPRECATED: Use ExecuteSQL/QuerySQL instead for managed storage.
 	GetDatabasePath(context.Context, *Empty) (*DatabasePath, error)
 	// RegisterSchema registers a schema version for migration tracking.
+	// DEPRECATED: Use ExecuteSQL with migration tracking instead.
 	RegisterSchema(context.Context, *SchemaVersion) (*Empty, error)
 	// GetDatabaseStats returns storage usage statistics.
 	GetDatabaseStats(context.Context, *Empty) (*DatabaseStats, error)
+	// ExecuteSQL runs DDL/DML statements on plugin's namespaced tables.
+	// Table names are automatically prefixed with plugin_{id}_
+	// Allowed: CREATE TABLE, CREATE INDEX, DROP TABLE, DROP INDEX,
+	//
+	//	INSERT, UPDATE, DELETE
+	ExecuteSQL(context.Context, *SQLRequest) (*SQLExecResult, error)
+	// QuerySQL runs SELECT queries on plugin's namespaced tables.
+	// Table names are automatically prefixed with plugin_{id}_
+	QuerySQL(context.Context, *SQLRequest) (*SQLQueryResult, error)
+	// VectorStoreEmbedding stores or updates an embedding for an entity.
+	VectorStoreEmbedding(context.Context, *VectorStoreRequest) (*Empty, error)
+	// VectorStoreBatch stores multiple embeddings in a single transaction.
+	VectorStoreBatch(context.Context, *VectorStoreBatchRequest) (*Empty, error)
+	// VectorSearch performs similarity search using the query vector.
+	VectorSearch(context.Context, *VectorSearchRequest) (*VectorSearchResponse, error)
+	// VectorSearchText finds embeddings where text contains the query keywords.
+	// This is useful for name/title searches where semantic search may fail.
+	VectorSearchText(context.Context, *VectorTextSearchRequest) (*VectorSearchResponse, error)
+	// VectorGet retrieves an embedding by entity type and ID.
+	VectorGet(context.Context, *VectorQuery) (*VectorGetResponse, error)
+	// VectorDelete removes an embedding.
+	VectorDelete(context.Context, *VectorQuery) (*Empty, error)
+	// VectorDeleteByType removes all embeddings for an entity type.
+	VectorDeleteByType(context.Context, *VectorTypeQuery) (*VectorDeleteResponse, error)
+	// VectorCount returns the number of embeddings.
+	VectorCount(context.Context, *VectorTypeQuery) (*VectorCountResponse, error)
 	mustEmbedUnimplementedHostStorageServer()
 }
 
@@ -652,6 +818,36 @@ func (UnimplementedHostStorageServer) RegisterSchema(context.Context, *SchemaVer
 }
 func (UnimplementedHostStorageServer) GetDatabaseStats(context.Context, *Empty) (*DatabaseStats, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDatabaseStats not implemented")
+}
+func (UnimplementedHostStorageServer) ExecuteSQL(context.Context, *SQLRequest) (*SQLExecResult, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExecuteSQL not implemented")
+}
+func (UnimplementedHostStorageServer) QuerySQL(context.Context, *SQLRequest) (*SQLQueryResult, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QuerySQL not implemented")
+}
+func (UnimplementedHostStorageServer) VectorStoreEmbedding(context.Context, *VectorStoreRequest) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method VectorStoreEmbedding not implemented")
+}
+func (UnimplementedHostStorageServer) VectorStoreBatch(context.Context, *VectorStoreBatchRequest) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method VectorStoreBatch not implemented")
+}
+func (UnimplementedHostStorageServer) VectorSearch(context.Context, *VectorSearchRequest) (*VectorSearchResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method VectorSearch not implemented")
+}
+func (UnimplementedHostStorageServer) VectorSearchText(context.Context, *VectorTextSearchRequest) (*VectorSearchResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method VectorSearchText not implemented")
+}
+func (UnimplementedHostStorageServer) VectorGet(context.Context, *VectorQuery) (*VectorGetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method VectorGet not implemented")
+}
+func (UnimplementedHostStorageServer) VectorDelete(context.Context, *VectorQuery) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method VectorDelete not implemented")
+}
+func (UnimplementedHostStorageServer) VectorDeleteByType(context.Context, *VectorTypeQuery) (*VectorDeleteResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method VectorDeleteByType not implemented")
+}
+func (UnimplementedHostStorageServer) VectorCount(context.Context, *VectorTypeQuery) (*VectorCountResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method VectorCount not implemented")
 }
 func (UnimplementedHostStorageServer) mustEmbedUnimplementedHostStorageServer() {}
 func (UnimplementedHostStorageServer) testEmbeddedByValue()                     {}
@@ -800,6 +996,186 @@ func _HostStorage_GetDatabaseStats_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HostStorage_ExecuteSQL_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SQLRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostStorageServer).ExecuteSQL(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostStorage_ExecuteSQL_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostStorageServer).ExecuteSQL(ctx, req.(*SQLRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostStorage_QuerySQL_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SQLRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostStorageServer).QuerySQL(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostStorage_QuerySQL_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostStorageServer).QuerySQL(ctx, req.(*SQLRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostStorage_VectorStoreEmbedding_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VectorStoreRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostStorageServer).VectorStoreEmbedding(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostStorage_VectorStoreEmbedding_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostStorageServer).VectorStoreEmbedding(ctx, req.(*VectorStoreRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostStorage_VectorStoreBatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VectorStoreBatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostStorageServer).VectorStoreBatch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostStorage_VectorStoreBatch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostStorageServer).VectorStoreBatch(ctx, req.(*VectorStoreBatchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostStorage_VectorSearch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VectorSearchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostStorageServer).VectorSearch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostStorage_VectorSearch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostStorageServer).VectorSearch(ctx, req.(*VectorSearchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostStorage_VectorSearchText_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VectorTextSearchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostStorageServer).VectorSearchText(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostStorage_VectorSearchText_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostStorageServer).VectorSearchText(ctx, req.(*VectorTextSearchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostStorage_VectorGet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VectorQuery)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostStorageServer).VectorGet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostStorage_VectorGet_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostStorageServer).VectorGet(ctx, req.(*VectorQuery))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostStorage_VectorDelete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VectorQuery)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostStorageServer).VectorDelete(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostStorage_VectorDelete_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostStorageServer).VectorDelete(ctx, req.(*VectorQuery))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostStorage_VectorDeleteByType_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VectorTypeQuery)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostStorageServer).VectorDeleteByType(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostStorage_VectorDeleteByType_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostStorageServer).VectorDeleteByType(ctx, req.(*VectorTypeQuery))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostStorage_VectorCount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VectorTypeQuery)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostStorageServer).VectorCount(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostStorage_VectorCount_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostStorageServer).VectorCount(ctx, req.(*VectorTypeQuery))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // HostStorage_ServiceDesc is the grpc.ServiceDesc for HostStorage service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -834,6 +1210,46 @@ var HostStorage_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetDatabaseStats",
 			Handler:    _HostStorage_GetDatabaseStats_Handler,
+		},
+		{
+			MethodName: "ExecuteSQL",
+			Handler:    _HostStorage_ExecuteSQL_Handler,
+		},
+		{
+			MethodName: "QuerySQL",
+			Handler:    _HostStorage_QuerySQL_Handler,
+		},
+		{
+			MethodName: "VectorStoreEmbedding",
+			Handler:    _HostStorage_VectorStoreEmbedding_Handler,
+		},
+		{
+			MethodName: "VectorStoreBatch",
+			Handler:    _HostStorage_VectorStoreBatch_Handler,
+		},
+		{
+			MethodName: "VectorSearch",
+			Handler:    _HostStorage_VectorSearch_Handler,
+		},
+		{
+			MethodName: "VectorSearchText",
+			Handler:    _HostStorage_VectorSearchText_Handler,
+		},
+		{
+			MethodName: "VectorGet",
+			Handler:    _HostStorage_VectorGet_Handler,
+		},
+		{
+			MethodName: "VectorDelete",
+			Handler:    _HostStorage_VectorDelete_Handler,
+		},
+		{
+			MethodName: "VectorDeleteByType",
+			Handler:    _HostStorage_VectorDeleteByType_Handler,
+		},
+		{
+			MethodName: "VectorCount",
+			Handler:    _HostStorage_VectorCount_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -1326,6 +1742,328 @@ var HostWeather_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetCurrentWeather",
 			Handler:    _HostWeather_GetCurrentWeather_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/proto/plugin/host_services.proto",
+}
+
+const (
+	HostPlugins_GetCapabilityProvider_FullMethodName     = "/viewra.plugin.v1.HostPlugins/GetCapabilityProvider"
+	HostPlugins_ListCapabilities_FullMethodName          = "/viewra.plugin.v1.HostPlugins/ListCapabilities"
+	HostPlugins_ListProviders_FullMethodName             = "/viewra.plugin.v1.HostPlugins/ListProviders"
+	HostPlugins_SetCapabilityPreference_FullMethodName   = "/viewra.plugin.v1.HostPlugins/SetCapabilityPreference"
+	HostPlugins_ClearCapabilityPreference_FullMethodName = "/viewra.plugin.v1.HostPlugins/ClearCapabilityPreference"
+	HostPlugins_GetCapabilityPreferences_FullMethodName  = "/viewra.plugin.v1.HostPlugins/GetCapabilityPreferences"
+)
+
+// HostPluginsClient is the client API for HostPlugins service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// HostPlugins provides plugin discovery and capability-based routing.
+// Plugins use this to discover and connect to other plugins that provide
+// specific capabilities (e.g., "embedding", "chat").
+type HostPluginsClient interface {
+	// GetCapabilityProvider returns connection info for a plugin providing the capability.
+	// The host resolves the capability to an available, enabled plugin.
+	// Resolution order: 1) preferred_plugin param, 2) capability preference, 3) first available
+	GetCapabilityProvider(ctx context.Context, in *CapabilityRequest, opts ...grpc.CallOption) (*CapabilityProviderResponse, error)
+	// ListCapabilities returns all available capabilities and their providers.
+	ListCapabilities(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*CapabilityListResponse, error)
+	// ListProviders returns all plugins providing a specific capability.
+	ListProviders(ctx context.Context, in *CapabilityRequest, opts ...grpc.CallOption) (*ProviderListResponse, error)
+	// SetCapabilityPreference sets the preferred plugin for a capability.
+	// Used by configuration plugins (e.g., ai-local) to route capabilities.
+	// The preference is used when GetCapabilityProvider is called without a preferred_plugin.
+	SetCapabilityPreference(ctx context.Context, in *CapabilityPreferenceRequest, opts ...grpc.CallOption) (*Empty, error)
+	// ClearCapabilityPreference removes the preference for a capability.
+	// After clearing, GetCapabilityProvider falls back to first available provider.
+	ClearCapabilityPreference(ctx context.Context, in *CapabilityPreferenceRequest, opts ...grpc.CallOption) (*Empty, error)
+	// GetCapabilityPreferences returns all configured capability preferences.
+	GetCapabilityPreferences(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*CapabilityPreferencesResponse, error)
+}
+
+type hostPluginsClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewHostPluginsClient(cc grpc.ClientConnInterface) HostPluginsClient {
+	return &hostPluginsClient{cc}
+}
+
+func (c *hostPluginsClient) GetCapabilityProvider(ctx context.Context, in *CapabilityRequest, opts ...grpc.CallOption) (*CapabilityProviderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CapabilityProviderResponse)
+	err := c.cc.Invoke(ctx, HostPlugins_GetCapabilityProvider_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostPluginsClient) ListCapabilities(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*CapabilityListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CapabilityListResponse)
+	err := c.cc.Invoke(ctx, HostPlugins_ListCapabilities_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostPluginsClient) ListProviders(ctx context.Context, in *CapabilityRequest, opts ...grpc.CallOption) (*ProviderListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProviderListResponse)
+	err := c.cc.Invoke(ctx, HostPlugins_ListProviders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostPluginsClient) SetCapabilityPreference(ctx context.Context, in *CapabilityPreferenceRequest, opts ...grpc.CallOption) (*Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, HostPlugins_SetCapabilityPreference_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostPluginsClient) ClearCapabilityPreference(ctx context.Context, in *CapabilityPreferenceRequest, opts ...grpc.CallOption) (*Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, HostPlugins_ClearCapabilityPreference_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostPluginsClient) GetCapabilityPreferences(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*CapabilityPreferencesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CapabilityPreferencesResponse)
+	err := c.cc.Invoke(ctx, HostPlugins_GetCapabilityPreferences_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// HostPluginsServer is the server API for HostPlugins service.
+// All implementations must embed UnimplementedHostPluginsServer
+// for forward compatibility.
+//
+// HostPlugins provides plugin discovery and capability-based routing.
+// Plugins use this to discover and connect to other plugins that provide
+// specific capabilities (e.g., "embedding", "chat").
+type HostPluginsServer interface {
+	// GetCapabilityProvider returns connection info for a plugin providing the capability.
+	// The host resolves the capability to an available, enabled plugin.
+	// Resolution order: 1) preferred_plugin param, 2) capability preference, 3) first available
+	GetCapabilityProvider(context.Context, *CapabilityRequest) (*CapabilityProviderResponse, error)
+	// ListCapabilities returns all available capabilities and their providers.
+	ListCapabilities(context.Context, *Empty) (*CapabilityListResponse, error)
+	// ListProviders returns all plugins providing a specific capability.
+	ListProviders(context.Context, *CapabilityRequest) (*ProviderListResponse, error)
+	// SetCapabilityPreference sets the preferred plugin for a capability.
+	// Used by configuration plugins (e.g., ai-local) to route capabilities.
+	// The preference is used when GetCapabilityProvider is called without a preferred_plugin.
+	SetCapabilityPreference(context.Context, *CapabilityPreferenceRequest) (*Empty, error)
+	// ClearCapabilityPreference removes the preference for a capability.
+	// After clearing, GetCapabilityProvider falls back to first available provider.
+	ClearCapabilityPreference(context.Context, *CapabilityPreferenceRequest) (*Empty, error)
+	// GetCapabilityPreferences returns all configured capability preferences.
+	GetCapabilityPreferences(context.Context, *Empty) (*CapabilityPreferencesResponse, error)
+	mustEmbedUnimplementedHostPluginsServer()
+}
+
+// UnimplementedHostPluginsServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedHostPluginsServer struct{}
+
+func (UnimplementedHostPluginsServer) GetCapabilityProvider(context.Context, *CapabilityRequest) (*CapabilityProviderResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCapabilityProvider not implemented")
+}
+func (UnimplementedHostPluginsServer) ListCapabilities(context.Context, *Empty) (*CapabilityListResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListCapabilities not implemented")
+}
+func (UnimplementedHostPluginsServer) ListProviders(context.Context, *CapabilityRequest) (*ProviderListResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListProviders not implemented")
+}
+func (UnimplementedHostPluginsServer) SetCapabilityPreference(context.Context, *CapabilityPreferenceRequest) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetCapabilityPreference not implemented")
+}
+func (UnimplementedHostPluginsServer) ClearCapabilityPreference(context.Context, *CapabilityPreferenceRequest) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClearCapabilityPreference not implemented")
+}
+func (UnimplementedHostPluginsServer) GetCapabilityPreferences(context.Context, *Empty) (*CapabilityPreferencesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCapabilityPreferences not implemented")
+}
+func (UnimplementedHostPluginsServer) mustEmbedUnimplementedHostPluginsServer() {}
+func (UnimplementedHostPluginsServer) testEmbeddedByValue()                     {}
+
+// UnsafeHostPluginsServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to HostPluginsServer will
+// result in compilation errors.
+type UnsafeHostPluginsServer interface {
+	mustEmbedUnimplementedHostPluginsServer()
+}
+
+func RegisterHostPluginsServer(s grpc.ServiceRegistrar, srv HostPluginsServer) {
+	// If the following call pancis, it indicates UnimplementedHostPluginsServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&HostPlugins_ServiceDesc, srv)
+}
+
+func _HostPlugins_GetCapabilityProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CapabilityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostPluginsServer).GetCapabilityProvider(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostPlugins_GetCapabilityProvider_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostPluginsServer).GetCapabilityProvider(ctx, req.(*CapabilityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostPlugins_ListCapabilities_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostPluginsServer).ListCapabilities(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostPlugins_ListCapabilities_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostPluginsServer).ListCapabilities(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostPlugins_ListProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CapabilityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostPluginsServer).ListProviders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostPlugins_ListProviders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostPluginsServer).ListProviders(ctx, req.(*CapabilityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostPlugins_SetCapabilityPreference_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CapabilityPreferenceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostPluginsServer).SetCapabilityPreference(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostPlugins_SetCapabilityPreference_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostPluginsServer).SetCapabilityPreference(ctx, req.(*CapabilityPreferenceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostPlugins_ClearCapabilityPreference_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CapabilityPreferenceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostPluginsServer).ClearCapabilityPreference(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostPlugins_ClearCapabilityPreference_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostPluginsServer).ClearCapabilityPreference(ctx, req.(*CapabilityPreferenceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostPlugins_GetCapabilityPreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostPluginsServer).GetCapabilityPreferences(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostPlugins_GetCapabilityPreferences_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostPluginsServer).GetCapabilityPreferences(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// HostPlugins_ServiceDesc is the grpc.ServiceDesc for HostPlugins service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var HostPlugins_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "viewra.plugin.v1.HostPlugins",
+	HandlerType: (*HostPluginsServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetCapabilityProvider",
+			Handler:    _HostPlugins_GetCapabilityProvider_Handler,
+		},
+		{
+			MethodName: "ListCapabilities",
+			Handler:    _HostPlugins_ListCapabilities_Handler,
+		},
+		{
+			MethodName: "ListProviders",
+			Handler:    _HostPlugins_ListProviders_Handler,
+		},
+		{
+			MethodName: "SetCapabilityPreference",
+			Handler:    _HostPlugins_SetCapabilityPreference_Handler,
+		},
+		{
+			MethodName: "ClearCapabilityPreference",
+			Handler:    _HostPlugins_ClearCapabilityPreference_Handler,
+		},
+		{
+			MethodName: "GetCapabilityPreferences",
+			Handler:    _HostPlugins_GetCapabilityPreferences_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

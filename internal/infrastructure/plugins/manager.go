@@ -76,9 +76,6 @@ type PluginInstance struct {
 	// EnricherClient provides access to enricher-specific methods (if applicable).
 	EnricherClient pluginv1.EnricherClient
 
-	// AISearchClient provides access to AI search methods (if applicable).
-	AISearchClient pluginv1.AISearchClient
-
 	// ProviderClient provides access to AI provider methods (if applicable).
 	// This is set for plugins with category "provider" (e.g., provider-ollama, provider-openai).
 	ProviderClient pluginv1.PluginProviderClient
@@ -141,14 +138,11 @@ type Manager struct {
 	// hostStorageServer provides KV storage for plugins.
 	hostStorageServer *HostStorageServer
 
-	// hostLLMServer provides LLM access for AI plugins.
-	hostLLMServer *HostLLMServer
-
-	// hostEmbeddingsServer provides embeddings storage for AI plugins.
-	hostEmbeddingsServer *HostEmbeddingsServer
-
 	// hostWeatherServer provides weather context for AI plugins.
 	hostWeatherServer *HostWeatherServer
+
+	// hostPluginsServer provides capability-based plugin discovery.
+	hostPluginsServer *HostPluginsServer
 
 	// publisher publishes plugin lifecycle events (optional).
 	publisher domainevents.Publisher
@@ -199,14 +193,6 @@ type ManagerConfig struct {
 	// If nil, plugins will not be able to use host storage.
 	HostStorageServer *HostStorageServer
 
-	// HostLLMServer provides LLM access for AI plugins.
-	// If nil, AI plugins will not be able to generate embeddings or chat.
-	HostLLMServer *HostLLMServer
-
-	// HostEmbeddingsServer provides embeddings storage for AI plugins.
-	// If nil, AI plugins will not be able to store/retrieve embeddings.
-	HostEmbeddingsServer *HostEmbeddingsServer
-
 	// HostWeatherServer provides weather context for AI plugins.
 	// If nil, AI plugins will not receive weather-based context enrichment.
 	HostWeatherServer *HostWeatherServer
@@ -248,23 +234,24 @@ func NewManager(cfg ManagerConfig, logger *slog.Logger) (*Manager, error) {
 	rateLimiter := NewRouteRateLimiter()
 
 	m := &Manager{
-		plugins:              make(map[string]*PluginInstance),
-		pluginDir:            cfg.PluginDir,
-		storageDir:           cfg.StorageDir,
-		logger:               logger,
-		hostVersion:          cfg.HostVersion,
-		healthCheckInterval:  cfg.HealthCheckInterval,
-		maxRestarts:          cfg.MaxRestarts,
-		hostDataServer:       hostDataServer,
-		hostStorageServer:    cfg.HostStorageServer,
-		hostLLMServer:        cfg.HostLLMServer,
-		hostEmbeddingsServer: cfg.HostEmbeddingsServer,
-		hostWeatherServer:    cfg.HostWeatherServer,
-		routeRegistry:        routeRegistry,
-		capabilityRegistry:   capabilityRegistry,
-		providerRegistry:     providerRegistry,
-		rateLimiter:          rateLimiter,
+		plugins:             make(map[string]*PluginInstance),
+		pluginDir:           cfg.PluginDir,
+		storageDir:          cfg.StorageDir,
+		logger:              logger,
+		hostVersion:         cfg.HostVersion,
+		healthCheckInterval: cfg.HealthCheckInterval,
+		maxRestarts:         cfg.MaxRestarts,
+		hostDataServer:      hostDataServer,
+		hostStorageServer:   cfg.HostStorageServer,
+		hostWeatherServer:   cfg.HostWeatherServer,
+		routeRegistry:       routeRegistry,
+		capabilityRegistry:  capabilityRegistry,
+		providerRegistry:    providerRegistry,
+		rateLimiter:         rateLimiter,
 	}
+
+	// Create host plugins server for capability-based plugin discovery
+	m.hostPluginsServer = NewHostPluginsServer(m, logger.With("component", "host-plugins-server"))
 
 	// Create HTTP proxy (needs manager reference)
 	m.httpProxy = NewHTTPProxy(m, routeRegistry, capabilityRegistry, rateLimiter, logger.With("component", "http-proxy"))
@@ -336,10 +323,9 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 
 	// Build plugin map with host services
 	pluginMap := map[string]plugin.Plugin{
-		"core":      &PluginCoreGRPCPlugin{},
-		"enricher":  &EnricherGRPCPlugin{},
-		"ai_search": &AISearchGRPCPlugin{},
-		"provider":  &PluginProviderGRPCPlugin{},
+		"core":     &PluginCoreGRPCPlugin{},
+		"enricher": &EnricherGRPCPlugin{},
+		"provider": &PluginProviderGRPCPlugin{},
 	}
 
 	// Create a logger for host services with plugin context
@@ -362,26 +348,18 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		}
 	}
 
-	// Add host LLM service if available
-	if m.hostLLMServer != nil {
-		pluginMap["host_llm"] = &HostLLMGRPCPlugin{
-			Impl:   m.hostLLMServer,
-			Logger: hostServiceLogger,
-		}
-	}
-
-	// Add host embeddings service if available
-	if m.hostEmbeddingsServer != nil {
-		pluginMap["host_embeddings"] = &HostEmbeddingsGRPCPlugin{
-			Impl:   m.hostEmbeddingsServer,
-			Logger: hostServiceLogger,
-		}
-	}
-
 	// Add host weather service if available
 	if m.hostWeatherServer != nil {
 		pluginMap["host_weather"] = &HostWeatherGRPCPlugin{
 			Impl:   m.hostWeatherServer,
+			Logger: hostServiceLogger,
+		}
+	}
+
+	// Add host plugins service (always available - for capability-based plugin discovery)
+	if m.hostPluginsServer != nil {
+		pluginMap["host_plugins"] = &HostPluginsGRPCPlugin{
+			Impl:   m.hostPluginsServer,
 			Logger: hostServiceLogger,
 		}
 	}
@@ -440,18 +418,6 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 				"plugin", manifest.ID, "error", err)
 		} else if enricherClient, ok := enricherRaw.(pluginv1.EnricherClient); ok {
 			instance.EnricherClient = enricherClient
-		}
-	}
-
-	// If it's an AI plugin, get the AI search client
-	if hasCategory(instance.Categories, CategoryAI) {
-		aiSearchRaw, err := rpcClient.Dispense("ai_search")
-		if err != nil {
-			m.logger.Warn("plugin declares ai category but dispense failed",
-				"plugin", manifest.ID, "error", err)
-		} else if aiSearchClient, ok := aiSearchRaw.(pluginv1.AISearchClient); ok {
-			instance.AISearchClient = aiSearchClient
-			m.logger.Debug("AI search client available", "plugin", manifest.ID)
 		}
 	}
 
@@ -515,50 +481,6 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		m.logger.Debug("host storage server not configured", "plugin", manifest.ID)
 	}
 
-	// Dispense host LLM to get the broker ID
-	var hostLLMBrokerID uint32
-	if m.hostLLMServer != nil {
-		m.logger.Debug("attempting to dispense host_llm", "plugin", manifest.ID)
-		llmRaw, err := rpcClient.Dispense("host_llm")
-		if err != nil {
-			m.logger.Warn("failed to dispense host_llm", "plugin", manifest.ID, "error", err)
-		} else if brokerInfo, ok := llmRaw.(*HostLLMBrokerInfo); ok && brokerInfo != nil {
-			hostLLMBrokerID = brokerInfo.BrokerID
-			m.logger.Debug("host LLM available for plugin",
-				"plugin", manifest.ID,
-				"broker_id", hostLLMBrokerID)
-		} else {
-			m.logger.Warn("host_llm dispense returned unexpected type",
-				"plugin", manifest.ID,
-				"got_type", fmt.Sprintf("%T", llmRaw),
-				"is_nil", llmRaw == nil)
-		}
-	} else {
-		m.logger.Debug("host LLM server not configured", "plugin", manifest.ID)
-	}
-
-	// Dispense host embeddings to get the broker ID
-	var hostEmbeddingsBrokerID uint32
-	if m.hostEmbeddingsServer != nil {
-		m.logger.Debug("attempting to dispense host_embeddings", "plugin", manifest.ID)
-		embeddingsRaw, err := rpcClient.Dispense("host_embeddings")
-		if err != nil {
-			m.logger.Warn("failed to dispense host_embeddings", "plugin", manifest.ID, "error", err)
-		} else if brokerInfo, ok := embeddingsRaw.(*HostEmbeddingsBrokerInfo); ok && brokerInfo != nil {
-			hostEmbeddingsBrokerID = brokerInfo.BrokerID
-			m.logger.Debug("host embeddings available for plugin",
-				"plugin", manifest.ID,
-				"broker_id", hostEmbeddingsBrokerID)
-		} else {
-			m.logger.Warn("host_embeddings dispense returned unexpected type",
-				"plugin", manifest.ID,
-				"got_type", fmt.Sprintf("%T", embeddingsRaw),
-				"is_nil", embeddingsRaw == nil)
-		}
-	} else {
-		m.logger.Debug("host embeddings server not configured", "plugin", manifest.ID)
-	}
-
 	// Dispense host data to get the broker ID
 	var hostDataBrokerID uint32
 	if m.hostDataServer != nil {
@@ -603,16 +525,37 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		m.logger.Debug("host weather server not configured", "plugin", manifest.ID)
 	}
 
+	// Dispense host plugins to get the broker ID (for capability-based discovery)
+	var hostPluginsBrokerID uint32
+	if m.hostPluginsServer != nil {
+		m.logger.Debug("attempting to dispense host_plugins", "plugin", manifest.ID)
+		pluginsRaw, err := rpcClient.Dispense("host_plugins")
+		if err != nil {
+			m.logger.Warn("failed to dispense host_plugins", "plugin", manifest.ID, "error", err)
+		} else if brokerInfo, ok := pluginsRaw.(*HostPluginsBrokerInfo); ok && brokerInfo != nil {
+			hostPluginsBrokerID = brokerInfo.BrokerID
+			m.logger.Debug("host plugins available for plugin",
+				"plugin", manifest.ID,
+				"broker_id", hostPluginsBrokerID)
+		} else {
+			m.logger.Warn("host_plugins dispense returned unexpected type",
+				"plugin", manifest.ID,
+				"got_type", fmt.Sprintf("%T", pluginsRaw),
+				"is_nil", pluginsRaw == nil)
+		}
+	} else {
+		m.logger.Debug("host plugins server not configured", "plugin", manifest.ID)
+	}
+
 	initResp, err := coreClient.Initialize(ctx, &pluginv1.InitRequest{
-		HostVersion:            m.hostVersion,
-		DataDir:                dataDir,
-		Config:                 configBytes,
-		HostStorageBrokerId:    hostStorageBrokerID,
-		HostLlmBrokerId:        hostLLMBrokerID,
-		HostEmbeddingsBrokerId: hostEmbeddingsBrokerID,
-		HostDataBrokerId:       hostDataBrokerID,
-		HostWeatherBrokerId:    hostWeatherBrokerID,
-		SystemInfo:             m.systemInfo,
+		HostVersion:         m.hostVersion,
+		DataDir:             dataDir,
+		Config:              configBytes,
+		HostStorageBrokerId: hostStorageBrokerID,
+		HostDataBrokerId:    hostDataBrokerID,
+		HostWeatherBrokerId: hostWeatherBrokerID,
+		HostPluginsBrokerId: hostPluginsBrokerID,
+		SystemInfo:          m.systemInfo,
 	})
 	if err != nil {
 		client.Kill()
@@ -660,6 +603,17 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 				"supports_chat", caps.SupportsChat,
 				"supports_embeddings", caps.SupportsEmbeddings)
 		}
+	}
+
+	// Register capabilities from manifest with the HostPluginsServer
+	// This enables other plugins to discover and connect to this plugin
+	if m.hostPluginsServer != nil && len(manifest.Provides) > 0 {
+		for _, capability := range manifest.Provides {
+			m.hostPluginsServer.RegisterCapability(manifest.ID, manifest.Name, capability)
+		}
+		m.logger.Debug("registered plugin capabilities",
+			"plugin", manifest.ID,
+			"capabilities", manifest.Provides)
 	}
 
 	// Publish plugin.loaded event
@@ -866,6 +820,9 @@ func (m *Manager) UnloadPlugin(ctx context.Context, pluginID string) error {
 	m.routeRegistry.UnregisterRoutes(pluginID)
 	m.capabilityRegistry.Unregister(pluginID)
 	m.providerRegistry.Unregister(pluginID)
+	if m.hostPluginsServer != nil {
+		m.hostPluginsServer.UnregisterPlugin(pluginID)
+	}
 
 	m.logger.Info("plugin unloaded", "id", pluginID)
 
@@ -886,6 +843,18 @@ func (m *Manager) GetPlugin(pluginID string) (*PluginInstance, bool) {
 	defer m.mu.RUnlock()
 	instance, ok := m.plugins[pluginID]
 	return instance, ok
+}
+
+// IsPluginEnabled returns true if the plugin exists, is loaded, and is healthy.
+// Implements the PluginLookup interface for the HostPluginsServer.
+func (m *Manager) IsPluginEnabled(pluginID string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	instance, ok := m.plugins[pluginID]
+	if !ok {
+		return false
+	}
+	return instance.IsHealthy()
 }
 
 // ListPlugins returns all loaded plugins.
@@ -1007,20 +976,8 @@ func (m *Manager) PrintTable(w io.Writer, title string) {
 	table.Render()
 }
 
-// GetAISearchPlugin returns the first plugin that implements AI search.
-// Returns nil if no AI search plugin is loaded.
-func (m *Manager) GetAISearchPlugin() *PluginInstance {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	for _, p := range m.plugins {
-		if hasCategory(p.Categories, CategoryAI) && p.AISearchClient != nil {
-			return p
-		}
-	}
-	return nil
-}
-
+// GetVectorSearchPlugin returns the first plugin that implements vector search.
+// Returns nil if no vector search plugin is loaded.
 // Shutdown gracefully shuts down all plugins.
 func (m *Manager) Shutdown(ctx context.Context) {
 	m.mu.Lock()

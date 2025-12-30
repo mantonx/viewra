@@ -2,7 +2,7 @@
 id: semantic-search
 name: Semantic Search
 version: 1.0.0
-description: Semantic search and media indexing using embeddings
+description: AI-powered semantic search for media
 
 author: ViewRA Team
 license: MIT
@@ -11,46 +11,31 @@ homepage: https://github.com/mantonx/viewra
 # Minimum ViewRA version required
 min_host_version: "0.1.0"
 
-# Uses core AI settings for provider configuration
-settings_category: ai
+# Plugin type - this is an enricher that provides search capabilities
+type: enricher
 
-# Plugin capabilities
-categories:
-  - ai
-  - enricher
-
-# What this plugin provides
-capabilities:
-  media_types:
-    - movie
-    - tv
-    - tv_show
-    - tv_episode
-    - music_artist
-    - music_album
-    - music_track
-  provides:
-    - semantic_search
-    - similar_items
-    - embeddings
-  is_local: false
-
-# Other AI plugins can depend on this
+# What capabilities this plugin provides to other plugins
+# Other plugins can depend on these via their 'requires' field
 provides:
-  - ai:search
+  - search
 
-# Service capabilities for stable URL aliasing
-# Maps to /api/search, /api/similar, etc.
-service_capabilities:
-  - semantic_search
-  - similar_items
+# What capabilities this plugin requires from other plugins
+# The host will check that at least one enabled plugin provides each capability
+requires:
+  - embedding
+
+# Media types this enricher supports
+media_types:
+  - movie
+  - tv
+  - tv_show
+  - tv_episode
+  - music_artist
+  - music_album
+  - music_track
 
 # Permissions required
 permissions:
-  - network              # For LLM API calls
+  - network              # For LLM API calls via provider plugins
   - data:media:read      # Read media metadata for indexing
-  - data:embeddings:read # Query embeddings
-  - data:embeddings:write # Store embeddings
-  - ai:llm               # Use LLM providers for embeddings
-  - enrichment:register  # Register as enrichment stage
   - weather:read         # Read weather context for query enrichment

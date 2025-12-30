@@ -44,6 +44,12 @@ service PluginCore {
   // HandleHTTPStream handles streaming requests/responses.
   // Used for large uploads/downloads or real-time data.
   rpc HandleHTTPStream(stream PluginHTTPChunk) returns (stream PluginHTTPChunk);
+
+  // ExposeService exposes a plugin service for other plugins to connect to.
+  // Called by the host when another plugin requests a capability this plugin provides.
+  // The plugin should start its service on a new broker ID and return that ID.
+  // The consuming plugin can then dial this broker ID to connect.
+  rpc ExposeService(ExposeServiceRequest) returns (ExposeServiceResponse);
 }
 
 // Empty is defined in common.proto
@@ -66,13 +72,9 @@ message InitRequest {
   // Plugin can dial this ID to get a HostDataClient
   uint32 host_data_broker_id = 5;
 
-  // Broker ID for host LLM service (0 = not available)
-  // Plugin can dial this ID to get a HostLLMClient
-  uint32 host_llm_broker_id = 6;
-
-  // Broker ID for host embeddings service (0 = not available)
-  // Plugin can dial this ID to get a HostEmbeddingsClient
-  uint32 host_embeddings_broker_id = 7;
+  // Reserved: Field 6 was host_llm_broker_id (removed - use capability broker instead)
+  // Reserved: Field 7 was host_embeddings_broker_id (removed - use capability broker instead)
+  reserved 6, 7;
 
   // Broker ID for host weather service (0 = not available)
   // Plugin can dial this ID to get a HostWeatherClient
@@ -81,6 +83,10 @@ message InitRequest {
   // System resource information for plugins that need it
   // (e.g., AI providers for model recommendations)
   SystemInfo system_info = 9;
+
+  // Broker ID for host plugins service (0 = not available)
+  // Plugin can dial this ID to get a HostPluginsClient for capability discovery
+  uint32 host_plugins_broker_id = 10;
 }
 
 // SystemInfo contains host system resource information.
@@ -272,4 +278,31 @@ message PluginHTTPChunk {
 
   // Error message if streaming fails mid-way
   string error = 7;
+}
+
+// ExposeServiceRequest is sent by the host when another plugin wants to
+// connect to a capability this plugin provides.
+message ExposeServiceRequest {
+  // The capability being requested, e.g., "embedding", "chat", "provider"
+  string capability = 1;
+
+  // ID of the plugin requesting the connection (for logging/auditing)
+  string requesting_plugin_id = 2;
+}
+
+// ExposeServiceResponse contains the broker ID for the exposed service.
+message ExposeServiceResponse {
+  // Whether the service was successfully exposed
+  bool success = 1;
+
+  // Broker ID that the requesting plugin can dial to connect
+  // This is a gRPC connection that implements the capability's service interface
+  uint32 broker_id = 2;
+
+  // Error message if success is false
+  string error = 3;
+
+  // The gRPC service name exposed on this broker ID
+  // e.g., "viewra.plugin.v1.PluginProvider" for AI providers
+  string service_name = 4;
 }

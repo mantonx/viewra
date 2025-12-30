@@ -13,7 +13,7 @@ import (
 // SearchService handles semantic search operations.
 type SearchService struct {
 	embeddingService *EmbeddingService
-	embeddings       *sdk.EmbeddingsClient
+	vector           *sdk.VectorClient
 	defaultLimit     int
 	maxLimit         int
 	minSimilarity    float32
@@ -23,7 +23,7 @@ type SearchService struct {
 // NewSearchService creates a new search service.
 func NewSearchService(
 	embeddingService *EmbeddingService,
-	embeddings *sdk.EmbeddingsClient,
+	vector *sdk.VectorClient,
 	config SearchConfig,
 	logger *slog.Logger,
 ) *SearchService {
@@ -42,7 +42,7 @@ func NewSearchService(
 
 	return &SearchService{
 		embeddingService: embeddingService,
-		embeddings:       embeddings,
+		vector:           vector,
 		defaultLimit:     defaultLimit,
 		maxLimit:         maxLimit,
 		minSimilarity:    minSimilarity,
@@ -59,7 +59,7 @@ type SearchParams struct {
 
 // Search performs semantic search using the query text.
 func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]SearchResult, error) {
-	if s.embeddingService == nil || s.embeddings == nil {
+	if s.embeddingService == nil || s.vector == nil {
 		return nil, fmt.Errorf("search service not properly initialized")
 	}
 
@@ -101,15 +101,20 @@ func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]Sear
 		minSim = 0.15 // Lower threshold for person/studio searches
 	}
 
-	// Search using the embeddings client
-	sdkResults, err := s.embeddings.Search(ctx, queryEmbedding, entityTypeStrs, fetchLimit, minSim)
+	// Search using the vector client
+	searchResp, err := s.vector.Search(ctx, sdk.VectorSearchRequest{
+		QueryVector:   queryEmbedding,
+		EntityTypes:   entityTypeStrs,
+		Limit:         fetchLimit,
+		MinSimilarity: minSim,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("search embeddings: %w", err)
 	}
 
 	// Convert results to map for merging
 	resultMap := make(map[string]SearchResult)
-	for _, r := range sdkResults {
+	for _, r := range searchResp.Results {
 		key := fmt.Sprintf("%s:%d", r.EntityType, r.EntityID)
 		resultMap[key] = SearchResult{
 			EntityType: EntityType(r.EntityType),
@@ -123,12 +128,12 @@ func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]Sear
 	// This ensures movies containing the person/studio are included even if
 	// semantic similarity is low
 	if searchTerm := s.getTextSearchTerm(intent); searchTerm != "" {
-		textResults, err := s.embeddings.SearchText(ctx, searchTerm, entityTypeStrs, 100)
+		textResp, err := s.vector.SearchText(ctx, searchTerm, entityTypeStrs, 100)
 		if err != nil {
 			s.logger.Warn("text search failed, continuing with semantic only", "error", err)
 		} else {
 			// Merge text search results - give them a base similarity score
-			for _, r := range textResults {
+			for _, r := range textResp.Results {
 				key := fmt.Sprintf("%s:%d", r.EntityType, r.EntityID)
 				if existing, found := resultMap[key]; found {
 					// Result already in map - keep the higher similarity
@@ -153,7 +158,7 @@ func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]Sear
 			}
 			s.logger.Debug("text search found results",
 				"term", searchTerm,
-				"count", len(textResults),
+				"count", len(textResp.Results),
 				"total_after_merge", len(resultMap))
 		}
 	}
@@ -1123,16 +1128,16 @@ func extractTitleKey(text string) string {
 
 // FindSimilar finds items similar to a given entity.
 func (s *SearchService) FindSimilar(ctx context.Context, entityType EntityType, entityID int64, limit int) ([]SearchResult, error) {
-	if s.embeddings == nil {
-		return nil, fmt.Errorf("embeddings client not available")
+	if s.vector == nil {
+		return nil, fmt.Errorf("vector client not available")
 	}
 
 	// Get the embedding for the source entity
-	stored, err := s.embeddings.Get(ctx, string(entityType), entityID)
+	stored, err := s.vector.Get(ctx, string(entityType), entityID)
 	if err != nil {
 		return nil, fmt.Errorf("get embedding: %w", err)
 	}
-	if !stored.Exists {
+	if stored == nil {
 		return nil, fmt.Errorf("embedding not found for %s:%d", entityType, entityID)
 	}
 
@@ -1145,14 +1150,19 @@ func (s *SearchService) FindSimilar(ctx context.Context, entityType EntityType, 
 	}
 
 	// Search for similar items (of the same type by default)
-	sdkResults, err := s.embeddings.Search(ctx, stored.Embedding, []string{string(entityType)}, limit+1, s.minSimilarity)
+	searchResp, err := s.vector.Search(ctx, sdk.VectorSearchRequest{
+		QueryVector:   stored.Vector,
+		EntityTypes:   []string{string(entityType)},
+		Limit:         limit + 1,
+		MinSimilarity: s.minSimilarity,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("search similar: %w", err)
 	}
 
 	// Filter out the source entity
-	results := make([]SearchResult, 0, len(sdkResults))
-	for _, r := range sdkResults {
+	results := make([]SearchResult, 0, len(searchResp.Results))
+	for _, r := range searchResp.Results {
 		if r.EntityType == string(entityType) && r.EntityID == entityID {
 			continue // Skip self
 		}
@@ -1172,8 +1182,8 @@ func (s *SearchService) FindSimilar(ctx context.Context, entityType EntityType, 
 
 // GetStatus returns the current search/indexing status.
 func (s *SearchService) GetStatus(ctx context.Context) (*IndexingStatus, error) {
-	if s.embeddings == nil {
-		return nil, fmt.Errorf("embeddings client not available")
+	if s.vector == nil {
+		return nil, fmt.Errorf("vector client not available")
 	}
 
 	status := &IndexingStatus{
@@ -1185,7 +1195,7 @@ func (s *SearchService) GetStatus(ctx context.Context) (*IndexingStatus, error) 
 		EntityMovie, EntityTVShow, EntityTVEpisode,
 		EntityMusicArtist, EntityMusicAlbum, EntityMusicTrack,
 	} {
-		count, err := s.embeddings.Count(ctx, string(entityType))
+		count, err := s.vector.Count(ctx, string(entityType))
 		if err != nil {
 			s.logger.Warn("failed to count embeddings", "type", entityType, "error", err)
 			continue

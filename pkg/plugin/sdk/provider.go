@@ -91,6 +91,18 @@ type ConfigurableProvider interface {
 	Configure(settings []byte) error
 }
 
+// PluginsClientAware is an optional interface for providers that need
+// access to the capability broker for discovering and routing to other plugins.
+// Implement this interface to receive a PluginsClient during initialization.
+//
+// Example use case: The ai-local plugin uses this to set capability preferences
+// when configured, routing embedding/chat requests to the selected provider.
+type PluginsClientAware interface {
+	// SetPluginsClient receives the PluginsClient for capability broker access.
+	// Called after Initialize() if the host provides the HostPlugins service.
+	SetPluginsClient(client *PluginsClient)
+}
+
 // HTTPProvider is an optional interface for providers that expose HTTP routes.
 // Implement this for model management endpoints, health checks, etc.
 type HTTPProvider interface {
@@ -278,11 +290,13 @@ type providerCoreServer struct {
 	pluginv1.UnimplementedPluginCoreServer
 	impl       ProviderPlugin
 	base       *Base
+	broker     *plugin.GRPCBroker
 	systemInfo *SystemInfo
 }
 
 func (s *providerCoreServer) Initialize(ctx context.Context, req *pluginv1.InitRequest) (*pluginv1.InitResponse, error) {
 	s.base.Init(req.DataDir)
+	logger := s.base.Log()
 
 	// Convert system info
 	if sysInfo := req.GetSystemInfo(); sysInfo != nil {
@@ -302,6 +316,23 @@ func (s *providerCoreServer) Initialize(ctx context.Context, req *pluginv1.InitR
 	if err := s.impl.Initialize(ctx, req.DataDir, req.Config, s.systemInfo); err != nil {
 		return &pluginv1.InitResponse{Success: false, Error: err.Error()}, nil
 	}
+
+	// Connect to HostPlugins service if available and plugin wants it
+	if aware, ok := s.impl.(PluginsClientAware); ok {
+		if req.GetHostPluginsBrokerId() > 0 && s.broker != nil {
+			conn, err := s.broker.Dial(req.GetHostPluginsBrokerId())
+			if err != nil {
+				logger.Error("failed to dial host plugins service", "error", err)
+			} else {
+				pluginsClient := NewPluginsClient(conn, s.broker)
+				aware.SetPluginsClient(pluginsClient)
+				logger.Debug("connected to host plugins service")
+			}
+		} else {
+			logger.Debug("host plugins service not available")
+		}
+	}
+
 	return &pluginv1.InitResponse{Success: true}, nil
 }
 
@@ -454,6 +485,67 @@ func (s *providerCoreServer) HandleHTTPStream(stream pluginv1.PluginCore_HandleH
 	})
 }
 
+// ExposeService exposes the provider's gRPC service for other plugins to connect.
+// Called by the host when another plugin requests this provider's capability.
+func (s *providerCoreServer) ExposeService(ctx context.Context, req *pluginv1.ExposeServiceRequest) (*pluginv1.ExposeServiceResponse, error) {
+	if s.broker == nil {
+		return &pluginv1.ExposeServiceResponse{
+			Success: false,
+			Error:   "broker not available",
+		}, nil
+	}
+
+	// Check if we provide the requested capability
+	caps := s.impl.GetProviderCapabilities()
+	canProvide := false
+
+	switch req.Capability {
+	case "embedding":
+		canProvide = caps.SupportsEmbedding
+	case "chat":
+		canProvide = caps.SupportsChat
+	case "provider":
+		// Generic provider capability - always supported
+		canProvide = true
+	default:
+		// Check for provider-specific capability like "provider:ollama"
+		if req.Capability == "provider:"+caps.ProviderID {
+			canProvide = true
+		}
+	}
+
+	if !canProvide {
+		return &pluginv1.ExposeServiceResponse{
+			Success: false,
+			Error:   "capability not provided: " + req.Capability,
+		}, nil
+	}
+
+	// Get a unique broker ID and start the PluginProvider service
+	brokerID := s.broker.NextId()
+
+	go s.broker.AcceptAndServe(brokerID, func(opts []grpc.ServerOption) *grpc.Server {
+		srv := grpc.NewServer(opts...)
+		// Register the PluginProvider service
+		pluginv1.RegisterPluginProviderServer(srv, &providerServiceServer{
+			impl: s.impl,
+			base: s.base,
+		})
+		return srv
+	})
+
+	s.base.Log().Debug("exposed provider service",
+		"capability", req.Capability,
+		"broker_id", brokerID,
+		"requesting_plugin", req.RequestingPluginId)
+
+	return &pluginv1.ExposeServiceResponse{
+		Success:     true,
+		BrokerId:    brokerID,
+		ServiceName: "viewra.plugin.v1.PluginProvider",
+	}, nil
+}
+
 // providerServiceServer implements PluginProviderServer for AI capabilities.
 type providerServiceServer struct {
 	pluginv1.UnimplementedPluginProviderServer
@@ -502,7 +594,7 @@ func (s *providerServiceServer) ListModels(ctx context.Context, _ *pluginv1.Empt
 	return &pluginv1.ProviderModelList{Models: protoModels}, nil
 }
 
-func (s *providerServiceServer) GenerateEmbedding(ctx context.Context, req *pluginv1.ProviderEmbeddingRequest) (*pluginv1.EmbeddingResponse, error) {
+func (s *providerServiceServer) GenerateEmbedding(ctx context.Context, req *pluginv1.ProviderEmbeddingRequest) (*pluginv1.ProviderEmbeddingResponse, error) {
 	start := time.Now()
 
 	embedding, err := s.impl.GenerateEmbedding(ctx, req.Text, req.Model)
@@ -512,13 +604,13 @@ func (s *providerServiceServer) GenerateEmbedding(ctx context.Context, req *plug
 	}
 
 	s.base.RecordRequest(time.Since(start))
-	return &pluginv1.EmbeddingResponse{
+	return &pluginv1.ProviderEmbeddingResponse{
 		Embedding:  embedding,
 		Dimensions: int32(len(embedding)),
 	}, nil
 }
 
-func (s *providerServiceServer) GenerateEmbeddingBatch(ctx context.Context, req *pluginv1.ProviderEmbeddingBatchRequest) (*pluginv1.EmbeddingBatchResponse, error) {
+func (s *providerServiceServer) GenerateEmbeddingBatch(ctx context.Context, req *pluginv1.ProviderEmbeddingBatchRequest) (*pluginv1.ProviderEmbeddingBatchResponse, error) {
 	start := time.Now()
 
 	embeddings, err := s.impl.GenerateEmbeddingBatch(ctx, req.Texts, req.Model)
@@ -529,18 +621,18 @@ func (s *providerServiceServer) GenerateEmbeddingBatch(ctx context.Context, req 
 
 	s.base.RecordRequest(time.Since(start))
 
-	results := make([]*pluginv1.EmbeddingResult, len(embeddings))
+	results := make([]*pluginv1.ProviderEmbeddingResult, len(embeddings))
 	for i, emb := range embeddings {
-		results[i] = &pluginv1.EmbeddingResult{
+		results[i] = &pluginv1.ProviderEmbeddingResult{
 			Embedding:  emb,
 			Dimensions: int32(len(emb)),
 		}
 	}
 
-	return &pluginv1.EmbeddingBatchResponse{Embeddings: results}, nil
+	return &pluginv1.ProviderEmbeddingBatchResponse{Embeddings: results}, nil
 }
 
-func (s *providerServiceServer) Chat(ctx context.Context, req *pluginv1.ProviderChatRequest) (*pluginv1.ChatResponse, error) {
+func (s *providerServiceServer) Chat(ctx context.Context, req *pluginv1.ProviderChatRequest) (*pluginv1.ProviderChatResponse, error) {
 	start := time.Now()
 
 	// Convert proto request to SDK request
@@ -563,7 +655,7 @@ func (s *providerServiceServer) Chat(ctx context.Context, req *pluginv1.Provider
 	}
 
 	s.base.RecordRequest(time.Since(start))
-	return &pluginv1.ChatResponse{
+	return &pluginv1.ProviderChatResponse{
 		Content:          resp.Content,
 		FinishReason:     resp.FinishReason,
 		PromptTokens:     int32(resp.PromptTokens),
@@ -597,7 +689,7 @@ func (s *providerServiceServer) ChatStream(req *pluginv1.ProviderChatRequest, st
 	}()
 
 	for chunk := range chunks {
-		if err := stream.Send(&pluginv1.ChatStreamChunk{
+		if err := stream.Send(&pluginv1.ProviderChatStreamChunk{
 			Content:      chunk.Content,
 			Done:         chunk.Done,
 			FinishReason: chunk.FinishReason,
@@ -708,17 +800,20 @@ func (w *grpcStreamWriter) WriteChunk(data []byte) error {
 // ProviderCoreGRPCPlugin is the go-plugin for PluginCore service.
 type ProviderCoreGRPCPlugin struct {
 	plugin.Plugin
-	Impl ProviderPlugin
-	base *Base
+	Impl   ProviderPlugin
+	base   *Base
+	broker *plugin.GRPCBroker
 }
 
 func (p *ProviderCoreGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
 	if p.base == nil {
 		p.base = &Base{}
 	}
+	p.broker = broker
 	server := &providerCoreServer{
-		impl: p.Impl,
-		base: p.base,
+		impl:   p.Impl,
+		base:   p.base,
+		broker: broker,
 	}
 	pluginv1.RegisterPluginCoreServer(s, server)
 	return nil

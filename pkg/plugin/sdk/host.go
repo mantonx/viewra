@@ -2,36 +2,37 @@
 //
 // This file provides type-safe wrappers around the host services available
 // to plugins. These services are exposed by the host and allow plugins to
-// access data, AI capabilities, storage, and more.
+// access data, storage, and more.
 //
 // # Available Services
 //
 // The host exposes these services to plugins:
 //
-//   - HostLLM: Generate embeddings and chat completions
-//   - HostEmbeddings: Store and search vector embeddings
 //   - HostData: Access media library data (read-only)
-//   - HostStorage: Plugin-scoped key-value and SQLite storage
-//   - HostUserMetadata: Per-user plugin data storage
+//   - HostStorage: Plugin-scoped key-value, SQL, and vector storage
+//   - HostPlugins: Capability-based plugin discovery and inter-plugin communication
 //   - HostWeather: Weather and time context for search queries
+//
+// # AI Capabilities
+//
+// For AI functionality (embeddings, chat), use PluginsClient to discover and
+// connect to provider plugins that offer "embeddings" or "chat" capabilities.
+// See PluginsClient.GetConnection() for details.
 //
 // # Usage
 //
 // Plugins receive broker IDs in the InitRequest. Use these to connect:
 //
 //	func (p *MyPlugin) Initialize(ctx context.Context, req *pluginv1.InitRequest) (*pluginv1.InitResponse, error) {
-//	    if req.HostLlmBrokerId > 0 {
-//	        conn, _ := broker.Dial(req.HostLlmBrokerId)
-//	        p.llm = sdk.NewLLMClient(conn)
+//	    if req.HostStorageBrokerId > 0 {
+//	        conn, _ := broker.Dial(req.HostStorageBrokerId)
+//	        p.storage = sdk.NewStorageClient(conn)
+//	    }
+//	    if req.HostPluginsBrokerId > 0 {
+//	        conn, _ := broker.Dial(req.HostPluginsBrokerId)
+//	        p.plugins = sdk.NewPluginsClient(conn)
 //	    }
 //	    return &pluginv1.InitResponse{Success: true}, nil
-//	}
-//
-// Then use the wrapped client:
-//
-//	embedding, err := p.llm.Embed(ctx, "movie about space exploration")
-//	if err != nil {
-//	    return err
 //	}
 package sdk
 
@@ -41,316 +42,6 @@ import (
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 	"google.golang.org/grpc"
 )
-
-// ============================================================================
-// LLM Client - Generate embeddings and chat completions
-// ============================================================================
-
-// LLMClient wraps the HostLLM service for easier use.
-type LLMClient struct {
-	client pluginv1.HostLLMClient
-}
-
-// NewLLMClient creates a new LLM client from a gRPC connection.
-func NewLLMClient(conn *grpc.ClientConn) *LLMClient {
-	return &LLMClient{client: pluginv1.NewHostLLMClient(conn)}
-}
-
-// Embed generates an embedding for a single text.
-// Uses the host's configured default embedding provider and model.
-//
-// Example:
-//
-//	embedding, err := llm.Embed(ctx, "A movie about space exploration")
-func (c *LLMClient) Embed(ctx context.Context, text string) ([]float32, error) {
-	resp, err := c.client.GenerateEmbedding(ctx, &pluginv1.EmbeddingRequest{Text: text})
-	if err != nil {
-		return nil, err
-	}
-	return resp.Embedding, nil
-}
-
-// EmbedWithModel generates an embedding using a specific provider and model.
-//
-// Example:
-//
-//	embedding, err := llm.EmbedWithModel(ctx, "text", "ollama", "nomic-embed-text")
-func (c *LLMClient) EmbedWithModel(ctx context.Context, text, provider, model string) ([]float32, error) {
-	resp, err := c.client.GenerateEmbedding(ctx, &pluginv1.EmbeddingRequest{
-		Text:     text,
-		Provider: provider,
-		Model:    model,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return resp.Embedding, nil
-}
-
-// EmbedBatch generates embeddings for multiple texts.
-//
-// Example:
-//
-//	embeddings, err := llm.EmbedBatch(ctx, []string{"text1", "text2"})
-func (c *LLMClient) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
-	resp, err := c.client.GenerateEmbeddingBatch(ctx, &pluginv1.EmbeddingBatchRequest{Texts: texts})
-	if err != nil {
-		return nil, err
-	}
-	embeddings := make([][]float32, len(resp.Embeddings))
-	for i, e := range resp.Embeddings {
-		embeddings[i] = e.Embedding
-	}
-	return embeddings, nil
-}
-
-// Chat sends a chat completion request.
-//
-// Example:
-//
-//	resp, err := llm.Chat(ctx, []sdk.ChatMessage{
-//	    {Role: "system", Content: "You are a helpful assistant."},
-//	    {Role: "user", Content: "What's a good movie for a rainy day?"},
-//	})
-func (c *LLMClient) Chat(ctx context.Context, messages []ChatMessage) (*ChatResponse, error) {
-	protoMsgs := make([]*pluginv1.ChatMessage, len(messages))
-	for i, m := range messages {
-		protoMsgs[i] = &pluginv1.ChatMessage{Role: m.Role, Content: m.Content}
-	}
-
-	resp, err := c.client.Chat(ctx, &pluginv1.ChatRequest{Messages: protoMsgs})
-	if err != nil {
-		return nil, err
-	}
-
-	return &ChatResponse{
-		Content:          resp.Content,
-		FinishReason:     resp.FinishReason,
-		PromptTokens:     int(resp.PromptTokens),
-		CompletionTokens: int(resp.CompletionTokens),
-	}, nil
-}
-
-// ChatWithOptions sends a chat completion request with options.
-//
-// Example:
-//
-//	resp, err := llm.ChatWithOptions(ctx, messages, sdk.ChatOptions{
-//	    Model:       "llama3.1:8b",
-//	    Temperature: 0.7,
-//	    MaxTokens:   500,
-//	})
-func (c *LLMClient) ChatWithOptions(ctx context.Context, messages []ChatMessage, opts ChatOptions) (*ChatResponse, error) {
-	protoMsgs := make([]*pluginv1.ChatMessage, len(messages))
-	for i, m := range messages {
-		protoMsgs[i] = &pluginv1.ChatMessage{Role: m.Role, Content: m.Content}
-	}
-
-	resp, err := c.client.Chat(ctx, &pluginv1.ChatRequest{
-		Messages:    protoMsgs,
-		Provider:    opts.Provider,
-		Model:       opts.Model,
-		Temperature: opts.Temperature,
-		MaxTokens:   int32(opts.MaxTokens),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &ChatResponse{
-		Content:          resp.Content,
-		FinishReason:     resp.FinishReason,
-		PromptTokens:     int(resp.PromptTokens),
-		CompletionTokens: int(resp.CompletionTokens),
-	}, nil
-}
-
-// ChatOptions contains optional parameters for chat completions.
-type ChatOptions struct {
-	// Provider to use (uses default if empty)
-	Provider string
-
-	// Model to use (uses provider default if empty)
-	Model string
-
-	// Temperature controls randomness (0.0-2.0)
-	Temperature float32
-
-	// MaxTokens limits response length
-	MaxTokens int
-}
-
-// ListProviders returns available LLM providers.
-func (c *LLMClient) ListProviders(ctx context.Context) ([]LLMProvider, error) {
-	resp, err := c.client.ListProviders(ctx, &pluginv1.Empty{})
-	if err != nil {
-		return nil, err
-	}
-	providers := make([]LLMProvider, len(resp.Providers))
-	for i, p := range resp.Providers {
-		providers[i] = LLMProvider{
-			ID:                p.Id,
-			Name:              p.Name,
-			Configured:        p.Configured,
-			SupportsChat:      p.SupportsChat,
-			SupportsEmbedding: p.SupportsEmbedding,
-		}
-	}
-	return providers, nil
-}
-
-// LLMProvider describes an available LLM provider.
-type LLMProvider struct {
-	ID                string
-	Name              string
-	Configured        bool
-	SupportsChat      bool
-	SupportsEmbedding bool
-}
-
-// ============================================================================
-// Embeddings Client - Store and search vector embeddings
-// ============================================================================
-
-// EmbeddingsClient wraps the HostEmbeddings service for vector storage.
-type EmbeddingsClient struct {
-	client pluginv1.HostEmbeddingsClient
-}
-
-// NewEmbeddingsClient creates a new embeddings storage client.
-func NewEmbeddingsClient(conn *grpc.ClientConn) *EmbeddingsClient {
-	return &EmbeddingsClient{client: pluginv1.NewHostEmbeddingsClient(conn)}
-}
-
-// Store saves an embedding for an entity.
-//
-// Example:
-//
-//	err := embeddings.Store(ctx, "movie", 123, embedding, "The Matrix (1999)")
-func (c *EmbeddingsClient) Store(ctx context.Context, entityType string, entityID int64, embedding []float32, text string) error {
-	_, err := c.client.Store(ctx, &pluginv1.StoreEmbeddingRequest{
-		EntityType: entityType,
-		EntityId:   entityID,
-		Embedding:  embedding,
-		Text:       text,
-	})
-	return err
-}
-
-// Get retrieves an embedding by entity type and ID.
-func (c *EmbeddingsClient) Get(ctx context.Context, entityType string, entityID int64) (*StoredEmbedding, error) {
-	resp, err := c.client.Get(ctx, &pluginv1.EmbeddingQuery{
-		EntityType: entityType,
-		EntityId:   entityID,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &StoredEmbedding{
-		EntityType: resp.EntityType,
-		EntityID:   resp.EntityId,
-		Embedding:  resp.Embedding,
-		Text:       resp.Text,
-		Model:      resp.Model,
-		Exists:     resp.Exists,
-	}, nil
-}
-
-// Delete removes an embedding.
-func (c *EmbeddingsClient) Delete(ctx context.Context, entityType string, entityID int64) error {
-	_, err := c.client.Delete(ctx, &pluginv1.EmbeddingQuery{
-		EntityType: entityType,
-		EntityId:   entityID,
-	})
-	return err
-}
-
-// Search finds similar embeddings using cosine similarity.
-//
-// Example:
-//
-//	results, err := embeddings.Search(ctx, queryEmbedding, []string{"movie", "tv_show"}, 10, 0.5)
-func (c *EmbeddingsClient) Search(ctx context.Context, queryEmbedding []float32, entityTypes []string, limit int, minSimilarity float32) ([]SearchResult, error) {
-	resp, err := c.client.Search(ctx, &pluginv1.EmbeddingSearchRequest{
-		QueryEmbedding: queryEmbedding,
-		EntityTypes:    entityTypes,
-		Limit:          int32(limit),
-		MinSimilarity:  minSimilarity,
-	})
-	if err != nil {
-		return nil, err
-	}
-	results := make([]SearchResult, len(resp.Results))
-	for i, r := range resp.Results {
-		results[i] = SearchResult{
-			EntityType: r.EntityType,
-			EntityID:   r.EntityId,
-			Similarity: r.Similarity,
-			Text:       r.Text,
-		}
-	}
-	return results, nil
-}
-
-// SearchText finds embeddings where text contains the query keywords.
-// Useful for name/title searches where semantic search fails.
-func (c *EmbeddingsClient) SearchText(ctx context.Context, query string, entityTypes []string, limit int) ([]SearchResult, error) {
-	resp, err := c.client.SearchText(ctx, &pluginv1.TextSearchRequest{
-		Query:       query,
-		EntityTypes: entityTypes,
-		Limit:       int32(limit),
-	})
-	if err != nil {
-		return nil, err
-	}
-	results := make([]SearchResult, len(resp.Results))
-	for i, r := range resp.Results {
-		results[i] = SearchResult{
-			EntityType: r.EntityType,
-			EntityID:   r.EntityId,
-			Similarity: r.Similarity,
-			Text:       r.Text,
-		}
-	}
-	return results, nil
-}
-
-// Count returns the number of embeddings for an entity type.
-func (c *EmbeddingsClient) Count(ctx context.Context, entityType string) (int64, error) {
-	resp, err := c.client.CountByType(ctx, &pluginv1.EntityTypeQuery{EntityType: entityType})
-	if err != nil {
-		return 0, err
-	}
-	return resp.Count, nil
-}
-
-// DeleteByType removes all embeddings for an entity type.
-// Returns the count of deleted embeddings.
-func (c *EmbeddingsClient) DeleteByType(ctx context.Context, entityType string) (int64, error) {
-	resp, err := c.client.DeleteByType(ctx, &pluginv1.EntityTypeQuery{EntityType: entityType})
-	if err != nil {
-		return 0, err
-	}
-	return resp.Count, nil
-}
-
-// StoredEmbedding represents a stored embedding.
-type StoredEmbedding struct {
-	EntityType string
-	EntityID   int64
-	Embedding  []float32
-	Text       string
-	Model      string
-	Exists     bool
-}
-
-// SearchResult represents a search result from the embeddings store.
-type SearchResult struct {
-	EntityType string
-	EntityID   int64
-	Similarity float32
-	Text       string
-}
 
 // ============================================================================
 // Data Client - Access media library data (read-only)
@@ -615,13 +306,41 @@ func (c *StorageClient) List(ctx context.Context, prefix string, limit int) ([]s
 }
 
 // GetDatabasePath returns the path to the plugin's SQLite database.
-// Plugins can use this for complex data storage needs.
+//
+// Deprecated: Use SQL() instead for managed storage. Direct database access
+// requires plugins to bundle their own SQLite driver and manage connections.
 func (c *StorageClient) GetDatabasePath(ctx context.Context) (string, error) {
 	resp, err := c.client.GetDatabasePath(ctx, &pluginv1.Empty{})
 	if err != nil {
 		return "", err
 	}
 	return resp.Path, nil
+}
+
+// SQL returns a client for managed SQL storage.
+// All table names are automatically prefixed with plugin_{id}_ by the host.
+//
+// Example:
+//
+//	db := storage.SQL()
+//	db.Exec(ctx, `CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)`)
+//	db.Exec(ctx, `INSERT INTO items (name) VALUES (?)`, "test")
+//	rows, _ := db.Query(ctx, `SELECT id, name FROM items`)
+func (c *StorageClient) SQL() *SQLClient {
+	return newSQLClient(c.client)
+}
+
+// Vector returns a client for managed vector storage.
+// Embeddings are automatically indexed for fast similarity search.
+// Uses pgvector (Postgres) or sqlite-vec (SQLite) under the hood.
+//
+// Example:
+//
+//	vec := storage.Vector()
+//	vec.Store(ctx, sdk.Embedding{EntityType: "movie", EntityID: 123, Vector: embedding})
+//	results, _ := vec.Search(ctx, sdk.VectorSearchRequest{QueryVector: query, Limit: 10})
+func (c *StorageClient) Vector() *VectorClient {
+	return newVectorClient(c.client)
 }
 
 // ============================================================================

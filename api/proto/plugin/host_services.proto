@@ -57,13 +57,54 @@ service HostStorage {
   rpc KVList(KVListRequest) returns (KVKeyList);
 
   // GetDatabasePath returns the path to the plugin's SQLite database.
+  // DEPRECATED: Use ExecuteSQL/QuerySQL instead for managed storage.
   rpc GetDatabasePath(Empty) returns (DatabasePath);
 
   // RegisterSchema registers a schema version for migration tracking.
+  // DEPRECATED: Use ExecuteSQL with migration tracking instead.
   rpc RegisterSchema(SchemaVersion) returns (Empty);
 
   // GetDatabaseStats returns storage usage statistics.
   rpc GetDatabaseStats(Empty) returns (DatabaseStats);
+
+  // ExecuteSQL runs DDL/DML statements on plugin's namespaced tables.
+  // Table names are automatically prefixed with plugin_{id}_
+  // Allowed: CREATE TABLE, CREATE INDEX, DROP TABLE, DROP INDEX,
+  //          INSERT, UPDATE, DELETE
+  rpc ExecuteSQL(SQLRequest) returns (SQLExecResult);
+
+  // QuerySQL runs SELECT queries on plugin's namespaced tables.
+  // Table names are automatically prefixed with plugin_{id}_
+  rpc QuerySQL(SQLRequest) returns (SQLQueryResult);
+
+  // === Vector Storage ===
+  // Host-managed vector storage with automatic indexing.
+  // Uses pgvector (Postgres) or sqlite-vec (SQLite) under the hood.
+
+  // VectorStoreEmbedding stores or updates an embedding for an entity.
+  rpc VectorStoreEmbedding(VectorStoreRequest) returns (Empty);
+
+  // VectorStoreBatch stores multiple embeddings in a single transaction.
+  rpc VectorStoreBatch(VectorStoreBatchRequest) returns (Empty);
+
+  // VectorSearch performs similarity search using the query vector.
+  rpc VectorSearch(VectorSearchRequest) returns (VectorSearchResponse);
+
+  // VectorSearchText finds embeddings where text contains the query keywords.
+  // This is useful for name/title searches where semantic search may fail.
+  rpc VectorSearchText(VectorTextSearchRequest) returns (VectorSearchResponse);
+
+  // VectorGet retrieves an embedding by entity type and ID.
+  rpc VectorGet(VectorQuery) returns (VectorGetResponse);
+
+  // VectorDelete removes an embedding.
+  rpc VectorDelete(VectorQuery) returns (Empty);
+
+  // VectorDeleteByType removes all embeddings for an entity type.
+  rpc VectorDeleteByType(VectorTypeQuery) returns (VectorDeleteResponse);
+
+  // VectorCount returns the number of embeddings.
+  rpc VectorCount(VectorTypeQuery) returns (VectorCountResponse);
 }
 
 // HostUserMetadata provides per-user metadata storage for plugins.
@@ -98,6 +139,34 @@ service HostWeather {
   // GetCurrentWeather returns current weather for a user's location.
   // Returns available=false if the user hasn't enabled location.
   rpc GetCurrentWeather(WeatherRequest) returns (WeatherResponse);
+}
+
+// HostPlugins provides plugin discovery and capability-based routing.
+// Plugins use this to discover and connect to other plugins that provide
+// specific capabilities (e.g., "embedding", "chat").
+service HostPlugins {
+  // GetCapabilityProvider returns connection info for a plugin providing the capability.
+  // The host resolves the capability to an available, enabled plugin.
+  // Resolution order: 1) preferred_plugin param, 2) capability preference, 3) first available
+  rpc GetCapabilityProvider(CapabilityRequest) returns (CapabilityProviderResponse);
+
+  // ListCapabilities returns all available capabilities and their providers.
+  rpc ListCapabilities(Empty) returns (CapabilityListResponse);
+
+  // ListProviders returns all plugins providing a specific capability.
+  rpc ListProviders(CapabilityRequest) returns (ProviderListResponse);
+
+  // SetCapabilityPreference sets the preferred plugin for a capability.
+  // Used by configuration plugins (e.g., ai-local) to route capabilities.
+  // The preference is used when GetCapabilityProvider is called without a preferred_plugin.
+  rpc SetCapabilityPreference(CapabilityPreferenceRequest) returns (Empty);
+
+  // ClearCapabilityPreference removes the preference for a capability.
+  // After clearing, GetCapabilityProvider falls back to first available provider.
+  rpc ClearCapabilityPreference(CapabilityPreferenceRequest) returns (Empty);
+
+  // GetCapabilityPreferences returns all configured capability preferences.
+  rpc GetCapabilityPreferences(Empty) returns (CapabilityPreferencesResponse);
 }
 
 // HostData messages
@@ -259,6 +328,102 @@ message DatabaseStats {
   int32 table_count = 3;
 }
 
+// SQL storage messages
+
+message SQLRequest {
+  string sql = 1;
+  repeated SQLValue args = 2;
+}
+
+message SQLValue {
+  oneof value {
+    string string_value = 1;
+    int64 int_value = 2;
+    double double_value = 3;
+    bytes bytes_value = 4;
+    bool is_null = 5;
+  }
+}
+
+message SQLExecResult {
+  int64 rows_affected = 1;
+  int64 last_insert_id = 2;
+}
+
+message SQLQueryResult {
+  repeated string columns = 1;
+  repeated SQLRow rows = 2;
+}
+
+message SQLRow {
+  repeated SQLValue values = 1;
+}
+
+// Vector storage messages
+
+message VectorStoreRequest {
+  string entity_type = 1;       // e.g., "movie", "tv_show", "track"
+  int64 entity_id = 2;          // ID within entity type
+  repeated float vector = 3;    // Embedding vector (float32)
+  string text = 4;              // Original text that was embedded (optional, for debugging)
+  string model = 5;             // Model used to generate embedding (optional, for tracking)
+}
+
+message VectorStoreBatchRequest {
+  repeated VectorStoreRequest embeddings = 1;
+}
+
+message VectorSearchRequest {
+  repeated float query_vector = 1;     // Query embedding
+  repeated string entity_types = 2;    // Filter by types (empty = all)
+  int32 limit = 3;                     // Max results (default: 20)
+  int32 offset = 4;                    // Pagination offset
+  float min_similarity = 5;            // Minimum similarity threshold (0.0-1.0)
+}
+
+message VectorTextSearchRequest {
+  string query = 1;                    // Text to search for (case-insensitive)
+  repeated string entity_types = 2;    // Filter by types (empty = all)
+  int32 limit = 3;                     // Max results (default: 100)
+}
+
+message VectorSearchResponse {
+  repeated VectorSearchResult results = 1;
+  int32 total_count = 2;               // Total matching embeddings
+}
+
+message VectorSearchResult {
+  string entity_type = 1;
+  int64 entity_id = 2;
+  float similarity = 3;                // Cosine similarity (0.0-1.0)
+  string text = 4;                     // Original embedded text
+}
+
+message VectorQuery {
+  string entity_type = 1;
+  int64 entity_id = 2;
+}
+
+message VectorGetResponse {
+  bool exists = 1;
+  repeated float vector = 2;
+  string text = 3;
+  string model = 4;
+  int32 dimensions = 5;
+}
+
+message VectorTypeQuery {
+  string entity_type = 1;              // Empty = all types
+}
+
+message VectorDeleteResponse {
+  int64 deleted_count = 1;
+}
+
+message VectorCountResponse {
+  int64 count = 1;
+}
+
 // HostUserMetadata messages
 
 message UserId {
@@ -367,4 +532,50 @@ message WeatherResponse {
   string condition = 8;         // Simplified: sunny, cloudy, rainy, snowy, stormy, foggy
   string time_of_day = 9;       // morning, afternoon, evening, night
   string season = 10;           // spring, summer, fall, winter
+}
+
+// HostPlugins messages
+
+message CapabilityRequest {
+  string capability = 1;          // Capability name, e.g., "embedding", "chat"
+  string preferred_plugin = 2;    // Optional: specific plugin ID to prefer
+}
+
+message CapabilityProviderResponse {
+  bool available = 1;             // True if a provider is available
+  uint32 broker_id = 2;           // gRPC broker ID for plugin-to-plugin connection
+  string plugin_id = 3;           // ID of the plugin providing the capability
+  string plugin_name = 4;         // Human-readable name of the provider
+  string error = 5;               // Error message if not available
+}
+
+message CapabilityListResponse {
+  repeated CapabilityInfo capabilities = 1;
+}
+
+message CapabilityInfo {
+  string name = 1;                // Capability name
+  repeated PluginProviderInfo providers = 2;
+}
+
+message PluginProviderInfo {
+  string plugin_id = 1;           // Plugin ID
+  string plugin_name = 2;         // Human-readable name
+  bool enabled = 3;               // Whether the plugin is enabled
+  bool configured = 4;            // Whether the plugin is properly configured
+}
+
+message ProviderListResponse {
+  repeated PluginProviderInfo providers = 1;
+}
+
+// CapabilityPreferenceRequest sets or clears a capability preference.
+message CapabilityPreferenceRequest {
+  string capability = 1;          // Capability name, e.g., "embedding", "chat"
+  string plugin_id = 2;           // Plugin ID to prefer (empty to clear in ClearCapabilityPreference)
+}
+
+// CapabilityPreferencesResponse returns all configured preferences.
+message CapabilityPreferencesResponse {
+  map<string, string> preferences = 1;  // capability -> plugin_id
 }

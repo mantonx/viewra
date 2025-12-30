@@ -4,8 +4,10 @@ import type { RJSFSchema, UiSchema, RegistryFieldsType, RegistryWidgetsType } fr
 import { cn } from '@/lib/utils'
 import { text } from '@/styles/semantic'
 import { Button } from '@/components/ui'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { TextWidget, PasswordWidget, CheckboxWidget, SelectWidget } from './widgets'
+import { PluginRefField } from './fields'
+import { hasPluginRef } from '@/lib/types/schema-actions'
 
 // Custom field template to style form fields
 const FieldTemplate = (props: {
@@ -109,8 +111,12 @@ const widgets: RegistryWidgetsType = {
   SelectWidget,
 }
 
-// Custom fields (empty for now, can add custom field types)
-const fields: RegistryFieldsType = {}
+// Custom fields for specialized property types
+const fields: RegistryFieldsType = {
+  // PluginRefField renders a plugin selector with inline settings
+  // Used when a property has x-viewra-plugin-ref extension
+  PluginRefField,
+}
 
 export type JsonSchemaFormProps = {
   schema: RJSFSchema
@@ -151,22 +157,37 @@ export const JsonSchemaForm = ({
     [onChange]
   )
 
-  // Build uiSchema with password widget for password fields
-  const mergedUiSchema: UiSchema = {
-    ...uiSchema,
-  }
+  // Build uiSchema with auto-detected widgets and fields
+  const mergedUiSchema: UiSchema = useMemo(() => {
+    const result: UiSchema = { ...uiSchema }
 
-  // Auto-detect password fields from schema
-  if (schema.properties) {
-    Object.entries(schema.properties).forEach(([key, prop]) => {
-      if (typeof prop === 'object' && prop.format === 'password') {
-        mergedUiSchema[key] = {
-          ...mergedUiSchema[key],
-          'ui:widget': 'PasswordWidget',
+    // Auto-detect special fields from schema
+    if (schema.properties) {
+      Object.entries(schema.properties).forEach(([key, prop]) => {
+        if (typeof prop !== 'object') {
+          return
         }
-      }
-    })
-  }
+
+        // Password fields -> PasswordWidget
+        if (prop.format === 'password') {
+          result[key] = {
+            ...result[key],
+            'ui:widget': 'PasswordWidget',
+          }
+        }
+
+        // Plugin reference fields -> PluginRefField
+        if (hasPluginRef(prop)) {
+          result[key] = {
+            ...result[key],
+            'ui:field': 'PluginRefField',
+          }
+        }
+      })
+    }
+
+    return result
+  }, [schema.properties, uiSchema])
 
   // Hide submit button if requested
   if (hideSubmit) {

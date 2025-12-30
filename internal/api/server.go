@@ -95,7 +95,6 @@ type Handlers struct {
 	Enrichment       *handlers.EnrichmentHandler
 	Plugins          *handlers.PluginHandler
 	System           *handlers.SystemHandler
-	AISettings       *handlers.AISettingsHandler
 
 	// PluginProxy proxies HTTP requests to plugin-defined routes.
 	// This replaces the hardcoded AISearchHandler.
@@ -201,9 +200,6 @@ func (s *Server) setupRoutes() {
 
 	// Register settings routes (protected, with admin requirement for system settings)
 	routes.RegisterSettingsRoutesWithLocation(protected, h.Settings, h.LocationSettings, h.AuthValidator)
-
-	// Register AI settings routes (protected, admin only)
-	routes.RegisterAISettingsRoutes(protected, h.AISettings, h.AuthValidator)
 
 	// Register enrichment routes (protected)
 	routes.RegisterEnrichmentRoutes(protected, h.Enrichment)

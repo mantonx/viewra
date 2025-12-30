@@ -19,6 +19,8 @@ categories:
 provides:
   - provider
   - provider:openai
+  - embedding
+  - chat
 
 # Permissions required
 permissions:

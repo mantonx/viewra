@@ -144,15 +144,9 @@ func BuildHandlers(
 
 	// Settings handler
 	var settingsHandler *handlers.SettingsHandler
-	var aiSettingsHandler *handlers.AISettingsHandler
 	var locationSettingsHandler *handlers.LocationSettingsHandler
 	if svcs.Settings != nil {
 		settingsHandler = handlers.NewSettingsHandler(svcs.Settings, infra.Repos.User)
-		aiSettingsHandler = handlers.NewAISettingsHandler(svcs.Settings, svcs.EventBus)
-		// Wire up provider registry for dynamic provider lookup
-		if svcs.PluginManager != nil {
-			aiSettingsHandler.SetProviderRegistry(svcs.PluginManager.GetProviderRegistry())
-		}
 	}
 
 	// Location settings handler (for weather context)
@@ -226,7 +220,6 @@ func BuildHandlers(
 		Users:            usersHandler,
 		Settings:         settingsHandler,
 		LocationSettings: locationSettingsHandler,
-		AISettings:       aiSettingsHandler,
 		Enrichment:       enrichmentHandler,
 		Plugins:          pluginHandler,
 		System:           systemHandler,

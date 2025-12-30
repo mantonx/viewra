@@ -44,6 +44,19 @@ type Manifest struct {
 	// Other plugins can depend on these capabilities.
 	Provides []string `yaml:"provides,omitempty"`
 
+	// Requires is a simpler alternative to Dependencies for declaring
+	// required capabilities. Each entry is a capability name that must
+	// be provided by another enabled plugin.
+	// e.g., ["embedding"] for a search plugin that needs an embedding provider
+	Requires []string `yaml:"requires,omitempty"`
+
+	// Type describes the plugin type: "enricher", "provider", etc.
+	Type string `yaml:"type,omitempty"`
+
+	// MediaTypes lists the media types this enricher supports.
+	// Alternative to Capabilities.MediaTypes for simpler manifests.
+	MediaTypes []string `yaml:"media_types,omitempty"`
+
 	// Required permissions
 	Permissions []string `yaml:"permissions"`
 }

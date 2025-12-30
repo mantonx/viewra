@@ -15,7 +15,7 @@ import (
 // IndexingService handles media indexing for semantic search.
 type IndexingService struct {
 	embeddingService *EmbeddingService
-	embeddings       *sdk.EmbeddingsClient
+	vector           *sdk.VectorClient
 	data             *sdk.DataClient
 	batchSize        int
 	logger           *slog.Logger
@@ -30,7 +30,7 @@ type IndexingService struct {
 // NewIndexingService creates a new indexing service.
 func NewIndexingService(
 	embeddingService *EmbeddingService,
-	embeddings *sdk.EmbeddingsClient,
+	vector *sdk.VectorClient,
 	data *sdk.DataClient,
 	config IndexingConfig,
 	logger *slog.Logger,
@@ -41,7 +41,7 @@ func NewIndexingService(
 	}
 	return &IndexingService{
 		embeddingService: embeddingService,
-		embeddings:       embeddings,
+		vector:           vector,
 		data:             data,
 		batchSize:        batchSize,
 		logger:           logger,
@@ -69,7 +69,12 @@ func (s *IndexingService) IndexSingle(ctx context.Context, entityType EntityType
 		return fmt.Errorf("generate embedding for %s:%d: %w", entityType, entityID, err)
 	}
 
-	err = s.embeddings.Store(ctx, string(entityType), entityID, embedding, text)
+	err = s.vector.Store(ctx, sdk.Embedding{
+		EntityType: string(entityType),
+		EntityID:   entityID,
+		Vector:     embedding,
+		Text:       text,
+	})
 	if err != nil {
 		return fmt.Errorf("store embedding for %s:%d: %w", entityType, entityID, err)
 	}

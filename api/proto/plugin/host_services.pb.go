@@ -1388,6 +1388,972 @@ func (x *DatabaseStats) GetTableCount() int32 {
 	return 0
 }
 
+type SQLRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sql           string                 `protobuf:"bytes,1,opt,name=sql,proto3" json:"sql,omitempty"`
+	Args          []*SQLValue            `protobuf:"bytes,2,rep,name=args,proto3" json:"args,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SQLRequest) Reset() {
+	*x = SQLRequest{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SQLRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SQLRequest) ProtoMessage() {}
+
+func (x *SQLRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SQLRequest.ProtoReflect.Descriptor instead.
+func (*SQLRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *SQLRequest) GetSql() string {
+	if x != nil {
+		return x.Sql
+	}
+	return ""
+}
+
+func (x *SQLRequest) GetArgs() []*SQLValue {
+	if x != nil {
+		return x.Args
+	}
+	return nil
+}
+
+type SQLValue struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Value:
+	//
+	//	*SQLValue_StringValue
+	//	*SQLValue_IntValue
+	//	*SQLValue_DoubleValue
+	//	*SQLValue_BytesValue
+	//	*SQLValue_IsNull
+	Value         isSQLValue_Value `protobuf_oneof:"value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SQLValue) Reset() {
+	*x = SQLValue{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SQLValue) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SQLValue) ProtoMessage() {}
+
+func (x *SQLValue) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SQLValue.ProtoReflect.Descriptor instead.
+func (*SQLValue) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *SQLValue) GetValue() isSQLValue_Value {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+func (x *SQLValue) GetStringValue() string {
+	if x != nil {
+		if x, ok := x.Value.(*SQLValue_StringValue); ok {
+			return x.StringValue
+		}
+	}
+	return ""
+}
+
+func (x *SQLValue) GetIntValue() int64 {
+	if x != nil {
+		if x, ok := x.Value.(*SQLValue_IntValue); ok {
+			return x.IntValue
+		}
+	}
+	return 0
+}
+
+func (x *SQLValue) GetDoubleValue() float64 {
+	if x != nil {
+		if x, ok := x.Value.(*SQLValue_DoubleValue); ok {
+			return x.DoubleValue
+		}
+	}
+	return 0
+}
+
+func (x *SQLValue) GetBytesValue() []byte {
+	if x != nil {
+		if x, ok := x.Value.(*SQLValue_BytesValue); ok {
+			return x.BytesValue
+		}
+	}
+	return nil
+}
+
+func (x *SQLValue) GetIsNull() bool {
+	if x != nil {
+		if x, ok := x.Value.(*SQLValue_IsNull); ok {
+			return x.IsNull
+		}
+	}
+	return false
+}
+
+type isSQLValue_Value interface {
+	isSQLValue_Value()
+}
+
+type SQLValue_StringValue struct {
+	StringValue string `protobuf:"bytes,1,opt,name=string_value,json=stringValue,proto3,oneof"`
+}
+
+type SQLValue_IntValue struct {
+	IntValue int64 `protobuf:"varint,2,opt,name=int_value,json=intValue,proto3,oneof"`
+}
+
+type SQLValue_DoubleValue struct {
+	DoubleValue float64 `protobuf:"fixed64,3,opt,name=double_value,json=doubleValue,proto3,oneof"`
+}
+
+type SQLValue_BytesValue struct {
+	BytesValue []byte `protobuf:"bytes,4,opt,name=bytes_value,json=bytesValue,proto3,oneof"`
+}
+
+type SQLValue_IsNull struct {
+	IsNull bool `protobuf:"varint,5,opt,name=is_null,json=isNull,proto3,oneof"`
+}
+
+func (*SQLValue_StringValue) isSQLValue_Value() {}
+
+func (*SQLValue_IntValue) isSQLValue_Value() {}
+
+func (*SQLValue_DoubleValue) isSQLValue_Value() {}
+
+func (*SQLValue_BytesValue) isSQLValue_Value() {}
+
+func (*SQLValue_IsNull) isSQLValue_Value() {}
+
+type SQLExecResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RowsAffected  int64                  `protobuf:"varint,1,opt,name=rows_affected,json=rowsAffected,proto3" json:"rows_affected,omitempty"`
+	LastInsertId  int64                  `protobuf:"varint,2,opt,name=last_insert_id,json=lastInsertId,proto3" json:"last_insert_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SQLExecResult) Reset() {
+	*x = SQLExecResult{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SQLExecResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SQLExecResult) ProtoMessage() {}
+
+func (x *SQLExecResult) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SQLExecResult.ProtoReflect.Descriptor instead.
+func (*SQLExecResult) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *SQLExecResult) GetRowsAffected() int64 {
+	if x != nil {
+		return x.RowsAffected
+	}
+	return 0
+}
+
+func (x *SQLExecResult) GetLastInsertId() int64 {
+	if x != nil {
+		return x.LastInsertId
+	}
+	return 0
+}
+
+type SQLQueryResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Columns       []string               `protobuf:"bytes,1,rep,name=columns,proto3" json:"columns,omitempty"`
+	Rows          []*SQLRow              `protobuf:"bytes,2,rep,name=rows,proto3" json:"rows,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SQLQueryResult) Reset() {
+	*x = SQLQueryResult{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SQLQueryResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SQLQueryResult) ProtoMessage() {}
+
+func (x *SQLQueryResult) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SQLQueryResult.ProtoReflect.Descriptor instead.
+func (*SQLQueryResult) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *SQLQueryResult) GetColumns() []string {
+	if x != nil {
+		return x.Columns
+	}
+	return nil
+}
+
+func (x *SQLQueryResult) GetRows() []*SQLRow {
+	if x != nil {
+		return x.Rows
+	}
+	return nil
+}
+
+type SQLRow struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []*SQLValue            `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SQLRow) Reset() {
+	*x = SQLRow{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SQLRow) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SQLRow) ProtoMessage() {}
+
+func (x *SQLRow) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SQLRow.ProtoReflect.Descriptor instead.
+func (*SQLRow) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *SQLRow) GetValues() []*SQLValue {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type VectorStoreRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EntityType    string                 `protobuf:"bytes,1,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"` // e.g., "movie", "tv_show", "track"
+	EntityId      int64                  `protobuf:"varint,2,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`      // ID within entity type
+	Vector        []float32              `protobuf:"fixed32,3,rep,packed,name=vector,proto3" json:"vector,omitempty"`                  // Embedding vector (float32)
+	Text          string                 `protobuf:"bytes,4,opt,name=text,proto3" json:"text,omitempty"`                               // Original text that was embedded (optional, for debugging)
+	Model         string                 `protobuf:"bytes,5,opt,name=model,proto3" json:"model,omitempty"`                             // Model used to generate embedding (optional, for tracking)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VectorStoreRequest) Reset() {
+	*x = VectorStoreRequest{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VectorStoreRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VectorStoreRequest) ProtoMessage() {}
+
+func (x *VectorStoreRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VectorStoreRequest.ProtoReflect.Descriptor instead.
+func (*VectorStoreRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *VectorStoreRequest) GetEntityType() string {
+	if x != nil {
+		return x.EntityType
+	}
+	return ""
+}
+
+func (x *VectorStoreRequest) GetEntityId() int64 {
+	if x != nil {
+		return x.EntityId
+	}
+	return 0
+}
+
+func (x *VectorStoreRequest) GetVector() []float32 {
+	if x != nil {
+		return x.Vector
+	}
+	return nil
+}
+
+func (x *VectorStoreRequest) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *VectorStoreRequest) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+type VectorStoreBatchRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Embeddings    []*VectorStoreRequest  `protobuf:"bytes,1,rep,name=embeddings,proto3" json:"embeddings,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VectorStoreBatchRequest) Reset() {
+	*x = VectorStoreBatchRequest{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VectorStoreBatchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VectorStoreBatchRequest) ProtoMessage() {}
+
+func (x *VectorStoreBatchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VectorStoreBatchRequest.ProtoReflect.Descriptor instead.
+func (*VectorStoreBatchRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *VectorStoreBatchRequest) GetEmbeddings() []*VectorStoreRequest {
+	if x != nil {
+		return x.Embeddings
+	}
+	return nil
+}
+
+type VectorSearchRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	QueryVector   []float32              `protobuf:"fixed32,1,rep,packed,name=query_vector,json=queryVector,proto3" json:"query_vector,omitempty"` // Query embedding
+	EntityTypes   []string               `protobuf:"bytes,2,rep,name=entity_types,json=entityTypes,proto3" json:"entity_types,omitempty"`          // Filter by types (empty = all)
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`                                        // Max results (default: 20)
+	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`                                      // Pagination offset
+	MinSimilarity float32                `protobuf:"fixed32,5,opt,name=min_similarity,json=minSimilarity,proto3" json:"min_similarity,omitempty"`  // Minimum similarity threshold (0.0-1.0)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VectorSearchRequest) Reset() {
+	*x = VectorSearchRequest{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VectorSearchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VectorSearchRequest) ProtoMessage() {}
+
+func (x *VectorSearchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VectorSearchRequest.ProtoReflect.Descriptor instead.
+func (*VectorSearchRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *VectorSearchRequest) GetQueryVector() []float32 {
+	if x != nil {
+		return x.QueryVector
+	}
+	return nil
+}
+
+func (x *VectorSearchRequest) GetEntityTypes() []string {
+	if x != nil {
+		return x.EntityTypes
+	}
+	return nil
+}
+
+func (x *VectorSearchRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *VectorSearchRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *VectorSearchRequest) GetMinSimilarity() float32 {
+	if x != nil {
+		return x.MinSimilarity
+	}
+	return 0
+}
+
+type VectorTextSearchRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`                                // Text to search for (case-insensitive)
+	EntityTypes   []string               `protobuf:"bytes,2,rep,name=entity_types,json=entityTypes,proto3" json:"entity_types,omitempty"` // Filter by types (empty = all)
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`                               // Max results (default: 100)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VectorTextSearchRequest) Reset() {
+	*x = VectorTextSearchRequest{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VectorTextSearchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VectorTextSearchRequest) ProtoMessage() {}
+
+func (x *VectorTextSearchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VectorTextSearchRequest.ProtoReflect.Descriptor instead.
+func (*VectorTextSearchRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *VectorTextSearchRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *VectorTextSearchRequest) GetEntityTypes() []string {
+	if x != nil {
+		return x.EntityTypes
+	}
+	return nil
+}
+
+func (x *VectorTextSearchRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type VectorSearchResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Results       []*VectorSearchResult  `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
+	TotalCount    int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"` // Total matching embeddings
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VectorSearchResponse) Reset() {
+	*x = VectorSearchResponse{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VectorSearchResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VectorSearchResponse) ProtoMessage() {}
+
+func (x *VectorSearchResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VectorSearchResponse.ProtoReflect.Descriptor instead.
+func (*VectorSearchResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *VectorSearchResponse) GetResults() []*VectorSearchResult {
+	if x != nil {
+		return x.Results
+	}
+	return nil
+}
+
+func (x *VectorSearchResponse) GetTotalCount() int32 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+type VectorSearchResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EntityType    string                 `protobuf:"bytes,1,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"`
+	EntityId      int64                  `protobuf:"varint,2,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
+	Similarity    float32                `protobuf:"fixed32,3,opt,name=similarity,proto3" json:"similarity,omitempty"` // Cosine similarity (0.0-1.0)
+	Text          string                 `protobuf:"bytes,4,opt,name=text,proto3" json:"text,omitempty"`               // Original embedded text
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VectorSearchResult) Reset() {
+	*x = VectorSearchResult{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VectorSearchResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VectorSearchResult) ProtoMessage() {}
+
+func (x *VectorSearchResult) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VectorSearchResult.ProtoReflect.Descriptor instead.
+func (*VectorSearchResult) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *VectorSearchResult) GetEntityType() string {
+	if x != nil {
+		return x.EntityType
+	}
+	return ""
+}
+
+func (x *VectorSearchResult) GetEntityId() int64 {
+	if x != nil {
+		return x.EntityId
+	}
+	return 0
+}
+
+func (x *VectorSearchResult) GetSimilarity() float32 {
+	if x != nil {
+		return x.Similarity
+	}
+	return 0
+}
+
+func (x *VectorSearchResult) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+type VectorQuery struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EntityType    string                 `protobuf:"bytes,1,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"`
+	EntityId      int64                  `protobuf:"varint,2,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VectorQuery) Reset() {
+	*x = VectorQuery{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VectorQuery) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VectorQuery) ProtoMessage() {}
+
+func (x *VectorQuery) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VectorQuery.ProtoReflect.Descriptor instead.
+func (*VectorQuery) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *VectorQuery) GetEntityType() string {
+	if x != nil {
+		return x.EntityType
+	}
+	return ""
+}
+
+func (x *VectorQuery) GetEntityId() int64 {
+	if x != nil {
+		return x.EntityId
+	}
+	return 0
+}
+
+type VectorGetResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Exists        bool                   `protobuf:"varint,1,opt,name=exists,proto3" json:"exists,omitempty"`
+	Vector        []float32              `protobuf:"fixed32,2,rep,packed,name=vector,proto3" json:"vector,omitempty"`
+	Text          string                 `protobuf:"bytes,3,opt,name=text,proto3" json:"text,omitempty"`
+	Model         string                 `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
+	Dimensions    int32                  `protobuf:"varint,5,opt,name=dimensions,proto3" json:"dimensions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VectorGetResponse) Reset() {
+	*x = VectorGetResponse{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VectorGetResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VectorGetResponse) ProtoMessage() {}
+
+func (x *VectorGetResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VectorGetResponse.ProtoReflect.Descriptor instead.
+func (*VectorGetResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *VectorGetResponse) GetExists() bool {
+	if x != nil {
+		return x.Exists
+	}
+	return false
+}
+
+func (x *VectorGetResponse) GetVector() []float32 {
+	if x != nil {
+		return x.Vector
+	}
+	return nil
+}
+
+func (x *VectorGetResponse) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *VectorGetResponse) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *VectorGetResponse) GetDimensions() int32 {
+	if x != nil {
+		return x.Dimensions
+	}
+	return 0
+}
+
+type VectorTypeQuery struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EntityType    string                 `protobuf:"bytes,1,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"` // Empty = all types
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VectorTypeQuery) Reset() {
+	*x = VectorTypeQuery{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VectorTypeQuery) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VectorTypeQuery) ProtoMessage() {}
+
+func (x *VectorTypeQuery) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VectorTypeQuery.ProtoReflect.Descriptor instead.
+func (*VectorTypeQuery) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *VectorTypeQuery) GetEntityType() string {
+	if x != nil {
+		return x.EntityType
+	}
+	return ""
+}
+
+type VectorDeleteResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DeletedCount  int64                  `protobuf:"varint,1,opt,name=deleted_count,json=deletedCount,proto3" json:"deleted_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VectorDeleteResponse) Reset() {
+	*x = VectorDeleteResponse{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VectorDeleteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VectorDeleteResponse) ProtoMessage() {}
+
+func (x *VectorDeleteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VectorDeleteResponse.ProtoReflect.Descriptor instead.
+func (*VectorDeleteResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *VectorDeleteResponse) GetDeletedCount() int64 {
+	if x != nil {
+		return x.DeletedCount
+	}
+	return 0
+}
+
+type VectorCountResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Count         int64                  `protobuf:"varint,1,opt,name=count,proto3" json:"count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VectorCountResponse) Reset() {
+	*x = VectorCountResponse{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VectorCountResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VectorCountResponse) ProtoMessage() {}
+
+func (x *VectorCountResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VectorCountResponse.ProtoReflect.Descriptor instead.
+func (*VectorCountResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *VectorCountResponse) GetCount() int64 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
 type UserId struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -1397,7 +2363,7 @@ type UserId struct {
 
 func (x *UserId) Reset() {
 	*x = UserId{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[21]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1409,7 +2375,7 @@ func (x *UserId) String() string {
 func (*UserId) ProtoMessage() {}
 
 func (x *UserId) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[21]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1422,7 +2388,7 @@ func (x *UserId) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserId.ProtoReflect.Descriptor instead.
 func (*UserId) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{21}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *UserId) GetUserId() string {
@@ -1442,7 +2408,7 @@ type UserMetadataKey struct {
 
 func (x *UserMetadataKey) Reset() {
 	*x = UserMetadataKey{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[22]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1454,7 +2420,7 @@ func (x *UserMetadataKey) String() string {
 func (*UserMetadataKey) ProtoMessage() {}
 
 func (x *UserMetadataKey) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[22]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1467,7 +2433,7 @@ func (x *UserMetadataKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserMetadataKey.ProtoReflect.Descriptor instead.
 func (*UserMetadataKey) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{22}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *UserMetadataKey) GetUserId() string {
@@ -1494,7 +2460,7 @@ type UserMetadataValue struct {
 
 func (x *UserMetadataValue) Reset() {
 	*x = UserMetadataValue{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[23]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1506,7 +2472,7 @@ func (x *UserMetadataValue) String() string {
 func (*UserMetadataValue) ProtoMessage() {}
 
 func (x *UserMetadataValue) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[23]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1519,7 +2485,7 @@ func (x *UserMetadataValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserMetadataValue.ProtoReflect.Descriptor instead.
 func (*UserMetadataValue) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{23}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *UserMetadataValue) GetValue() []byte {
@@ -1547,7 +2513,7 @@ type UserMetadataEntry struct {
 
 func (x *UserMetadataEntry) Reset() {
 	*x = UserMetadataEntry{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[24]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1559,7 +2525,7 @@ func (x *UserMetadataEntry) String() string {
 func (*UserMetadataEntry) ProtoMessage() {}
 
 func (x *UserMetadataEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[24]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1572,7 +2538,7 @@ func (x *UserMetadataEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserMetadataEntry.ProtoReflect.Descriptor instead.
 func (*UserMetadataEntry) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{24}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *UserMetadataEntry) GetUserId() string {
@@ -1605,7 +2571,7 @@ type UserMetadataKeyList struct {
 
 func (x *UserMetadataKeyList) Reset() {
 	*x = UserMetadataKeyList{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[25]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1617,7 +2583,7 @@ func (x *UserMetadataKeyList) String() string {
 func (*UserMetadataKeyList) ProtoMessage() {}
 
 func (x *UserMetadataKeyList) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[25]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1630,7 +2596,7 @@ func (x *UserMetadataKeyList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserMetadataKeyList.ProtoReflect.Descriptor instead.
 func (*UserMetadataKeyList) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{25}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *UserMetadataKeyList) GetKeys() []string {
@@ -1650,7 +2616,7 @@ type ParseNFORequest struct {
 
 func (x *ParseNFORequest) Reset() {
 	*x = ParseNFORequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[26]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1662,7 +2628,7 @@ func (x *ParseNFORequest) String() string {
 func (*ParseNFORequest) ProtoMessage() {}
 
 func (x *ParseNFORequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[26]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1675,7 +2641,7 @@ func (x *ParseNFORequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ParseNFORequest.ProtoReflect.Descriptor instead.
 func (*ParseNFORequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{26}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *ParseNFORequest) GetFilePath() string {
@@ -1715,7 +2681,7 @@ type NFOMetadata struct {
 
 func (x *NFOMetadata) Reset() {
 	*x = NFOMetadata{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[27]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1727,7 +2693,7 @@ func (x *NFOMetadata) String() string {
 func (*NFOMetadata) ProtoMessage() {}
 
 func (x *NFOMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[27]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1740,7 +2706,7 @@ func (x *NFOMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NFOMetadata.ProtoReflect.Descriptor instead.
 func (*NFOMetadata) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{27}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *NFOMetadata) GetFound() bool {
@@ -1860,7 +2826,7 @@ type NFOActor struct {
 
 func (x *NFOActor) Reset() {
 	*x = NFOActor{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[28]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1872,7 +2838,7 @@ func (x *NFOActor) String() string {
 func (*NFOActor) ProtoMessage() {}
 
 func (x *NFOActor) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[28]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1885,7 +2851,7 @@ func (x *NFOActor) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NFOActor.ProtoReflect.Descriptor instead.
 func (*NFOActor) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{28}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *NFOActor) GetName() string {
@@ -1926,7 +2892,7 @@ type ExtractImagesRequest struct {
 
 func (x *ExtractImagesRequest) Reset() {
 	*x = ExtractImagesRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[29]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1938,7 +2904,7 @@ func (x *ExtractImagesRequest) String() string {
 func (*ExtractImagesRequest) ProtoMessage() {}
 
 func (x *ExtractImagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[29]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1951,7 +2917,7 @@ func (x *ExtractImagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtractImagesRequest.ProtoReflect.Descriptor instead.
 func (*ExtractImagesRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{29}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ExtractImagesRequest) GetFilePath() string {
@@ -1977,7 +2943,7 @@ type ExtractImagesResponse struct {
 
 func (x *ExtractImagesResponse) Reset() {
 	*x = ExtractImagesResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[30]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1989,7 +2955,7 @@ func (x *ExtractImagesResponse) String() string {
 func (*ExtractImagesResponse) ProtoMessage() {}
 
 func (x *ExtractImagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[30]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2002,7 +2968,7 @@ func (x *ExtractImagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtractImagesResponse.ProtoReflect.Descriptor instead.
 func (*ExtractImagesResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{30}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *ExtractImagesResponse) GetImages() []*ExtractedImage {
@@ -2024,7 +2990,7 @@ type ExtractedImage struct {
 
 func (x *ExtractedImage) Reset() {
 	*x = ExtractedImage{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[31]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2036,7 +3002,7 @@ func (x *ExtractedImage) String() string {
 func (*ExtractedImage) ProtoMessage() {}
 
 func (x *ExtractedImage) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[31]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2049,7 +3015,7 @@ func (x *ExtractedImage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtractedImage.ProtoReflect.Descriptor instead.
 func (*ExtractedImage) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{31}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *ExtractedImage) GetType() string {
@@ -2090,7 +3056,7 @@ type MoodTag struct {
 
 func (x *MoodTag) Reset() {
 	*x = MoodTag{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[32]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2102,7 +3068,7 @@ func (x *MoodTag) String() string {
 func (*MoodTag) ProtoMessage() {}
 
 func (x *MoodTag) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[32]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2115,7 +3081,7 @@ func (x *MoodTag) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoodTag.ProtoReflect.Descriptor instead.
 func (*MoodTag) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{32}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *MoodTag) GetTag() string {
@@ -2141,7 +3107,7 @@ type MoodTagList struct {
 
 func (x *MoodTagList) Reset() {
 	*x = MoodTagList{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[33]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2153,7 +3119,7 @@ func (x *MoodTagList) String() string {
 func (*MoodTagList) ProtoMessage() {}
 
 func (x *MoodTagList) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[33]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2166,7 +3132,7 @@ func (x *MoodTagList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoodTagList.ProtoReflect.Descriptor instead.
 func (*MoodTagList) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{33}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *MoodTagList) GetTags() []*MoodTag {
@@ -2187,7 +3153,7 @@ type SetMoodTagsRequest struct {
 
 func (x *SetMoodTagsRequest) Reset() {
 	*x = SetMoodTagsRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[34]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2199,7 +3165,7 @@ func (x *SetMoodTagsRequest) String() string {
 func (*SetMoodTagsRequest) ProtoMessage() {}
 
 func (x *SetMoodTagsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[34]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2212,7 +3178,7 @@ func (x *SetMoodTagsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetMoodTagsRequest.ProtoReflect.Descriptor instead.
 func (*SetMoodTagsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{34}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *SetMoodTagsRequest) GetMediaId() int64 {
@@ -2245,7 +3211,7 @@ type WeatherRequest struct {
 
 func (x *WeatherRequest) Reset() {
 	*x = WeatherRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[35]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2257,7 +3223,7 @@ func (x *WeatherRequest) String() string {
 func (*WeatherRequest) ProtoMessage() {}
 
 func (x *WeatherRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[35]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2270,7 +3236,7 @@ func (x *WeatherRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WeatherRequest.ProtoReflect.Descriptor instead.
 func (*WeatherRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{35}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *WeatherRequest) GetUserId() string {
@@ -2298,7 +3264,7 @@ type WeatherResponse struct {
 
 func (x *WeatherResponse) Reset() {
 	*x = WeatherResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[36]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2310,7 +3276,7 @@ func (x *WeatherResponse) String() string {
 func (*WeatherResponse) ProtoMessage() {}
 
 func (x *WeatherResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[36]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2323,7 +3289,7 @@ func (x *WeatherResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WeatherResponse.ProtoReflect.Descriptor instead.
 func (*WeatherResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{36}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *WeatherResponse) GetAvailable() bool {
@@ -2394,6 +3360,440 @@ func (x *WeatherResponse) GetSeason() string {
 		return x.Season
 	}
 	return ""
+}
+
+type CapabilityRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Capability      string                 `protobuf:"bytes,1,opt,name=capability,proto3" json:"capability,omitempty"`                                  // Capability name, e.g., "embedding", "chat"
+	PreferredPlugin string                 `protobuf:"bytes,2,opt,name=preferred_plugin,json=preferredPlugin,proto3" json:"preferred_plugin,omitempty"` // Optional: specific plugin ID to prefer
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *CapabilityRequest) Reset() {
+	*x = CapabilityRequest{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CapabilityRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CapabilityRequest) ProtoMessage() {}
+
+func (x *CapabilityRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CapabilityRequest.ProtoReflect.Descriptor instead.
+func (*CapabilityRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *CapabilityRequest) GetCapability() string {
+	if x != nil {
+		return x.Capability
+	}
+	return ""
+}
+
+func (x *CapabilityRequest) GetPreferredPlugin() string {
+	if x != nil {
+		return x.PreferredPlugin
+	}
+	return ""
+}
+
+type CapabilityProviderResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Available     bool                   `protobuf:"varint,1,opt,name=available,proto3" json:"available,omitempty"`                    // True if a provider is available
+	BrokerId      uint32                 `protobuf:"varint,2,opt,name=broker_id,json=brokerId,proto3" json:"broker_id,omitempty"`      // gRPC broker ID for plugin-to-plugin connection
+	PluginId      string                 `protobuf:"bytes,3,opt,name=plugin_id,json=pluginId,proto3" json:"plugin_id,omitempty"`       // ID of the plugin providing the capability
+	PluginName    string                 `protobuf:"bytes,4,opt,name=plugin_name,json=pluginName,proto3" json:"plugin_name,omitempty"` // Human-readable name of the provider
+	Error         string                 `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`                             // Error message if not available
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CapabilityProviderResponse) Reset() {
+	*x = CapabilityProviderResponse{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CapabilityProviderResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CapabilityProviderResponse) ProtoMessage() {}
+
+func (x *CapabilityProviderResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CapabilityProviderResponse.ProtoReflect.Descriptor instead.
+func (*CapabilityProviderResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *CapabilityProviderResponse) GetAvailable() bool {
+	if x != nil {
+		return x.Available
+	}
+	return false
+}
+
+func (x *CapabilityProviderResponse) GetBrokerId() uint32 {
+	if x != nil {
+		return x.BrokerId
+	}
+	return 0
+}
+
+func (x *CapabilityProviderResponse) GetPluginId() string {
+	if x != nil {
+		return x.PluginId
+	}
+	return ""
+}
+
+func (x *CapabilityProviderResponse) GetPluginName() string {
+	if x != nil {
+		return x.PluginName
+	}
+	return ""
+}
+
+func (x *CapabilityProviderResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type CapabilityListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Capabilities  []*CapabilityInfo      `protobuf:"bytes,1,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CapabilityListResponse) Reset() {
+	*x = CapabilityListResponse{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CapabilityListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CapabilityListResponse) ProtoMessage() {}
+
+func (x *CapabilityListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CapabilityListResponse.ProtoReflect.Descriptor instead.
+func (*CapabilityListResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *CapabilityListResponse) GetCapabilities() []*CapabilityInfo {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
+type CapabilityInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"` // Capability name
+	Providers     []*PluginProviderInfo  `protobuf:"bytes,2,rep,name=providers,proto3" json:"providers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CapabilityInfo) Reset() {
+	*x = CapabilityInfo{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CapabilityInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CapabilityInfo) ProtoMessage() {}
+
+func (x *CapabilityInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CapabilityInfo.ProtoReflect.Descriptor instead.
+func (*CapabilityInfo) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *CapabilityInfo) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CapabilityInfo) GetProviders() []*PluginProviderInfo {
+	if x != nil {
+		return x.Providers
+	}
+	return nil
+}
+
+type PluginProviderInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PluginId      string                 `protobuf:"bytes,1,opt,name=plugin_id,json=pluginId,proto3" json:"plugin_id,omitempty"`       // Plugin ID
+	PluginName    string                 `protobuf:"bytes,2,opt,name=plugin_name,json=pluginName,proto3" json:"plugin_name,omitempty"` // Human-readable name
+	Enabled       bool                   `protobuf:"varint,3,opt,name=enabled,proto3" json:"enabled,omitempty"`                        // Whether the plugin is enabled
+	Configured    bool                   `protobuf:"varint,4,opt,name=configured,proto3" json:"configured,omitempty"`                  // Whether the plugin is properly configured
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PluginProviderInfo) Reset() {
+	*x = PluginProviderInfo{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PluginProviderInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PluginProviderInfo) ProtoMessage() {}
+
+func (x *PluginProviderInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PluginProviderInfo.ProtoReflect.Descriptor instead.
+func (*PluginProviderInfo) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *PluginProviderInfo) GetPluginId() string {
+	if x != nil {
+		return x.PluginId
+	}
+	return ""
+}
+
+func (x *PluginProviderInfo) GetPluginName() string {
+	if x != nil {
+		return x.PluginName
+	}
+	return ""
+}
+
+func (x *PluginProviderInfo) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *PluginProviderInfo) GetConfigured() bool {
+	if x != nil {
+		return x.Configured
+	}
+	return false
+}
+
+type ProviderListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Providers     []*PluginProviderInfo  `protobuf:"bytes,1,rep,name=providers,proto3" json:"providers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProviderListResponse) Reset() {
+	*x = ProviderListResponse{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[58]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProviderListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProviderListResponse) ProtoMessage() {}
+
+func (x *ProviderListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[58]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProviderListResponse.ProtoReflect.Descriptor instead.
+func (*ProviderListResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{58}
+}
+
+func (x *ProviderListResponse) GetProviders() []*PluginProviderInfo {
+	if x != nil {
+		return x.Providers
+	}
+	return nil
+}
+
+// CapabilityPreferenceRequest sets or clears a capability preference.
+type CapabilityPreferenceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Capability    string                 `protobuf:"bytes,1,opt,name=capability,proto3" json:"capability,omitempty"`             // Capability name, e.g., "embedding", "chat"
+	PluginId      string                 `protobuf:"bytes,2,opt,name=plugin_id,json=pluginId,proto3" json:"plugin_id,omitempty"` // Plugin ID to prefer (empty to clear in ClearCapabilityPreference)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CapabilityPreferenceRequest) Reset() {
+	*x = CapabilityPreferenceRequest{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CapabilityPreferenceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CapabilityPreferenceRequest) ProtoMessage() {}
+
+func (x *CapabilityPreferenceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CapabilityPreferenceRequest.ProtoReflect.Descriptor instead.
+func (*CapabilityPreferenceRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *CapabilityPreferenceRequest) GetCapability() string {
+	if x != nil {
+		return x.Capability
+	}
+	return ""
+}
+
+func (x *CapabilityPreferenceRequest) GetPluginId() string {
+	if x != nil {
+		return x.PluginId
+	}
+	return ""
+}
+
+// CapabilityPreferencesResponse returns all configured preferences.
+type CapabilityPreferencesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Preferences   map[string]string      `protobuf:"bytes,1,rep,name=preferences,proto3" json:"preferences,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // capability -> plugin_id
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CapabilityPreferencesResponse) Reset() {
+	*x = CapabilityPreferencesResponse{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CapabilityPreferencesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CapabilityPreferencesResponse) ProtoMessage() {}
+
+func (x *CapabilityPreferencesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CapabilityPreferencesResponse.ProtoReflect.Descriptor instead.
+func (*CapabilityPreferencesResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{60}
+}
+
+func (x *CapabilityPreferencesResponse) GetPreferences() map[string]string {
+	if x != nil {
+		return x.Preferences
+	}
+	return nil
 }
 
 var File_api_proto_plugin_host_services_proto protoreflect.FileDescriptor
@@ -2520,7 +3920,79 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\vquota_bytes\x18\x02 \x01(\x03R\n" +
 	"quotaBytes\x12\x1f\n" +
 	"\vtable_count\x18\x03 \x01(\x05R\n" +
-	"tableCount\"!\n" +
+	"tableCount\"N\n" +
+	"\n" +
+	"SQLRequest\x12\x10\n" +
+	"\x03sql\x18\x01 \x01(\tR\x03sql\x12.\n" +
+	"\x04args\x18\x02 \x03(\v2\x1a.viewra.plugin.v1.SQLValueR\x04args\"\xba\x01\n" +
+	"\bSQLValue\x12#\n" +
+	"\fstring_value\x18\x01 \x01(\tH\x00R\vstringValue\x12\x1d\n" +
+	"\tint_value\x18\x02 \x01(\x03H\x00R\bintValue\x12#\n" +
+	"\fdouble_value\x18\x03 \x01(\x01H\x00R\vdoubleValue\x12!\n" +
+	"\vbytes_value\x18\x04 \x01(\fH\x00R\n" +
+	"bytesValue\x12\x19\n" +
+	"\ais_null\x18\x05 \x01(\bH\x00R\x06isNullB\a\n" +
+	"\x05value\"Z\n" +
+	"\rSQLExecResult\x12#\n" +
+	"\rrows_affected\x18\x01 \x01(\x03R\frowsAffected\x12$\n" +
+	"\x0elast_insert_id\x18\x02 \x01(\x03R\flastInsertId\"X\n" +
+	"\x0eSQLQueryResult\x12\x18\n" +
+	"\acolumns\x18\x01 \x03(\tR\acolumns\x12,\n" +
+	"\x04rows\x18\x02 \x03(\v2\x18.viewra.plugin.v1.SQLRowR\x04rows\"<\n" +
+	"\x06SQLRow\x122\n" +
+	"\x06values\x18\x01 \x03(\v2\x1a.viewra.plugin.v1.SQLValueR\x06values\"\x94\x01\n" +
+	"\x12VectorStoreRequest\x12\x1f\n" +
+	"\ventity_type\x18\x01 \x01(\tR\n" +
+	"entityType\x12\x1b\n" +
+	"\tentity_id\x18\x02 \x01(\x03R\bentityId\x12\x16\n" +
+	"\x06vector\x18\x03 \x03(\x02R\x06vector\x12\x12\n" +
+	"\x04text\x18\x04 \x01(\tR\x04text\x12\x14\n" +
+	"\x05model\x18\x05 \x01(\tR\x05model\"_\n" +
+	"\x17VectorStoreBatchRequest\x12D\n" +
+	"\n" +
+	"embeddings\x18\x01 \x03(\v2$.viewra.plugin.v1.VectorStoreRequestR\n" +
+	"embeddings\"\xb0\x01\n" +
+	"\x13VectorSearchRequest\x12!\n" +
+	"\fquery_vector\x18\x01 \x03(\x02R\vqueryVector\x12!\n" +
+	"\fentity_types\x18\x02 \x03(\tR\ventityTypes\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\x12%\n" +
+	"\x0emin_similarity\x18\x05 \x01(\x02R\rminSimilarity\"h\n" +
+	"\x17VectorTextSearchRequest\x12\x14\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\x12!\n" +
+	"\fentity_types\x18\x02 \x03(\tR\ventityTypes\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\"w\n" +
+	"\x14VectorSearchResponse\x12>\n" +
+	"\aresults\x18\x01 \x03(\v2$.viewra.plugin.v1.VectorSearchResultR\aresults\x12\x1f\n" +
+	"\vtotal_count\x18\x02 \x01(\x05R\n" +
+	"totalCount\"\x86\x01\n" +
+	"\x12VectorSearchResult\x12\x1f\n" +
+	"\ventity_type\x18\x01 \x01(\tR\n" +
+	"entityType\x12\x1b\n" +
+	"\tentity_id\x18\x02 \x01(\x03R\bentityId\x12\x1e\n" +
+	"\n" +
+	"similarity\x18\x03 \x01(\x02R\n" +
+	"similarity\x12\x12\n" +
+	"\x04text\x18\x04 \x01(\tR\x04text\"K\n" +
+	"\vVectorQuery\x12\x1f\n" +
+	"\ventity_type\x18\x01 \x01(\tR\n" +
+	"entityType\x12\x1b\n" +
+	"\tentity_id\x18\x02 \x01(\x03R\bentityId\"\x8d\x01\n" +
+	"\x11VectorGetResponse\x12\x16\n" +
+	"\x06exists\x18\x01 \x01(\bR\x06exists\x12\x16\n" +
+	"\x06vector\x18\x02 \x03(\x02R\x06vector\x12\x12\n" +
+	"\x04text\x18\x03 \x01(\tR\x04text\x12\x14\n" +
+	"\x05model\x18\x04 \x01(\tR\x05model\x12\x1e\n" +
+	"\n" +
+	"dimensions\x18\x05 \x01(\x05R\n" +
+	"dimensions\"2\n" +
+	"\x0fVectorTypeQuery\x12\x1f\n" +
+	"\ventity_type\x18\x01 \x01(\tR\n" +
+	"entityType\";\n" +
+	"\x14VectorDeleteResponse\x12#\n" +
+	"\rdeleted_count\x18\x01 \x01(\x03R\fdeletedCount\"+\n" +
+	"\x13VectorCountResponse\x12\x14\n" +
+	"\x05count\x18\x01 \x01(\x03R\x05count\"!\n" +
 	"\x06UserId\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\"<\n" +
 	"\x0fUserMetadataKey\x12\x17\n" +
@@ -2599,7 +4071,44 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\tcondition\x18\b \x01(\tR\tcondition\x12\x1e\n" +
 	"\vtime_of_day\x18\t \x01(\tR\ttimeOfDay\x12\x16\n" +
 	"\x06season\x18\n" +
-	" \x01(\tR\x06season2\x8a\x06\n" +
+	" \x01(\tR\x06season\"^\n" +
+	"\x11CapabilityRequest\x12\x1e\n" +
+	"\n" +
+	"capability\x18\x01 \x01(\tR\n" +
+	"capability\x12)\n" +
+	"\x10preferred_plugin\x18\x02 \x01(\tR\x0fpreferredPlugin\"\xab\x01\n" +
+	"\x1aCapabilityProviderResponse\x12\x1c\n" +
+	"\tavailable\x18\x01 \x01(\bR\tavailable\x12\x1b\n" +
+	"\tbroker_id\x18\x02 \x01(\rR\bbrokerId\x12\x1b\n" +
+	"\tplugin_id\x18\x03 \x01(\tR\bpluginId\x12\x1f\n" +
+	"\vplugin_name\x18\x04 \x01(\tR\n" +
+	"pluginName\x12\x14\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\"^\n" +
+	"\x16CapabilityListResponse\x12D\n" +
+	"\fcapabilities\x18\x01 \x03(\v2 .viewra.plugin.v1.CapabilityInfoR\fcapabilities\"h\n" +
+	"\x0eCapabilityInfo\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12B\n" +
+	"\tproviders\x18\x02 \x03(\v2$.viewra.plugin.v1.PluginProviderInfoR\tproviders\"\x8c\x01\n" +
+	"\x12PluginProviderInfo\x12\x1b\n" +
+	"\tplugin_id\x18\x01 \x01(\tR\bpluginId\x12\x1f\n" +
+	"\vplugin_name\x18\x02 \x01(\tR\n" +
+	"pluginName\x12\x18\n" +
+	"\aenabled\x18\x03 \x01(\bR\aenabled\x12\x1e\n" +
+	"\n" +
+	"configured\x18\x04 \x01(\bR\n" +
+	"configured\"Z\n" +
+	"\x14ProviderListResponse\x12B\n" +
+	"\tproviders\x18\x01 \x03(\v2$.viewra.plugin.v1.PluginProviderInfoR\tproviders\"Z\n" +
+	"\x1bCapabilityPreferenceRequest\x12\x1e\n" +
+	"\n" +
+	"capability\x18\x01 \x01(\tR\n" +
+	"capability\x12\x1b\n" +
+	"\tplugin_id\x18\x02 \x01(\tR\bpluginId\"\xc3\x01\n" +
+	"\x1dCapabilityPreferencesResponse\x12b\n" +
+	"\vpreferences\x18\x01 \x03(\v2@.viewra.plugin.v1.CapabilityPreferencesResponse.PreferencesEntryR\vpreferences\x1a>\n" +
+	"\x10PreferencesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x012\x8a\x06\n" +
 	"\bHostData\x12A\n" +
 	"\bGetMedia\x12\x1c.viewra.plugin.v1.MediaQuery\x1a\x17.viewra.plugin.v1.Media\x12O\n" +
 	"\x0fGetMediaDetails\x12\x1c.viewra.plugin.v1.MediaQuery\x1a\x1e.viewra.plugin.v1.MediaDetails\x12R\n" +
@@ -2611,7 +4120,8 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\vGetFilePath\x12\x19.viewra.plugin.v1.MediaId\x1a\x1a.viewra.plugin.v1.FilePath\x12J\n" +
 	"\vGetMoodTags\x12\x1c.viewra.plugin.v1.MediaQuery\x1a\x1d.viewra.plugin.v1.MoodTagList\x12L\n" +
 	"\vSetMoodTags\x12$.viewra.plugin.v1.SetMoodTagsRequest\x1a\x17.viewra.plugin.v1.Empty\x12G\n" +
-	"\x0eDeleteMoodTags\x12\x1c.viewra.plugin.v1.MediaQuery\x1a\x17.viewra.plugin.v1.Empty2\xf3\x03\n" +
+	"\x0eDeleteMoodTags\x12\x1c.viewra.plugin.v1.MediaQuery\x1a\x17.viewra.plugin.v1.Empty2\xd4\n" +
+	"\n" +
 	"\vHostStorage\x12;\n" +
 	"\x05KVGet\x12\x17.viewra.plugin.v1.KVKey\x1a\x19.viewra.plugin.v1.KVValue\x12;\n" +
 	"\x05KVSet\x12\x19.viewra.plugin.v1.KVEntry\x1a\x17.viewra.plugin.v1.Empty\x12<\n" +
@@ -2619,7 +4129,18 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\x06KVList\x12\x1f.viewra.plugin.v1.KVListRequest\x1a\x1b.viewra.plugin.v1.KVKeyList\x12J\n" +
 	"\x0fGetDatabasePath\x12\x17.viewra.plugin.v1.Empty\x1a\x1e.viewra.plugin.v1.DatabasePath\x12J\n" +
 	"\x0eRegisterSchema\x12\x1f.viewra.plugin.v1.SchemaVersion\x1a\x17.viewra.plugin.v1.Empty\x12L\n" +
-	"\x10GetDatabaseStats\x12\x17.viewra.plugin.v1.Empty\x1a\x1f.viewra.plugin.v1.DatabaseStats2\xb9\x02\n" +
+	"\x10GetDatabaseStats\x12\x17.viewra.plugin.v1.Empty\x1a\x1f.viewra.plugin.v1.DatabaseStats\x12K\n" +
+	"\n" +
+	"ExecuteSQL\x12\x1c.viewra.plugin.v1.SQLRequest\x1a\x1f.viewra.plugin.v1.SQLExecResult\x12J\n" +
+	"\bQuerySQL\x12\x1c.viewra.plugin.v1.SQLRequest\x1a .viewra.plugin.v1.SQLQueryResult\x12U\n" +
+	"\x14VectorStoreEmbedding\x12$.viewra.plugin.v1.VectorStoreRequest\x1a\x17.viewra.plugin.v1.Empty\x12V\n" +
+	"\x10VectorStoreBatch\x12).viewra.plugin.v1.VectorStoreBatchRequest\x1a\x17.viewra.plugin.v1.Empty\x12]\n" +
+	"\fVectorSearch\x12%.viewra.plugin.v1.VectorSearchRequest\x1a&.viewra.plugin.v1.VectorSearchResponse\x12e\n" +
+	"\x10VectorSearchText\x12).viewra.plugin.v1.VectorTextSearchRequest\x1a&.viewra.plugin.v1.VectorSearchResponse\x12O\n" +
+	"\tVectorGet\x12\x1d.viewra.plugin.v1.VectorQuery\x1a#.viewra.plugin.v1.VectorGetResponse\x12F\n" +
+	"\fVectorDelete\x12\x1d.viewra.plugin.v1.VectorQuery\x1a\x17.viewra.plugin.v1.Empty\x12_\n" +
+	"\x12VectorDeleteByType\x12!.viewra.plugin.v1.VectorTypeQuery\x1a&.viewra.plugin.v1.VectorDeleteResponse\x12W\n" +
+	"\vVectorCount\x12!.viewra.plugin.v1.VectorTypeQuery\x1a%.viewra.plugin.v1.VectorCountResponse2\xb9\x02\n" +
 	"\x10HostUserMetadata\x12M\n" +
 	"\x03Get\x12!.viewra.plugin.v1.UserMetadataKey\x1a#.viewra.plugin.v1.UserMetadataValue\x12C\n" +
 	"\x03Set\x12#.viewra.plugin.v1.UserMetadataEntry\x1a\x17.viewra.plugin.v1.Empty\x12D\n" +
@@ -2629,7 +4150,14 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\bParseNFO\x12!.viewra.plugin.v1.ParseNFORequest\x1a\x1d.viewra.plugin.v1.NFOMetadata\x12h\n" +
 	"\x15ExtractEmbeddedImages\x12&.viewra.plugin.v1.ExtractImagesRequest\x1a'.viewra.plugin.v1.ExtractImagesResponse2g\n" +
 	"\vHostWeather\x12X\n" +
-	"\x11GetCurrentWeather\x12 .viewra.plugin.v1.WeatherRequest\x1a!.viewra.plugin.v1.WeatherResponseB8Z6github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1b\x06proto3"
+	"\x11GetCurrentWeather\x12 .viewra.plugin.v1.WeatherRequest\x1a!.viewra.plugin.v1.WeatherResponse2\xdc\x04\n" +
+	"\vHostPlugins\x12j\n" +
+	"\x15GetCapabilityProvider\x12#.viewra.plugin.v1.CapabilityRequest\x1a,.viewra.plugin.v1.CapabilityProviderResponse\x12U\n" +
+	"\x10ListCapabilities\x12\x17.viewra.plugin.v1.Empty\x1a(.viewra.plugin.v1.CapabilityListResponse\x12\\\n" +
+	"\rListProviders\x12#.viewra.plugin.v1.CapabilityRequest\x1a&.viewra.plugin.v1.ProviderListResponse\x12a\n" +
+	"\x17SetCapabilityPreference\x12-.viewra.plugin.v1.CapabilityPreferenceRequest\x1a\x17.viewra.plugin.v1.Empty\x12c\n" +
+	"\x19ClearCapabilityPreference\x12-.viewra.plugin.v1.CapabilityPreferenceRequest\x1a\x17.viewra.plugin.v1.Empty\x12d\n" +
+	"\x18GetCapabilityPreferences\x12\x17.viewra.plugin.v1.Empty\x1a/.viewra.plugin.v1.CapabilityPreferencesResponseB8Z6github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1b\x06proto3"
 
 var (
 	file_api_proto_plugin_host_services_proto_rawDescOnce sync.Once
@@ -2643,114 +4171,180 @@ func file_api_proto_plugin_host_services_proto_rawDescGZIP() []byte {
 	return file_api_proto_plugin_host_services_proto_rawDescData
 }
 
-var file_api_proto_plugin_host_services_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
+var file_api_proto_plugin_host_services_proto_msgTypes = make([]protoimpl.MessageInfo, 65)
 var file_api_proto_plugin_host_services_proto_goTypes = []any{
-	(*MediaQuery)(nil),            // 0: viewra.plugin.v1.MediaQuery
-	(*MediaId)(nil),               // 1: viewra.plugin.v1.MediaId
-	(*ExternalIdQuery)(nil),       // 2: viewra.plugin.v1.ExternalIdQuery
-	(*SearchQuery)(nil),           // 3: viewra.plugin.v1.SearchQuery
-	(*Media)(nil),                 // 4: viewra.plugin.v1.Media
-	(*MediaList)(nil),             // 5: viewra.plugin.v1.MediaList
-	(*LibraryId)(nil),             // 6: viewra.plugin.v1.LibraryId
-	(*Library)(nil),               // 7: viewra.plugin.v1.Library
-	(*FilePath)(nil),              // 8: viewra.plugin.v1.FilePath
-	(*ListMediaRequest)(nil),      // 9: viewra.plugin.v1.ListMediaRequest
-	(*MediaDetails)(nil),          // 10: viewra.plugin.v1.MediaDetails
-	(*MediaCastMember)(nil),       // 11: viewra.plugin.v1.MediaCastMember
-	(*MediaDetailsList)(nil),      // 12: viewra.plugin.v1.MediaDetailsList
-	(*KVKey)(nil),                 // 13: viewra.plugin.v1.KVKey
-	(*KVValue)(nil),               // 14: viewra.plugin.v1.KVValue
-	(*KVEntry)(nil),               // 15: viewra.plugin.v1.KVEntry
-	(*KVListRequest)(nil),         // 16: viewra.plugin.v1.KVListRequest
-	(*KVKeyList)(nil),             // 17: viewra.plugin.v1.KVKeyList
-	(*DatabasePath)(nil),          // 18: viewra.plugin.v1.DatabasePath
-	(*SchemaVersion)(nil),         // 19: viewra.plugin.v1.SchemaVersion
-	(*DatabaseStats)(nil),         // 20: viewra.plugin.v1.DatabaseStats
-	(*UserId)(nil),                // 21: viewra.plugin.v1.UserId
-	(*UserMetadataKey)(nil),       // 22: viewra.plugin.v1.UserMetadataKey
-	(*UserMetadataValue)(nil),     // 23: viewra.plugin.v1.UserMetadataValue
-	(*UserMetadataEntry)(nil),     // 24: viewra.plugin.v1.UserMetadataEntry
-	(*UserMetadataKeyList)(nil),   // 25: viewra.plugin.v1.UserMetadataKeyList
-	(*ParseNFORequest)(nil),       // 26: viewra.plugin.v1.ParseNFORequest
-	(*NFOMetadata)(nil),           // 27: viewra.plugin.v1.NFOMetadata
-	(*NFOActor)(nil),              // 28: viewra.plugin.v1.NFOActor
-	(*ExtractImagesRequest)(nil),  // 29: viewra.plugin.v1.ExtractImagesRequest
-	(*ExtractImagesResponse)(nil), // 30: viewra.plugin.v1.ExtractImagesResponse
-	(*ExtractedImage)(nil),        // 31: viewra.plugin.v1.ExtractedImage
-	(*MoodTag)(nil),               // 32: viewra.plugin.v1.MoodTag
-	(*MoodTagList)(nil),           // 33: viewra.plugin.v1.MoodTagList
-	(*SetMoodTagsRequest)(nil),    // 34: viewra.plugin.v1.SetMoodTagsRequest
-	(*WeatherRequest)(nil),        // 35: viewra.plugin.v1.WeatherRequest
-	(*WeatherResponse)(nil),       // 36: viewra.plugin.v1.WeatherResponse
-	nil,                           // 37: viewra.plugin.v1.Media.ExternalIdsEntry
-	nil,                           // 38: viewra.plugin.v1.MediaDetails.ExternalIdsEntry
-	nil,                           // 39: viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
-	(*Empty)(nil),                 // 40: viewra.plugin.v1.Empty
+	(*MediaQuery)(nil),                    // 0: viewra.plugin.v1.MediaQuery
+	(*MediaId)(nil),                       // 1: viewra.plugin.v1.MediaId
+	(*ExternalIdQuery)(nil),               // 2: viewra.plugin.v1.ExternalIdQuery
+	(*SearchQuery)(nil),                   // 3: viewra.plugin.v1.SearchQuery
+	(*Media)(nil),                         // 4: viewra.plugin.v1.Media
+	(*MediaList)(nil),                     // 5: viewra.plugin.v1.MediaList
+	(*LibraryId)(nil),                     // 6: viewra.plugin.v1.LibraryId
+	(*Library)(nil),                       // 7: viewra.plugin.v1.Library
+	(*FilePath)(nil),                      // 8: viewra.plugin.v1.FilePath
+	(*ListMediaRequest)(nil),              // 9: viewra.plugin.v1.ListMediaRequest
+	(*MediaDetails)(nil),                  // 10: viewra.plugin.v1.MediaDetails
+	(*MediaCastMember)(nil),               // 11: viewra.plugin.v1.MediaCastMember
+	(*MediaDetailsList)(nil),              // 12: viewra.plugin.v1.MediaDetailsList
+	(*KVKey)(nil),                         // 13: viewra.plugin.v1.KVKey
+	(*KVValue)(nil),                       // 14: viewra.plugin.v1.KVValue
+	(*KVEntry)(nil),                       // 15: viewra.plugin.v1.KVEntry
+	(*KVListRequest)(nil),                 // 16: viewra.plugin.v1.KVListRequest
+	(*KVKeyList)(nil),                     // 17: viewra.plugin.v1.KVKeyList
+	(*DatabasePath)(nil),                  // 18: viewra.plugin.v1.DatabasePath
+	(*SchemaVersion)(nil),                 // 19: viewra.plugin.v1.SchemaVersion
+	(*DatabaseStats)(nil),                 // 20: viewra.plugin.v1.DatabaseStats
+	(*SQLRequest)(nil),                    // 21: viewra.plugin.v1.SQLRequest
+	(*SQLValue)(nil),                      // 22: viewra.plugin.v1.SQLValue
+	(*SQLExecResult)(nil),                 // 23: viewra.plugin.v1.SQLExecResult
+	(*SQLQueryResult)(nil),                // 24: viewra.plugin.v1.SQLQueryResult
+	(*SQLRow)(nil),                        // 25: viewra.plugin.v1.SQLRow
+	(*VectorStoreRequest)(nil),            // 26: viewra.plugin.v1.VectorStoreRequest
+	(*VectorStoreBatchRequest)(nil),       // 27: viewra.plugin.v1.VectorStoreBatchRequest
+	(*VectorSearchRequest)(nil),           // 28: viewra.plugin.v1.VectorSearchRequest
+	(*VectorTextSearchRequest)(nil),       // 29: viewra.plugin.v1.VectorTextSearchRequest
+	(*VectorSearchResponse)(nil),          // 30: viewra.plugin.v1.VectorSearchResponse
+	(*VectorSearchResult)(nil),            // 31: viewra.plugin.v1.VectorSearchResult
+	(*VectorQuery)(nil),                   // 32: viewra.plugin.v1.VectorQuery
+	(*VectorGetResponse)(nil),             // 33: viewra.plugin.v1.VectorGetResponse
+	(*VectorTypeQuery)(nil),               // 34: viewra.plugin.v1.VectorTypeQuery
+	(*VectorDeleteResponse)(nil),          // 35: viewra.plugin.v1.VectorDeleteResponse
+	(*VectorCountResponse)(nil),           // 36: viewra.plugin.v1.VectorCountResponse
+	(*UserId)(nil),                        // 37: viewra.plugin.v1.UserId
+	(*UserMetadataKey)(nil),               // 38: viewra.plugin.v1.UserMetadataKey
+	(*UserMetadataValue)(nil),             // 39: viewra.plugin.v1.UserMetadataValue
+	(*UserMetadataEntry)(nil),             // 40: viewra.plugin.v1.UserMetadataEntry
+	(*UserMetadataKeyList)(nil),           // 41: viewra.plugin.v1.UserMetadataKeyList
+	(*ParseNFORequest)(nil),               // 42: viewra.plugin.v1.ParseNFORequest
+	(*NFOMetadata)(nil),                   // 43: viewra.plugin.v1.NFOMetadata
+	(*NFOActor)(nil),                      // 44: viewra.plugin.v1.NFOActor
+	(*ExtractImagesRequest)(nil),          // 45: viewra.plugin.v1.ExtractImagesRequest
+	(*ExtractImagesResponse)(nil),         // 46: viewra.plugin.v1.ExtractImagesResponse
+	(*ExtractedImage)(nil),                // 47: viewra.plugin.v1.ExtractedImage
+	(*MoodTag)(nil),                       // 48: viewra.plugin.v1.MoodTag
+	(*MoodTagList)(nil),                   // 49: viewra.plugin.v1.MoodTagList
+	(*SetMoodTagsRequest)(nil),            // 50: viewra.plugin.v1.SetMoodTagsRequest
+	(*WeatherRequest)(nil),                // 51: viewra.plugin.v1.WeatherRequest
+	(*WeatherResponse)(nil),               // 52: viewra.plugin.v1.WeatherResponse
+	(*CapabilityRequest)(nil),             // 53: viewra.plugin.v1.CapabilityRequest
+	(*CapabilityProviderResponse)(nil),    // 54: viewra.plugin.v1.CapabilityProviderResponse
+	(*CapabilityListResponse)(nil),        // 55: viewra.plugin.v1.CapabilityListResponse
+	(*CapabilityInfo)(nil),                // 56: viewra.plugin.v1.CapabilityInfo
+	(*PluginProviderInfo)(nil),            // 57: viewra.plugin.v1.PluginProviderInfo
+	(*ProviderListResponse)(nil),          // 58: viewra.plugin.v1.ProviderListResponse
+	(*CapabilityPreferenceRequest)(nil),   // 59: viewra.plugin.v1.CapabilityPreferenceRequest
+	(*CapabilityPreferencesResponse)(nil), // 60: viewra.plugin.v1.CapabilityPreferencesResponse
+	nil,                                   // 61: viewra.plugin.v1.Media.ExternalIdsEntry
+	nil,                                   // 62: viewra.plugin.v1.MediaDetails.ExternalIdsEntry
+	nil,                                   // 63: viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
+	nil,                                   // 64: viewra.plugin.v1.CapabilityPreferencesResponse.PreferencesEntry
+	(*Empty)(nil),                         // 65: viewra.plugin.v1.Empty
 }
 var file_api_proto_plugin_host_services_proto_depIdxs = []int32{
-	37, // 0: viewra.plugin.v1.Media.external_ids:type_name -> viewra.plugin.v1.Media.ExternalIdsEntry
+	61, // 0: viewra.plugin.v1.Media.external_ids:type_name -> viewra.plugin.v1.Media.ExternalIdsEntry
 	4,  // 1: viewra.plugin.v1.MediaList.items:type_name -> viewra.plugin.v1.Media
-	38, // 2: viewra.plugin.v1.MediaDetails.external_ids:type_name -> viewra.plugin.v1.MediaDetails.ExternalIdsEntry
+	62, // 2: viewra.plugin.v1.MediaDetails.external_ids:type_name -> viewra.plugin.v1.MediaDetails.ExternalIdsEntry
 	11, // 3: viewra.plugin.v1.MediaDetails.cast:type_name -> viewra.plugin.v1.MediaCastMember
 	10, // 4: viewra.plugin.v1.MediaDetailsList.items:type_name -> viewra.plugin.v1.MediaDetails
-	39, // 5: viewra.plugin.v1.NFOMetadata.external_ids:type_name -> viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
-	28, // 6: viewra.plugin.v1.NFOMetadata.actors:type_name -> viewra.plugin.v1.NFOActor
-	31, // 7: viewra.plugin.v1.ExtractImagesResponse.images:type_name -> viewra.plugin.v1.ExtractedImage
-	32, // 8: viewra.plugin.v1.MoodTagList.tags:type_name -> viewra.plugin.v1.MoodTag
-	32, // 9: viewra.plugin.v1.SetMoodTagsRequest.tags:type_name -> viewra.plugin.v1.MoodTag
-	0,  // 10: viewra.plugin.v1.HostData.GetMedia:input_type -> viewra.plugin.v1.MediaQuery
-	0,  // 11: viewra.plugin.v1.HostData.GetMediaDetails:input_type -> viewra.plugin.v1.MediaQuery
-	2,  // 12: viewra.plugin.v1.HostData.GetMediaByExternalId:input_type -> viewra.plugin.v1.ExternalIdQuery
-	3,  // 13: viewra.plugin.v1.HostData.SearchMedia:input_type -> viewra.plugin.v1.SearchQuery
-	9,  // 14: viewra.plugin.v1.HostData.ListMediaByLibrary:input_type -> viewra.plugin.v1.ListMediaRequest
-	6,  // 15: viewra.plugin.v1.HostData.GetLibrary:input_type -> viewra.plugin.v1.LibraryId
-	1,  // 16: viewra.plugin.v1.HostData.GetFilePath:input_type -> viewra.plugin.v1.MediaId
-	0,  // 17: viewra.plugin.v1.HostData.GetMoodTags:input_type -> viewra.plugin.v1.MediaQuery
-	34, // 18: viewra.plugin.v1.HostData.SetMoodTags:input_type -> viewra.plugin.v1.SetMoodTagsRequest
-	0,  // 19: viewra.plugin.v1.HostData.DeleteMoodTags:input_type -> viewra.plugin.v1.MediaQuery
-	13, // 20: viewra.plugin.v1.HostStorage.KVGet:input_type -> viewra.plugin.v1.KVKey
-	15, // 21: viewra.plugin.v1.HostStorage.KVSet:input_type -> viewra.plugin.v1.KVEntry
-	13, // 22: viewra.plugin.v1.HostStorage.KVDelete:input_type -> viewra.plugin.v1.KVKey
-	16, // 23: viewra.plugin.v1.HostStorage.KVList:input_type -> viewra.plugin.v1.KVListRequest
-	40, // 24: viewra.plugin.v1.HostStorage.GetDatabasePath:input_type -> viewra.plugin.v1.Empty
-	19, // 25: viewra.plugin.v1.HostStorage.RegisterSchema:input_type -> viewra.plugin.v1.SchemaVersion
-	40, // 26: viewra.plugin.v1.HostStorage.GetDatabaseStats:input_type -> viewra.plugin.v1.Empty
-	22, // 27: viewra.plugin.v1.HostUserMetadata.Get:input_type -> viewra.plugin.v1.UserMetadataKey
-	24, // 28: viewra.plugin.v1.HostUserMetadata.Set:input_type -> viewra.plugin.v1.UserMetadataEntry
-	22, // 29: viewra.plugin.v1.HostUserMetadata.Delete:input_type -> viewra.plugin.v1.UserMetadataKey
-	21, // 30: viewra.plugin.v1.HostUserMetadata.ListKeys:input_type -> viewra.plugin.v1.UserId
-	26, // 31: viewra.plugin.v1.HostFileParser.ParseNFO:input_type -> viewra.plugin.v1.ParseNFORequest
-	29, // 32: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:input_type -> viewra.plugin.v1.ExtractImagesRequest
-	35, // 33: viewra.plugin.v1.HostWeather.GetCurrentWeather:input_type -> viewra.plugin.v1.WeatherRequest
-	4,  // 34: viewra.plugin.v1.HostData.GetMedia:output_type -> viewra.plugin.v1.Media
-	10, // 35: viewra.plugin.v1.HostData.GetMediaDetails:output_type -> viewra.plugin.v1.MediaDetails
-	4,  // 36: viewra.plugin.v1.HostData.GetMediaByExternalId:output_type -> viewra.plugin.v1.Media
-	5,  // 37: viewra.plugin.v1.HostData.SearchMedia:output_type -> viewra.plugin.v1.MediaList
-	12, // 38: viewra.plugin.v1.HostData.ListMediaByLibrary:output_type -> viewra.plugin.v1.MediaDetailsList
-	7,  // 39: viewra.plugin.v1.HostData.GetLibrary:output_type -> viewra.plugin.v1.Library
-	8,  // 40: viewra.plugin.v1.HostData.GetFilePath:output_type -> viewra.plugin.v1.FilePath
-	33, // 41: viewra.plugin.v1.HostData.GetMoodTags:output_type -> viewra.plugin.v1.MoodTagList
-	40, // 42: viewra.plugin.v1.HostData.SetMoodTags:output_type -> viewra.plugin.v1.Empty
-	40, // 43: viewra.plugin.v1.HostData.DeleteMoodTags:output_type -> viewra.plugin.v1.Empty
-	14, // 44: viewra.plugin.v1.HostStorage.KVGet:output_type -> viewra.plugin.v1.KVValue
-	40, // 45: viewra.plugin.v1.HostStorage.KVSet:output_type -> viewra.plugin.v1.Empty
-	40, // 46: viewra.plugin.v1.HostStorage.KVDelete:output_type -> viewra.plugin.v1.Empty
-	17, // 47: viewra.plugin.v1.HostStorage.KVList:output_type -> viewra.plugin.v1.KVKeyList
-	18, // 48: viewra.plugin.v1.HostStorage.GetDatabasePath:output_type -> viewra.plugin.v1.DatabasePath
-	40, // 49: viewra.plugin.v1.HostStorage.RegisterSchema:output_type -> viewra.plugin.v1.Empty
-	20, // 50: viewra.plugin.v1.HostStorage.GetDatabaseStats:output_type -> viewra.plugin.v1.DatabaseStats
-	23, // 51: viewra.plugin.v1.HostUserMetadata.Get:output_type -> viewra.plugin.v1.UserMetadataValue
-	40, // 52: viewra.plugin.v1.HostUserMetadata.Set:output_type -> viewra.plugin.v1.Empty
-	40, // 53: viewra.plugin.v1.HostUserMetadata.Delete:output_type -> viewra.plugin.v1.Empty
-	25, // 54: viewra.plugin.v1.HostUserMetadata.ListKeys:output_type -> viewra.plugin.v1.UserMetadataKeyList
-	27, // 55: viewra.plugin.v1.HostFileParser.ParseNFO:output_type -> viewra.plugin.v1.NFOMetadata
-	30, // 56: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:output_type -> viewra.plugin.v1.ExtractImagesResponse
-	36, // 57: viewra.plugin.v1.HostWeather.GetCurrentWeather:output_type -> viewra.plugin.v1.WeatherResponse
-	34, // [34:58] is the sub-list for method output_type
-	10, // [10:34] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	22, // 5: viewra.plugin.v1.SQLRequest.args:type_name -> viewra.plugin.v1.SQLValue
+	25, // 6: viewra.plugin.v1.SQLQueryResult.rows:type_name -> viewra.plugin.v1.SQLRow
+	22, // 7: viewra.plugin.v1.SQLRow.values:type_name -> viewra.plugin.v1.SQLValue
+	26, // 8: viewra.plugin.v1.VectorStoreBatchRequest.embeddings:type_name -> viewra.plugin.v1.VectorStoreRequest
+	31, // 9: viewra.plugin.v1.VectorSearchResponse.results:type_name -> viewra.plugin.v1.VectorSearchResult
+	63, // 10: viewra.plugin.v1.NFOMetadata.external_ids:type_name -> viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
+	44, // 11: viewra.plugin.v1.NFOMetadata.actors:type_name -> viewra.plugin.v1.NFOActor
+	47, // 12: viewra.plugin.v1.ExtractImagesResponse.images:type_name -> viewra.plugin.v1.ExtractedImage
+	48, // 13: viewra.plugin.v1.MoodTagList.tags:type_name -> viewra.plugin.v1.MoodTag
+	48, // 14: viewra.plugin.v1.SetMoodTagsRequest.tags:type_name -> viewra.plugin.v1.MoodTag
+	56, // 15: viewra.plugin.v1.CapabilityListResponse.capabilities:type_name -> viewra.plugin.v1.CapabilityInfo
+	57, // 16: viewra.plugin.v1.CapabilityInfo.providers:type_name -> viewra.plugin.v1.PluginProviderInfo
+	57, // 17: viewra.plugin.v1.ProviderListResponse.providers:type_name -> viewra.plugin.v1.PluginProviderInfo
+	64, // 18: viewra.plugin.v1.CapabilityPreferencesResponse.preferences:type_name -> viewra.plugin.v1.CapabilityPreferencesResponse.PreferencesEntry
+	0,  // 19: viewra.plugin.v1.HostData.GetMedia:input_type -> viewra.plugin.v1.MediaQuery
+	0,  // 20: viewra.plugin.v1.HostData.GetMediaDetails:input_type -> viewra.plugin.v1.MediaQuery
+	2,  // 21: viewra.plugin.v1.HostData.GetMediaByExternalId:input_type -> viewra.plugin.v1.ExternalIdQuery
+	3,  // 22: viewra.plugin.v1.HostData.SearchMedia:input_type -> viewra.plugin.v1.SearchQuery
+	9,  // 23: viewra.plugin.v1.HostData.ListMediaByLibrary:input_type -> viewra.plugin.v1.ListMediaRequest
+	6,  // 24: viewra.plugin.v1.HostData.GetLibrary:input_type -> viewra.plugin.v1.LibraryId
+	1,  // 25: viewra.plugin.v1.HostData.GetFilePath:input_type -> viewra.plugin.v1.MediaId
+	0,  // 26: viewra.plugin.v1.HostData.GetMoodTags:input_type -> viewra.plugin.v1.MediaQuery
+	50, // 27: viewra.plugin.v1.HostData.SetMoodTags:input_type -> viewra.plugin.v1.SetMoodTagsRequest
+	0,  // 28: viewra.plugin.v1.HostData.DeleteMoodTags:input_type -> viewra.plugin.v1.MediaQuery
+	13, // 29: viewra.plugin.v1.HostStorage.KVGet:input_type -> viewra.plugin.v1.KVKey
+	15, // 30: viewra.plugin.v1.HostStorage.KVSet:input_type -> viewra.plugin.v1.KVEntry
+	13, // 31: viewra.plugin.v1.HostStorage.KVDelete:input_type -> viewra.plugin.v1.KVKey
+	16, // 32: viewra.plugin.v1.HostStorage.KVList:input_type -> viewra.plugin.v1.KVListRequest
+	65, // 33: viewra.plugin.v1.HostStorage.GetDatabasePath:input_type -> viewra.plugin.v1.Empty
+	19, // 34: viewra.plugin.v1.HostStorage.RegisterSchema:input_type -> viewra.plugin.v1.SchemaVersion
+	65, // 35: viewra.plugin.v1.HostStorage.GetDatabaseStats:input_type -> viewra.plugin.v1.Empty
+	21, // 36: viewra.plugin.v1.HostStorage.ExecuteSQL:input_type -> viewra.plugin.v1.SQLRequest
+	21, // 37: viewra.plugin.v1.HostStorage.QuerySQL:input_type -> viewra.plugin.v1.SQLRequest
+	26, // 38: viewra.plugin.v1.HostStorage.VectorStoreEmbedding:input_type -> viewra.plugin.v1.VectorStoreRequest
+	27, // 39: viewra.plugin.v1.HostStorage.VectorStoreBatch:input_type -> viewra.plugin.v1.VectorStoreBatchRequest
+	28, // 40: viewra.plugin.v1.HostStorage.VectorSearch:input_type -> viewra.plugin.v1.VectorSearchRequest
+	29, // 41: viewra.plugin.v1.HostStorage.VectorSearchText:input_type -> viewra.plugin.v1.VectorTextSearchRequest
+	32, // 42: viewra.plugin.v1.HostStorage.VectorGet:input_type -> viewra.plugin.v1.VectorQuery
+	32, // 43: viewra.plugin.v1.HostStorage.VectorDelete:input_type -> viewra.plugin.v1.VectorQuery
+	34, // 44: viewra.plugin.v1.HostStorage.VectorDeleteByType:input_type -> viewra.plugin.v1.VectorTypeQuery
+	34, // 45: viewra.plugin.v1.HostStorage.VectorCount:input_type -> viewra.plugin.v1.VectorTypeQuery
+	38, // 46: viewra.plugin.v1.HostUserMetadata.Get:input_type -> viewra.plugin.v1.UserMetadataKey
+	40, // 47: viewra.plugin.v1.HostUserMetadata.Set:input_type -> viewra.plugin.v1.UserMetadataEntry
+	38, // 48: viewra.plugin.v1.HostUserMetadata.Delete:input_type -> viewra.plugin.v1.UserMetadataKey
+	37, // 49: viewra.plugin.v1.HostUserMetadata.ListKeys:input_type -> viewra.plugin.v1.UserId
+	42, // 50: viewra.plugin.v1.HostFileParser.ParseNFO:input_type -> viewra.plugin.v1.ParseNFORequest
+	45, // 51: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:input_type -> viewra.plugin.v1.ExtractImagesRequest
+	51, // 52: viewra.plugin.v1.HostWeather.GetCurrentWeather:input_type -> viewra.plugin.v1.WeatherRequest
+	53, // 53: viewra.plugin.v1.HostPlugins.GetCapabilityProvider:input_type -> viewra.plugin.v1.CapabilityRequest
+	65, // 54: viewra.plugin.v1.HostPlugins.ListCapabilities:input_type -> viewra.plugin.v1.Empty
+	53, // 55: viewra.plugin.v1.HostPlugins.ListProviders:input_type -> viewra.plugin.v1.CapabilityRequest
+	59, // 56: viewra.plugin.v1.HostPlugins.SetCapabilityPreference:input_type -> viewra.plugin.v1.CapabilityPreferenceRequest
+	59, // 57: viewra.plugin.v1.HostPlugins.ClearCapabilityPreference:input_type -> viewra.plugin.v1.CapabilityPreferenceRequest
+	65, // 58: viewra.plugin.v1.HostPlugins.GetCapabilityPreferences:input_type -> viewra.plugin.v1.Empty
+	4,  // 59: viewra.plugin.v1.HostData.GetMedia:output_type -> viewra.plugin.v1.Media
+	10, // 60: viewra.plugin.v1.HostData.GetMediaDetails:output_type -> viewra.plugin.v1.MediaDetails
+	4,  // 61: viewra.plugin.v1.HostData.GetMediaByExternalId:output_type -> viewra.plugin.v1.Media
+	5,  // 62: viewra.plugin.v1.HostData.SearchMedia:output_type -> viewra.plugin.v1.MediaList
+	12, // 63: viewra.plugin.v1.HostData.ListMediaByLibrary:output_type -> viewra.plugin.v1.MediaDetailsList
+	7,  // 64: viewra.plugin.v1.HostData.GetLibrary:output_type -> viewra.plugin.v1.Library
+	8,  // 65: viewra.plugin.v1.HostData.GetFilePath:output_type -> viewra.plugin.v1.FilePath
+	49, // 66: viewra.plugin.v1.HostData.GetMoodTags:output_type -> viewra.plugin.v1.MoodTagList
+	65, // 67: viewra.plugin.v1.HostData.SetMoodTags:output_type -> viewra.plugin.v1.Empty
+	65, // 68: viewra.plugin.v1.HostData.DeleteMoodTags:output_type -> viewra.plugin.v1.Empty
+	14, // 69: viewra.plugin.v1.HostStorage.KVGet:output_type -> viewra.plugin.v1.KVValue
+	65, // 70: viewra.plugin.v1.HostStorage.KVSet:output_type -> viewra.plugin.v1.Empty
+	65, // 71: viewra.plugin.v1.HostStorage.KVDelete:output_type -> viewra.plugin.v1.Empty
+	17, // 72: viewra.plugin.v1.HostStorage.KVList:output_type -> viewra.plugin.v1.KVKeyList
+	18, // 73: viewra.plugin.v1.HostStorage.GetDatabasePath:output_type -> viewra.plugin.v1.DatabasePath
+	65, // 74: viewra.plugin.v1.HostStorage.RegisterSchema:output_type -> viewra.plugin.v1.Empty
+	20, // 75: viewra.plugin.v1.HostStorage.GetDatabaseStats:output_type -> viewra.plugin.v1.DatabaseStats
+	23, // 76: viewra.plugin.v1.HostStorage.ExecuteSQL:output_type -> viewra.plugin.v1.SQLExecResult
+	24, // 77: viewra.plugin.v1.HostStorage.QuerySQL:output_type -> viewra.plugin.v1.SQLQueryResult
+	65, // 78: viewra.plugin.v1.HostStorage.VectorStoreEmbedding:output_type -> viewra.plugin.v1.Empty
+	65, // 79: viewra.plugin.v1.HostStorage.VectorStoreBatch:output_type -> viewra.plugin.v1.Empty
+	30, // 80: viewra.plugin.v1.HostStorage.VectorSearch:output_type -> viewra.plugin.v1.VectorSearchResponse
+	30, // 81: viewra.plugin.v1.HostStorage.VectorSearchText:output_type -> viewra.plugin.v1.VectorSearchResponse
+	33, // 82: viewra.plugin.v1.HostStorage.VectorGet:output_type -> viewra.plugin.v1.VectorGetResponse
+	65, // 83: viewra.plugin.v1.HostStorage.VectorDelete:output_type -> viewra.plugin.v1.Empty
+	35, // 84: viewra.plugin.v1.HostStorage.VectorDeleteByType:output_type -> viewra.plugin.v1.VectorDeleteResponse
+	36, // 85: viewra.plugin.v1.HostStorage.VectorCount:output_type -> viewra.plugin.v1.VectorCountResponse
+	39, // 86: viewra.plugin.v1.HostUserMetadata.Get:output_type -> viewra.plugin.v1.UserMetadataValue
+	65, // 87: viewra.plugin.v1.HostUserMetadata.Set:output_type -> viewra.plugin.v1.Empty
+	65, // 88: viewra.plugin.v1.HostUserMetadata.Delete:output_type -> viewra.plugin.v1.Empty
+	41, // 89: viewra.plugin.v1.HostUserMetadata.ListKeys:output_type -> viewra.plugin.v1.UserMetadataKeyList
+	43, // 90: viewra.plugin.v1.HostFileParser.ParseNFO:output_type -> viewra.plugin.v1.NFOMetadata
+	46, // 91: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:output_type -> viewra.plugin.v1.ExtractImagesResponse
+	52, // 92: viewra.plugin.v1.HostWeather.GetCurrentWeather:output_type -> viewra.plugin.v1.WeatherResponse
+	54, // 93: viewra.plugin.v1.HostPlugins.GetCapabilityProvider:output_type -> viewra.plugin.v1.CapabilityProviderResponse
+	55, // 94: viewra.plugin.v1.HostPlugins.ListCapabilities:output_type -> viewra.plugin.v1.CapabilityListResponse
+	58, // 95: viewra.plugin.v1.HostPlugins.ListProviders:output_type -> viewra.plugin.v1.ProviderListResponse
+	65, // 96: viewra.plugin.v1.HostPlugins.SetCapabilityPreference:output_type -> viewra.plugin.v1.Empty
+	65, // 97: viewra.plugin.v1.HostPlugins.ClearCapabilityPreference:output_type -> viewra.plugin.v1.Empty
+	60, // 98: viewra.plugin.v1.HostPlugins.GetCapabilityPreferences:output_type -> viewra.plugin.v1.CapabilityPreferencesResponse
+	59, // [59:99] is the sub-list for method output_type
+	19, // [19:59] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_plugin_host_services_proto_init() }
@@ -2759,15 +4353,22 @@ func file_api_proto_plugin_host_services_proto_init() {
 		return
 	}
 	file_api_proto_plugin_common_proto_init()
+	file_api_proto_plugin_host_services_proto_msgTypes[22].OneofWrappers = []any{
+		(*SQLValue_StringValue)(nil),
+		(*SQLValue_IntValue)(nil),
+		(*SQLValue_DoubleValue)(nil),
+		(*SQLValue_BytesValue)(nil),
+		(*SQLValue_IsNull)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_plugin_host_services_proto_rawDesc), len(file_api_proto_plugin_host_services_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   40,
+			NumMessages:   65,
 			NumExtensions: 0,
-			NumServices:   5,
+			NumServices:   6,
 		},
 		GoTypes:           file_api_proto_plugin_host_services_proto_goTypes,
 		DependencyIndexes: file_api_proto_plugin_host_services_proto_depIdxs,

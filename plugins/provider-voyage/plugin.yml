@@ -19,6 +19,7 @@ categories:
 provides:
   - provider
   - provider:voyage
+  - embedding
 
 # Permissions required
 permissions:

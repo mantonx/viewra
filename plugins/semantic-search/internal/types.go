@@ -1,7 +1,7 @@
-// Package internal implements the AI Search plugin logic.
+// Package internal implements the Semantic Search plugin logic.
 package internal
 
-// Config holds the AI Search plugin configuration.
+// Config holds the Semantic Search plugin configuration.
 // Provider settings (embedding/chat) are configured in ViewRA's AI settings.
 type Config struct {
 	Indexing IndexingConfig `yaml:"indexing" json:"indexing"`
@@ -50,7 +50,7 @@ type SearchResult struct {
 }
 
 // IndexingStatus contains status information for the search service.
-// Used internally; converted to sdk.AISearchStatus for API responses.
+// Used internally; converted to sdk.VectorSearchStatus for API responses.
 type IndexingStatus struct {
 	Stats map[EntityType]EntityStats
 }

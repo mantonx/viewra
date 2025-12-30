@@ -399,25 +399,16 @@ func initPluginManager(
 		}
 	}
 
-	hostLLMServer := plugins.NewHostLLMServer(plugins.HostLLMConfig{}, logger.With("component", "host-llm"))
-
-	var hostEmbeddingsServer *plugins.HostEmbeddingsServer
-	if repos.Embedding != nil {
-		hostEmbeddingsServer = plugins.NewHostEmbeddingsServer(repos.Embedding, logger.With("component", "host-embeddings"))
-	}
-
 	hostWeatherServer := plugins.NewHostWeatherServer(locationRepo, weatherService, logger.With("component", "host-weather"))
 
 	// Create plugin manager
 	pluginManager, err := plugins.NewManager(plugins.ManagerConfig{
-		PluginDir:            cfg.Plugins.Dir,
-		StorageDir:           cfg.Plugins.StorageDir,
-		HostVersion:          version.Version,
-		MediaQuerier:         repos.PluginMediaQuerier,
-		HostStorageServer:    hostStorageServer,
-		HostLLMServer:        hostLLMServer,
-		HostEmbeddingsServer: hostEmbeddingsServer,
-		HostWeatherServer:    hostWeatherServer,
+		PluginDir:         cfg.Plugins.Dir,
+		StorageDir:        cfg.Plugins.StorageDir,
+		HostVersion:       version.Version,
+		MediaQuerier:      repos.PluginMediaQuerier,
+		HostStorageServer: hostStorageServer,
+		HostWeatherServer: hostWeatherServer,
 	}, pluginLogger)
 	if err != nil {
 		logger.Warn("Failed to create plugin manager", "error", err)
@@ -449,17 +440,6 @@ func initPluginManager(
 			"has_gpu", cfg.SystemProfile.GPU.Available)
 	}
 
-	// Subscribe to AI settings changes
-	go subscribeToAISettingsChanges(eventBus, hostLLMServer, settingsService, logger)
-
-	// Wire provider registry
-	hostLLMServer.SetProviderRegistry(pluginManager.GetProviderRegistry())
-	if settingsService != nil {
-		aiReader := settings.NewAIConfigReader(settingsService)
-		ctx := context.Background()
-		hostLLMServer.SetDefaults(string(aiReader.GetEmbeddingProvider(ctx)), "", string(aiReader.GetChatProvider(ctx)), "")
-	}
-
 	return pluginManager
 }
 
@@ -487,43 +467,4 @@ func (a *metadataExtractorAdapter) ExtractMetadata(imagePath string) (*pipeline.
 		MimeType:      info.MimeType,
 		FileHash:      info.FileHash,
 	}, nil
-}
-
-// subscribeToAISettingsChanges listens for AI settings changes and updates LLM defaults.
-// This runs as a background goroutine and automatically updates HostLLMServer defaults
-// when AI-related settings are changed via the settings API.
-func subscribeToAISettingsChanges(
-	eventBus *events.Bus,
-	hostLLMServer *plugins.HostLLMServer,
-	settingsService *settings.Service,
-	logger *slog.Logger,
-) {
-	sub := eventBus.Subscribe(events.WithEventTypes(events.EventSettingsChanged))
-	defer sub.Close()
-
-	aiReader := settings.NewAIConfigReader(settingsService)
-
-	for event := range sub.Events() {
-		// Check if this is an AI settings change
-		category, ok := event.Data["category"].(string)
-		if !ok {
-			continue
-		}
-
-		if category == "ai" {
-			logger.Debug("AI settings changed, updating HostLLMServer defaults")
-			ctx := context.Background()
-
-			// Read current settings and update HostLLMServer
-			embeddingProvider := string(aiReader.GetEmbeddingProvider(ctx))
-			chatProvider := string(aiReader.GetChatProvider(ctx))
-
-			// Get model based on provider
-			var embeddingModel, chatModel string
-			// Note: model selection is now handled by provider plugins via their defaults
-			// The settings only store provider selection, not model per provider
-
-			hostLLMServer.SetDefaults(embeddingProvider, embeddingModel, chatProvider, chatModel)
-		}
-	}
 }

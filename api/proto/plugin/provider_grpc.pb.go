@@ -33,26 +33,21 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // PluginProvider is implemented by AI provider plugins (ollama, openai, etc.).
-// The host calls these methods when a consumer plugin requests AI services.
-// Provider plugins register themselves with the host on startup.
+// Consumer plugins connect directly to providers via the capability broker.
 type PluginProviderClient interface {
 	// GetCapabilities returns what this provider supports.
-	// Called by the host during provider registration.
 	GetCapabilities(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*ProviderCapabilities, error)
 	// ListModels returns available models for this provider.
-	// For cloud providers, this may fetch from their APIs.
-	// For Ollama, this returns locally installed models.
 	ListModels(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*ProviderModelList, error)
 	// GenerateEmbedding generates an embedding for a single text.
-	GenerateEmbedding(ctx context.Context, in *ProviderEmbeddingRequest, opts ...grpc.CallOption) (*EmbeddingResponse, error)
+	GenerateEmbedding(ctx context.Context, in *ProviderEmbeddingRequest, opts ...grpc.CallOption) (*ProviderEmbeddingResponse, error)
 	// GenerateEmbeddingBatch generates embeddings for multiple texts.
-	GenerateEmbeddingBatch(ctx context.Context, in *ProviderEmbeddingBatchRequest, opts ...grpc.CallOption) (*EmbeddingBatchResponse, error)
+	GenerateEmbeddingBatch(ctx context.Context, in *ProviderEmbeddingBatchRequest, opts ...grpc.CallOption) (*ProviderEmbeddingBatchResponse, error)
 	// Chat sends a chat completion request.
-	Chat(ctx context.Context, in *ProviderChatRequest, opts ...grpc.CallOption) (*ChatResponse, error)
+	Chat(ctx context.Context, in *ProviderChatRequest, opts ...grpc.CallOption) (*ProviderChatResponse, error)
 	// ChatStream sends a streaming chat completion request.
-	ChatStream(ctx context.Context, in *ProviderChatRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ChatStreamChunk], error)
+	ChatStream(ctx context.Context, in *ProviderChatRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ProviderChatStreamChunk], error)
 	// HealthCheck verifies the provider is working.
-	// Checks API key validity, service reachability, etc.
 	HealthCheck(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*ProviderHealthStatus, error)
 }
 
@@ -84,9 +79,9 @@ func (c *pluginProviderClient) ListModels(ctx context.Context, in *Empty, opts .
 	return out, nil
 }
 
-func (c *pluginProviderClient) GenerateEmbedding(ctx context.Context, in *ProviderEmbeddingRequest, opts ...grpc.CallOption) (*EmbeddingResponse, error) {
+func (c *pluginProviderClient) GenerateEmbedding(ctx context.Context, in *ProviderEmbeddingRequest, opts ...grpc.CallOption) (*ProviderEmbeddingResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(EmbeddingResponse)
+	out := new(ProviderEmbeddingResponse)
 	err := c.cc.Invoke(ctx, PluginProvider_GenerateEmbedding_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -94,9 +89,9 @@ func (c *pluginProviderClient) GenerateEmbedding(ctx context.Context, in *Provid
 	return out, nil
 }
 
-func (c *pluginProviderClient) GenerateEmbeddingBatch(ctx context.Context, in *ProviderEmbeddingBatchRequest, opts ...grpc.CallOption) (*EmbeddingBatchResponse, error) {
+func (c *pluginProviderClient) GenerateEmbeddingBatch(ctx context.Context, in *ProviderEmbeddingBatchRequest, opts ...grpc.CallOption) (*ProviderEmbeddingBatchResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(EmbeddingBatchResponse)
+	out := new(ProviderEmbeddingBatchResponse)
 	err := c.cc.Invoke(ctx, PluginProvider_GenerateEmbeddingBatch_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -104,9 +99,9 @@ func (c *pluginProviderClient) GenerateEmbeddingBatch(ctx context.Context, in *P
 	return out, nil
 }
 
-func (c *pluginProviderClient) Chat(ctx context.Context, in *ProviderChatRequest, opts ...grpc.CallOption) (*ChatResponse, error) {
+func (c *pluginProviderClient) Chat(ctx context.Context, in *ProviderChatRequest, opts ...grpc.CallOption) (*ProviderChatResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ChatResponse)
+	out := new(ProviderChatResponse)
 	err := c.cc.Invoke(ctx, PluginProvider_Chat_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -114,13 +109,13 @@ func (c *pluginProviderClient) Chat(ctx context.Context, in *ProviderChatRequest
 	return out, nil
 }
 
-func (c *pluginProviderClient) ChatStream(ctx context.Context, in *ProviderChatRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ChatStreamChunk], error) {
+func (c *pluginProviderClient) ChatStream(ctx context.Context, in *ProviderChatRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ProviderChatStreamChunk], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &PluginProvider_ServiceDesc.Streams[0], PluginProvider_ChatStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[ProviderChatRequest, ChatStreamChunk]{ClientStream: stream}
+	x := &grpc.GenericClientStream[ProviderChatRequest, ProviderChatStreamChunk]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -131,7 +126,7 @@ func (c *pluginProviderClient) ChatStream(ctx context.Context, in *ProviderChatR
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type PluginProvider_ChatStreamClient = grpc.ServerStreamingClient[ChatStreamChunk]
+type PluginProvider_ChatStreamClient = grpc.ServerStreamingClient[ProviderChatStreamChunk]
 
 func (c *pluginProviderClient) HealthCheck(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*ProviderHealthStatus, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -148,26 +143,21 @@ func (c *pluginProviderClient) HealthCheck(ctx context.Context, in *Empty, opts 
 // for forward compatibility.
 //
 // PluginProvider is implemented by AI provider plugins (ollama, openai, etc.).
-// The host calls these methods when a consumer plugin requests AI services.
-// Provider plugins register themselves with the host on startup.
+// Consumer plugins connect directly to providers via the capability broker.
 type PluginProviderServer interface {
 	// GetCapabilities returns what this provider supports.
-	// Called by the host during provider registration.
 	GetCapabilities(context.Context, *Empty) (*ProviderCapabilities, error)
 	// ListModels returns available models for this provider.
-	// For cloud providers, this may fetch from their APIs.
-	// For Ollama, this returns locally installed models.
 	ListModels(context.Context, *Empty) (*ProviderModelList, error)
 	// GenerateEmbedding generates an embedding for a single text.
-	GenerateEmbedding(context.Context, *ProviderEmbeddingRequest) (*EmbeddingResponse, error)
+	GenerateEmbedding(context.Context, *ProviderEmbeddingRequest) (*ProviderEmbeddingResponse, error)
 	// GenerateEmbeddingBatch generates embeddings for multiple texts.
-	GenerateEmbeddingBatch(context.Context, *ProviderEmbeddingBatchRequest) (*EmbeddingBatchResponse, error)
+	GenerateEmbeddingBatch(context.Context, *ProviderEmbeddingBatchRequest) (*ProviderEmbeddingBatchResponse, error)
 	// Chat sends a chat completion request.
-	Chat(context.Context, *ProviderChatRequest) (*ChatResponse, error)
+	Chat(context.Context, *ProviderChatRequest) (*ProviderChatResponse, error)
 	// ChatStream sends a streaming chat completion request.
-	ChatStream(*ProviderChatRequest, grpc.ServerStreamingServer[ChatStreamChunk]) error
+	ChatStream(*ProviderChatRequest, grpc.ServerStreamingServer[ProviderChatStreamChunk]) error
 	// HealthCheck verifies the provider is working.
-	// Checks API key validity, service reachability, etc.
 	HealthCheck(context.Context, *Empty) (*ProviderHealthStatus, error)
 	mustEmbedUnimplementedPluginProviderServer()
 }
@@ -185,16 +175,16 @@ func (UnimplementedPluginProviderServer) GetCapabilities(context.Context, *Empty
 func (UnimplementedPluginProviderServer) ListModels(context.Context, *Empty) (*ProviderModelList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListModels not implemented")
 }
-func (UnimplementedPluginProviderServer) GenerateEmbedding(context.Context, *ProviderEmbeddingRequest) (*EmbeddingResponse, error) {
+func (UnimplementedPluginProviderServer) GenerateEmbedding(context.Context, *ProviderEmbeddingRequest) (*ProviderEmbeddingResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GenerateEmbedding not implemented")
 }
-func (UnimplementedPluginProviderServer) GenerateEmbeddingBatch(context.Context, *ProviderEmbeddingBatchRequest) (*EmbeddingBatchResponse, error) {
+func (UnimplementedPluginProviderServer) GenerateEmbeddingBatch(context.Context, *ProviderEmbeddingBatchRequest) (*ProviderEmbeddingBatchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GenerateEmbeddingBatch not implemented")
 }
-func (UnimplementedPluginProviderServer) Chat(context.Context, *ProviderChatRequest) (*ChatResponse, error) {
+func (UnimplementedPluginProviderServer) Chat(context.Context, *ProviderChatRequest) (*ProviderChatResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Chat not implemented")
 }
-func (UnimplementedPluginProviderServer) ChatStream(*ProviderChatRequest, grpc.ServerStreamingServer[ChatStreamChunk]) error {
+func (UnimplementedPluginProviderServer) ChatStream(*ProviderChatRequest, grpc.ServerStreamingServer[ProviderChatStreamChunk]) error {
 	return status.Errorf(codes.Unimplemented, "method ChatStream not implemented")
 }
 func (UnimplementedPluginProviderServer) HealthCheck(context.Context, *Empty) (*ProviderHealthStatus, error) {
@@ -316,11 +306,11 @@ func _PluginProvider_ChatStream_Handler(srv interface{}, stream grpc.ServerStrea
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(PluginProviderServer).ChatStream(m, &grpc.GenericServerStream[ProviderChatRequest, ChatStreamChunk]{ServerStream: stream})
+	return srv.(PluginProviderServer).ChatStream(m, &grpc.GenericServerStream[ProviderChatRequest, ProviderChatStreamChunk]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type PluginProvider_ChatStreamServer = grpc.ServerStreamingServer[ChatStreamChunk]
+type PluginProvider_ChatStreamServer = grpc.ServerStreamingServer[ProviderChatStreamChunk]
 
 func _PluginProvider_HealthCheck_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Empty)

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
+	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 	"github.com/mantonx/viewra/pkg/plugin/sdk"
 )
 
@@ -30,24 +31,24 @@ Examples:
 
 // QueryRewriter uses an LLM to rewrite search queries for better semantic matching.
 type QueryRewriter struct {
-	llm     *sdk.LLMClient
+	plugins *sdk.PluginsClient
 	logger  *slog.Logger
 	enabled bool
 }
 
 // NewQueryRewriter creates a new query rewriter.
-func NewQueryRewriter(llm *sdk.LLMClient, logger *slog.Logger) *QueryRewriter {
+func NewQueryRewriter(plugins *sdk.PluginsClient, logger *slog.Logger) *QueryRewriter {
 	return &QueryRewriter{
-		llm:     llm,
+		plugins: plugins,
 		logger:  logger,
-		enabled: llm != nil,
+		enabled: plugins != nil,
 	}
 }
 
 // Rewrite rewrites a query using the LLM to better match user intent.
 // Returns the original query if rewriting fails or is disabled.
 func (r *QueryRewriter) Rewrite(ctx context.Context, query string) string {
-	if !r.enabled || r.llm == nil {
+	if !r.enabled || r.plugins == nil {
 		return query
 	}
 
@@ -56,16 +57,27 @@ func (r *QueryRewriter) Rewrite(ctx context.Context, query string) string {
 		return query
 	}
 
-	resp, err := r.llm.ChatWithOptions(ctx, []sdk.ChatMessage{
-		{
-			Role:    "system",
-			Content: queryRewriteSystemPrompt,
+	// Get connection to chat capability provider
+	conn, err := r.plugins.GetConnection(ctx, "chat")
+	if err != nil {
+		r.logger.Debug("query rewrite failed - no chat provider", "error", err)
+		return query
+	}
+	defer conn.Close()
+
+	// Create provider client and call Chat
+	providerClient := pluginv1.NewPluginProviderClient(conn)
+	resp, err := providerClient.Chat(ctx, &pluginv1.ProviderChatRequest{
+		Messages: []*pluginv1.ProviderChatMessage{
+			{
+				Role:    "system",
+				Content: queryRewriteSystemPrompt,
+			},
+			{
+				Role:    "user",
+				Content: query,
+			},
 		},
-		{
-			Role:    "user",
-			Content: query,
-		},
-	}, sdk.ChatOptions{
 		Temperature: 0.3,
 		MaxTokens:   50,
 	})

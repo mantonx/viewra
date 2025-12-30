@@ -11,9 +11,9 @@ func main() {
 	// Use SDK logger for go-plugin compatibility - logs will be forwarded to host
 	hclogger, logger := sdk.NewLogger("semantic-search")
 
-	// Create the plugin - it implements sdk.AISearchEnricherPlugin
+	// Create the plugin - it implements sdk.VectorSearchEnricherPlugin
 	plugin := internal.NewSemanticSearchPlugin(logger)
 
 	// Use the SDK's serve helper which handles all gRPC boilerplate
-	sdk.ServeAISearchEnricher(plugin, hclogger)
+	sdk.ServeVectorSearchEnricher(plugin, hclogger)
 }

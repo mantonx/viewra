@@ -19,6 +19,7 @@ categories:
 provides:
   - provider
   - provider:anthropic
+  - chat
 
 # Permissions required
 permissions:

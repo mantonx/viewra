@@ -4,7 +4,6 @@ import (
 	"database/sql"
 
 	"github.com/mantonx/viewra/internal/infrastructure/database"
-	aiRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/ai"
 	analyticsRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/analytics"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 	enrichmentRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/enrichment"
@@ -71,9 +70,6 @@ type Repositories struct {
 
 	// Transcode analytics repository
 	TranscodeAnalytics *transcodeAnalyticsRepo.Repository
-
-	// AI embedding repository
-	Embedding *aiRepo.EmbeddingRepository
 }
 
 // BuildRepositories creates and wires all repository instances using the provided database connection.
@@ -133,9 +129,6 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	// Create transcode analytics repository
 	transcodeAnalyticsRepository := transcodeAnalyticsRepo.NewRepository(db, driver)
 
-	// Create AI embedding repository
-	embeddingRepository := aiRepo.NewEmbeddingRepository(db, driver)
-
 	// Create playback preferences repository
 	playbackPreferencesRepository := database.NewPlaybackPreferencesRepository(db)
 
@@ -168,6 +161,5 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 		Plugin:                   pluginRepository,
 		PluginMediaQuerier:       pluginMediaQuerier,
 		TranscodeAnalytics:       transcodeAnalyticsRepository,
-		Embedding:                embeddingRepository,
 	}
 }
