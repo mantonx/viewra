@@ -8,6 +8,9 @@ bin/
 dist/
 build/
 
+# OpenCode config (may contain API keys)
+opencode.json
+
 # Go compiled binaries (prevent re-committing)
 viewra
 viewra-test
@@ -25,7 +28,6 @@ data/plugins/
 plugins/*/*
 !plugins/*/*.go
 !plugins/*/*.md
-!plugins/*/*.json
 !plugins/*/*.yaml
 !plugins/*/*.yml
 !plugins/*/*.toml
