@@ -1,8 +1,8 @@
-# Voyage AI Provider Plugin Manifest
-id: provider-voyage
-name: Voyage AI Provider
+# OpenAI Provider Plugin Manifest
+id: ai-provider-openai
+name: OpenAI
 version: 1.0.0
-description: Embedding provider using Voyage AI - Anthropic's recommended embedding service
+description: AI provider using OpenAI API for chat and embeddings
 
 author: ViewRA Team
 license: MIT
@@ -18,9 +18,10 @@ categories:
 # What this plugin provides to other plugins
 provides:
   - provider
-  - provider:voyage
+  - provider:openai
   - embedding
+  - chat
 
 # Permissions required
 permissions:
-  - network  # For Voyage AI API calls
+  - network  # For OpenAI API calls

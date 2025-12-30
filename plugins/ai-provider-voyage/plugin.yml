@@ -1,8 +1,8 @@
-# Anthropic Provider Plugin Manifest
-id: provider-anthropic
-name: Anthropic Provider
+# Voyage AI Provider Plugin Manifest
+id: ai-provider-voyage
+name: Voyage AI
 version: 1.0.0
-description: AI provider using Anthropic API for Claude models
+description: Embedding provider using Voyage AI - Anthropic's recommended embedding service
 
 author: ViewRA Team
 license: MIT
@@ -18,9 +18,9 @@ categories:
 # What this plugin provides to other plugins
 provides:
   - provider
-  - provider:anthropic
-  - chat
+  - provider:voyage
+  - embedding
 
 # Permissions required
 permissions:
-  - network  # For Anthropic API calls
+  - network  # For Voyage AI API calls

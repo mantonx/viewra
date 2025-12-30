@@ -4,11 +4,11 @@ package main
 
 import (
 	"github.com/mantonx/viewra/pkg/plugin/sdk"
-	"github.com/mantonx/viewra/plugins/provider-openai/internal"
+	"github.com/mantonx/viewra/plugins/ai-provider-openai/internal"
 )
 
 func main() {
-	hclogger, logger := sdk.NewLogger("provider-openai")
+	hclogger, logger := sdk.NewLogger("ai-provider-openai")
 	provider := internal.NewOpenAIProvider(logger)
 	sdk.ServeProvider(provider, hclogger)
 }

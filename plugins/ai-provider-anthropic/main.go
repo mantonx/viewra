@@ -4,11 +4,11 @@ package main
 
 import (
 	"github.com/mantonx/viewra/pkg/plugin/sdk"
-	"github.com/mantonx/viewra/plugins/provider-anthropic/internal"
+	"github.com/mantonx/viewra/plugins/ai-provider-anthropic/internal"
 )
 
 func main() {
-	hclogger, logger := sdk.NewLogger("provider-anthropic")
+	hclogger, logger := sdk.NewLogger("ai-provider-anthropic")
 	provider := internal.NewAnthropicProvider(logger)
 	sdk.ServeProvider(provider, hclogger)
 }

@@ -1,8 +1,8 @@
-# OpenAI Provider Plugin Manifest
-id: provider-openai
-name: OpenAI Provider
+# Anthropic Provider Plugin Manifest
+id: ai-provider-anthropic
+name: Anthropic
 version: 1.0.0
-description: AI provider using OpenAI API for chat and embeddings
+description: AI provider using Anthropic API for Claude models
 
 author: ViewRA Team
 license: MIT
@@ -18,10 +18,9 @@ categories:
 # What this plugin provides to other plugins
 provides:
   - provider
-  - provider:openai
-  - embedding
+  - provider:anthropic
   - chat
 
 # Permissions required
 permissions:
-  - network  # For OpenAI API calls
+  - network  # For Anthropic API calls

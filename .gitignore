@@ -27,7 +27,13 @@ plugins/*/*
 !plugins/*/*.md
 !plugins/*/*.json
 !plugins/*/*.yaml
+!plugins/*/*.yml
 !plugins/*/*.toml
+!plugins/*/go.mod
+!plugins/*/go.sum
+!plugins/*/internal/
+plugins/*/internal/*
+!plugins/*/internal/*.go
 
 # Test binary, built with `go test -c`
 *.test

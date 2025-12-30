@@ -1,0 +1,28 @@
+# AI Features - Master AI Configuration + Local Ollama Provider
+id: ai-features
+name: AI Features
+version: 1.0.0
+description: Configure AI features and run models locally with Ollama
+
+author: ViewRA Team
+license: MIT
+homepage: https://github.com/mantonx/viewra
+
+# Minimum ViewRA version required
+min_host_version: "0.1.0"
+
+# Plugin capabilities
+categories:
+  - ai        # Master AI configuration
+  - provider  # Also provides embedding/chat via Ollama
+
+# What this plugin provides
+provides:
+  - provider
+  - provider:ollama
+  - embedding
+  - chat
+
+# Permissions required
+permissions:
+  - network  # For Ollama API calls

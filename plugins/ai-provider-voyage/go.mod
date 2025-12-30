@@ -1,4 +1,4 @@
-module github.com/mantonx/viewra/plugins/provider-voyage
+module github.com/mantonx/viewra/plugins/ai-provider-voyage
 
 go 1.25.4
 
