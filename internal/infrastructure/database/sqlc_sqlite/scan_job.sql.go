@@ -44,7 +44,7 @@ type CompleteScanJobParams struct {
 	CompletedAt       sql.NullTime    `json:"completed_at"`
 	ErrorMessage      sql.NullString  `json:"error_message"`
 	Phase             sql.NullString  `json:"phase"`
-	DiscoveryDone     sql.NullBool    `json:"discovery_done"`
+	DiscoveryDone     sql.NullInt64   `json:"discovery_done"`
 	DiscoveryErrors   sql.NullInt64   `json:"discovery_errors"`
 	DiscoveryWarnings sql.NullInt64   `json:"discovery_warnings"`
 	DirsScanned       sql.NullInt64   `json:"dirs_scanned"`
@@ -116,7 +116,7 @@ type CreateScanJobParams struct {
 	StartedAt      sql.NullTime    `json:"started_at"`
 	Phase          sql.NullString  `json:"phase"`
 	EstimatedTotal sql.NullInt64   `json:"estimated_total"`
-	DiscoveryDone  sql.NullBool    `json:"discovery_done"`
+	DiscoveryDone  sql.NullInt64   `json:"discovery_done"`
 }
 
 func (q *Queries) CreateScanJob(ctx context.Context, arg CreateScanJobParams) (ScanJob, error) {
@@ -440,7 +440,7 @@ type UpdateScanJobProgressParams struct {
 	WarningCount   sql.NullInt64   `json:"warning_count"`
 	Phase          sql.NullString  `json:"phase"`
 	EstimatedTotal sql.NullInt64   `json:"estimated_total"`
-	DiscoveryDone  sql.NullBool    `json:"discovery_done"`
+	DiscoveryDone  sql.NullInt64   `json:"discovery_done"`
 	ID             int64           `json:"id"`
 }
 

@@ -48,10 +48,10 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 			Username:     u.Username,
 			DisplayName:  u.DisplayName,
 			PasswordHash: u.PasswordHash,
-			IsAdmin:      boolToInt64(u.IsAdmin),
-			IsDisabled:   boolToInt64(u.IsDisabled),
-			CreatedAt:    u.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:    u.UpdatedAt.Format(time.RFC3339),
+			IsAdmin:      common.BoolToInt64(u.IsAdmin),
+			IsDisabled:   common.BoolToInt64(u.IsDisabled),
+			CreatedAt:    u.CreatedAt,
+			UpdatedAt:    u.UpdatedAt,
 		})
 		if err != nil {
 			if common.IsUniqueConstraintError(err) {
@@ -69,8 +69,8 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 		Username:     u.Username,
 		DisplayName:  u.DisplayName,
 		PasswordHash: u.PasswordHash,
-		IsAdmin:      u.IsAdmin,
-		IsDisabled:   u.IsDisabled,
+		IsAdmin:      common.BoolToInt64(u.IsAdmin),
+		IsDisabled:   common.BoolToInt64(u.IsDisabled),
 		CreatedAt:    u.CreatedAt,
 		UpdatedAt:    u.UpdatedAt,
 	})
@@ -98,7 +98,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*user.User, err
 	}
 
 	// PostgreSQL
-	row, err := r.postgresQuerier.GetUserByID(ctx, int32(id))
+	row, err := r.postgresQuerier.GetUserByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, user.ErrUserNotFound
@@ -171,9 +171,9 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 	if r.dbType == "sqlite" {
 		_, err := r.sqliteQuerier.UpdateUser(ctx, sqlc_sqlite.UpdateUserParams{
 			DisplayName: u.DisplayName,
-			IsAdmin:     boolToInt64(u.IsAdmin),
-			IsDisabled:  boolToInt64(u.IsDisabled),
-			UpdatedAt:   u.UpdatedAt.Format(time.RFC3339),
+			IsAdmin:     common.BoolToInt64(u.IsAdmin),
+			IsDisabled:  common.BoolToInt64(u.IsDisabled),
+			UpdatedAt:   u.UpdatedAt,
 			ID:          u.ID,
 		})
 		if err != nil {
@@ -188,10 +188,10 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 	// PostgreSQL
 	_, err := r.postgresQuerier.UpdateUser(ctx, sqlc_postgres.UpdateUserParams{
 		DisplayName: u.DisplayName,
-		IsAdmin:     u.IsAdmin,
-		IsDisabled:  u.IsDisabled,
+		IsAdmin:     common.BoolToInt64(u.IsAdmin),
+		IsDisabled:  common.BoolToInt64(u.IsDisabled),
 		UpdatedAt:   u.UpdatedAt,
-		ID:          int32(u.ID),
+		ID:          u.ID,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -207,7 +207,7 @@ func (r *UserRepository) Delete(ctx context.Context, id int64) error {
 	if r.dbType == "sqlite" {
 		return r.sqliteQuerier.DeleteUser(ctx, id)
 	}
-	return r.postgresQuerier.DeleteUser(ctx, int32(id))
+	return r.postgresQuerier.DeleteUser(ctx, id)
 }
 
 // List retrieves users with pagination.
@@ -268,56 +268,42 @@ func (r *UserRepository) UpdatePassword(ctx context.Context, id int64, passwordH
 	if r.dbType == "sqlite" {
 		return r.sqliteQuerier.UpdateUserPassword(ctx, sqlc_sqlite.UpdateUserPasswordParams{
 			PasswordHash: passwordHash,
-			UpdatedAt:    now.Format(time.RFC3339),
+			UpdatedAt:    now,
 			ID:           id,
 		})
 	}
 	return r.postgresQuerier.UpdateUserPassword(ctx, sqlc_postgres.UpdateUserPasswordParams{
 		PasswordHash: passwordHash,
 		UpdatedAt:    now,
-		ID:           int32(id),
+		ID:           id,
 	})
 }
 
 // Helper functions
 
-func boolToInt64(b bool) int64 {
-	if b {
-		return 1
-	}
-	return 0
-}
-
-func int64ToBool(i int64) bool {
-	return i != 0
-}
-
 func sqliteRowToUser(row sqlc_sqlite.User) *user.User {
-	createdAt, _ := time.Parse(time.RFC3339, row.CreatedAt)
-	updatedAt, _ := time.Parse(time.RFC3339, row.UpdatedAt)
-
 	return &user.User{
 		ID:           row.ID,
 		PublicID:     row.PublicID,
 		Username:     row.Username,
 		DisplayName:  row.DisplayName,
 		PasswordHash: row.PasswordHash,
-		IsAdmin:      int64ToBool(row.IsAdmin),
-		IsDisabled:   int64ToBool(row.IsDisabled),
-		CreatedAt:    createdAt,
-		UpdatedAt:    updatedAt,
+		IsAdmin:      common.Int64ToBool(row.IsAdmin),
+		IsDisabled:   common.Int64ToBool(row.IsDisabled),
+		CreatedAt:    row.CreatedAt,
+		UpdatedAt:    row.UpdatedAt,
 	}
 }
 
 func postgresRowToUser(row sqlc_postgres.User) *user.User {
 	return &user.User{
-		ID:           int64(row.ID),
+		ID:           row.ID,
 		PublicID:     row.PublicID,
 		Username:     row.Username,
 		DisplayName:  row.DisplayName,
 		PasswordHash: row.PasswordHash,
-		IsAdmin:      row.IsAdmin,
-		IsDisabled:   row.IsDisabled,
+		IsAdmin:      common.Int64ToBool(row.IsAdmin),
+		IsDisabled:   common.Int64ToBool(row.IsDisabled),
 		CreatedAt:    row.CreatedAt,
 		UpdatedAt:    row.UpdatedAt,
 	}

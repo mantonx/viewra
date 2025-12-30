@@ -220,12 +220,12 @@ type GetMovieByMediaIDRow struct {
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
 	QualityScore      sql.NullInt64   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -476,12 +476,12 @@ type ListMoviesByGenreRow struct {
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
 	QualityScore      sql.NullInt64   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -664,12 +664,12 @@ type ListMoviesByLibraryRow struct {
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
 	QualityScore      sql.NullInt64   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -859,12 +859,12 @@ type ListMoviesByLibraryPaginatedRow struct {
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
 	QualityScore      sql.NullInt64   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -1054,12 +1054,12 @@ type ListMoviesByLibraryPaginatedDescRow struct {
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
 	QualityScore      sql.NullInt64   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -1248,12 +1248,12 @@ type ListMoviesByYearRow struct {
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
 	QualityScore      sql.NullInt64   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -1443,12 +1443,12 @@ type SearchMoviesByTitleRow struct {
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
 	QualityScore      sql.NullInt64   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -1641,12 +1641,12 @@ type SearchMoviesByTitlePaginatedRow struct {
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
 	QualityScore      sql.NullInt64   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`

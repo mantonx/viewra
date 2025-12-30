@@ -15,7 +15,7 @@ SELECT COUNT(*) FROM music_artists
 WHERE library_id = $1
 `
 
-func (q *Queries) CountArtistsInLibrary(ctx context.Context, libraryID int32) (int64, error) {
+func (q *Queries) CountArtistsInLibrary(ctx context.Context, libraryID int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countArtistsInLibrary, libraryID)
 	var count int64
 	err := row.Scan(&count)
@@ -29,7 +29,7 @@ WHERE library_id = $1
 `
 
 type CountSearchArtistsByNameParams struct {
-	LibraryID int32          `json:"library_id"`
+	LibraryID int64          `json:"library_id"`
 	Name      string         `json:"name"`
 	SortName  sql.NullString `json:"sort_name"`
 }
@@ -60,13 +60,13 @@ RETURNING id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, 
 `
 
 type CreateArtistParams struct {
-	LibraryID           int32          `json:"library_id"`
+	LibraryID           int64          `json:"library_id"`
 	Name                string         `json:"name"`
 	SortName            sql.NullString `json:"sort_name"`
 	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
 	Bio                 sql.NullString `json:"bio"`
 	Country             sql.NullString `json:"country"`
-	FormedYear          sql.NullInt32  `json:"formed_year"`
+	FormedYear          sql.NullInt64  `json:"formed_year"`
 	Genre               sql.NullString `json:"genre"`
 	ImagePath           sql.NullString `json:"image_path"`
 	CreatedAt           sql.NullTime   `json:"created_at"`
@@ -113,7 +113,7 @@ DELETE FROM music_artists
 WHERE id = $1
 `
 
-func (q *Queries) DeleteArtist(ctx context.Context, id int32) error {
+func (q *Queries) DeleteArtist(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteArtist, id)
 	return err
 }
@@ -125,7 +125,7 @@ LIMIT 1
 `
 
 type FindArtistByNameParams struct {
-	LibraryID int32  `json:"library_id"`
+	LibraryID int64  `json:"library_id"`
 	Name      string `json:"name"`
 }
 
@@ -155,7 +155,7 @@ SELECT id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, for
 WHERE id = $1
 `
 
-func (q *Queries) GetArtistByID(ctx context.Context, id int32) (MusicArtist, error) {
+func (q *Queries) GetArtistByID(ctx context.Context, id int64) (MusicArtist, error) {
 	row := q.db.QueryRowContext(ctx, getArtistByID, id)
 	var i MusicArtist
 	err := row.Scan(
@@ -226,14 +226,14 @@ ORDER BY a.sort_name, a.name
 `
 
 type GetArtistsWithCountsByLibraryRow struct {
-	ID                  int32          `json:"id"`
-	LibraryID           int32          `json:"library_id"`
+	ID                  int64          `json:"id"`
+	LibraryID           int64          `json:"library_id"`
 	Name                string         `json:"name"`
 	SortName            sql.NullString `json:"sort_name"`
 	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
 	Bio                 sql.NullString `json:"bio"`
 	Country             sql.NullString `json:"country"`
-	FormedYear          sql.NullInt32  `json:"formed_year"`
+	FormedYear          sql.NullInt64  `json:"formed_year"`
 	Genre               sql.NullString `json:"genre"`
 	ImagePath           sql.NullString `json:"image_path"`
 	AlbumCount          int64          `json:"album_count"`
@@ -243,7 +243,7 @@ type GetArtistsWithCountsByLibraryRow struct {
 // ============================================================================
 // Aggregation Queries for API (optimized)
 // ============================================================================
-func (q *Queries) GetArtistsWithCountsByLibrary(ctx context.Context, libraryID int32) ([]GetArtistsWithCountsByLibraryRow, error) {
+func (q *Queries) GetArtistsWithCountsByLibrary(ctx context.Context, libraryID int64) ([]GetArtistsWithCountsByLibraryRow, error) {
 	rows, err := q.db.QueryContext(ctx, getArtistsWithCountsByLibrary, libraryID)
 	if err != nil {
 		return nil, err
@@ -303,20 +303,20 @@ LIMIT $2 OFFSET $3
 `
 
 type GetArtistsWithCountsByLibraryPaginatedParams struct {
-	LibraryID int32 `json:"library_id"`
+	LibraryID int64 `json:"library_id"`
 	Limit     int32 `json:"limit"`
 	Offset    int32 `json:"offset"`
 }
 
 type GetArtistsWithCountsByLibraryPaginatedRow struct {
-	ID                  int32          `json:"id"`
-	LibraryID           int32          `json:"library_id"`
+	ID                  int64          `json:"id"`
+	LibraryID           int64          `json:"library_id"`
 	Name                string         `json:"name"`
 	SortName            sql.NullString `json:"sort_name"`
 	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
 	Bio                 sql.NullString `json:"bio"`
 	Country             sql.NullString `json:"country"`
-	FormedYear          sql.NullInt32  `json:"formed_year"`
+	FormedYear          sql.NullInt64  `json:"formed_year"`
 	Genre               sql.NullString `json:"genre"`
 	ImagePath           sql.NullString `json:"image_path"`
 	AlbumCount          int64          `json:"album_count"`
@@ -383,20 +383,20 @@ LIMIT $2 OFFSET $3
 `
 
 type GetArtistsWithCountsByLibraryPaginatedDescParams struct {
-	LibraryID int32 `json:"library_id"`
+	LibraryID int64 `json:"library_id"`
 	Limit     int32 `json:"limit"`
 	Offset    int32 `json:"offset"`
 }
 
 type GetArtistsWithCountsByLibraryPaginatedDescRow struct {
-	ID                  int32          `json:"id"`
-	LibraryID           int32          `json:"library_id"`
+	ID                  int64          `json:"id"`
+	LibraryID           int64          `json:"library_id"`
 	Name                string         `json:"name"`
 	SortName            sql.NullString `json:"sort_name"`
 	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
 	Bio                 sql.NullString `json:"bio"`
 	Country             sql.NullString `json:"country"`
-	FormedYear          sql.NullInt32  `json:"formed_year"`
+	FormedYear          sql.NullInt64  `json:"formed_year"`
 	Genre               sql.NullString `json:"genre"`
 	ImagePath           sql.NullString `json:"image_path"`
 	AlbumCount          int64          `json:"album_count"`
@@ -445,7 +445,7 @@ WHERE library_id = $1
 ORDER BY sort_name, name
 `
 
-func (q *Queries) ListArtistsByLibrary(ctx context.Context, libraryID int32) ([]MusicArtist, error) {
+func (q *Queries) ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]MusicArtist, error) {
 	rows, err := q.db.QueryContext(ctx, listArtistsByLibrary, libraryID)
 	if err != nil {
 		return nil, err
@@ -491,7 +491,7 @@ LIMIT $4 OFFSET $5
 `
 
 type SearchArtistsByNameParams struct {
-	LibraryID int32          `json:"library_id"`
+	LibraryID int64          `json:"library_id"`
 	Name      string         `json:"name"`
 	SortName  sql.NullString `json:"sort_name"`
 	Limit     int32          `json:"limit"`
@@ -566,7 +566,7 @@ LIMIT $4 OFFSET $5
 `
 
 type SearchArtistsWithCountsByNamePaginatedParams struct {
-	LibraryID int32          `json:"library_id"`
+	LibraryID int64          `json:"library_id"`
 	Name      string         `json:"name"`
 	SortName  sql.NullString `json:"sort_name"`
 	Limit     int32          `json:"limit"`
@@ -574,14 +574,14 @@ type SearchArtistsWithCountsByNamePaginatedParams struct {
 }
 
 type SearchArtistsWithCountsByNamePaginatedRow struct {
-	ID                  int32          `json:"id"`
-	LibraryID           int32          `json:"library_id"`
+	ID                  int64          `json:"id"`
+	LibraryID           int64          `json:"library_id"`
 	Name                string         `json:"name"`
 	SortName            sql.NullString `json:"sort_name"`
 	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
 	Bio                 sql.NullString `json:"bio"`
 	Country             sql.NullString `json:"country"`
-	FormedYear          sql.NullInt32  `json:"formed_year"`
+	FormedYear          sql.NullInt64  `json:"formed_year"`
 	Genre               sql.NullString `json:"genre"`
 	ImagePath           sql.NullString `json:"image_path"`
 	AlbumCount          int64          `json:"album_count"`
@@ -651,12 +651,12 @@ type UpdateArtistParams struct {
 	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
 	Bio                 sql.NullString `json:"bio"`
 	Country             sql.NullString `json:"country"`
-	FormedYear          sql.NullInt32  `json:"formed_year"`
+	FormedYear          sql.NullInt64  `json:"formed_year"`
 	Genre               sql.NullString `json:"genre"`
 	ImagePath           sql.NullString `json:"image_path"`
 	Directory           sql.NullString `json:"directory"`
 	UpdatedAt           sql.NullTime   `json:"updated_at"`
-	ID                  int32          `json:"id"`
+	ID                  int64          `json:"id"`
 }
 
 func (q *Queries) UpdateArtist(ctx context.Context, arg UpdateArtistParams) error {

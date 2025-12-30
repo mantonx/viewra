@@ -4,7 +4,6 @@ package plugins
 import (
 	"context"
 	"database/sql"
-	"time"
 
 	appplugins "github.com/mantonx/viewra/internal/application/plugins"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
@@ -105,7 +104,7 @@ func (r *Repository) UpsertPlugin(ctx context.Context, p appplugins.Plugin) erro
 			Author:      sql.NullString{String: p.Author, Valid: p.Author != ""},
 			License:     sql.NullString{String: p.License, Valid: p.License != ""},
 			Homepage:    sql.NullString{String: p.Homepage, Valid: p.Homepage != ""},
-			Categories:  []byte(p.Categories),
+			Categories:  p.Categories,
 			Path:        sql.NullString{String: p.Path, Valid: p.Path != ""},
 		})
 	}
@@ -215,18 +214,12 @@ func sqliteGetPluginRowToApp(row sqlc_sqlite.GetPluginRow) appplugins.Plugin {
 		p.RestartCount = int(row.RestartCount.Int64)
 	}
 
-	// Handle timestamps (SQLite stores as strings)
+	// Handle timestamps
 	if row.LastHeartbeat.Valid {
-		if t, err := time.Parse(time.RFC3339, row.LastHeartbeat.String); err == nil {
-			p.LastHeartbeat = t
-		}
+		p.LastHeartbeat = row.LastHeartbeat.Time
 	}
-	if t, err := time.Parse(time.RFC3339, row.InstalledAt); err == nil {
-		p.InstalledAt = t
-	}
-	if t, err := time.Parse(time.RFC3339, row.UpdatedAt); err == nil {
-		p.UpdatedAt = t
-	}
+	p.InstalledAt = row.InstalledAt
+	p.UpdatedAt = row.UpdatedAt
 
 	return p
 }
@@ -238,8 +231,8 @@ func sqliteListPluginsRowToApp(row sqlc_sqlite.ListPluginsRow) appplugins.Plugin
 		Name:       row.Name,
 		Version:    row.Version,
 		Categories: row.Categories,
-		IsBuiltin:  row.IsBuiltin.Valid && row.IsBuiltin.Int64 == 1,
-		Enabled:    row.Enabled.Valid && row.Enabled.Int64 == 1,
+		IsBuiltin:  common.NullInt64ToBool(row.IsBuiltin),
+		Enabled:    common.NullInt64ToBool(row.Enabled),
 	}
 
 	// Handle sql.NullString fields
@@ -273,18 +266,12 @@ func sqliteListPluginsRowToApp(row sqlc_sqlite.ListPluginsRow) appplugins.Plugin
 		p.RestartCount = int(row.RestartCount.Int64)
 	}
 
-	// Handle timestamps (SQLite stores as strings)
+	// Handle timestamps
 	if row.LastHeartbeat.Valid {
-		if t, err := time.Parse(time.RFC3339, row.LastHeartbeat.String); err == nil {
-			p.LastHeartbeat = t
-		}
+		p.LastHeartbeat = row.LastHeartbeat.Time
 	}
-	if t, err := time.Parse(time.RFC3339, row.InstalledAt); err == nil {
-		p.InstalledAt = t
-	}
-	if t, err := time.Parse(time.RFC3339, row.UpdatedAt); err == nil {
-		p.UpdatedAt = t
-	}
+	p.InstalledAt = row.InstalledAt
+	p.UpdatedAt = row.UpdatedAt
 
 	return p
 }
@@ -295,8 +282,8 @@ func postgresGetPluginRowToApp(row sqlc_postgres.GetPluginRow) appplugins.Plugin
 		ID:          row.ID,
 		Name:        row.Name,
 		Version:     row.Version,
-		IsBuiltin:   row.IsBuiltin.Valid && row.IsBuiltin.Bool,
-		Enabled:     row.Enabled.Valid && row.Enabled.Bool,
+		IsBuiltin:   common.NullInt64ToBool(row.IsBuiltin),
+		Enabled:     common.NullInt64ToBool(row.Enabled),
 		InstalledAt: row.InstalledAt,
 		UpdatedAt:   row.UpdatedAt,
 	}
@@ -334,7 +321,7 @@ func postgresGetPluginRowToApp(row sqlc_postgres.GetPluginRow) appplugins.Plugin
 
 	// Handle restart count
 	if row.RestartCount.Valid {
-		p.RestartCount = int(row.RestartCount.Int32)
+		p.RestartCount = int(row.RestartCount.Int64)
 	}
 
 	// Handle last heartbeat
@@ -351,8 +338,8 @@ func postgresListPluginsRowToApp(row sqlc_postgres.ListPluginsRow) appplugins.Pl
 		ID:          row.ID,
 		Name:        row.Name,
 		Version:     row.Version,
-		IsBuiltin:   row.IsBuiltin.Valid && row.IsBuiltin.Bool,
-		Enabled:     row.Enabled.Valid && row.Enabled.Bool,
+		IsBuiltin:   common.NullInt64ToBool(row.IsBuiltin),
+		Enabled:     common.NullInt64ToBool(row.Enabled),
 		InstalledAt: row.InstalledAt,
 		UpdatedAt:   row.UpdatedAt,
 	}
@@ -390,7 +377,7 @@ func postgresListPluginsRowToApp(row sqlc_postgres.ListPluginsRow) appplugins.Pl
 
 	// Handle restart count
 	if row.RestartCount.Valid {
-		p.RestartCount = int(row.RestartCount.Int32)
+		p.RestartCount = int(row.RestartCount.Int64)
 	}
 
 	// Handle last heartbeat

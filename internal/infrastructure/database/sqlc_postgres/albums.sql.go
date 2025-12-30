@@ -15,7 +15,7 @@ SELECT COUNT(*) FROM music_albums
 WHERE library_id = $1
 `
 
-func (q *Queries) CountAlbumsInLibrary(ctx context.Context, libraryID int32) (int64, error) {
+func (q *Queries) CountAlbumsInLibrary(ctx context.Context, libraryID int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countAlbumsInLibrary, libraryID)
 	var count int64
 	err := row.Scan(&count)
@@ -48,24 +48,24 @@ RETURNING id, library_id, title, album_artist, artist, year, release_date, genre
 `
 
 type CreateAlbumParams struct {
-	LibraryID          int32          `json:"library_id"`
+	LibraryID          int64          `json:"library_id"`
 	Title              string         `json:"title"`
 	AlbumArtist        sql.NullString `json:"album_artist"`
 	Artist             sql.NullString `json:"artist"`
-	Year               sql.NullInt32  `json:"year"`
+	Year               sql.NullInt64  `json:"year"`
 	ReleaseDate        sql.NullTime   `json:"release_date"`
 	Genre              sql.NullString `json:"genre"`
-	TotalTracks        sql.NullInt32  `json:"total_tracks"`
-	TotalDiscs         sql.NullInt32  `json:"total_discs"`
+	TotalTracks        sql.NullInt64  `json:"total_tracks"`
+	TotalDiscs         sql.NullInt64  `json:"total_discs"`
 	RecordLabel        sql.NullString `json:"record_label"`
 	ReleaseType        sql.NullString `json:"release_type"`
-	Compilation        sql.NullBool   `json:"compilation"`
+	Compilation        sql.NullInt64  `json:"compilation"`
 	MusicbrainzAlbumID sql.NullString `json:"musicbrainz_album_id"`
 	CoverArtPath       sql.NullString `json:"cover_art_path"`
 	SortTitle          sql.NullString `json:"sort_title"`
 	CreatedAt          sql.NullTime   `json:"created_at"`
 	UpdatedAt          sql.NullTime   `json:"updated_at"`
-	ArtistID           sql.NullInt32  `json:"artist_id"`
+	ArtistID           sql.NullInt64  `json:"artist_id"`
 	Directory          sql.NullString `json:"directory"`
 }
 
@@ -122,7 +122,7 @@ DELETE FROM music_albums
 WHERE id = $1
 `
 
-func (q *Queries) DeleteAlbum(ctx context.Context, id int32) error {
+func (q *Queries) DeleteAlbum(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteAlbum, id)
 	return err
 }
@@ -134,7 +134,7 @@ LIMIT 1
 `
 
 type FindAlbumByTitleParams struct {
-	LibraryID   int32          `json:"library_id"`
+	LibraryID   int64          `json:"library_id"`
 	Title       string         `json:"title"`
 	AlbumArtist sql.NullString `json:"album_artist"`
 }
@@ -172,7 +172,7 @@ SELECT id, library_id, title, album_artist, artist, year, release_date, genre, t
 WHERE id = $1
 `
 
-func (q *Queries) GetAlbumByID(ctx context.Context, id int32) (MusicAlbum, error) {
+func (q *Queries) GetAlbumByID(ctx context.Context, id int64) (MusicAlbum, error) {
 	row := q.db.QueryRowContext(ctx, getAlbumByID, id)
 	var i MusicAlbum
 	err := row.Scan(
@@ -240,7 +240,7 @@ ORDER BY year DESC, sort_title, title
 `
 
 type ListAlbumsByArtistParams struct {
-	LibraryID   int32          `json:"library_id"`
+	LibraryID   int64          `json:"library_id"`
 	AlbumArtist sql.NullString `json:"album_artist"`
 	Artist      sql.NullString `json:"artist"`
 }
@@ -295,7 +295,7 @@ WHERE library_id = $1
 ORDER BY sort_title, title
 `
 
-func (q *Queries) ListAlbumsByLibrary(ctx context.Context, libraryID int32) ([]MusicAlbum, error) {
+func (q *Queries) ListAlbumsByLibrary(ctx context.Context, libraryID int64) ([]MusicAlbum, error) {
 	rows, err := q.db.QueryContext(ctx, listAlbumsByLibrary, libraryID)
 	if err != nil {
 		return nil, err
@@ -364,20 +364,20 @@ type UpdateAlbumParams struct {
 	Title              string         `json:"title"`
 	AlbumArtist        sql.NullString `json:"album_artist"`
 	Artist             sql.NullString `json:"artist"`
-	Year               sql.NullInt32  `json:"year"`
+	Year               sql.NullInt64  `json:"year"`
 	ReleaseDate        sql.NullTime   `json:"release_date"`
 	Genre              sql.NullString `json:"genre"`
-	TotalTracks        sql.NullInt32  `json:"total_tracks"`
-	TotalDiscs         sql.NullInt32  `json:"total_discs"`
+	TotalTracks        sql.NullInt64  `json:"total_tracks"`
+	TotalDiscs         sql.NullInt64  `json:"total_discs"`
 	RecordLabel        sql.NullString `json:"record_label"`
 	ReleaseType        sql.NullString `json:"release_type"`
-	Compilation        sql.NullBool   `json:"compilation"`
+	Compilation        sql.NullInt64  `json:"compilation"`
 	MusicbrainzAlbumID sql.NullString `json:"musicbrainz_album_id"`
 	CoverArtPath       sql.NullString `json:"cover_art_path"`
 	SortTitle          sql.NullString `json:"sort_title"`
 	Directory          sql.NullString `json:"directory"`
 	UpdatedAt          sql.NullTime   `json:"updated_at"`
-	ID                 int32          `json:"id"`
+	ID                 int64          `json:"id"`
 }
 
 func (q *Queries) UpdateAlbum(ctx context.Context, arg UpdateAlbumParams) error {

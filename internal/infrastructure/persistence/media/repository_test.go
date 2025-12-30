@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"testing"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/mantonx/viewra/internal/domain/media"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // setupTestDB creates an in-memory SQLite database with schema
@@ -19,6 +19,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 	}
 
 	// Create schema (simplified version of migration)
+	// Note: Uses INTEGER for boolean fields to match sqlc type overrides
 	schema := `
 	CREATE TABLE IF NOT EXISTS libraries (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,12 +55,12 @@ func setupTestDB(t *testing.T) *sql.DB {
 		source_type TEXT,
 		resolution_label TEXT,
 		quality_score INTEGER,
-		is_3d BOOLEAN DEFAULT 0,
+		is_3d INTEGER DEFAULT 0,
 		stereo_mode TEXT CHECK(stereo_mode IN ('sbs', 'tab', 'mvc', NULL)),
-		has_dash BOOLEAN DEFAULT FALSE,
+		has_dash INTEGER DEFAULT 0,
 		dash_manifest_path TEXT,
 		transcoding_status TEXT CHECK(transcoding_status IN ('pending', 'processing', 'completed', 'failed', NULL)),
-		is_extra BOOLEAN DEFAULT 0 NOT NULL,
+		is_extra INTEGER DEFAULT 0 NOT NULL,
 		audio_codec TEXT,
 		date_added DATETIME DEFAULT CURRENT_TIMESTAMP,
 		date_modified DATETIME,

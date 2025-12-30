@@ -17,7 +17,7 @@ WHERE media_type = $1 AND entity_id = $2
 
 type CountImagesByEntityParams struct {
 	MediaType string `json:"media_type"`
-	EntityID  int32  `json:"entity_id"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 func (q *Queries) CountImagesByEntity(ctx context.Context, arg CountImagesByEntityParams) (int64, error) {
@@ -32,7 +32,7 @@ SELECT COUNT(*) FROM media_images
 WHERE media_id = $1
 `
 
-func (q *Queries) CountImagesByMediaID(ctx context.Context, mediaID sql.NullInt32) (int64, error) {
+func (q *Queries) CountImagesByMediaID(ctx context.Context, mediaID sql.NullInt64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countImagesByMediaID, mediaID)
 	var count int64
 	err := row.Scan(&count)
@@ -93,21 +93,21 @@ RETURNING id, media_id, media_type, entity_id, image_type, source_type, file_pat
 `
 
 type CreateImageParams struct {
-	MediaID        sql.NullInt32  `json:"media_id"`
+	MediaID        sql.NullInt64  `json:"media_id"`
 	MediaType      string         `json:"media_type"`
-	EntityID       int32          `json:"entity_id"`
+	EntityID       int64          `json:"entity_id"`
 	ImageType      string         `json:"image_type"`
 	SourceType     string         `json:"source_type"`
 	FilePath       sql.NullString `json:"file_path"`
 	ExternalUrl    sql.NullString `json:"external_url"`
 	LocalCachePath sql.NullString `json:"local_cache_path"`
-	Width          sql.NullInt32  `json:"width"`
-	Height         sql.NullInt32  `json:"height"`
+	Width          sql.NullInt64  `json:"width"`
+	Height         sql.NullInt64  `json:"height"`
 	FileSizeBytes  sql.NullInt64  `json:"file_size_bytes"`
 	MimeType       sql.NullString `json:"mime_type"`
 	FileHash       sql.NullString `json:"file_hash"`
 	Language       sql.NullString `json:"language"`
-	Priority       sql.NullInt32  `json:"priority"`
+	Priority       sql.NullInt64  `json:"priority"`
 }
 
 func (q *Queries) CreateImage(ctx context.Context, arg CreateImageParams) (MediaImage, error) {
@@ -157,7 +157,7 @@ DELETE FROM media_images
 WHERE id = $1
 `
 
-func (q *Queries) DeleteImage(ctx context.Context, id int32) error {
+func (q *Queries) DeleteImage(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteImage, id)
 	return err
 }
@@ -169,7 +169,7 @@ WHERE media_type = $1 AND entity_id = $2
 
 type DeleteImagesByEntityParams struct {
 	MediaType string `json:"media_type"`
-	EntityID  int32  `json:"entity_id"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 func (q *Queries) DeleteImagesByEntity(ctx context.Context, arg DeleteImagesByEntityParams) error {
@@ -192,7 +192,7 @@ DELETE FROM media_images
 WHERE media_id = $1
 `
 
-func (q *Queries) DeleteImagesByMediaID(ctx context.Context, mediaID sql.NullInt32) error {
+func (q *Queries) DeleteImagesByMediaID(ctx context.Context, mediaID sql.NullInt64) error {
 	_, err := q.db.ExecContext(ctx, deleteImagesByMediaID, mediaID)
 	return err
 }
@@ -249,7 +249,7 @@ LIMIT 1
 
 type GetImageByExternalURLParams struct {
 	ExternalUrl sql.NullString `json:"external_url"`
-	MediaID     sql.NullInt32  `json:"media_id"`
+	MediaID     sql.NullInt64  `json:"media_id"`
 }
 
 func (q *Queries) GetImageByExternalURL(ctx context.Context, arg GetImageByExternalURLParams) (MediaImage, error) {
@@ -316,7 +316,7 @@ WHERE id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetImageByID(ctx context.Context, id int32) (MediaImage, error) {
+func (q *Queries) GetImageByID(ctx context.Context, id int64) (MediaImage, error) {
 	row := q.db.QueryRowContext(ctx, getImageByID, id)
 	var i MediaImage
 	err := row.Scan(
@@ -351,7 +351,7 @@ LIMIT 1
 
 type GetImageByTypeAndEntityParams struct {
 	MediaType string `json:"media_type"`
-	EntityID  int32  `json:"entity_id"`
+	EntityID  int64  `json:"entity_id"`
 	ImageType string `json:"image_type"`
 }
 
@@ -389,7 +389,7 @@ LIMIT 1
 `
 
 type GetImageByTypeAndMediaIDParams struct {
-	MediaID   sql.NullInt32 `json:"media_id"`
+	MediaID   sql.NullInt64 `json:"media_id"`
 	ImageType string        `json:"image_type"`
 }
 
@@ -474,7 +474,7 @@ ORDER BY image_type, priority ASC
 
 type ListImagesByEntityParams struct {
 	MediaType string `json:"media_type"`
-	EntityID  int32  `json:"entity_id"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 func (q *Queries) ListImagesByEntity(ctx context.Context, arg ListImagesByEntityParams) ([]MediaImage, error) {
@@ -525,7 +525,7 @@ WHERE media_id = $1
 ORDER BY image_type, priority ASC
 `
 
-func (q *Queries) ListImagesByMediaID(ctx context.Context, mediaID sql.NullInt32) ([]MediaImage, error) {
+func (q *Queries) ListImagesByMediaID(ctx context.Context, mediaID sql.NullInt64) ([]MediaImage, error) {
 	rows, err := q.db.QueryContext(ctx, listImagesByMediaID, mediaID)
 	if err != nil {
 		return nil, err
@@ -688,22 +688,22 @@ WHERE id = $16
 `
 
 type UpdateImageParams struct {
-	MediaID        sql.NullInt32  `json:"media_id"`
+	MediaID        sql.NullInt64  `json:"media_id"`
 	MediaType      string         `json:"media_type"`
-	EntityID       int32          `json:"entity_id"`
+	EntityID       int64          `json:"entity_id"`
 	ImageType      string         `json:"image_type"`
 	SourceType     string         `json:"source_type"`
 	FilePath       sql.NullString `json:"file_path"`
 	ExternalUrl    sql.NullString `json:"external_url"`
 	LocalCachePath sql.NullString `json:"local_cache_path"`
-	Width          sql.NullInt32  `json:"width"`
-	Height         sql.NullInt32  `json:"height"`
+	Width          sql.NullInt64  `json:"width"`
+	Height         sql.NullInt64  `json:"height"`
 	FileSizeBytes  sql.NullInt64  `json:"file_size_bytes"`
 	MimeType       sql.NullString `json:"mime_type"`
 	FileHash       sql.NullString `json:"file_hash"`
 	Language       sql.NullString `json:"language"`
-	Priority       sql.NullInt32  `json:"priority"`
-	ID             int32          `json:"id"`
+	Priority       sql.NullInt64  `json:"priority"`
+	ID             int64          `json:"id"`
 }
 
 func (q *Queries) UpdateImage(ctx context.Context, arg UpdateImageParams) error {

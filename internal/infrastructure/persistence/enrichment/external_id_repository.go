@@ -38,14 +38,10 @@ func (r *ExternalIDRepository) Upsert(ctx context.Context, id *enrichment.Extern
 
 	return r.router.RouteVoid(
 		func() error {
-			var pgMediaID sql.NullInt32
-			if id.MediaID != nil {
-				pgMediaID = sql.NullInt32{Int32: int32(*id.MediaID), Valid: true}
-			}
 			return r.postgres.UpsertExternalID(ctx, sqlc_postgres.UpsertExternalIDParams{
-				MediaID:    pgMediaID,
+				MediaID:    mediaID,
 				MediaType:  string(id.MediaType),
-				EntityID:   int32(id.EntityID),
+				EntityID:   id.EntityID,
 				Provider:   id.Provider,
 				ExternalID: id.ExternalID,
 			})
@@ -68,7 +64,7 @@ func (r *ExternalIDRepository) GetByEntity(ctx context.Context, mediaType enrich
 		func() (any, error) {
 			return r.postgres.GetExternalIDsByMedia(ctx, sqlc_postgres.GetExternalIDsByMediaParams{
 				MediaType: string(mediaType),
-				EntityID:  int32(entityID),
+				EntityID:  entityID,
 			})
 		},
 		func() (any, error) {
@@ -89,7 +85,7 @@ func (r *ExternalIDRepository) GetByEntity(ctx context.Context, mediaType enrich
 func (r *ExternalIDRepository) GetByMedia(ctx context.Context, mediaID int64) ([]*enrichment.ExternalID, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetExternalIDsByMediaID(ctx, sql.NullInt32{Int32: int32(mediaID), Valid: true})
+			return r.postgres.GetExternalIDsByMediaID(ctx, sql.NullInt64{Int64: mediaID, Valid: true})
 		},
 		func() (any, error) {
 			return r.sqlite.GetExternalIDsByMediaID(ctx, sql.NullInt64{Int64: mediaID, Valid: true})
@@ -111,12 +107,7 @@ func (r *ExternalIDRepository) GetByMediaBatch(ctx context.Context, mediaIDs []i
 
 	result, err := r.router.Route(
 		func() (any, error) {
-			// Convert to []int32 for PostgreSQL
-			pgIDs := make([]int32, len(mediaIDs))
-			for i, id := range mediaIDs {
-				pgIDs[i] = int32(id)
-			}
-			return r.postgres.GetExternalIDsByMediaIDBatch(ctx, pgIDs)
+			return r.postgres.GetExternalIDsByMediaIDBatch(ctx, mediaIDs)
 		},
 		func() (any, error) {
 			// Convert to []sql.NullInt64 for SQLite
@@ -138,7 +129,7 @@ func (r *ExternalIDRepository) GetByMediaBatch(ctx context.Context, mediaIDs []i
 		pgIDs := result.([]sqlc_postgres.MediaExternalID)
 		for _, pgID := range pgIDs {
 			if pgID.MediaID.Valid {
-				mediaID := int64(pgID.MediaID.Int32)
+				mediaID := pgID.MediaID.Int64
 				resultMap[mediaID] = append(resultMap[mediaID], r.convertPostgresExternalID(pgID))
 			}
 		}
@@ -177,9 +168,7 @@ func (r *ExternalIDRepository) GetEntityByExternalID(ctx context.Context, provid
 
 	if r.router.IsPostgresDB() {
 		row := result.(sqlc_postgres.GetEntityByExternalIDRow)
-		// PostgreSQL enum comes through as interface{}, need type assertion
-		mediaType := row.MediaType.(string)
-		return enrichment.MediaType(mediaType), int64(row.EntityID), nil
+		return enrichment.MediaType(row.MediaType), row.EntityID, nil
 	}
 
 	row := result.(sqlc_sqlite.GetEntityByExternalIDRow)
@@ -218,7 +207,7 @@ func (r *ExternalIDRepository) DeleteByEntity(ctx context.Context, mediaType enr
 		func() error {
 			return r.postgres.DeleteExternalIDsByMedia(ctx, sqlc_postgres.DeleteExternalIDsByMediaParams{
 				MediaType: string(mediaType),
-				EntityID:  int32(entityID),
+				EntityID:  entityID,
 			})
 		},
 		func() error {
@@ -234,7 +223,7 @@ func (r *ExternalIDRepository) DeleteByEntity(ctx context.Context, mediaType enr
 func (r *ExternalIDRepository) DeleteByMedia(ctx context.Context, mediaID int64) error {
 	return r.router.RouteVoid(
 		func() error {
-			return r.postgres.DeleteExternalIDsByMediaID(ctx, sql.NullInt32{Int32: int32(mediaID), Valid: true})
+			return r.postgres.DeleteExternalIDsByMediaID(ctx, sql.NullInt64{Int64: mediaID, Valid: true})
 		},
 		func() error {
 			return r.sqlite.DeleteExternalIDsByMediaID(ctx, sql.NullInt64{Int64: mediaID, Valid: true})
@@ -265,18 +254,15 @@ func (r *ExternalIDRepository) convertResultList(result any) []*enrichment.Exter
 func (r *ExternalIDRepository) convertPostgresExternalID(pgID sqlc_postgres.MediaExternalID) *enrichment.ExternalID {
 	var mediaID *int64
 	if pgID.MediaID.Valid {
-		v := int64(pgID.MediaID.Int32)
+		v := pgID.MediaID.Int64
 		mediaID = &v
 	}
 
-	// PostgreSQL enum comes through as interface{}, need type assertion
-	mediaType := pgID.MediaType.(string)
-
 	return &enrichment.ExternalID{
-		ID:         int64(pgID.ID),
+		ID:         pgID.ID,
 		MediaID:    mediaID,
-		MediaType:  enrichment.MediaType(mediaType),
-		EntityID:   int64(pgID.EntityID),
+		MediaType:  enrichment.MediaType(pgID.MediaType),
+		EntityID:   pgID.EntityID,
 		Provider:   pgID.Provider,
 		ExternalID: pgID.ExternalID,
 		CreatedAt:  common.ParseNullTime(pgID.CreatedAt),
@@ -298,7 +284,7 @@ func (r *ExternalIDRepository) convertSqliteExternalID(sqID sqlc_sqlite.MediaExt
 		EntityID:   sqID.EntityID,
 		Provider:   sqID.Provider,
 		ExternalID: sqID.ExternalID,
-		CreatedAt:  parseTimeString(sqID.CreatedAt),
-		UpdatedAt:  parseTimeString(sqID.UpdatedAt),
+		CreatedAt:  common.ParseNullTime(sqID.CreatedAt),
+		UpdatedAt:  common.ParseNullTime(sqID.UpdatedAt),
 	}
 }

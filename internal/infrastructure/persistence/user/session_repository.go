@@ -49,9 +49,9 @@ func (r *SessionRepository) Create(ctx context.Context, s *user.Session) error {
 			RefreshTokenHash: s.RefreshTokenHash,
 			UserAgent:        sql.NullString{String: s.UserAgent, Valid: s.UserAgent != ""},
 			IpAddress:        sql.NullString{String: s.IPAddress, Valid: s.IPAddress != ""},
-			CreatedAt:        s.CreatedAt.Format(time.RFC3339),
-			LastUsedAt:       s.LastUsedAt.Format(time.RFC3339),
-			ExpiresAt:        s.ExpiresAt.Format(time.RFC3339),
+			CreatedAt:        s.CreatedAt,
+			LastUsedAt:       s.LastUsedAt,
+			ExpiresAt:        s.ExpiresAt,
 		})
 		if err != nil {
 			return err
@@ -63,7 +63,7 @@ func (r *SessionRepository) Create(ctx context.Context, s *user.Session) error {
 	// PostgreSQL
 	row, err := r.postgresQuerier.CreateSession(ctx, sqlc_postgres.CreateSessionParams{
 		PublicID:         s.PublicID,
-		UserID:           int32(s.UserID),
+		UserID:           s.UserID,
 		RefreshTokenHash: s.RefreshTokenHash,
 		UserAgent:        sql.NullString{String: s.UserAgent, Valid: s.UserAgent != ""},
 		IpAddress:        sql.NullString{String: s.IPAddress, Valid: s.IPAddress != ""},
@@ -74,7 +74,7 @@ func (r *SessionRepository) Create(ctx context.Context, s *user.Session) error {
 	if err != nil {
 		return err
 	}
-	s.ID = int64(row.ID)
+	s.ID = row.ID
 	return nil
 }
 
@@ -92,7 +92,7 @@ func (r *SessionRepository) GetByID(ctx context.Context, id int64) (*user.Sessio
 	}
 
 	// PostgreSQL
-	row, err := r.postgresQuerier.GetSessionByID(ctx, int32(id))
+	row, err := r.postgresQuerier.GetSessionByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, user.ErrSessionNotFound
@@ -165,7 +165,7 @@ func (r *SessionRepository) GetByUserID(ctx context.Context, userID int64) ([]*u
 	}
 
 	// PostgreSQL
-	rows, err := r.postgresQuerier.GetSessionsByUserID(ctx, int32(userID))
+	rows, err := r.postgresQuerier.GetSessionsByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -181,13 +181,13 @@ func (r *SessionRepository) UpdateLastUsed(ctx context.Context, id int64) error 
 	now := time.Now()
 	if r.dbType == "sqlite" {
 		return r.sqliteQuerier.UpdateSessionLastUsed(ctx, sqlc_sqlite.UpdateSessionLastUsedParams{
-			LastUsedAt: now.Format(time.RFC3339),
+			LastUsedAt: now,
 			ID:         id,
 		})
 	}
 	return r.postgresQuerier.UpdateSessionLastUsed(ctx, sqlc_postgres.UpdateSessionLastUsedParams{
 		LastUsedAt: now,
-		ID:         int32(id),
+		ID:         id,
 	})
 }
 
@@ -196,7 +196,7 @@ func (r *SessionRepository) Delete(ctx context.Context, id int64) error {
 	if r.dbType == "sqlite" {
 		return r.sqliteQuerier.DeleteSession(ctx, id)
 	}
-	return r.postgresQuerier.DeleteSession(ctx, int32(id))
+	return r.postgresQuerier.DeleteSession(ctx, id)
 }
 
 // DeleteByUserID deletes all sessions for a user.
@@ -204,14 +204,14 @@ func (r *SessionRepository) DeleteByUserID(ctx context.Context, userID int64) er
 	if r.dbType == "sqlite" {
 		return r.sqliteQuerier.DeleteSessionsByUserID(ctx, userID)
 	}
-	return r.postgresQuerier.DeleteSessionsByUserID(ctx, int32(userID))
+	return r.postgresQuerier.DeleteSessionsByUserID(ctx, userID)
 }
 
 // DeleteExpired deletes all expired sessions.
 func (r *SessionRepository) DeleteExpired(ctx context.Context) (int64, error) {
 	now := time.Now()
 	if r.dbType == "sqlite" {
-		return r.sqliteQuerier.DeleteExpiredSessions(ctx, now.Format(time.RFC3339))
+		return r.sqliteQuerier.DeleteExpiredSessions(ctx, now)
 	}
 	return r.postgresQuerier.DeleteExpiredSessions(ctx, now)
 }
@@ -221,16 +221,12 @@ func (r *SessionRepository) CountByUserID(ctx context.Context, userID int64) (in
 	if r.dbType == "sqlite" {
 		return r.sqliteQuerier.CountSessionsByUserID(ctx, userID)
 	}
-	return r.postgresQuerier.CountSessionsByUserID(ctx, int32(userID))
+	return r.postgresQuerier.CountSessionsByUserID(ctx, userID)
 }
 
 // Helper functions
 
 func sqliteRowToSession(row sqlc_sqlite.Session) *user.Session {
-	createdAt, _ := time.Parse(time.RFC3339, row.CreatedAt)
-	lastUsedAt, _ := time.Parse(time.RFC3339, row.LastUsedAt)
-	expiresAt, _ := time.Parse(time.RFC3339, row.ExpiresAt)
-
 	return &user.Session{
 		ID:               row.ID,
 		PublicID:         row.PublicID,
@@ -238,17 +234,17 @@ func sqliteRowToSession(row sqlc_sqlite.Session) *user.Session {
 		RefreshTokenHash: row.RefreshTokenHash,
 		UserAgent:        row.UserAgent.String,
 		IPAddress:        row.IpAddress.String,
-		CreatedAt:        createdAt,
-		LastUsedAt:       lastUsedAt,
-		ExpiresAt:        expiresAt,
+		CreatedAt:        row.CreatedAt,
+		LastUsedAt:       row.LastUsedAt,
+		ExpiresAt:        row.ExpiresAt,
 	}
 }
 
 func postgresRowToSession(row sqlc_postgres.Session) *user.Session {
 	return &user.Session{
-		ID:               int64(row.ID),
+		ID:               row.ID,
 		PublicID:         row.PublicID,
-		UserID:           int64(row.UserID),
+		UserID:           row.UserID,
 		RefreshTokenHash: row.RefreshTokenHash,
 		UserAgent:        row.UserAgent.String,
 		IPAddress:        row.IpAddress.String,

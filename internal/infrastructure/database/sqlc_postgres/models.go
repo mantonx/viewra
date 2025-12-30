@@ -6,57 +6,43 @@ package sqlc_postgres
 
 import (
 	"database/sql"
-	"encoding/json"
 	"time"
-
-	"github.com/sqlc-dev/pqtype"
 )
 
-type AiUsage struct {
-	ID               int32         `json:"id"`
-	UserID           string        `json:"user_id"`
-	Date             string        `json:"date"`
-	PromptTokens     sql.NullInt32 `json:"prompt_tokens"`
-	CompletionTokens sql.NullInt32 `json:"completion_tokens"`
-	EmbeddingTokens  sql.NullInt32 `json:"embedding_tokens"`
-	RequestCount     sql.NullInt32 `json:"request_count"`
-	CreatedAt        sql.NullTime  `json:"created_at"`
-	UpdatedAt        sql.NullTime  `json:"updated_at"`
-}
-
 type Credit struct {
-	ID            int32          `json:"id"`
-	PersonID      int32          `json:"person_id"`
-	MediaType     interface{}    `json:"media_type"`
-	EntityID      int32          `json:"entity_id"`
-	CreditType    interface{}    `json:"credit_type"`
+	ID            int64          `json:"id"`
+	PersonID      int64          `json:"person_id"`
+	MediaType     string         `json:"media_type"`
+	EntityID      int64          `json:"entity_id"`
+	CreditType    string         `json:"credit_type"`
 	CharacterName sql.NullString `json:"character_name"`
 	Department    sql.NullString `json:"department"`
 	Job           sql.NullString `json:"job"`
-	BillingOrder  sql.NullInt32  `json:"billing_order"`
+	BillingOrder  sql.NullInt64  `json:"billing_order"`
 	CreatedAt     sql.NullTime   `json:"created_at"`
 }
 
 type EnrichmentPipeline struct {
-	ID         int32                 `json:"id"`
-	MediaType  string                `json:"media_type"`
-	PluginID   string                `json:"plugin_id"`
-	StageName  string                `json:"stage_name"`
-	Position   int32                 `json:"position"`
-	Enabled    sql.NullBool          `json:"enabled"`
-	ConfigJson pqtype.NullRawMessage `json:"config_json"`
-	CreatedAt  sql.NullTime          `json:"created_at"`
-	UpdatedAt  sql.NullTime          `json:"updated_at"`
+	ID         int64          `json:"id"`
+	MediaType  string         `json:"media_type"`
+	PluginID   string         `json:"plugin_id"`
+	StageName  string         `json:"stage_name"`
+	Position   int64          `json:"position"`
+	Enabled    sql.NullInt64  `json:"enabled"`
+	ConfigJson sql.NullString `json:"config_json"`
+	CreatedAt  sql.NullTime   `json:"created_at"`
+	UpdatedAt  sql.NullTime   `json:"updated_at"`
 }
 
 type EnrichmentQueue struct {
-	ID            int32          `json:"id"`
-	MediaID       int32          `json:"media_id"`
+	ID            int64          `json:"id"`
+	MediaID       int64          `json:"media_id"`
+	MediaType     string         `json:"media_type"`
 	Stage         string         `json:"stage"`
-	Priority      sql.NullInt32  `json:"priority"`
+	Priority      sql.NullInt64  `json:"priority"`
 	Status        sql.NullString `json:"status"`
-	Attempts      sql.NullInt32  `json:"attempts"`
-	MaxAttempts   sql.NullInt32  `json:"max_attempts"`
+	Attempts      sql.NullInt64  `json:"attempts"`
+	MaxAttempts   sql.NullInt64  `json:"max_attempts"`
 	ErrorMessage  sql.NullString `json:"error_message"`
 	ErrorCategory sql.NullString `json:"error_category"`
 	NextRetryAt   sql.NullTime   `json:"next_retry_at"`
@@ -64,58 +50,57 @@ type EnrichmentQueue struct {
 	LockedAt      sql.NullTime   `json:"locked_at"`
 	CreatedAt     sql.NullTime   `json:"created_at"`
 	UpdatedAt     sql.NullTime   `json:"updated_at"`
-	MediaType     string         `json:"media_type"`
-	LibraryID     sql.NullInt32  `json:"library_id"`
+	LibraryID     sql.NullInt64  `json:"library_id"`
 }
 
 type EnrichmentStatus struct {
-	MediaID      int32                 `json:"media_id"`
-	Stage        string                `json:"stage"`
-	Status       sql.NullString        `json:"status"`
-	PluginID     sql.NullString        `json:"plugin_id"`
-	CompletedAt  sql.NullTime          `json:"completed_at"`
-	ErrorMessage sql.NullString        `json:"error_message"`
-	MetadataJson pqtype.NullRawMessage `json:"metadata_json"`
-	MediaType    string                `json:"media_type"`
+	MediaType    string         `json:"media_type"`
+	MediaID      int64          `json:"media_id"`
+	Stage        string         `json:"stage"`
+	Status       sql.NullString `json:"status"`
+	PluginID     sql.NullString `json:"plugin_id"`
+	CompletedAt  sql.NullTime   `json:"completed_at"`
+	ErrorMessage sql.NullString `json:"error_message"`
+	MetadataJson sql.NullString `json:"metadata_json"`
 }
 
 type Library struct {
-	ID                    int32                 `json:"id"`
-	Name                  string                `json:"name"`
-	Path                  string                `json:"path"`
-	Type                  string                `json:"type"`
-	CreatedAt             sql.NullTime          `json:"created_at"`
-	UpdatedAt             sql.NullTime          `json:"updated_at"`
-	PreferredAudioLang    sql.NullString        `json:"preferred_audio_lang"`
-	PreferredSubtitleLang sql.NullString        `json:"preferred_subtitle_lang"`
-	AutoEnableSubtitles   sql.NullString        `json:"auto_enable_subtitles"`
-	MonitoringEnabled     bool                  `json:"monitoring_enabled"`
-	MonitoringConfig      pqtype.NullRawMessage `json:"monitoring_config"`
+	ID                    int64          `json:"id"`
+	Name                  string         `json:"name"`
+	Path                  string         `json:"path"`
+	Type                  string         `json:"type"`
+	CreatedAt             sql.NullTime   `json:"created_at"`
+	UpdatedAt             sql.NullTime   `json:"updated_at"`
+	PreferredAudioLang    sql.NullString `json:"preferred_audio_lang"`
+	PreferredSubtitleLang sql.NullString `json:"preferred_subtitle_lang"`
+	AutoEnableSubtitles   sql.NullString `json:"auto_enable_subtitles"`
+	MonitoringEnabled     int64          `json:"monitoring_enabled"`
+	MonitoringConfig      sql.NullString `json:"monitoring_config"`
 }
 
 type MediaAudioTrack struct {
-	ID            int32          `json:"id"`
-	MediaID       int32          `json:"media_id"`
-	StreamIndex   int32          `json:"stream_index"`
+	ID            int64          `json:"id"`
+	MediaID       int64          `json:"media_id"`
+	StreamIndex   int64          `json:"stream_index"`
 	Codec         string         `json:"codec"`
 	CodecProfile  sql.NullString `json:"codec_profile"`
-	Channels      int32          `json:"channels"`
+	Channels      int64          `json:"channels"`
 	ChannelLayout sql.NullString `json:"channel_layout"`
-	SampleRate    sql.NullInt32  `json:"sample_rate"`
-	BitRate       sql.NullInt32  `json:"bit_rate"`
+	SampleRate    sql.NullInt64  `json:"sample_rate"`
+	BitRate       sql.NullInt64  `json:"bit_rate"`
 	Language      sql.NullString `json:"language"`
 	Title         sql.NullString `json:"title"`
-	IsDefault     sql.NullBool   `json:"is_default"`
-	IsCommentary  sql.NullBool   `json:"is_commentary"`
-	IsDescriptive sql.NullBool   `json:"is_descriptive"`
+	IsDefault     sql.NullInt64  `json:"is_default"`
+	IsCommentary  sql.NullInt64  `json:"is_commentary"`
+	IsDescriptive sql.NullInt64  `json:"is_descriptive"`
 	CreatedAt     sql.NullTime   `json:"created_at"`
 }
 
 type MediaExternalID struct {
-	ID         int32         `json:"id"`
-	MediaID    sql.NullInt32 `json:"media_id"`
-	MediaType  interface{}   `json:"media_type"`
-	EntityID   int32         `json:"entity_id"`
+	ID         int64         `json:"id"`
+	MediaID    sql.NullInt64 `json:"media_id"`
+	MediaType  string        `json:"media_type"`
+	EntityID   int64         `json:"entity_id"`
 	Provider   string        `json:"provider"`
 	ExternalID string        `json:"external_id"`
 	CreatedAt  sql.NullTime  `json:"created_at"`
@@ -123,38 +108,38 @@ type MediaExternalID struct {
 }
 
 type MediaImage struct {
-	ID             int32          `json:"id"`
-	MediaID        sql.NullInt32  `json:"media_id"`
+	ID             int64          `json:"id"`
+	MediaID        sql.NullInt64  `json:"media_id"`
 	MediaType      string         `json:"media_type"`
-	EntityID       int32          `json:"entity_id"`
+	EntityID       int64          `json:"entity_id"`
 	ImageType      string         `json:"image_type"`
 	SourceType     string         `json:"source_type"`
 	FilePath       sql.NullString `json:"file_path"`
 	ExternalUrl    sql.NullString `json:"external_url"`
 	LocalCachePath sql.NullString `json:"local_cache_path"`
-	Width          sql.NullInt32  `json:"width"`
-	Height         sql.NullInt32  `json:"height"`
+	Width          sql.NullInt64  `json:"width"`
+	Height         sql.NullInt64  `json:"height"`
 	FileSizeBytes  sql.NullInt64  `json:"file_size_bytes"`
 	MimeType       sql.NullString `json:"mime_type"`
 	FileHash       sql.NullString `json:"file_hash"`
 	Language       sql.NullString `json:"language"`
-	Priority       sql.NullInt32  `json:"priority"`
+	Priority       sql.NullInt64  `json:"priority"`
 	CreatedAt      sql.NullTime   `json:"created_at"`
 	UpdatedAt      sql.NullTime   `json:"updated_at"`
 }
 
 type MediaKeyword struct {
-	ID         int32        `json:"id"`
-	MediaType  string       `json:"media_type"`
-	EntityID   int32        `json:"entity_id"`
-	KeywordID  int32        `json:"keyword_id"`
-	Keyword    string       `json:"keyword"`
-	IsLocation sql.NullBool `json:"is_location"`
-	CreatedAt  sql.NullTime `json:"created_at"`
+	ID         int64         `json:"id"`
+	MediaType  string        `json:"media_type"`
+	EntityID   int64         `json:"entity_id"`
+	KeywordID  int64         `json:"keyword_id"`
+	Keyword    string        `json:"keyword"`
+	IsLocation sql.NullInt64 `json:"is_location"`
+	CreatedAt  sql.NullTime  `json:"created_at"`
 }
 
 type MediaMetadataSource struct {
-	MediaID   int32          `json:"media_id"`
+	MediaID   int64          `json:"media_id"`
 	FieldName string         `json:"field_name"`
 	PluginID  string         `json:"plugin_id"`
 	RawValue  sql.NullString `json:"raw_value"`
@@ -162,39 +147,39 @@ type MediaMetadataSource struct {
 }
 
 type MediaStudio struct {
-	MediaType interface{} `json:"media_type"`
-	EntityID  int32       `json:"entity_id"`
-	StudioID  int32       `json:"studio_id"`
+	MediaType string `json:"media_type"`
+	EntityID  int64  `json:"entity_id"`
+	StudioID  int64  `json:"studio_id"`
 }
 
 type MediaSubtitleTrack struct {
-	ID           int32          `json:"id"`
-	MediaID      int32          `json:"media_id"`
-	StreamIndex  sql.NullInt32  `json:"stream_index"`
+	ID           int64          `json:"id"`
+	MediaID      int64          `json:"media_id"`
+	StreamIndex  sql.NullInt64  `json:"stream_index"`
 	SourceType   string         `json:"source_type"`
 	Codec        sql.NullString `json:"codec"`
 	Language     sql.NullString `json:"language"`
 	Title        sql.NullString `json:"title"`
 	FilePath     sql.NullString `json:"file_path"`
-	IsDefault    sql.NullBool   `json:"is_default"`
-	IsForced     sql.NullBool   `json:"is_forced"`
-	IsSdh        sql.NullBool   `json:"is_sdh"`
-	IsCommentary sql.NullBool   `json:"is_commentary"`
-	IsBitmap     sql.NullBool   `json:"is_bitmap"`
+	IsDefault    sql.NullInt64  `json:"is_default"`
+	IsForced     sql.NullInt64  `json:"is_forced"`
+	IsSdh        sql.NullInt64  `json:"is_sdh"`
+	IsCommentary sql.NullInt64  `json:"is_commentary"`
+	IsBitmap     sql.NullInt64  `json:"is_bitmap"`
 	CreatedAt    sql.NullTime   `json:"created_at"`
 }
 
 type Medium struct {
-	ID                int32           `json:"id"`
-	LibraryID         int32           `json:"library_id"`
+	ID                int64           `json:"id"`
+	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
 	FilePath          string          `json:"file_path"`
 	FileSize          sql.NullInt64   `json:"file_size"`
 	FileHash          sql.NullString  `json:"file_hash"`
 	ContainerFormat   sql.NullString  `json:"container_format"`
 	Duration          sql.NullFloat64 `json:"duration"`
-	Width             sql.NullInt32   `json:"width"`
-	Height            sql.NullInt32   `json:"height"`
+	Width             sql.NullInt64   `json:"width"`
+	Height            sql.NullInt64   `json:"height"`
 	AspectRatio       sql.NullString  `json:"aspect_ratio"`
 	Codec             sql.NullString  `json:"codec"`
 	CodecProfile      sql.NullString  `json:"codec_profile"`
@@ -208,78 +193,89 @@ type Medium struct {
 	Type              string          `json:"type"`
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
-	QualityScore      sql.NullInt32   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	QualityScore      sql.NullInt64   `json:"quality_score"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	AudioCodec        sql.NullString  `json:"audio_codec"`
 }
 
+type MoodTag struct {
+	ID         int64        `json:"id"`
+	MediaType  string       `json:"media_type"`
+	EntityID   int64        `json:"entity_id"`
+	Mood       string       `json:"mood"`
+	Confidence float64      `json:"confidence"`
+	Source     string       `json:"source"`
+	CreatedAt  sql.NullTime `json:"created_at"`
+	UpdatedAt  sql.NullTime `json:"updated_at"`
+}
+
 type Movie struct {
-	MediaID           int32           `json:"media_id"`
-	Year              sql.NullInt32   `json:"year"`
+	MediaID           int64           `json:"media_id"`
+	Year              sql.NullInt64   `json:"year"`
 	ReleaseDate       sql.NullTime    `json:"release_date"`
 	Genre             sql.NullString  `json:"genre"`
 	Director          sql.NullString  `json:"director"`
 	Cast              sql.NullString  `json:"cast"`
 	ContentRating     sql.NullString  `json:"content_rating"`
-	MaturityRating    sql.NullInt32   `json:"maturity_rating"`
+	MaturityRating    sql.NullInt64   `json:"maturity_rating"`
 	ContentAdvisories sql.NullString  `json:"content_advisories"`
 	Plot              sql.NullString  `json:"plot"`
 	Tagline           sql.NullString  `json:"tagline"`
 	OriginalTitle     sql.NullString  `json:"original_title"`
 	SortTitle         sql.NullString  `json:"sort_title"`
 	ImdbID            sql.NullString  `json:"imdb_id"`
-	TmdbID            sql.NullInt32   `json:"tmdb_id"`
-	RuntimeMinutes    sql.NullInt32   `json:"runtime_minutes"`
+	TmdbID            sql.NullInt64   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
 	Budget            sql.NullInt64   `json:"budget"`
 	Revenue           sql.NullInt64   `json:"revenue"`
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
 	Rating            sql.NullFloat64 `json:"rating"`
-	RatingVotes       sql.NullInt32   `json:"rating_votes"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
 }
 
 type MusicAlbum struct {
-	ID                 int32          `json:"id"`
-	LibraryID          int32          `json:"library_id"`
+	ID                 int64          `json:"id"`
+	LibraryID          int64          `json:"library_id"`
 	Title              string         `json:"title"`
 	AlbumArtist        sql.NullString `json:"album_artist"`
 	Artist             sql.NullString `json:"artist"`
-	Year               sql.NullInt32  `json:"year"`
+	Year               sql.NullInt64  `json:"year"`
 	ReleaseDate        sql.NullTime   `json:"release_date"`
 	Genre              sql.NullString `json:"genre"`
-	TotalTracks        sql.NullInt32  `json:"total_tracks"`
-	TotalDiscs         sql.NullInt32  `json:"total_discs"`
+	TotalTracks        sql.NullInt64  `json:"total_tracks"`
+	TotalDiscs         sql.NullInt64  `json:"total_discs"`
 	RecordLabel        sql.NullString `json:"record_label"`
 	ReleaseType        sql.NullString `json:"release_type"`
-	Compilation        sql.NullBool   `json:"compilation"`
+	Compilation        sql.NullInt64  `json:"compilation"`
 	MusicbrainzAlbumID sql.NullString `json:"musicbrainz_album_id"`
 	CoverArtPath       sql.NullString `json:"cover_art_path"`
 	SortTitle          sql.NullString `json:"sort_title"`
 	CreatedAt          sql.NullTime   `json:"created_at"`
 	UpdatedAt          sql.NullTime   `json:"updated_at"`
-	ArtistID           sql.NullInt32  `json:"artist_id"`
+	ArtistID           sql.NullInt64  `json:"artist_id"`
 	Directory          sql.NullString `json:"directory"`
 }
 
 type MusicArtist struct {
-	ID                  int32          `json:"id"`
-	LibraryID           int32          `json:"library_id"`
+	ID                  int64          `json:"id"`
+	LibraryID           int64          `json:"library_id"`
 	Name                string         `json:"name"`
 	SortName            sql.NullString `json:"sort_name"`
 	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
 	Bio                 sql.NullString `json:"bio"`
 	Country             sql.NullString `json:"country"`
-	FormedYear          sql.NullInt32  `json:"formed_year"`
+	FormedYear          sql.NullInt64  `json:"formed_year"`
 	Genre               sql.NullString `json:"genre"`
 	ImagePath           sql.NullString `json:"image_path"`
 	CreatedAt           sql.NullTime   `json:"created_at"`
@@ -288,52 +284,52 @@ type MusicArtist struct {
 }
 
 type MusicTrack struct {
-	MediaID             int32          `json:"media_id"`
+	MediaID             int64          `json:"media_id"`
 	Artist              sql.NullString `json:"artist"`
 	Album               sql.NullString `json:"album"`
 	AlbumArtist         sql.NullString `json:"album_artist"`
-	TrackNumber         sql.NullInt32  `json:"track_number"`
-	DiscNumber          sql.NullInt32  `json:"disc_number"`
-	TotalTracks         sql.NullInt32  `json:"total_tracks"`
-	TotalDiscs          sql.NullInt32  `json:"total_discs"`
+	TrackNumber         sql.NullInt64  `json:"track_number"`
+	DiscNumber          sql.NullInt64  `json:"disc_number"`
+	TotalTracks         sql.NullInt64  `json:"total_tracks"`
+	TotalDiscs          sql.NullInt64  `json:"total_discs"`
 	Genre               sql.NullString `json:"genre"`
-	Year                sql.NullInt32  `json:"year"`
+	Year                sql.NullInt64  `json:"year"`
 	ReleaseDate         sql.NullTime   `json:"release_date"`
 	Composer            sql.NullString `json:"composer"`
 	Lyricist            sql.NullString `json:"lyricist"`
 	RecordLabel         sql.NullString `json:"record_label"`
 	Isrc                sql.NullString `json:"isrc"`
 	ReleaseType         sql.NullString `json:"release_type"`
-	Compilation         sql.NullBool   `json:"compilation"`
+	Compilation         sql.NullInt64  `json:"compilation"`
 	MusicbrainzTrackID  sql.NullString `json:"musicbrainz_track_id"`
 	MusicbrainzAlbumID  sql.NullString `json:"musicbrainz_album_id"`
 	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
 	OriginalTitle       sql.NullString `json:"original_title"`
 	SortTitle           sql.NullString `json:"sort_title"`
-	AlbumID             sql.NullInt32  `json:"album_id"`
-	ArtistID            sql.NullInt32  `json:"artist_id"`
+	AlbumID             sql.NullInt64  `json:"album_id"`
+	ArtistID            sql.NullInt64  `json:"artist_id"`
 }
 
 type Person struct {
-	ID        int32          `json:"id"`
+	ID        int64          `json:"id"`
 	Name      string         `json:"name"`
 	SortName  sql.NullString `json:"sort_name"`
 	PhotoPath sql.NullString `json:"photo_path"`
 	PhotoUrl  sql.NullString `json:"photo_url"`
 	ImdbID    sql.NullString `json:"imdb_id"`
-	TmdbID    sql.NullInt32  `json:"tmdb_id"`
+	TmdbID    sql.NullInt64  `json:"tmdb_id"`
 	CreatedAt sql.NullTime   `json:"created_at"`
 	UpdatedAt sql.NullTime   `json:"updated_at"`
 }
 
 type PlaybackPreference struct {
-	ID                    int32          `json:"id"`
-	UserID                int32          `json:"user_id"`
-	MediaID               int32          `json:"media_id"`
+	ID                    int64          `json:"id"`
+	UserID                int64          `json:"user_id"`
+	MediaID               int64          `json:"media_id"`
 	DeviceProfile         string         `json:"device_profile"`
 	SelectedQuality       sql.NullString `json:"selected_quality"`
-	SelectedAudioTrack    sql.NullInt32  `json:"selected_audio_track"`
-	SelectedSubtitleTrack sql.NullInt32  `json:"selected_subtitle_track"`
+	SelectedAudioTrack    sql.NullInt64  `json:"selected_audio_track"`
+	SelectedSubtitleTrack sql.NullInt64  `json:"selected_subtitle_track"`
 	CreatedAt             sql.NullTime   `json:"created_at"`
 	UpdatedAt             sql.NullTime   `json:"updated_at"`
 }
@@ -349,57 +345,57 @@ type PlaybackQualityEvent struct {
 	PositionSeconds  sql.NullFloat64 `json:"position_seconds"`
 	NetworkSpeedMbps sql.NullFloat64 `json:"network_speed_mbps"`
 	BufferSeconds    sql.NullFloat64 `json:"buffer_seconds"`
-	CausedStall      sql.NullBool    `json:"caused_stall"`
+	CausedStall      sql.NullInt64   `json:"caused_stall"`
 	DeviceType       sql.NullString  `json:"device_type"`
 	ConnectionType   sql.NullString  `json:"connection_type"`
 	CreatedAt        sql.NullTime    `json:"created_at"`
 }
 
 type PlaybackSession struct {
-	ID                 int32          `json:"id"`
+	ID                 int64          `json:"id"`
 	SessionID          string         `json:"session_id"`
-	MediaID            int32          `json:"media_id"`
+	MediaID            int64          `json:"media_id"`
 	StartTime          int64          `json:"start_time"`
 	EndTime            sql.NullInt64  `json:"end_time"`
-	TotalPlayTimeMs    sql.NullInt32  `json:"total_play_time_ms"`
-	TotalBufferTimeMs  sql.NullInt32  `json:"total_buffer_time_ms"`
-	StallCount         sql.NullInt32  `json:"stall_count"`
-	QualitySwitchCount sql.NullInt32  `json:"quality_switch_count"`
+	TotalPlayTimeMs    sql.NullInt64  `json:"total_play_time_ms"`
+	TotalBufferTimeMs  sql.NullInt64  `json:"total_buffer_time_ms"`
+	StallCount         sql.NullInt64  `json:"stall_count"`
+	QualitySwitchCount sql.NullInt64  `json:"quality_switch_count"`
 	AverageQuality     sql.NullString `json:"average_quality"`
 	DeviceType         sql.NullString `json:"device_type"`
 	ConnectionType     sql.NullString `json:"connection_type"`
 	CreatedAt          sql.NullTime   `json:"created_at"`
-	StartupTimeMs      sql.NullInt32  `json:"startup_time_ms"`
+	StartupTimeMs      sql.NullInt64  `json:"startup_time_ms"`
 }
 
 type Plugin struct {
-	ID             string          `json:"id"`
-	Name           string          `json:"name"`
-	Version        string          `json:"version"`
-	Description    sql.NullString  `json:"description"`
-	Author         sql.NullString  `json:"author"`
-	License        sql.NullString  `json:"license"`
-	Homepage       sql.NullString  `json:"homepage"`
-	Categories     json.RawMessage `json:"categories"`
-	IsBuiltin      sql.NullBool    `json:"is_builtin"`
-	Enabled        sql.NullBool    `json:"enabled"`
-	Path           sql.NullString  `json:"path"`
-	HealthStatus   sql.NullString  `json:"health_status"`
-	LastHeartbeat  sql.NullTime    `json:"last_heartbeat"`
-	RestartCount   sql.NullInt32   `json:"restart_count"`
-	InstalledAt    time.Time       `json:"installed_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	Settings       sql.NullString  `json:"settings"`
-	SettingsSchema sql.NullString  `json:"settings_schema"`
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Version        string         `json:"version"`
+	Description    sql.NullString `json:"description"`
+	Author         sql.NullString `json:"author"`
+	License        sql.NullString `json:"license"`
+	Homepage       sql.NullString `json:"homepage"`
+	Categories     string         `json:"categories"`
+	IsBuiltin      sql.NullInt64  `json:"is_builtin"`
+	Enabled        sql.NullInt64  `json:"enabled"`
+	Path           sql.NullString `json:"path"`
+	HealthStatus   sql.NullString `json:"health_status"`
+	LastHeartbeat  sql.NullTime   `json:"last_heartbeat"`
+	RestartCount   sql.NullInt64  `json:"restart_count"`
+	InstalledAt    time.Time      `json:"installed_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	Settings       sql.NullString `json:"settings"`
+	SettingsSchema sql.NullString `json:"settings_schema"`
 }
 
 type PluginApiKey struct {
-	ID          string          `json:"id"`
-	PluginID    string          `json:"plugin_id"`
-	KeyHash     string          `json:"key_hash"`
-	Permissions json.RawMessage `json:"permissions"`
-	ExpiresAt   sql.NullTime    `json:"expires_at"`
-	CreatedAt   time.Time       `json:"created_at"`
+	ID          string       `json:"id"`
+	PluginID    string       `json:"plugin_id"`
+	KeyHash     string       `json:"key_hash"`
+	Permissions string       `json:"permissions"`
+	ExpiresAt   sql.NullTime `json:"expires_at"`
+	CreatedAt   time.Time    `json:"created_at"`
 }
 
 type PluginKv struct {
@@ -413,7 +409,7 @@ type PluginKv struct {
 
 type PluginUserMetadatum struct {
 	PluginID  string    `json:"plugin_id"`
-	UserID    int32     `json:"user_id"`
+	UserID    int64     `json:"user_id"`
 	Key       string    `json:"key"`
 	Value     []byte    `json:"value"`
 	CreatedAt time.Time `json:"created_at"`
@@ -421,102 +417,97 @@ type PluginUserMetadatum struct {
 }
 
 type QualitySwitchEvent struct {
-	ID               int32           `json:"id"`
+	ID               int64           `json:"id"`
 	SessionID        string          `json:"session_id"`
-	MediaID          int32           `json:"media_id"`
+	MediaID          int64           `json:"media_id"`
 	FromQuality      sql.NullString  `json:"from_quality"`
 	ToQuality        string          `json:"to_quality"`
 	SwitchReason     string          `json:"switch_reason"`
-	PositionSeconds  float32         `json:"position_seconds"`
+	PositionSeconds  float64         `json:"position_seconds"`
 	NetworkSpeedMbps sql.NullFloat64 `json:"network_speed_mbps"`
 	BufferSeconds    sql.NullFloat64 `json:"buffer_seconds"`
-	CausedStall      sql.NullBool    `json:"caused_stall"`
+	CausedStall      sql.NullInt64   `json:"caused_stall"`
 	DeviceType       sql.NullString  `json:"device_type"`
 	ConnectionType   sql.NullString  `json:"connection_type"`
 	Timestamp        int64           `json:"timestamp"`
 	CreatedAt        sql.NullTime    `json:"created_at"`
 }
 
-// Tracks individual file processing state for resumable scans
 type ScanCheckpoint struct {
-	ID        int32  `json:"id"`
-	ScanJobID int32  `json:"scan_job_id"`
-	FilePath  string `json:"file_path"`
-	// pending: not yet processed, processing: currently being processed, completed: successfully processed, failed: processing failed
-	Status       string         `json:"status"`
-	FileSize     sql.NullInt64  `json:"file_size"`
-	FileHash     sql.NullString `json:"file_hash"`
-	ErrorMessage sql.NullString `json:"error_message"`
-	// Category of error for failed files: parsing, ffmpeg, database, filesystem, metadata
+	ID            int64          `json:"id"`
+	ScanJobID     int64          `json:"scan_job_id"`
+	FilePath      string         `json:"file_path"`
+	Status        string         `json:"status"`
+	FileSize      sql.NullInt64  `json:"file_size"`
+	FileHash      sql.NullString `json:"file_hash"`
+	ErrorMessage  sql.NullString `json:"error_message"`
 	ErrorCategory sql.NullString `json:"error_category"`
 	ProcessedAt   sql.NullTime   `json:"processed_at"`
 	CreatedAt     sql.NullTime   `json:"created_at"`
-	RetryCount    int32          `json:"retry_count"`
+	RetryCount    int64          `json:"retry_count"`
 }
 
 type ScanJob struct {
-	ID             int32           `json:"id"`
-	LibraryID      int32           `json:"library_id"`
-	Status         string          `json:"status"`
-	Progress       sql.NullFloat64 `json:"progress"`
-	FilesFound     sql.NullInt64   `json:"files_found"`
-	FilesProcessed sql.NullInt64   `json:"files_processed"`
-	BytesProcessed sql.NullInt64   `json:"bytes_processed"`
-	ErrorCount     sql.NullInt64   `json:"error_count"`
-	StartedAt      sql.NullTime    `json:"started_at"`
-	CompletedAt    sql.NullTime    `json:"completed_at"`
-	ErrorMessage   sql.NullString  `json:"error_message"`
-	CreatedAt      sql.NullTime    `json:"created_at"`
-	UpdatedAt      sql.NullTime    `json:"updated_at"`
-	// Timestamp of last checkpoint update (for resume detection)
-	LastCheckpointAt sql.NullTime `json:"last_checkpoint_at"`
-	// Number of times this scan has been resumed
-	ResumeCount       sql.NullInt32  `json:"resume_count"`
-	Phase             sql.NullString `json:"phase"`
-	EstimatedTotal    sql.NullInt64  `json:"estimated_total"`
-	DiscoveryDone     sql.NullBool   `json:"discovery_done"`
-	WarningCount      sql.NullInt32  `json:"warning_count"`
-	DiscoveryErrors   sql.NullInt32  `json:"discovery_errors"`
-	DiscoveryWarnings sql.NullInt32  `json:"discovery_warnings"`
-	DirsScanned       sql.NullInt32  `json:"dirs_scanned"`
-	DirsSkipped       sql.NullInt32  `json:"dirs_skipped"`
-	FilesSkipped      sql.NullInt32  `json:"files_skipped"`
+	ID                int64           `json:"id"`
+	LibraryID         int64           `json:"library_id"`
+	Status            string          `json:"status"`
+	Progress          sql.NullFloat64 `json:"progress"`
+	FilesFound        sql.NullInt64   `json:"files_found"`
+	FilesProcessed    sql.NullInt64   `json:"files_processed"`
+	BytesProcessed    sql.NullInt64   `json:"bytes_processed"`
+	ErrorCount        sql.NullInt64   `json:"error_count"`
+	StartedAt         sql.NullTime    `json:"started_at"`
+	CompletedAt       sql.NullTime    `json:"completed_at"`
+	ErrorMessage      sql.NullString  `json:"error_message"`
+	CreatedAt         sql.NullTime    `json:"created_at"`
+	UpdatedAt         sql.NullTime    `json:"updated_at"`
+	LastCheckpointAt  sql.NullTime    `json:"last_checkpoint_at"`
+	ResumeCount       sql.NullInt64   `json:"resume_count"`
+	Phase             sql.NullString  `json:"phase"`
+	EstimatedTotal    sql.NullInt64   `json:"estimated_total"`
+	DiscoveryDone     sql.NullInt64   `json:"discovery_done"`
+	WarningCount      sql.NullInt64   `json:"warning_count"`
+	DiscoveryErrors   sql.NullInt64   `json:"discovery_errors"`
+	DiscoveryWarnings sql.NullInt64   `json:"discovery_warnings"`
+	DirsScanned       sql.NullInt64   `json:"dirs_scanned"`
+	DirsSkipped       sql.NullInt64   `json:"dirs_skipped"`
+	FilesSkipped      sql.NullInt64   `json:"files_skipped"`
 }
 
 type ScanState struct {
-	ID              int32          `json:"id"`
-	LibraryID       int32          `json:"library_id"`
+	ID              int64          `json:"id"`
+	LibraryID       int64          `json:"library_id"`
 	FilePath        string         `json:"file_path"`
 	FileSize        int64          `json:"file_size"`
 	FileMtime       time.Time      `json:"file_mtime"`
 	FileHash        sql.NullString `json:"file_hash"`
-	MediaID         sql.NullInt32  `json:"media_id"`
+	MediaID         sql.NullInt64  `json:"media_id"`
 	LastScannedAt   time.Time      `json:"last_scanned_at"`
-	ScanJobID       int32          `json:"scan_job_id"`
+	ScanJobID       int64          `json:"scan_job_id"`
 	CreatedAt       sql.NullTime   `json:"created_at"`
-	HasWarning      sql.NullBool   `json:"has_warning"`
+	HasWarning      sql.NullInt64  `json:"has_warning"`
 	WarningMessage  sql.NullString `json:"warning_message"`
 	WarningCategory sql.NullString `json:"warning_category"`
-	HasError        sql.NullBool   `json:"has_error"`
+	HasError        sql.NullInt64  `json:"has_error"`
 	ErrorMessage    sql.NullString `json:"error_message"`
 	ErrorCategory   sql.NullString `json:"error_category"`
 }
 
 type ScheduledTask struct {
-	ID                string                `json:"id"`
-	Name              string                `json:"name"`
-	Description       sql.NullString        `json:"description"`
-	Schedule          sql.NullString        `json:"schedule"`
-	Enabled           bool                  `json:"enabled"`
-	Source            string                `json:"source"`
-	SourceID          sql.NullString        `json:"source_id"`
-	DependsOn         pqtype.NullRawMessage `json:"depends_on"`
-	TimeoutSeconds    sql.NullInt32         `json:"timeout_seconds"`
-	RetryCount        sql.NullInt32         `json:"retry_count"`
-	RetryDelaySeconds sql.NullInt32         `json:"retry_delay_seconds"`
-	ConcurrencyKey    sql.NullString        `json:"concurrency_key"`
-	CreatedAt         time.Time             `json:"created_at"`
-	UpdatedAt         time.Time             `json:"updated_at"`
+	ID                string         `json:"id"`
+	Name              string         `json:"name"`
+	Description       sql.NullString `json:"description"`
+	Schedule          sql.NullString `json:"schedule"`
+	Enabled           int64          `json:"enabled"`
+	Source            string         `json:"source"`
+	SourceID          sql.NullString `json:"source_id"`
+	DependsOn         sql.NullString `json:"depends_on"`
+	TimeoutSeconds    sql.NullInt64  `json:"timeout_seconds"`
+	RetryCount        sql.NullInt64  `json:"retry_count"`
+	RetryDelaySeconds sql.NullInt64  `json:"retry_delay_seconds"`
+	ConcurrencyKey    sql.NullString `json:"concurrency_key"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
 }
 
 type SchedulerExecution struct {
@@ -526,15 +517,15 @@ type SchedulerExecution struct {
 	ScheduledAt       sql.NullTime   `json:"scheduled_at"`
 	StartedAt         sql.NullTime   `json:"started_at"`
 	EndedAt           sql.NullTime   `json:"ended_at"`
-	DurationMs        sql.NullInt32  `json:"duration_ms"`
-	Success           sql.NullBool   `json:"success"`
+	DurationMs        sql.NullInt64  `json:"duration_ms"`
+	Success           sql.NullInt64  `json:"success"`
 	Error             sql.NullString `json:"error"`
 	Logs              sql.NullString `json:"logs"`
-	Attempt           sql.NullInt32  `json:"attempt"`
+	Attempt           sql.NullInt64  `json:"attempt"`
 	ParentExecutionID sql.NullString `json:"parent_execution_id"`
 	TriggeredBy       string         `json:"triggered_by"`
 	DependencyExecID  sql.NullString `json:"dependency_exec_id"`
-	Resumable         sql.NullBool   `json:"resumable"`
+	Resumable         sql.NullInt64  `json:"resumable"`
 	CreatedAt         time.Time      `json:"created_at"`
 }
 
@@ -546,22 +537,22 @@ type SchedulerLock struct {
 }
 
 type Session struct {
+	ID               int64          `json:"id"`
+	PublicID         string         `json:"public_id"`
+	UserID           int64          `json:"user_id"`
 	RefreshTokenHash string         `json:"refresh_token_hash"`
 	UserAgent        sql.NullString `json:"user_agent"`
 	IpAddress        sql.NullString `json:"ip_address"`
 	CreatedAt        time.Time      `json:"created_at"`
 	LastUsedAt       time.Time      `json:"last_used_at"`
 	ExpiresAt        time.Time      `json:"expires_at"`
-	UserID           int32          `json:"user_id"`
-	PublicID         string         `json:"public_id"`
-	ID               int32          `json:"id"`
 }
 
 type Studio struct {
-	ID        int32          `json:"id"`
+	ID        int64          `json:"id"`
 	Name      string         `json:"name"`
 	LogoPath  sql.NullString `json:"logo_path"`
-	TmdbID    sql.NullInt32  `json:"tmdb_id"`
+	TmdbID    sql.NullInt64  `json:"tmdb_id"`
 	CreatedAt sql.NullTime   `json:"created_at"`
 }
 
@@ -577,18 +568,18 @@ type SystemSetting struct {
 
 type TranscodeAnalytic struct {
 	SessionID       string         `json:"session_id"`
-	MediaID         int32          `json:"media_id"`
+	MediaID         int64          `json:"media_id"`
 	QualityProfile  string         `json:"quality_profile"`
 	Strategy        string         `json:"strategy"`
 	HwAccel         sql.NullString `json:"hw_accel"`
-	FfmpegStartMs   sql.NullInt32  `json:"ffmpeg_start_ms"`
-	FirstFrameMs    sql.NullInt32  `json:"first_frame_ms"`
-	FirstSegmentMs  sql.NullInt32  `json:"first_segment_ms"`
-	ManifestReadyMs sql.NullInt32  `json:"manifest_ready_ms"`
+	FfmpegStartMs   sql.NullInt64  `json:"ffmpeg_start_ms"`
+	FirstFrameMs    sql.NullInt64  `json:"first_frame_ms"`
+	FirstSegmentMs  sql.NullInt64  `json:"first_segment_ms"`
+	ManifestReadyMs sql.NullInt64  `json:"manifest_ready_ms"`
 	Status          string         `json:"status"`
 	ErrorReason     sql.NullString `json:"error_reason"`
-	TotalDurationMs sql.NullInt32  `json:"total_duration_ms"`
-	SegmentsCreated sql.NullInt32  `json:"segments_created"`
+	TotalDurationMs sql.NullInt64  `json:"total_duration_ms"`
+	SegmentsCreated sql.NullInt64  `json:"segments_created"`
 	CreatedAt       int64          `json:"created_at"`
 	CompletedAt     sql.NullInt64  `json:"completed_at"`
 	StrategyReason  sql.NullString `json:"strategy_reason"`
@@ -596,106 +587,106 @@ type TranscodeAnalytic struct {
 }
 
 type TranscodeJob struct {
-	ID                 int32          `json:"id"`
-	MediaID            int32          `json:"media_id"`
-	Quality            string         `json:"quality"`
-	Status             string         `json:"status"`
-	Progress           sql.NullInt32  `json:"progress"`
-	Error              sql.NullString `json:"error"`
-	StartedAt          sql.NullTime   `json:"started_at"`
-	CompletedAt        sql.NullTime   `json:"completed_at"`
-	CreatedAt          sql.NullTime   `json:"created_at"`
-	Type               string         `json:"type"`
-	FilePath           sql.NullString `json:"file_path"`
-	FileSizeBytes      sql.NullInt64  `json:"file_size_bytes"`
-	LastAccessedAt     sql.NullTime   `json:"last_accessed_at"`
-	AccessCount        sql.NullInt32  `json:"access_count"`
-	StartPosition      int32          `json:"start_position"`
-	Codec              sql.NullString `json:"codec"`
-	ClientDeviceType   sql.NullString `json:"client_device_type"`
-	ClientNetworkType  sql.NullString `json:"client_network_type"`
-	RecommendedQuality sql.NullString `json:"recommended_quality"`
-	StreamingStrategy  sql.NullString `json:"streaming_strategy"`
+	ID                 int64           `json:"id"`
+	MediaID            int64           `json:"media_id"`
+	Quality            string          `json:"quality"`
+	Type               string          `json:"type"`
+	Status             string          `json:"status"`
+	Progress           sql.NullInt64   `json:"progress"`
+	Error              sql.NullString  `json:"error"`
+	StartedAt          sql.NullTime    `json:"started_at"`
+	CompletedAt        sql.NullTime    `json:"completed_at"`
+	CreatedAt          sql.NullTime    `json:"created_at"`
+	FilePath           sql.NullString  `json:"file_path"`
+	FileSizeBytes      sql.NullInt64   `json:"file_size_bytes"`
+	LastAccessedAt     sql.NullTime    `json:"last_accessed_at"`
+	AccessCount        sql.NullInt64   `json:"access_count"`
+	StartPosition      sql.NullFloat64 `json:"start_position"`
+	Codec              sql.NullString  `json:"codec"`
+	ClientDeviceType   sql.NullString  `json:"client_device_type"`
+	ClientNetworkType  sql.NullString  `json:"client_network_type"`
+	RecommendedQuality sql.NullString  `json:"recommended_quality"`
+	StreamingStrategy  sql.NullString  `json:"streaming_strategy"`
 }
 
 type TvEpisode struct {
-	MediaID        int32           `json:"media_id"`
-	ShowID         int32           `json:"show_id"`
-	SeasonID       int32           `json:"season_id"`
-	SeasonNumber   int32           `json:"season_number"`
-	EpisodeNumber  int32           `json:"episode_number"`
-	AbsoluteNumber sql.NullInt32   `json:"absolute_number"`
-	DvdSeason      sql.NullInt32   `json:"dvd_season"`
-	DvdEpisode     sql.NullInt32   `json:"dvd_episode"`
+	MediaID        int64           `json:"media_id"`
+	ShowID         int64           `json:"show_id"`
+	SeasonID       int64           `json:"season_id"`
+	SeasonNumber   int64           `json:"season_number"`
+	EpisodeNumber  int64           `json:"episode_number"`
+	AbsoluteNumber sql.NullInt64   `json:"absolute_number"`
+	DvdSeason      sql.NullInt64   `json:"dvd_season"`
+	DvdEpisode     sql.NullInt64   `json:"dvd_episode"`
 	EpisodeTitle   sql.NullString  `json:"episode_title"`
 	OriginalTitle  sql.NullString  `json:"original_title"`
 	AirDate        sql.NullTime    `json:"air_date"`
 	Plot           sql.NullString  `json:"plot"`
 	ContentRating  sql.NullString  `json:"content_rating"`
-	MaturityRating sql.NullInt32   `json:"maturity_rating"`
+	MaturityRating sql.NullInt64   `json:"maturity_rating"`
 	ImdbID         sql.NullString  `json:"imdb_id"`
-	TmdbID         sql.NullInt32   `json:"tmdb_id"`
-	TvdbID         sql.NullInt32   `json:"tvdb_id"`
+	TmdbID         sql.NullInt64   `json:"tmdb_id"`
+	TvdbID         sql.NullInt64   `json:"tvdb_id"`
 	Rating         sql.NullFloat64 `json:"rating"`
-	RatingVotes    sql.NullInt32   `json:"rating_votes"`
-	RuntimeMinutes sql.NullInt32   `json:"runtime_minutes"`
+	RatingVotes    sql.NullInt64   `json:"rating_votes"`
+	RuntimeMinutes sql.NullInt64   `json:"runtime_minutes"`
 }
 
 type TvSeason struct {
-	ID           int32          `json:"id"`
-	ShowID       int32          `json:"show_id"`
-	SeasonNumber int32          `json:"season_number"`
+	ID           int64          `json:"id"`
+	ShowID       int64          `json:"show_id"`
+	SeasonNumber int64          `json:"season_number"`
 	Name         sql.NullString `json:"name"`
 	Overview     sql.NullString `json:"overview"`
 	AirDate      sql.NullTime   `json:"air_date"`
 	PosterPath   sql.NullString `json:"poster_path"`
-	EpisodeCount sql.NullInt32  `json:"episode_count"`
+	EpisodeCount sql.NullInt64  `json:"episode_count"`
 	CreatedAt    sql.NullTime   `json:"created_at"`
 	UpdatedAt    sql.NullTime   `json:"updated_at"`
 }
 
 type TvShow struct {
-	ID               int32           `json:"id"`
-	LibraryID        int32           `json:"library_id"`
+	ID               int64           `json:"id"`
+	LibraryID        int64           `json:"library_id"`
 	Title            string          `json:"title"`
 	OriginalTitle    sql.NullString  `json:"original_title"`
 	SortTitle        sql.NullString  `json:"sort_title"`
-	Year             sql.NullInt32   `json:"year"`
+	Year             sql.NullInt64   `json:"year"`
 	FirstAirDate     sql.NullTime    `json:"first_air_date"`
 	LastAirDate      sql.NullTime    `json:"last_air_date"`
 	Genre            sql.NullString  `json:"genre"`
 	Plot             sql.NullString  `json:"plot"`
 	Status           sql.NullString  `json:"status"`
 	ContentRating    sql.NullString  `json:"content_rating"`
-	MaturityRating   sql.NullInt32   `json:"maturity_rating"`
+	MaturityRating   sql.NullInt64   `json:"maturity_rating"`
 	Network          sql.NullString  `json:"network"`
 	OriginalLanguage sql.NullString  `json:"original_language"`
 	CountryOfOrigin  sql.NullString  `json:"country_of_origin"`
 	ImdbID           sql.NullString  `json:"imdb_id"`
-	TmdbID           sql.NullInt32   `json:"tmdb_id"`
-	TvdbID           sql.NullInt32   `json:"tvdb_id"`
+	TmdbID           sql.NullInt64   `json:"tmdb_id"`
+	TvdbID           sql.NullInt64   `json:"tvdb_id"`
 	CreatedAt        sql.NullTime    `json:"created_at"`
 	UpdatedAt        sql.NullTime    `json:"updated_at"`
 	Directory        sql.NullString  `json:"directory"`
 	Rating           sql.NullFloat64 `json:"rating"`
-	RatingVotes      sql.NullInt32   `json:"rating_votes"`
+	RatingVotes      sql.NullInt64   `json:"rating_votes"`
 	Tagline          sql.NullString  `json:"tagline"`
 }
 
 type User struct {
+	ID                int64           `json:"id"`
 	PublicID          string          `json:"public_id"`
 	Username          string          `json:"username"`
 	DisplayName       string          `json:"display_name"`
 	PasswordHash      string          `json:"password_hash"`
-	IsAdmin           bool            `json:"is_admin"`
-	IsDisabled        bool            `json:"is_disabled"`
+	IsAdmin           int64           `json:"is_admin"`
+	IsDisabled        int64           `json:"is_disabled"`
 	CreatedAt         time.Time       `json:"created_at"`
 	UpdatedAt         time.Time       `json:"updated_at"`
-	ID                int32           `json:"id"`
 	LocationLatitude  sql.NullFloat64 `json:"location_latitude"`
 	LocationLongitude sql.NullFloat64 `json:"location_longitude"`
 	LocationTimezone  sql.NullString  `json:"location_timezone"`
-	LocationEnabled   sql.NullBool    `json:"location_enabled"`
+	LocationEnabled   sql.NullInt64   `json:"location_enabled"`
 	LocationName      sql.NullString  `json:"location_name"`
 }
 
@@ -710,12 +701,12 @@ type UserVideoPreference struct {
 	ID                 int64          `json:"id"`
 	UserIdentifier     string         `json:"user_identifier"`
 	QualityPreference  sql.NullString `json:"quality_preference"`
-	PreferDataSaving   sql.NullBool   `json:"prefer_data_saving"`
-	PreferQuality      sql.NullBool   `json:"prefer_quality"`
-	AllowCellularHd    sql.NullBool   `json:"allow_cellular_hd"`
-	AllowCellular4k    sql.NullBool   `json:"allow_cellular_4k"`
+	PreferDataSaving   sql.NullInt64  `json:"prefer_data_saving"`
+	PreferQuality      sql.NullInt64  `json:"prefer_quality"`
+	AllowCellularHd    sql.NullInt64  `json:"allow_cellular_hd"`
+	AllowCellular4k    sql.NullInt64  `json:"allow_cellular_4k"`
 	PreferredCodec     sql.NullString `json:"preferred_codec"`
-	AutoQualityEnabled sql.NullBool   `json:"auto_quality_enabled"`
+	AutoQualityEnabled sql.NullInt64  `json:"auto_quality_enabled"`
 	MaxAutoQuality     sql.NullString `json:"max_auto_quality"`
 	MinAutoQuality     sql.NullString `json:"min_auto_quality"`
 	CreatedAt          sql.NullTime   `json:"created_at"`
@@ -723,16 +714,16 @@ type UserVideoPreference struct {
 }
 
 type WatchProgress struct {
-	ID                    int32           `json:"id"`
-	MediaID               int32           `json:"media_id"`
-	UserID                sql.NullInt32   `json:"user_id"`
+	ID                    int64           `json:"id"`
+	MediaID               int64           `json:"media_id"`
+	UserID                sql.NullInt64   `json:"user_id"`
 	Position              float64         `json:"position"`
 	Duration              sql.NullFloat64 `json:"duration"`
-	Watched               sql.NullBool    `json:"watched"`
+	Watched               sql.NullInt64   `json:"watched"`
 	LastWatched           sql.NullTime    `json:"last_watched"`
 	CreatedAt             sql.NullTime    `json:"created_at"`
 	UpdatedAt             sql.NullTime    `json:"updated_at"`
 	SelectedQuality       sql.NullString  `json:"selected_quality"`
-	SelectedAudioTrack    sql.NullInt32   `json:"selected_audio_track"`
-	SelectedSubtitleTrack sql.NullInt32   `json:"selected_subtitle_track"`
+	SelectedAudioTrack    sql.NullInt64   `json:"selected_audio_track"`
+	SelectedSubtitleTrack sql.NullInt64   `json:"selected_subtitle_track"`
 }

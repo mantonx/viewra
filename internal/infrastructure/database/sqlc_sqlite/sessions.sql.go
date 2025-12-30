@@ -8,6 +8,7 @@ package sqlc_sqlite
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 const countSessionsByUserID = `-- name: CountSessionsByUserID :one
@@ -35,9 +36,9 @@ type CreateSessionParams struct {
 	RefreshTokenHash string         `json:"refresh_token_hash"`
 	UserAgent        sql.NullString `json:"user_agent"`
 	IpAddress        sql.NullString `json:"ip_address"`
-	CreatedAt        string         `json:"created_at"`
-	LastUsedAt       string         `json:"last_used_at"`
-	ExpiresAt        string         `json:"expires_at"`
+	CreatedAt        time.Time      `json:"created_at"`
+	LastUsedAt       time.Time      `json:"last_used_at"`
+	ExpiresAt        time.Time      `json:"expires_at"`
 }
 
 // Session queries for SQLite
@@ -72,7 +73,7 @@ DELETE FROM sessions
 WHERE expires_at < ?
 `
 
-func (q *Queries) DeleteExpiredSessions(ctx context.Context, expiresAt string) (int64, error) {
+func (q *Queries) DeleteExpiredSessions(ctx context.Context, expiresAt time.Time) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteExpiredSessions, expiresAt)
 	if err != nil {
 		return 0, err
@@ -215,8 +216,8 @@ WHERE id = ?
 `
 
 type UpdateSessionLastUsedParams struct {
-	LastUsedAt string `json:"last_used_at"`
-	ID         int64  `json:"id"`
+	LastUsedAt time.Time `json:"last_used_at"`
+	ID         int64     `json:"id"`
 }
 
 func (q *Queries) UpdateSessionLastUsed(ctx context.Context, arg UpdateSessionLastUsedParams) error {

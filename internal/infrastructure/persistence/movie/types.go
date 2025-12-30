@@ -17,80 +17,80 @@ import (
 // postgresMovieToDomain converts a PostgreSQL GetMovieByMediaIDRow to domain Movie
 func postgresMovieToDomain(row sqlc_postgres.GetMovieByMediaIDRow) *media.Movie {
 	return toMovieDomain(
-		int64(row.MediaID_2), int64(row.LibraryID), row.Title, row.Type, row.FilePath,
-		row.FileSize, row.ContainerFormat, row.Duration, common.ConvertInt32ToInt64(row.Width), common.ConvertInt32ToInt64(row.Height),
-		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra,
+		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
+		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
 		row.CreatedAt, row.UpdatedAt,
-		common.ConvertInt32ToInt64(row.Year), row.ReleaseDate, row.Genre, row.Director, row.Cast,
-		row.ContentRating, common.ConvertInt32ToInt64(row.MaturityRating), row.ContentAdvisories,
+		row.Year, row.ReleaseDate, row.Genre, row.Director, row.Cast,
+		row.ContentRating, row.MaturityRating, row.ContentAdvisories,
 		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
-		row.ImdbID, common.ConvertInt32ToInt64(row.TmdbID), common.ConvertInt32ToInt64(row.RuntimeMinutes), row.Budget,
+		row.ImdbID, row.TmdbID, row.RuntimeMinutes, row.Budget,
 		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
-		row.Rating, common.ConvertInt32ToInt64(row.RatingVotes),
+		row.Rating, row.RatingVotes,
 	)
 }
 
 // postgresListMovieToDomain converts a PostgreSQL ListMoviesByLibraryRow to domain Movie
 func postgresListMovieToDomain(row sqlc_postgres.ListMoviesByLibraryRow) *media.Movie {
 	return toMovieDomain(
-		int64(row.MediaID_2), int64(row.LibraryID), row.Title, row.Type, row.FilePath,
-		row.FileSize, row.ContainerFormat, row.Duration, common.ConvertInt32ToInt64(row.Width), common.ConvertInt32ToInt64(row.Height),
-		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra,
+		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
+		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
 		row.CreatedAt, row.UpdatedAt,
-		common.ConvertInt32ToInt64(row.Year), row.ReleaseDate, row.Genre, row.Director, row.Cast,
-		row.ContentRating, common.ConvertInt32ToInt64(row.MaturityRating), row.ContentAdvisories,
+		row.Year, row.ReleaseDate, row.Genre, row.Director, row.Cast,
+		row.ContentRating, row.MaturityRating, row.ContentAdvisories,
 		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
-		row.ImdbID, common.ConvertInt32ToInt64(row.TmdbID), common.ConvertInt32ToInt64(row.RuntimeMinutes), row.Budget,
+		row.ImdbID, row.TmdbID, row.RuntimeMinutes, row.Budget,
 		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
-		row.Rating, common.ConvertInt32ToInt64(row.RatingVotes),
+		row.Rating, row.RatingVotes,
 	)
 }
 
 // postgresSearchMovieToDomain converts a PostgreSQL SearchMoviesByTitleRow to domain Movie
 func postgresSearchMovieToDomain(row sqlc_postgres.SearchMoviesByTitleRow) *media.Movie {
 	return toMovieDomain(
-		int64(row.MediaID_2), int64(row.LibraryID), row.Title, row.Type, row.FilePath,
-		row.FileSize, row.ContainerFormat, row.Duration, common.ConvertInt32ToInt64(row.Width), common.ConvertInt32ToInt64(row.Height),
-		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra,
+		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
+		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
 		row.CreatedAt, row.UpdatedAt,
-		common.ConvertInt32ToInt64(row.Year), row.ReleaseDate, row.Genre, row.Director, row.Cast,
-		row.ContentRating, common.ConvertInt32ToInt64(row.MaturityRating), row.ContentAdvisories,
+		row.Year, row.ReleaseDate, row.Genre, row.Director, row.Cast,
+		row.ContentRating, row.MaturityRating, row.ContentAdvisories,
 		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
-		row.ImdbID, common.ConvertInt32ToInt64(row.TmdbID), common.ConvertInt32ToInt64(row.RuntimeMinutes), row.Budget,
+		row.ImdbID, row.TmdbID, row.RuntimeMinutes, row.Budget,
 		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
-		row.Rating, common.ConvertInt32ToInt64(row.RatingVotes),
+		row.Rating, row.RatingVotes,
 	)
 }
 
 // postgresGenreMovieToDomain converts a PostgreSQL ListMoviesByGenreRow to domain Movie
 func postgresGenreMovieToDomain(row sqlc_postgres.ListMoviesByGenreRow) *media.Movie {
 	return toMovieDomain(
-		int64(row.MediaID_2), int64(row.LibraryID), row.Title, row.Type, row.FilePath,
-		row.FileSize, row.ContainerFormat, row.Duration, common.ConvertInt32ToInt64(row.Width), common.ConvertInt32ToInt64(row.Height),
-		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra,
+		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
+		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
 		row.CreatedAt, row.UpdatedAt,
-		common.ConvertInt32ToInt64(row.Year), row.ReleaseDate, row.Genre, row.Director, row.Cast,
-		row.ContentRating, common.ConvertInt32ToInt64(row.MaturityRating), row.ContentAdvisories,
+		row.Year, row.ReleaseDate, row.Genre, row.Director, row.Cast,
+		row.ContentRating, row.MaturityRating, row.ContentAdvisories,
 		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
-		row.ImdbID, common.ConvertInt32ToInt64(row.TmdbID), common.ConvertInt32ToInt64(row.RuntimeMinutes), row.Budget,
+		row.ImdbID, row.TmdbID, row.RuntimeMinutes, row.Budget,
 		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
-		row.Rating, common.ConvertInt32ToInt64(row.RatingVotes),
+		row.Rating, row.RatingVotes,
 	)
 }
 
 // postgresYearMovieToDomain converts a PostgreSQL ListMoviesByYearRow to domain Movie
 func postgresYearMovieToDomain(row sqlc_postgres.ListMoviesByYearRow) *media.Movie {
 	return toMovieDomain(
-		int64(row.MediaID_2), int64(row.LibraryID), row.Title, row.Type, row.FilePath,
-		row.FileSize, row.ContainerFormat, row.Duration, common.ConvertInt32ToInt64(row.Width), common.ConvertInt32ToInt64(row.Height),
-		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra,
+		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
+		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
 		row.CreatedAt, row.UpdatedAt,
-		common.ConvertInt32ToInt64(row.Year), row.ReleaseDate, row.Genre, row.Director, row.Cast,
-		row.ContentRating, common.ConvertInt32ToInt64(row.MaturityRating), row.ContentAdvisories,
+		row.Year, row.ReleaseDate, row.Genre, row.Director, row.Cast,
+		row.ContentRating, row.MaturityRating, row.ContentAdvisories,
 		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
-		row.ImdbID, common.ConvertInt32ToInt64(row.TmdbID), common.ConvertInt32ToInt64(row.RuntimeMinutes), row.Budget,
+		row.ImdbID, row.TmdbID, row.RuntimeMinutes, row.Budget,
 		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
-		row.Rating, common.ConvertInt32ToInt64(row.RatingVotes),
+		row.Rating, row.RatingVotes,
 	)
 }
 
@@ -103,7 +103,7 @@ func sqliteMovieToDomain(row sqlc_sqlite.GetMovieByMediaIDRow) *media.Movie {
 	return toMovieDomain(
 		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
 		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
-		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
 		row.CreatedAt, row.UpdatedAt,
 		row.Year, row.ReleaseDate, row.Genre, row.Director, row.Cast,
 		row.ContentRating, row.MaturityRating, row.ContentAdvisories,
@@ -119,7 +119,7 @@ func sqliteListMovieToDomain(row sqlc_sqlite.ListMoviesByLibraryRow) *media.Movi
 	return toMovieDomain(
 		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
 		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
-		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
 		row.CreatedAt, row.UpdatedAt,
 		row.Year, row.ReleaseDate, row.Genre, row.Director, row.Cast,
 		row.ContentRating, row.MaturityRating, row.ContentAdvisories,
@@ -135,7 +135,7 @@ func sqliteSearchMovieToDomain(row sqlc_sqlite.SearchMoviesByTitleRow) *media.Mo
 	return toMovieDomain(
 		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
 		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
-		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
 		row.CreatedAt, row.UpdatedAt,
 		row.Year, row.ReleaseDate, row.Genre, row.Director, row.Cast,
 		row.ContentRating, row.MaturityRating, row.ContentAdvisories,
@@ -151,7 +151,7 @@ func sqliteGenreMovieToDomain(row sqlc_sqlite.ListMoviesByGenreRow) *media.Movie
 	return toMovieDomain(
 		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
 		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
-		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
 		row.CreatedAt, row.UpdatedAt,
 		row.Year, row.ReleaseDate, row.Genre, row.Director, row.Cast,
 		row.ContentRating, row.MaturityRating, row.ContentAdvisories,
@@ -167,7 +167,7 @@ func sqliteYearMovieToDomain(row sqlc_sqlite.ListMoviesByYearRow) *media.Movie {
 	return toMovieDomain(
 		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
 		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
-		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
 		row.CreatedAt, row.UpdatedAt,
 		row.Year, row.ReleaseDate, row.Genre, row.Director, row.Cast,
 		row.ContentRating, row.MaturityRating, row.ContentAdvisories,
@@ -250,29 +250,29 @@ func toMovieDomain(
 // buildPostgresCreateMovieParams builds CreateMovieParams for PostgreSQL from a domain Movie entity
 func buildPostgresCreateMovieParams(m *media.Movie) sqlc_postgres.CreateMovieParams {
 	return sqlc_postgres.CreateMovieParams{
-		MediaID:           int32(m.Media.ID),
-		Year:              common.NullInt32FromInt64(int64(m.Year)),
+		MediaID:           m.Media.ID,
+		Year:              common.NullInt64(int64(m.Year)),
 		ReleaseDate:       common.NullTime(m.ReleaseDate),
 		Genre:             common.NullString(serializeGenres(m.Genre)),
 		Director:          common.NullString(m.Director),
 		Cast:              common.NullString(serializeCast(m.Cast)),
 		ContentRating:     common.NullString(m.ContentRating),
-		MaturityRating:    common.NullInt32FromInt64(int64(m.MaturityRating)),
+		MaturityRating:    common.NullInt64(int64(m.MaturityRating)),
 		ContentAdvisories: common.NullString(serializeAdvisories(m.ContentAdvisories)),
 		Plot:              common.NullString(m.Plot),
 		Tagline:           common.NullString(m.Tagline),
 		OriginalTitle:     common.NullString(m.OriginalTitle),
 		SortTitle:         common.NullString(m.SortTitle),
 		ImdbID:            common.NullString(m.IMDbID),
-		TmdbID:            common.NullInt32FromInt64(int64(m.TMDbID)),
-		RuntimeMinutes:    common.NullInt32FromInt64(int64(m.RuntimeMinutes)),
+		TmdbID:            common.NullInt64(int64(m.TMDbID)),
+		RuntimeMinutes:    common.NullInt64(int64(m.RuntimeMinutes)),
 		Budget:            common.NullInt64(m.Budget),
 		Revenue:           common.NullInt64(m.Revenue),
 		OriginalLanguage:  common.NullString(m.OriginalLanguage),
 		CountryOfOrigin:   common.NullString(m.CountryOfOrigin),
 		AwardsSummary:     common.NullString(m.AwardsSummary),
 		Rating:            common.NullFloat64FromFloat32(m.Rating),
-		RatingVotes:       common.NullInt32FromInt64(int64(m.RatingVotes)),
+		RatingVotes:       common.NullInt64(int64(m.RatingVotes)),
 	}
 }
 
@@ -302,7 +302,7 @@ func buildPostgresUpdateMovieParams(m *media.Movie) sqlc_postgres.UpdateMoviePar
 		AwardsSummary:     params.AwardsSummary,
 		Rating:            params.Rating,
 		RatingVotes:       params.RatingVotes,
-		MediaID:           int32(m.Media.ID),
+		MediaID:           m.Media.ID,
 	}
 }
 

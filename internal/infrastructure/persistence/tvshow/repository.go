@@ -79,7 +79,7 @@ func (r *Repository) GetTVEpisodeByID(ctx context.Context, id int64) (*media.TVE
 	episode, err := common.QuerySingle(
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.GetTVEpisodeByMediaIDRow, error) {
-			return r.Postgres().GetTVEpisodeByMediaID(ctx, int32(id))
+			return r.Postgres().GetTVEpisodeByMediaID(ctx, id)
 		},
 		func() (sqlc_sqlite.GetTVEpisodeByMediaIDRow, error) {
 			return r.SQLite().GetTVEpisodeByMediaID(ctx, id)
@@ -95,7 +95,7 @@ func (r *Repository) ListTVEpisodesByLibrary(ctx context.Context, libraryID int6
 	return common.QueryMany(
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.ListTVEpisodesByLibraryRow, error) {
-			return r.Postgres().ListTVEpisodesByLibrary(ctx, int32(libraryID))
+			return r.Postgres().ListTVEpisodesByLibrary(ctx, libraryID)
 		},
 		func() ([]sqlc_sqlite.ListTVEpisodesByLibraryRow, error) {
 			return r.SQLite().ListTVEpisodesByLibrary(ctx, libraryID)
@@ -121,7 +121,7 @@ func (r *Repository) ListTVEpisodesByShowID(ctx context.Context, showID int64) (
 	return common.QueryMany(
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.ListTVEpisodesByShowRow, error) {
-			return r.Postgres().ListTVEpisodesByShow(ctx, int32(showID))
+			return r.Postgres().ListTVEpisodesByShow(ctx, showID)
 		},
 		func() ([]sqlc_sqlite.ListTVEpisodesByShowRow, error) {
 			return r.SQLite().ListTVEpisodesByShow(ctx, showID)
@@ -185,7 +185,7 @@ func (r *Repository) SearchTVEpisodes(ctx context.Context, libraryID int64, quer
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.SearchTVEpisodesByTitleRow, error) {
 			return r.Postgres().SearchTVEpisodesByTitle(ctx, sqlc_postgres.SearchTVEpisodesByTitleParams{
-				LibraryID:    int32(libraryID),
+				LibraryID:    libraryID,
 				EpisodeTitle: common.NullString(searchPattern),
 				Title:        searchPattern,
 			})
@@ -224,7 +224,7 @@ func (r *Repository) GetTVShowByID(ctx context.Context, id int64) (media.TVShow,
 	show, err := common.QuerySingle(
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.TvShow, error) {
-			return r.Postgres().GetTVShowByID(ctx, int32(id))
+			return r.Postgres().GetTVShowByID(ctx, id)
 		},
 		func() (sqlc_sqlite.TvShow, error) {
 			return r.SQLite().GetTVShowByID(ctx, id)
@@ -248,7 +248,7 @@ func (r *Repository) GetTVShowByTitle(ctx context.Context, libraryID int64, titl
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.TvShow, error) {
 			return r.Postgres().GetTVShowByTitle(ctx, sqlc_postgres.GetTVShowByTitleParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Lower:     normalizedTitle,
 			})
 		},
@@ -285,7 +285,7 @@ func (r *Repository) ListTVShowsByLibrary(ctx context.Context, libraryID int64) 
 	return common.QueryMany(
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.TvShow, error) {
-			return r.Postgres().ListTVShowsByLibrary(ctx, int32(libraryID))
+			return r.Postgres().ListTVShowsByLibrary(ctx, libraryID)
 		},
 		func() ([]sqlc_sqlite.TvShow, error) {
 			return r.SQLite().ListTVShowsByLibrary(ctx, libraryID)
@@ -317,7 +317,7 @@ func (r *Repository) GetTVSeasonByID(ctx context.Context, id int64) (media.TVSea
 	season, err := common.QuerySingle(
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.TvSeason, error) {
-			return r.Postgres().GetTVSeasonByID(ctx, int32(id))
+			return r.Postgres().GetTVSeasonByID(ctx, id)
 		},
 		func() (sqlc_sqlite.TvSeason, error) {
 			return r.SQLite().GetTVSeasonByID(ctx, id)
@@ -337,8 +337,8 @@ func (r *Repository) GetTVSeasonByShowAndNumber(ctx context.Context, showID, sea
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.TvSeason, error) {
 			return r.Postgres().GetTVSeasonByShowAndNumber(ctx, sqlc_postgres.GetTVSeasonByShowAndNumberParams{
-				ShowID:       int32(showID),
-				SeasonNumber: int32(seasonNumber),
+				ShowID:       showID,
+				SeasonNumber: seasonNumber,
 			})
 		},
 		func() (sqlc_sqlite.TvSeason, error) {
@@ -361,7 +361,7 @@ func (r *Repository) ListTVSeasonsByShow(ctx context.Context, showID int64) ([]m
 	return common.QueryMany(
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.TvSeason, error) {
-			return r.Postgres().ListTVSeasonsByShow(ctx, int32(showID))
+			return r.Postgres().ListTVSeasonsByShow(ctx, showID)
 		},
 		func() ([]sqlc_sqlite.TvSeason, error) {
 			return r.SQLite().ListTVSeasonsByShow(ctx, showID)
@@ -376,7 +376,7 @@ func (r *Repository) CountTVShowsByLibrary(ctx context.Context, libraryID int64)
 	return common.QueryScalar(
 		r.BaseRepository, ctx,
 		func() (int64, error) {
-			return r.Postgres().CountTVShowsByLibrary(ctx, int32(libraryID))
+			return r.Postgres().CountTVShowsByLibrary(ctx, libraryID)
 		},
 		func() (int64, error) {
 			return r.SQLite().CountTVShowsByLibrary(ctx, libraryID)
@@ -402,7 +402,7 @@ func (r *Repository) ListTVShowsByLibraryPaginated(ctx context.Context, libraryI
 			r.BaseRepository, ctx,
 			func() ([]sqlc_postgres.GetTVShowsWithCountsByLibraryPaginatedDescRow, error) {
 				return r.Postgres().GetTVShowsWithCountsByLibraryPaginatedDesc(ctx, sqlc_postgres.GetTVShowsWithCountsByLibraryPaginatedDescParams{
-					LibraryID: int32(libraryID),
+					LibraryID: libraryID,
 					Limit:     int32(pagination.Limit),
 					Offset:    int32(pagination.Offset),
 				})
@@ -423,7 +423,7 @@ func (r *Repository) ListTVShowsByLibraryPaginated(ctx context.Context, libraryI
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.GetTVShowsWithCountsByLibraryPaginatedRow, error) {
 			return r.Postgres().GetTVShowsWithCountsByLibraryPaginated(ctx, sqlc_postgres.GetTVShowsWithCountsByLibraryPaginatedParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Limit:     int32(pagination.Limit),
 				Offset:    int32(pagination.Offset),
 			})
@@ -448,7 +448,7 @@ func (r *Repository) CountSearchTVShowsByTitle(ctx context.Context, libraryID in
 		r.BaseRepository, ctx,
 		func() (int64, error) {
 			return r.Postgres().CountSearchTVShowsByTitle(ctx, sqlc_postgres.CountSearchTVShowsByTitleParams{
-				LibraryID:     int32(libraryID),
+				LibraryID:     libraryID,
 				Title:         searchPattern,
 				OriginalTitle: common.NullString(searchPattern),
 			})
@@ -475,7 +475,7 @@ func (r *Repository) SearchTVShowsByTitlePaginated(ctx context.Context, libraryI
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.TvShow, error) {
 			return r.Postgres().SearchTVShowsByTitlePaginated(ctx, sqlc_postgres.SearchTVShowsByTitlePaginatedParams{
-				LibraryID:     int32(libraryID),
+				LibraryID:     libraryID,
 				Title:         searchPattern,
 				OriginalTitle: common.NullString(searchPattern),
 				Limit:         int32(pagination.Limit),
@@ -508,7 +508,7 @@ func (r *Repository) SearchTVShowsWithCountsByTitlePaginated(ctx context.Context
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.SearchTVShowsWithCountsByTitlePaginatedRow, error) {
 			return r.Postgres().SearchTVShowsWithCountsByTitlePaginated(ctx, sqlc_postgres.SearchTVShowsWithCountsByTitlePaginatedParams{
-				LibraryID:     int32(libraryID),
+				LibraryID:     libraryID,
 				Title:         searchPattern,
 				OriginalTitle: common.NullString(searchPattern),
 				Limit:         int32(pagination.Limit),
@@ -546,17 +546,11 @@ func (r *Repository) ListTVShowIDsByLibraryPaginated(ctx context.Context, librar
 		return common.QueryMany(
 			r.BaseRepository, ctx,
 			func() ([]int64, error) {
-				ids, err := r.Postgres().ListTVShowIDsByLibraryPaginatedDesc(ctx, sqlc_postgres.ListTVShowIDsByLibraryPaginatedDescParams{
-					LibraryID: int32(libraryID),
+				return r.Postgres().ListTVShowIDsByLibraryPaginatedDesc(ctx, sqlc_postgres.ListTVShowIDsByLibraryPaginatedDescParams{
+					LibraryID: libraryID,
 					Limit:     int32(pagination.Limit),
 					Offset:    int32(pagination.Offset),
 				})
-				// Convert []int32 to []int64
-				result := make([]int64, len(ids))
-				for i, id := range ids {
-					result[i] = int64(id)
-				}
-				return result, err
 			},
 			func() ([]int64, error) {
 				return r.SQLite().ListTVShowIDsByLibraryPaginatedDesc(ctx, sqlc_sqlite.ListTVShowIDsByLibraryPaginatedDescParams{
@@ -573,17 +567,11 @@ func (r *Repository) ListTVShowIDsByLibraryPaginated(ctx context.Context, librar
 	return common.QueryMany(
 		r.BaseRepository, ctx,
 		func() ([]int64, error) {
-			ids, err := r.Postgres().ListTVShowIDsByLibraryPaginated(ctx, sqlc_postgres.ListTVShowIDsByLibraryPaginatedParams{
-				LibraryID: int32(libraryID),
+			return r.Postgres().ListTVShowIDsByLibraryPaginated(ctx, sqlc_postgres.ListTVShowIDsByLibraryPaginatedParams{
+				LibraryID: libraryID,
 				Limit:     int32(pagination.Limit),
 				Offset:    int32(pagination.Offset),
 			})
-			// Convert []int32 to []int64
-			result := make([]int64, len(ids))
-			for i, id := range ids {
-				result[i] = int64(id)
-			}
-			return result, err
 		},
 		func() ([]int64, error) {
 			return r.SQLite().ListTVShowIDsByLibraryPaginated(ctx, sqlc_sqlite.ListTVShowIDsByLibraryPaginatedParams{
@@ -615,7 +603,7 @@ func (r *Repository) ensureTVShowExists(ctx context.Context, episode *media.TVEp
 			r.BaseRepository, ctx,
 			func() (sqlc_postgres.TvShow, error) {
 				return r.Postgres().GetTVShowByDirectory(ctx, sqlc_postgres.GetTVShowByDirectoryParams{
-					LibraryID: int32(episode.LibraryID),
+					LibraryID: episode.LibraryID,
 					Directory: dirParam,
 				})
 			},
@@ -690,7 +678,7 @@ func (r *Repository) incrementSeasonEpisodeCount(ctx context.Context, seasonID i
 	return common.ExecuteCommand(
 		r.BaseRepository, ctx,
 		func() error {
-			return r.Postgres().IncrementSeasonEpisodeCount(ctx, int32(seasonID))
+			return r.Postgres().IncrementSeasonEpisodeCount(ctx, seasonID)
 		},
 		func() error {
 			return r.SQLite().IncrementSeasonEpisodeCount(ctx, seasonID)

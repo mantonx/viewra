@@ -14,7 +14,7 @@ const deleteAudioTracksByMediaID = `-- name: DeleteAudioTracksByMediaID :exec
 DELETE FROM media_audio_tracks WHERE media_id = $1
 `
 
-func (q *Queries) DeleteAudioTracksByMediaID(ctx context.Context, mediaID int32) error {
+func (q *Queries) DeleteAudioTracksByMediaID(ctx context.Context, mediaID int64) error {
 	_, err := q.db.ExecContext(ctx, deleteAudioTracksByMediaID, mediaID)
 	return err
 }
@@ -23,7 +23,7 @@ const deleteExternalSubtitlesByMediaID = `-- name: DeleteExternalSubtitlesByMedi
 DELETE FROM media_subtitle_tracks WHERE media_id = $1 AND source_type = 'external'
 `
 
-func (q *Queries) DeleteExternalSubtitlesByMediaID(ctx context.Context, mediaID int32) error {
+func (q *Queries) DeleteExternalSubtitlesByMediaID(ctx context.Context, mediaID int64) error {
 	_, err := q.db.ExecContext(ctx, deleteExternalSubtitlesByMediaID, mediaID)
 	return err
 }
@@ -32,7 +32,7 @@ const deleteSubtitleTracksByMediaID = `-- name: DeleteSubtitleTracksByMediaID :e
 DELETE FROM media_subtitle_tracks WHERE media_id = $1
 `
 
-func (q *Queries) DeleteSubtitleTracksByMediaID(ctx context.Context, mediaID int32) error {
+func (q *Queries) DeleteSubtitleTracksByMediaID(ctx context.Context, mediaID int64) error {
 	_, err := q.db.ExecContext(ctx, deleteSubtitleTracksByMediaID, mediaID)
 	return err
 }
@@ -45,7 +45,7 @@ WHERE media_id = $1
 ORDER BY stream_index
 `
 
-func (q *Queries) GetAudioTracksByMediaID(ctx context.Context, mediaID int32) ([]MediaAudioTrack, error) {
+func (q *Queries) GetAudioTracksByMediaID(ctx context.Context, mediaID int64) ([]MediaAudioTrack, error) {
 	rows, err := q.db.QueryContext(ctx, getAudioTracksByMediaID, mediaID)
 	if err != nil {
 		return nil, err
@@ -92,7 +92,7 @@ WHERE media_id = $1 AND source_type = 'embedded'
 ORDER BY stream_index
 `
 
-func (q *Queries) GetEmbeddedSubtitlesByMediaID(ctx context.Context, mediaID int32) ([]MediaSubtitleTrack, error) {
+func (q *Queries) GetEmbeddedSubtitlesByMediaID(ctx context.Context, mediaID int64) ([]MediaSubtitleTrack, error) {
 	rows, err := q.db.QueryContext(ctx, getEmbeddedSubtitlesByMediaID, mediaID)
 	if err != nil {
 		return nil, err
@@ -138,7 +138,7 @@ WHERE media_id = $1 AND source_type = 'external'
 ORDER BY file_path
 `
 
-func (q *Queries) GetExternalSubtitlesByMediaID(ctx context.Context, mediaID int32) ([]MediaSubtitleTrack, error) {
+func (q *Queries) GetExternalSubtitlesByMediaID(ctx context.Context, mediaID int64) ([]MediaSubtitleTrack, error) {
 	rows, err := q.db.QueryContext(ctx, getExternalSubtitlesByMediaID, mediaID)
 	if err != nil {
 		return nil, err
@@ -184,7 +184,7 @@ WHERE media_id = $1
 ORDER BY source_type DESC, stream_index
 `
 
-func (q *Queries) GetSubtitleTracksByMediaID(ctx context.Context, mediaID int32) ([]MediaSubtitleTrack, error) {
+func (q *Queries) GetSubtitleTracksByMediaID(ctx context.Context, mediaID int64) ([]MediaSubtitleTrack, error) {
 	rows, err := q.db.QueryContext(ctx, getSubtitleTracksByMediaID, mediaID)
 	if err != nil {
 		return nil, err
@@ -244,23 +244,23 @@ RETURNING id, created_at
 `
 
 type InsertAudioTrackParams struct {
-	MediaID       int32          `json:"media_id"`
-	StreamIndex   int32          `json:"stream_index"`
+	MediaID       int64          `json:"media_id"`
+	StreamIndex   int64          `json:"stream_index"`
 	Codec         string         `json:"codec"`
 	CodecProfile  sql.NullString `json:"codec_profile"`
-	Channels      int32          `json:"channels"`
+	Channels      int64          `json:"channels"`
 	ChannelLayout sql.NullString `json:"channel_layout"`
-	SampleRate    sql.NullInt32  `json:"sample_rate"`
-	BitRate       sql.NullInt32  `json:"bit_rate"`
+	SampleRate    sql.NullInt64  `json:"sample_rate"`
+	BitRate       sql.NullInt64  `json:"bit_rate"`
 	Language      sql.NullString `json:"language"`
 	Title         sql.NullString `json:"title"`
-	IsDefault     sql.NullBool   `json:"is_default"`
-	IsCommentary  sql.NullBool   `json:"is_commentary"`
-	IsDescriptive sql.NullBool   `json:"is_descriptive"`
+	IsDefault     sql.NullInt64  `json:"is_default"`
+	IsCommentary  sql.NullInt64  `json:"is_commentary"`
+	IsDescriptive sql.NullInt64  `json:"is_descriptive"`
 }
 
 type InsertAudioTrackRow struct {
-	ID        int32        `json:"id"`
+	ID        int64        `json:"id"`
 	CreatedAt sql.NullTime `json:"created_at"`
 }
 
@@ -295,22 +295,22 @@ RETURNING id, created_at
 `
 
 type InsertSubtitleTrackParams struct {
-	MediaID      int32          `json:"media_id"`
-	StreamIndex  sql.NullInt32  `json:"stream_index"`
+	MediaID      int64          `json:"media_id"`
+	StreamIndex  sql.NullInt64  `json:"stream_index"`
 	SourceType   string         `json:"source_type"`
 	Codec        sql.NullString `json:"codec"`
 	Language     sql.NullString `json:"language"`
 	Title        sql.NullString `json:"title"`
 	FilePath     sql.NullString `json:"file_path"`
-	IsDefault    sql.NullBool   `json:"is_default"`
-	IsForced     sql.NullBool   `json:"is_forced"`
-	IsSdh        sql.NullBool   `json:"is_sdh"`
-	IsCommentary sql.NullBool   `json:"is_commentary"`
-	IsBitmap     sql.NullBool   `json:"is_bitmap"`
+	IsDefault    sql.NullInt64  `json:"is_default"`
+	IsForced     sql.NullInt64  `json:"is_forced"`
+	IsSdh        sql.NullInt64  `json:"is_sdh"`
+	IsCommentary sql.NullInt64  `json:"is_commentary"`
+	IsBitmap     sql.NullInt64  `json:"is_bitmap"`
 }
 
 type InsertSubtitleTrackRow struct {
-	ID        int32        `json:"id"`
+	ID        int64        `json:"id"`
 	CreatedAt sql.NullTime `json:"created_at"`
 }
 

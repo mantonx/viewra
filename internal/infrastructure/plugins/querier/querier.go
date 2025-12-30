@@ -41,7 +41,7 @@ func NewDBMediaQuerier(db *sql.DB, driver string) *DBMediaQuerier {
 func (q *DBMediaQuerier) GetMediaByID(ctx context.Context, id int64) (*MediaInfo, error) {
 	result, err := q.router.Route(
 		func() (any, error) {
-			return q.postgres.GetMediaByID(ctx, int32(id))
+			return q.postgres.GetMediaByID(ctx, id)
 		},
 		func() (any, error) {
 			return q.sqlite.GetMediaByID(ctx, id)
@@ -201,7 +201,7 @@ func (q *DBMediaQuerier) GetFilePath(ctx context.Context, mediaID int64) (string
 func (q *DBMediaQuerier) GetExternalIDs(ctx context.Context, mediaID int64) (map[string]string, error) {
 	results, err := q.router.Route(
 		func() (any, error) {
-			return q.postgres.GetExternalIDsByMediaID(ctx, sql.NullInt32{Int32: int32(mediaID), Valid: true})
+			return q.postgres.GetExternalIDsByMediaID(ctx, sql.NullInt64{Int64: mediaID, Valid: true})
 		},
 		func() (any, error) {
 			return q.sqlite.GetExternalIDsByMediaID(ctx, sql.NullInt64{Int64: mediaID, Valid: true})
@@ -237,11 +237,11 @@ func (q *DBMediaQuerier) mediaToInfo(result any) *MediaInfo {
 	if q.router.IsPostgresDB() {
 		m := result.(sqlc_postgres.Medium)
 		return &MediaInfo{
-			ID:        int64(m.ID),
+			ID:        m.ID,
 			MediaType: m.Type,
 			Title:     m.Title,
 			FilePath:  m.FilePath,
-			LibraryID: int64(m.LibraryID),
+			LibraryID: m.LibraryID,
 		}
 	}
 
@@ -259,7 +259,7 @@ func (q *DBMediaQuerier) mediaToInfo(result any) *MediaInfo {
 func (q *DBMediaQuerier) GetLibrary(ctx context.Context, id int64) (*LibraryInfo, error) {
 	result, err := q.router.Route(
 		func() (any, error) {
-			return q.postgres.GetLibraryByID(ctx, int32(id))
+			return q.postgres.GetLibraryByID(ctx, id)
 		},
 		func() (any, error) {
 			return q.sqlite.GetLibraryByID(ctx, id)
@@ -281,7 +281,7 @@ func (q *DBMediaQuerier) libraryToInfo(result any) *LibraryInfo {
 	if q.router.IsPostgresDB() {
 		lib := result.(sqlc_postgres.Library)
 		return &LibraryInfo{
-			ID:        int64(lib.ID),
+			ID:        lib.ID,
 			Name:      lib.Name,
 			Path:      lib.Path,
 			MediaType: lib.Type,

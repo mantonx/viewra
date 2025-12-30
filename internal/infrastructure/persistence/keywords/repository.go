@@ -22,15 +22,16 @@ func NewRepository(base *common.BaseRepository) *Repository {
 // UpsertKeyword adds or updates a keyword for an entity.
 func (r *Repository) UpsertKeyword(mediaType string, entityID int64, keyword *media.Keyword) error {
 	ctx := context.Background()
+	isLocation := common.NullInt64FromBool(keyword.IsLocation)
 	return common.ExecuteCommand(
 		r.BaseRepository, ctx,
 		func() error {
 			return r.Postgres().InsertKeyword(ctx, sqlc_postgres.InsertKeywordParams{
 				MediaType:  mediaType,
-				EntityID:   int32(entityID),
-				KeywordID:  int32(keyword.KeywordID),
+				EntityID:   entityID,
+				KeywordID:  int64(keyword.KeywordID),
 				Keyword:    keyword.Name,
-				IsLocation: boolToNullBool(keyword.IsLocation),
+				IsLocation: isLocation,
 			})
 		},
 		func() error {
@@ -39,7 +40,7 @@ func (r *Repository) UpsertKeyword(mediaType string, entityID int64, keyword *me
 				EntityID:   entityID,
 				KeywordID:  int64(keyword.KeywordID),
 				Keyword:    keyword.Name,
-				IsLocation: boolToNullBool(keyword.IsLocation),
+				IsLocation: isLocation,
 			})
 		},
 	)
@@ -53,7 +54,7 @@ func (r *Repository) GetKeywordsForEntity(mediaType string, entityID int64) ([]*
 		func() ([]sqlc_postgres.GetKeywordsByEntityRow, error) {
 			return r.Postgres().GetKeywordsByEntity(ctx, sqlc_postgres.GetKeywordsByEntityParams{
 				MediaType: mediaType,
-				EntityID:  int32(entityID),
+				EntityID:  entityID,
 			})
 		},
 		func() ([]sqlc_sqlite.GetKeywordsByEntityRow, error) {
@@ -75,7 +76,7 @@ func (r *Repository) GetLocationKeywordsForEntity(mediaType string, entityID int
 		func() ([]sqlc_postgres.GetLocationKeywordsByEntityRow, error) {
 			return r.Postgres().GetLocationKeywordsByEntity(ctx, sqlc_postgres.GetLocationKeywordsByEntityParams{
 				MediaType: mediaType,
-				EntityID:  int32(entityID),
+				EntityID:  entityID,
 			})
 		},
 		func() ([]sqlc_sqlite.GetLocationKeywordsByEntityRow, error) {
@@ -97,7 +98,7 @@ func (r *Repository) ClearKeywordsForEntity(mediaType string, entityID int64) er
 		func() error {
 			return r.Postgres().DeleteKeywordsByEntity(ctx, sqlc_postgres.DeleteKeywordsByEntityParams{
 				MediaType: mediaType,
-				EntityID:  int32(entityID),
+				EntityID:  entityID,
 			})
 		},
 		func() error {

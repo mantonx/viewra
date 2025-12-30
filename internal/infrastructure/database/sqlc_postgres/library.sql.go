@@ -7,8 +7,7 @@ package sqlc_postgres
 
 import (
 	"context"
-
-	"github.com/sqlc-dev/pqtype"
+	"database/sql"
 )
 
 const countLibraries = `-- name: CountLibraries :one
@@ -72,7 +71,7 @@ DELETE FROM libraries
 WHERE id = $1
 `
 
-func (q *Queries) DeleteLibrary(ctx context.Context, id int32) error {
+func (q *Queries) DeleteLibrary(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteLibrary, id)
 	return err
 }
@@ -83,7 +82,7 @@ WHERE id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetLibraryByID(ctx context.Context, id int32) (Library, error) {
+func (q *Queries) GetLibraryByID(ctx context.Context, id int64) (Library, error) {
 	row := q.db.QueryRowContext(ctx, getLibraryByID, id)
 	var i Library
 	err := row.Scan(
@@ -133,7 +132,7 @@ FROM libraries
 WHERE id = $1
 `
 
-func (q *Queries) LibraryExistsByID(ctx context.Context, id int32) (bool, error) {
+func (q *Queries) LibraryExistsByID(ctx context.Context, id int64) (bool, error) {
 	row := q.db.QueryRowContext(ctx, libraryExistsByID, id)
 	var exists bool
 	err := row.Scan(&exists)
@@ -289,7 +288,7 @@ type UpdateLibraryParams struct {
 	Name string `json:"name"`
 	Path string `json:"path"`
 	Type string `json:"type"`
-	ID   int32  `json:"id"`
+	ID   int64  `json:"id"`
 }
 
 func (q *Queries) UpdateLibrary(ctx context.Context, arg UpdateLibraryParams) (Library, error) {
@@ -326,9 +325,9 @@ RETURNING id, name, path, type, created_at, updated_at, preferred_audio_lang, pr
 `
 
 type UpdateLibraryMonitoringParams struct {
-	MonitoringEnabled bool                  `json:"monitoring_enabled"`
-	MonitoringConfig  pqtype.NullRawMessage `json:"monitoring_config"`
-	ID                int32                 `json:"id"`
+	MonitoringEnabled int64          `json:"monitoring_enabled"`
+	MonitoringConfig  sql.NullString `json:"monitoring_config"`
+	ID                int64          `json:"id"`
 }
 
 func (q *Queries) UpdateLibraryMonitoring(ctx context.Context, arg UpdateLibraryMonitoringParams) (Library, error) {

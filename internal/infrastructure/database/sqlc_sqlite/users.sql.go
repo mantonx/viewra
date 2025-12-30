@@ -8,6 +8,7 @@ package sqlc_sqlite
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 const countUsers = `-- name: CountUsers :one
@@ -29,14 +30,14 @@ RETURNING id, public_id, username, display_name, password_hash, is_admin, is_dis
 `
 
 type CreateUserParams struct {
-	PublicID     string `json:"public_id"`
-	Username     string `json:"username"`
-	DisplayName  string `json:"display_name"`
-	PasswordHash string `json:"password_hash"`
-	IsAdmin      int64  `json:"is_admin"`
-	IsDisabled   int64  `json:"is_disabled"`
-	CreatedAt    string `json:"created_at"`
-	UpdatedAt    string `json:"updated_at"`
+	PublicID     string    `json:"public_id"`
+	Username     string    `json:"username"`
+	DisplayName  string    `json:"display_name"`
+	PasswordHash string    `json:"password_hash"`
+	IsAdmin      int64     `json:"is_admin"`
+	IsDisabled   int64     `json:"is_disabled"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // User queries for SQLite
@@ -267,11 +268,11 @@ RETURNING id, public_id, username, display_name, password_hash, is_admin, is_dis
 `
 
 type UpdateUserParams struct {
-	DisplayName string `json:"display_name"`
-	IsAdmin     int64  `json:"is_admin"`
-	IsDisabled  int64  `json:"is_disabled"`
-	UpdatedAt   string `json:"updated_at"`
-	ID          int64  `json:"id"`
+	DisplayName string    `json:"display_name"`
+	IsAdmin     int64     `json:"is_admin"`
+	IsDisabled  int64     `json:"is_disabled"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	ID          int64     `json:"id"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
@@ -319,7 +320,7 @@ type UpdateUserLocationParams struct {
 	LocationTimezone  sql.NullString  `json:"location_timezone"`
 	LocationEnabled   sql.NullInt64   `json:"location_enabled"`
 	LocationName      sql.NullString  `json:"location_name"`
-	UpdatedAt         string          `json:"updated_at"`
+	UpdatedAt         time.Time       `json:"updated_at"`
 	ID                int64           `json:"id"`
 }
 
@@ -344,9 +345,9 @@ WHERE id = ?
 `
 
 type UpdateUserPasswordParams struct {
-	PasswordHash string `json:"password_hash"`
-	UpdatedAt    string `json:"updated_at"`
-	ID           int64  `json:"id"`
+	PasswordHash string    `json:"password_hash"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	ID           int64     `json:"id"`
 }
 
 func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {

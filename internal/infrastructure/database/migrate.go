@@ -18,10 +18,10 @@ import (
 
 // MigrationConfig holds configuration for database migrations
 type MigrationConfig struct {
-	AutoMigrate      bool   // Whether to run migrations automatically on startup
-	MigrationsPath   string // Path to migration files
+	AutoMigrate         bool   // Whether to run migrations automatically on startup
+	MigrationsPath      string // Path to migration files
 	BackupBeforeMigrate bool   // Whether to backup database before running migrations
-	BackupPath       string // Path to store backups
+	BackupPath          string // Path to store backups
 }
 
 // LoadMigrationConfigFromEnv loads migration configuration from environment variables
@@ -120,6 +120,73 @@ func AutoMigrate(db *sql.DB, dbConfig *Config, migrationConfig *MigrationConfig,
 	}
 
 	logger.Info("Database migration completed successfully", "version", newVersion)
+
+	// Run SQLite-specific migrations if applicable
+	if dbConfig.Driver == "sqlite" || dbConfig.Driver == "sqlite3" {
+		sqlitePath := filepath.Join(migrationConfig.MigrationsPath, "sqlite")
+		if _, err := os.Stat(sqlitePath); err == nil {
+			if err := runSQLiteSpecificMigrations(db, dbConfig, sqlitePath, logger); err != nil {
+				return fmt.Errorf("failed to run SQLite-specific migrations: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// runSQLiteSpecificMigrations runs SQLite-specific migrations from the sqlite/ subdirectory
+// These migrations use a separate schema_migrations_sqlite table to track their state
+func runSQLiteSpecificMigrations(db *sql.DB, dbConfig *Config, migrationsPath string, logger *slog.Logger) error {
+	logger.Info("Checking for SQLite-specific migrations", "path", migrationsPath)
+
+	// Create a separate migration instance for SQLite-specific migrations
+	// This uses a different migrations table to avoid conflicts
+	driver, err := sqlite3.WithInstance(db, &sqlite3.Config{
+		MigrationsTable: "schema_migrations_sqlite",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create SQLite driver for specific migrations: %w", err)
+	}
+
+	sourceURL := fmt.Sprintf("file://%s", migrationsPath)
+	m, err := migrate.NewWithDatabaseInstance(sourceURL, dbConfig.Driver, driver)
+	if err != nil {
+		return fmt.Errorf("failed to create SQLite-specific migration instance: %w", err)
+	}
+
+	// Get current version
+	currentVersion, dirty, err := m.Version()
+	if err != nil && err != migrate.ErrNilVersion {
+		return fmt.Errorf("failed to get SQLite-specific migration version: %w", err)
+	}
+
+	if dirty {
+		return fmt.Errorf("SQLite-specific migrations are in dirty state at version %d - please fix manually", currentVersion)
+	}
+
+	// Check target version
+	targetVersion, err := getTargetVersion(migrationsPath)
+	if err != nil {
+		return fmt.Errorf("failed to determine SQLite-specific target version: %w", err)
+	}
+
+	if currentVersion >= targetVersion {
+		logger.Info("SQLite-specific migrations are up to date", "version", currentVersion)
+		return nil
+	}
+
+	logger.Info("Running SQLite-specific migrations", "current", currentVersion, "target", targetVersion)
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("failed to run SQLite-specific migrations: %w", err)
+	}
+
+	newVersion, _, err := m.Version()
+	if err != nil {
+		return fmt.Errorf("failed to get new SQLite-specific version: %w", err)
+	}
+
+	logger.Info("SQLite-specific migrations completed", "version", newVersion)
 	return nil
 }
 

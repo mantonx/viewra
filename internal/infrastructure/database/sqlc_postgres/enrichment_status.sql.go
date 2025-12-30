@@ -8,8 +8,6 @@ package sqlc_postgres
 import (
 	"context"
 	"database/sql"
-
-	"github.com/sqlc-dev/pqtype"
 )
 
 const countEnrichmentStatusByStage = `-- name: CountEnrichmentStatusByStage :one
@@ -53,7 +51,7 @@ DELETE FROM enrichment_status WHERE media_type = $1 AND media_id = $2
 
 type DeleteEnrichmentStatusByMediaParams struct {
 	MediaType string `json:"media_type"`
-	MediaID   int32  `json:"media_id"`
+	MediaID   int64  `json:"media_id"`
 }
 
 func (q *Queries) DeleteEnrichmentStatusByMedia(ctx context.Context, arg DeleteEnrichmentStatusByMediaParams) error {
@@ -62,13 +60,13 @@ func (q *Queries) DeleteEnrichmentStatusByMedia(ctx context.Context, arg DeleteE
 }
 
 const getEnrichmentStatus = `-- name: GetEnrichmentStatus :one
-SELECT media_id, stage, status, plugin_id, completed_at, error_message, metadata_json, media_type FROM enrichment_status
+SELECT media_type, media_id, stage, status, plugin_id, completed_at, error_message, metadata_json FROM enrichment_status
 WHERE media_type = $1 AND media_id = $2 AND stage = $3
 `
 
 type GetEnrichmentStatusParams struct {
 	MediaType string `json:"media_type"`
-	MediaID   int32  `json:"media_id"`
+	MediaID   int64  `json:"media_id"`
 	Stage     string `json:"stage"`
 }
 
@@ -76,6 +74,7 @@ func (q *Queries) GetEnrichmentStatus(ctx context.Context, arg GetEnrichmentStat
 	row := q.db.QueryRowContext(ctx, getEnrichmentStatus, arg.MediaType, arg.MediaID, arg.Stage)
 	var i EnrichmentStatus
 	err := row.Scan(
+		&i.MediaType,
 		&i.MediaID,
 		&i.Stage,
 		&i.Status,
@@ -83,20 +82,19 @@ func (q *Queries) GetEnrichmentStatus(ctx context.Context, arg GetEnrichmentStat
 		&i.CompletedAt,
 		&i.ErrorMessage,
 		&i.MetadataJson,
-		&i.MediaType,
 	)
 	return i, err
 }
 
 const getEnrichmentStatusByMedia = `-- name: GetEnrichmentStatusByMedia :many
-SELECT media_id, stage, status, plugin_id, completed_at, error_message, metadata_json, media_type FROM enrichment_status
+SELECT media_type, media_id, stage, status, plugin_id, completed_at, error_message, metadata_json FROM enrichment_status
 WHERE media_type = $1 AND media_id = $2
 ORDER BY stage
 `
 
 type GetEnrichmentStatusByMediaParams struct {
 	MediaType string `json:"media_type"`
-	MediaID   int32  `json:"media_id"`
+	MediaID   int64  `json:"media_id"`
 }
 
 func (q *Queries) GetEnrichmentStatusByMedia(ctx context.Context, arg GetEnrichmentStatusByMediaParams) ([]EnrichmentStatus, error) {
@@ -109,6 +107,7 @@ func (q *Queries) GetEnrichmentStatusByMedia(ctx context.Context, arg GetEnrichm
 	for rows.Next() {
 		var i EnrichmentStatus
 		if err := rows.Scan(
+			&i.MediaType,
 			&i.MediaID,
 			&i.Stage,
 			&i.Status,
@@ -116,7 +115,6 @@ func (q *Queries) GetEnrichmentStatusByMedia(ctx context.Context, arg GetEnrichm
 			&i.CompletedAt,
 			&i.ErrorMessage,
 			&i.MetadataJson,
-			&i.MediaType,
 		); err != nil {
 			return nil, err
 		}
@@ -132,7 +130,7 @@ func (q *Queries) GetEnrichmentStatusByMedia(ctx context.Context, arg GetEnrichm
 }
 
 const getEnrichmentStatusByStage = `-- name: GetEnrichmentStatusByStage :many
-SELECT media_id, stage, status, plugin_id, completed_at, error_message, metadata_json, media_type FROM enrichment_status
+SELECT media_type, media_id, stage, status, plugin_id, completed_at, error_message, metadata_json FROM enrichment_status
 WHERE stage = $1 AND status = $2
 ORDER BY media_type, media_id
 LIMIT $3 OFFSET $4
@@ -160,6 +158,7 @@ func (q *Queries) GetEnrichmentStatusByStage(ctx context.Context, arg GetEnrichm
 	for rows.Next() {
 		var i EnrichmentStatus
 		if err := rows.Scan(
+			&i.MediaType,
 			&i.MediaID,
 			&i.Stage,
 			&i.Status,
@@ -167,7 +166,6 @@ func (q *Queries) GetEnrichmentStatusByStage(ctx context.Context, arg GetEnrichm
 			&i.CompletedAt,
 			&i.ErrorMessage,
 			&i.MetadataJson,
-			&i.MediaType,
 		); err != nil {
 			return nil, err
 		}
@@ -203,7 +201,7 @@ type GetLibraryEnrichmentOverallProgressRow struct {
 // Get overall enrichment progress for a library.
 // Returns: items that completed all stages / total unique items that entered enrichment.
 // "Fully enriched" means an item has completed the last stage in the pipeline.
-func (q *Queries) GetLibraryEnrichmentOverallProgress(ctx context.Context, libraryID sql.NullInt32) (GetLibraryEnrichmentOverallProgressRow, error) {
+func (q *Queries) GetLibraryEnrichmentOverallProgress(ctx context.Context, libraryID sql.NullInt64) (GetLibraryEnrichmentOverallProgressRow, error) {
 	row := q.db.QueryRowContext(ctx, getLibraryEnrichmentOverallProgress, libraryID)
 	var i GetLibraryEnrichmentOverallProgressRow
 	err := row.Scan(&i.TotalItems, &i.RemainingItems)
@@ -240,7 +238,7 @@ type GetLibraryEnrichmentProgressRow struct {
 	TotalCount      int64  `json:"total_count"`
 }
 
-func (q *Queries) GetLibraryEnrichmentProgress(ctx context.Context, libraryID int32) ([]GetLibraryEnrichmentProgressRow, error) {
+func (q *Queries) GetLibraryEnrichmentProgress(ctx context.Context, libraryID int64) ([]GetLibraryEnrichmentProgressRow, error) {
 	rows, err := q.db.QueryContext(ctx, getLibraryEnrichmentProgress, libraryID)
 	if err != nil {
 		return nil, err
@@ -283,11 +281,11 @@ WHERE media_type = $3 AND media_id = $4 AND stage = $5
 `
 
 type MarkEnrichmentCompleteParams struct {
-	PluginID     sql.NullString        `json:"plugin_id"`
-	MetadataJson pqtype.NullRawMessage `json:"metadata_json"`
-	MediaType    string                `json:"media_type"`
-	MediaID      int32                 `json:"media_id"`
-	Stage        string                `json:"stage"`
+	PluginID     sql.NullString `json:"plugin_id"`
+	MetadataJson sql.NullString `json:"metadata_json"`
+	MediaType    string         `json:"media_type"`
+	MediaID      int64          `json:"media_id"`
+	Stage        string         `json:"stage"`
 }
 
 func (q *Queries) MarkEnrichmentComplete(ctx context.Context, arg MarkEnrichmentCompleteParams) error {
@@ -314,7 +312,7 @@ type MarkEnrichmentFailedParams struct {
 	PluginID     sql.NullString `json:"plugin_id"`
 	ErrorMessage sql.NullString `json:"error_message"`
 	MediaType    string         `json:"media_type"`
-	MediaID      int32          `json:"media_id"`
+	MediaID      int64          `json:"media_id"`
 	Stage        string         `json:"stage"`
 }
 
@@ -341,7 +339,7 @@ WHERE media_type = $2 AND media_id = $3 AND stage = $4
 type MarkEnrichmentSkippedParams struct {
 	PluginID  sql.NullString `json:"plugin_id"`
 	MediaType string         `json:"media_type"`
-	MediaID   int32          `json:"media_id"`
+	MediaID   int64          `json:"media_id"`
 	Stage     string         `json:"stage"`
 }
 
@@ -391,14 +389,14 @@ ON CONFLICT(media_type, media_id, stage) DO UPDATE SET
 `
 
 type UpsertEnrichmentStatusParams struct {
-	MediaType    string                `json:"media_type"`
-	MediaID      int32                 `json:"media_id"`
-	Stage        string                `json:"stage"`
-	Status       sql.NullString        `json:"status"`
-	PluginID     sql.NullString        `json:"plugin_id"`
-	CompletedAt  sql.NullTime          `json:"completed_at"`
-	ErrorMessage sql.NullString        `json:"error_message"`
-	MetadataJson pqtype.NullRawMessage `json:"metadata_json"`
+	MediaType    string         `json:"media_type"`
+	MediaID      int64          `json:"media_id"`
+	Stage        string         `json:"stage"`
+	Status       sql.NullString `json:"status"`
+	PluginID     sql.NullString `json:"plugin_id"`
+	CompletedAt  sql.NullTime   `json:"completed_at"`
+	ErrorMessage sql.NullString `json:"error_message"`
+	MetadataJson sql.NullString `json:"metadata_json"`
 }
 
 func (q *Queries) UpsertEnrichmentStatus(ctx context.Context, arg UpsertEnrichmentStatusParams) error {

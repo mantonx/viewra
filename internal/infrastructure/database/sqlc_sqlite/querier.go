@@ -112,7 +112,7 @@ type Querier interface {
 	DeleteEnrichmentJobsByMedia(ctx context.Context, arg DeleteEnrichmentJobsByMediaParams) error
 	DeleteEnrichmentStatusByMedia(ctx context.Context, arg DeleteEnrichmentStatusByMediaParams) error
 	DeleteExpiredPluginAPIKeys(ctx context.Context) error
-	DeleteExpiredSessions(ctx context.Context, expiresAt string) (int64, error)
+	DeleteExpiredSessions(ctx context.Context, expiresAt time.Time) (int64, error)
 	DeleteExternalID(ctx context.Context, arg DeleteExternalIDParams) error
 	// Deletes by media_type and entity_id
 	DeleteExternalIDsByMedia(ctx context.Context, arg DeleteExternalIDsByMediaParams) error

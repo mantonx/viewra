@@ -138,6 +138,38 @@ func NullBool(value bool) sql.NullBool {
 	return sql.NullBool{Bool: value, Valid: true}
 }
 
+// NullInt64FromBool creates a sql.NullInt64 from a bool value.
+// Used for SQLite where booleans are stored as INTEGER (0/1).
+// Always valid (bool has no "zero" state like numbers).
+func NullInt64FromBool(value bool) sql.NullInt64 {
+	var intVal int64
+	if value {
+		intVal = 1
+	}
+	return sql.NullInt64{Int64: intVal, Valid: true}
+}
+
+// BoolToInt64 converts a bool to int64 (0 or 1).
+// Used for SQLite where booleans are stored as INTEGER.
+func BoolToInt64(value bool) int64 {
+	if value {
+		return 1
+	}
+	return 0
+}
+
+// Int64ToBool converts an int64 to bool.
+// Non-zero values are true, zero is false.
+func Int64ToBool(value int64) bool {
+	return value != 0
+}
+
+// NullInt64ToBool converts sql.NullInt64 to bool.
+// Returns false if the value is NULL or zero.
+func NullInt64ToBool(value sql.NullInt64) bool {
+	return value.Valid && value.Int64 != 0
+}
+
 // NullTime creates a sql.NullTime from a time.Time value.
 // Valid is true if time is not zero.
 func NullTime(t time.Time) sql.NullTime {
@@ -214,12 +246,23 @@ func ParseNullInt32ToIntPtr(value sql.NullInt32) *int {
 
 // ParseNullInt32Ptr converts sql.NullInt32 to *int64.
 // Returns nil if the value is NULL.
+// Deprecated: Use ParseNullInt64Ptr instead, as all integer types are now int64.
 func ParseNullInt32Ptr(value sql.NullInt32) *int64 {
 	if value.Valid {
 		val := int64(value.Int32)
 		return &val
 	}
 	return nil
+}
+
+// NullInt64PtrFromInt64 creates a sql.NullInt64 from an *int64 pointer.
+// Valid is true if pointer is non-nil.
+// Alias for NullInt64Ptr for clarity when replacing NullInt32Ptr usage.
+func NullInt64PtrFromInt64(value *int64) sql.NullInt64 {
+	if value == nil {
+		return sql.NullInt64{Valid: false}
+	}
+	return sql.NullInt64{Int64: *value, Valid: true}
 }
 
 // ParseNullInt32 converts sql.NullInt32 to int64.

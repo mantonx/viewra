@@ -8,16 +8,7 @@ import (
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
-	"github.com/sqlc-dev/pqtype"
 )
-
-// parseNullRawMessage extracts bytes from pqtype.NullRawMessage.
-func parseNullRawMessage(nrm pqtype.NullRawMessage) []byte {
-	if !nrm.Valid {
-		return nil
-	}
-	return nrm.RawMessage
-}
 
 // --- Helper Functions ---
 
@@ -146,21 +137,21 @@ func postgresRowToTask(row sqlc_postgres.ScheduledTask) *scheduler.Task {
 		Name:           row.Name,
 		Description:    common.ParseNullString(row.Description),
 		Schedule:       common.ParseNullString(row.Schedule),
-		Enabled:        row.Enabled,
+		Enabled:        int64ToBool(row.Enabled),
 		Source:         scheduler.TaskSource(row.Source),
 		SourceID:       common.ParseNullString(row.SourceID),
-		TimeoutSeconds: int(common.ParseNullInt32(row.TimeoutSeconds)),
-		RetryCount:     int(common.ParseNullInt32(row.RetryCount)),
-		RetryDelaySecs: int(common.ParseNullInt32(row.RetryDelaySeconds)),
+		TimeoutSeconds: int(common.ParseNullInt64(row.TimeoutSeconds)),
+		RetryCount:     int(common.ParseNullInt64(row.RetryCount)),
+		RetryDelaySecs: int(common.ParseNullInt64(row.RetryDelaySeconds)),
 		ConcurrencyKey: common.ParseNullString(row.ConcurrencyKey),
 		CreatedAt:      row.CreatedAt,
 		UpdatedAt:      row.UpdatedAt,
 	}
 
-	// Parse depends_on JSONB array
-	if depBytes := parseNullRawMessage(row.DependsOn); len(depBytes) > 0 {
+	// Parse depends_on JSON array
+	if row.DependsOn.Valid && row.DependsOn.String != "" {
 		var deps []string
-		if err := json.Unmarshal(depBytes, &deps); err == nil {
+		if err := json.Unmarshal([]byte(row.DependsOn.String), &deps); err == nil {
 			task.DependsOn = deps
 		}
 	}
@@ -176,15 +167,15 @@ func postgresExecRowToExecution(row sqlc_postgres.SchedulerExecution) *scheduler
 		ScheduledAt:      common.ParseNullTimePtr(row.ScheduledAt),
 		StartedAt:        common.ParseNullTimePtr(row.StartedAt),
 		EndedAt:          common.ParseNullTimePtr(row.EndedAt),
-		DurationMs:       int64(common.ParseNullInt32(row.DurationMs)),
-		Success:          nullBoolToBoolPtr(row.Success),
+		DurationMs:       common.ParseNullInt64(row.DurationMs),
+		Success:          nullInt64ToBoolPtr(row.Success),
 		Error:            common.ParseNullString(row.Error),
 		Logs:             common.ParseNullString(row.Logs),
-		Attempt:          int(common.ParseNullInt32(row.Attempt)),
+		Attempt:          int(common.ParseNullInt64(row.Attempt)),
 		ParentID:         common.ParseNullString(row.ParentExecutionID),
 		TriggeredBy:      scheduler.TriggeredBy(row.TriggeredBy),
 		DependencyExecID: common.ParseNullString(row.DependencyExecID),
-		Resumable:        row.Resumable.Valid && row.Resumable.Bool,
+		Resumable:        nullInt64ToBool(row.Resumable),
 		CreatedAt:        row.CreatedAt,
 	}
 	return exec

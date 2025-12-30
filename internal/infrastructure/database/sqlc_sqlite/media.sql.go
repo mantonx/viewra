@@ -82,12 +82,12 @@ type CreateMediaParams struct {
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
 	QualityScore      sql.NullInt64   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 }
 
 func (q *Queries) CreateMedia(ctx context.Context, arg CreateMediaParams) (Medium, error) {
@@ -587,12 +587,12 @@ type UpdateMediaParams struct {
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
 	QualityScore      sql.NullInt64   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	ID                int64           `json:"id"`
 }
 

@@ -103,19 +103,19 @@ func sqliteImageToDomain(dbImage sqlc_sqlite.MediaImage) *images.Image {
 func postgresImageToDomain(dbImage sqlc_postgres.MediaImage) *images.Image {
 	var mediaID *int
 	if dbImage.MediaID.Valid {
-		id := int(dbImage.MediaID.Int32)
+		id := int(dbImage.MediaID.Int64)
 		mediaID = &id
 	}
 
 	var width *int
 	if dbImage.Width.Valid {
-		w := int(dbImage.Width.Int32)
+		w := int(dbImage.Width.Int64)
 		width = &w
 	}
 
 	var height *int
 	if dbImage.Height.Valid {
-		h := int(dbImage.Height.Int32)
+		h := int(dbImage.Height.Int64)
 		height = &h
 	}
 
@@ -151,7 +151,7 @@ func postgresImageToDomain(dbImage sqlc_postgres.MediaImage) *images.Image {
 
 	priority := 0
 	if dbImage.Priority.Valid {
-		priority = int(dbImage.Priority.Int32)
+		priority = int(dbImage.Priority.Int64)
 	}
 
 	filePath := ""
@@ -286,19 +286,19 @@ func buildSQLiteUpdateImageParams(image *images.Image) sqlc_sqlite.UpdateImagePa
 
 // buildPostgresCreateImageParams converts a domain image to PostgreSQL create params
 func buildPostgresCreateImageParams(image *images.Image) sqlc_postgres.CreateImageParams {
-	var mediaID sql.NullInt32
+	var mediaID sql.NullInt64
 	if image.MediaID != nil {
-		mediaID = sql.NullInt32{Int32: int32(*image.MediaID), Valid: true}
+		mediaID = sql.NullInt64{Int64: int64(*image.MediaID), Valid: true}
 	}
 
-	var width sql.NullInt32
+	var width sql.NullInt64
 	if image.Width != nil {
-		width = sql.NullInt32{Int32: int32(*image.Width), Valid: true}
+		width = sql.NullInt64{Int64: int64(*image.Width), Valid: true}
 	}
 
-	var height sql.NullInt32
+	var height sql.NullInt64
 	if image.Height != nil {
-		height = sql.NullInt32{Int32: int32(*image.Height), Valid: true}
+		height = sql.NullInt64{Int64: int64(*image.Height), Valid: true}
 	}
 
 	var fileSizeBytes sql.NullInt64
@@ -339,7 +339,7 @@ func buildPostgresCreateImageParams(image *images.Image) sqlc_postgres.CreateIma
 	return sqlc_postgres.CreateImageParams{
 		MediaID:        mediaID,
 		MediaType:      string(image.MediaType),
-		EntityID:       int32(image.EntityID),
+		EntityID:       int64(image.EntityID),
 		ImageType:      string(image.ImageType),
 		SourceType:     string(image.SourceType),
 		FilePath:       filePath,
@@ -351,7 +351,7 @@ func buildPostgresCreateImageParams(image *images.Image) sqlc_postgres.CreateIma
 		MimeType:       mimeType,
 		FileHash:       fileHash,
 		Language:       language,
-		Priority:       sql.NullInt32{Int32: int32(image.Priority), Valid: true},
+		Priority:       sql.NullInt64{Int64: int64(image.Priority), Valid: true},
 	}
 }
 
@@ -375,7 +375,7 @@ func buildPostgresUpdateImageParams(image *images.Image) sqlc_postgres.UpdateIma
 		FileHash:       createParams.FileHash,
 		Language:       createParams.Language,
 		Priority:       createParams.Priority,
-		ID:             int32(image.ID),
+		ID:             int64(image.ID),
 	}
 }
 
@@ -386,21 +386,21 @@ func buildPostgresUpdateImageParams(image *images.Image) sqlc_postgres.UpdateIma
 func buildPostgresListImagesByEntityParams(mediaType images.MediaType, entityID int) sqlc_postgres.ListImagesByEntityParams {
 	return sqlc_postgres.ListImagesByEntityParams{
 		MediaType: string(mediaType),
-		EntityID:  int32(entityID),
+		EntityID:  int64(entityID),
 	}
 }
 
 func buildPostgresGetImageByTypeAndEntityParams(mediaType images.MediaType, entityID int, imageType images.ImageType) sqlc_postgres.GetImageByTypeAndEntityParams {
 	return sqlc_postgres.GetImageByTypeAndEntityParams{
 		MediaType: string(mediaType),
-		EntityID:  int32(entityID),
+		EntityID:  int64(entityID),
 		ImageType: string(imageType),
 	}
 }
 
 func buildPostgresGetImageByTypeAndMediaIDParams(mediaID int, imageType images.ImageType) sqlc_postgres.GetImageByTypeAndMediaIDParams {
 	return sqlc_postgres.GetImageByTypeAndMediaIDParams{
-		MediaID:   common.NullInt32FromInt64(int64(mediaID)),
+		MediaID:   common.NullInt64(int64(mediaID)),
 		ImageType: string(imageType),
 	}
 }
@@ -408,7 +408,7 @@ func buildPostgresGetImageByTypeAndMediaIDParams(mediaID int, imageType images.I
 func buildPostgresDeleteImagesByEntityParams(mediaType images.MediaType, entityID int) sqlc_postgres.DeleteImagesByEntityParams {
 	return sqlc_postgres.DeleteImagesByEntityParams{
 		MediaType: string(mediaType),
-		EntityID:  int32(entityID),
+		EntityID:  int64(entityID),
 	}
 }
 

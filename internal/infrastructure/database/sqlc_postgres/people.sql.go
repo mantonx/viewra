@@ -16,8 +16,8 @@ WHERE media_type = $1 AND entity_id = $2
 `
 
 type CountCreditsForEntityParams struct {
-	MediaType interface{} `json:"media_type"`
-	EntityID  int32       `json:"entity_id"`
+	MediaType string `json:"media_type"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 func (q *Queries) CountCreditsForEntity(ctx context.Context, arg CountCreditsForEntityParams) (int64, error) {
@@ -36,14 +36,14 @@ RETURNING id, person_id, media_type, entity_id, credit_type, character_name, dep
 `
 
 type CreateCreditParams struct {
-	PersonID      int32          `json:"person_id"`
-	MediaType     interface{}    `json:"media_type"`
-	EntityID      int32          `json:"entity_id"`
-	CreditType    interface{}    `json:"credit_type"`
+	PersonID      int64          `json:"person_id"`
+	MediaType     string         `json:"media_type"`
+	EntityID      int64          `json:"entity_id"`
+	CreditType    string         `json:"credit_type"`
 	CharacterName sql.NullString `json:"character_name"`
 	Department    sql.NullString `json:"department"`
 	Job           sql.NullString `json:"job"`
-	BillingOrder  sql.NullInt32  `json:"billing_order"`
+	BillingOrder  sql.NullInt64  `json:"billing_order"`
 }
 
 func (q *Queries) CreateCredit(ctx context.Context, arg CreateCreditParams) (Credit, error) {
@@ -86,7 +86,7 @@ type CreatePersonParams struct {
 	PhotoPath sql.NullString `json:"photo_path"`
 	PhotoUrl  sql.NullString `json:"photo_url"`
 	ImdbID    sql.NullString `json:"imdb_id"`
-	TmdbID    sql.NullInt32  `json:"tmdb_id"`
+	TmdbID    sql.NullInt64  `json:"tmdb_id"`
 }
 
 func (q *Queries) CreatePerson(ctx context.Context, arg CreatePersonParams) (Person, error) {
@@ -117,7 +117,7 @@ const deleteCredit = `-- name: DeleteCredit :exec
 DELETE FROM credits WHERE id = $1
 `
 
-func (q *Queries) DeleteCredit(ctx context.Context, id int32) error {
+func (q *Queries) DeleteCredit(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteCredit, id)
 	return err
 }
@@ -128,8 +128,8 @@ WHERE media_type = $1 AND entity_id = $2
 `
 
 type DeleteCreditsForEntityParams struct {
-	MediaType interface{} `json:"media_type"`
-	EntityID  int32       `json:"entity_id"`
+	MediaType string `json:"media_type"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 func (q *Queries) DeleteCreditsForEntity(ctx context.Context, arg DeleteCreditsForEntityParams) error {
@@ -143,9 +143,9 @@ WHERE media_type = $1 AND entity_id = $2 AND credit_type = $3
 `
 
 type DeleteCreditsForEntityByTypeParams struct {
-	MediaType  interface{} `json:"media_type"`
-	EntityID   int32       `json:"entity_id"`
-	CreditType interface{} `json:"credit_type"`
+	MediaType  string `json:"media_type"`
+	EntityID   int64  `json:"entity_id"`
+	CreditType string `json:"credit_type"`
 }
 
 func (q *Queries) DeleteCreditsForEntityByType(ctx context.Context, arg DeleteCreditsForEntityByTypeParams) error {
@@ -157,7 +157,7 @@ const deletePerson = `-- name: DeletePerson :exec
 DELETE FROM people WHERE id = $1
 `
 
-func (q *Queries) DeletePerson(ctx context.Context, id int32) error {
+func (q *Queries) DeletePerson(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deletePerson, id)
 	return err
 }
@@ -180,29 +180,29 @@ LIMIT $3
 `
 
 type GetCastForEntityParams struct {
-	MediaType interface{} `json:"media_type"`
-	EntityID  int32       `json:"entity_id"`
-	Limit     int32       `json:"limit"`
+	MediaType string `json:"media_type"`
+	EntityID  int64  `json:"entity_id"`
+	Limit     int32  `json:"limit"`
 }
 
 type GetCastForEntityRow struct {
-	ID              int32          `json:"id"`
-	PersonID        int32          `json:"person_id"`
-	MediaType       interface{}    `json:"media_type"`
-	EntityID        int32          `json:"entity_id"`
-	CreditType      interface{}    `json:"credit_type"`
+	ID              int64          `json:"id"`
+	PersonID        int64          `json:"person_id"`
+	MediaType       string         `json:"media_type"`
+	EntityID        int64          `json:"entity_id"`
+	CreditType      string         `json:"credit_type"`
 	CharacterName   sql.NullString `json:"character_name"`
 	Department      sql.NullString `json:"department"`
 	Job             sql.NullString `json:"job"`
-	BillingOrder    sql.NullInt32  `json:"billing_order"`
+	BillingOrder    sql.NullInt64  `json:"billing_order"`
 	CreatedAt       sql.NullTime   `json:"created_at"`
-	PersonID_2      int32          `json:"person_id_2"`
+	PersonID_2      int64          `json:"person_id_2"`
 	PersonName      string         `json:"person_name"`
 	PersonSortName  sql.NullString `json:"person_sort_name"`
 	PersonPhotoPath sql.NullString `json:"person_photo_path"`
 	PersonPhotoUrl  sql.NullString `json:"person_photo_url"`
 	PersonImdbID    sql.NullString `json:"person_imdb_id"`
-	PersonTmdbID    sql.NullInt32  `json:"person_tmdb_id"`
+	PersonTmdbID    sql.NullInt64  `json:"person_tmdb_id"`
 }
 
 func (q *Queries) GetCastForEntity(ctx context.Context, arg GetCastForEntityParams) ([]GetCastForEntityRow, error) {
@@ -263,28 +263,28 @@ ORDER BY c.billing_order, p.name
 `
 
 type GetCreatorsForEntityParams struct {
-	MediaType interface{} `json:"media_type"`
-	EntityID  int32       `json:"entity_id"`
+	MediaType string `json:"media_type"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 type GetCreatorsForEntityRow struct {
-	ID              int32          `json:"id"`
-	PersonID        int32          `json:"person_id"`
-	MediaType       interface{}    `json:"media_type"`
-	EntityID        int32          `json:"entity_id"`
-	CreditType      interface{}    `json:"credit_type"`
+	ID              int64          `json:"id"`
+	PersonID        int64          `json:"person_id"`
+	MediaType       string         `json:"media_type"`
+	EntityID        int64          `json:"entity_id"`
+	CreditType      string         `json:"credit_type"`
 	CharacterName   sql.NullString `json:"character_name"`
 	Department      sql.NullString `json:"department"`
 	Job             sql.NullString `json:"job"`
-	BillingOrder    sql.NullInt32  `json:"billing_order"`
+	BillingOrder    sql.NullInt64  `json:"billing_order"`
 	CreatedAt       sql.NullTime   `json:"created_at"`
-	PersonID_2      int32          `json:"person_id_2"`
+	PersonID_2      int64          `json:"person_id_2"`
 	PersonName      string         `json:"person_name"`
 	PersonSortName  sql.NullString `json:"person_sort_name"`
 	PersonPhotoPath sql.NullString `json:"person_photo_path"`
 	PersonPhotoUrl  sql.NullString `json:"person_photo_url"`
 	PersonImdbID    sql.NullString `json:"person_imdb_id"`
-	PersonTmdbID    sql.NullInt32  `json:"person_tmdb_id"`
+	PersonTmdbID    sql.NullInt64  `json:"person_tmdb_id"`
 }
 
 func (q *Queries) GetCreatorsForEntity(ctx context.Context, arg GetCreatorsForEntityParams) ([]GetCreatorsForEntityRow, error) {
@@ -345,28 +345,28 @@ ORDER BY c.credit_type, c.billing_order, p.name
 `
 
 type GetCreditsForEntityParams struct {
-	MediaType interface{} `json:"media_type"`
-	EntityID  int32       `json:"entity_id"`
+	MediaType string `json:"media_type"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 type GetCreditsForEntityRow struct {
-	ID              int32          `json:"id"`
-	PersonID        int32          `json:"person_id"`
-	MediaType       interface{}    `json:"media_type"`
-	EntityID        int32          `json:"entity_id"`
-	CreditType      interface{}    `json:"credit_type"`
+	ID              int64          `json:"id"`
+	PersonID        int64          `json:"person_id"`
+	MediaType       string         `json:"media_type"`
+	EntityID        int64          `json:"entity_id"`
+	CreditType      string         `json:"credit_type"`
 	CharacterName   sql.NullString `json:"character_name"`
 	Department      sql.NullString `json:"department"`
 	Job             sql.NullString `json:"job"`
-	BillingOrder    sql.NullInt32  `json:"billing_order"`
+	BillingOrder    sql.NullInt64  `json:"billing_order"`
 	CreatedAt       sql.NullTime   `json:"created_at"`
-	PersonID_2      int32          `json:"person_id_2"`
+	PersonID_2      int64          `json:"person_id_2"`
 	PersonName      string         `json:"person_name"`
 	PersonSortName  sql.NullString `json:"person_sort_name"`
 	PersonPhotoPath sql.NullString `json:"person_photo_path"`
 	PersonPhotoUrl  sql.NullString `json:"person_photo_url"`
 	PersonImdbID    sql.NullString `json:"person_imdb_id"`
-	PersonTmdbID    sql.NullInt32  `json:"person_tmdb_id"`
+	PersonTmdbID    sql.NullInt64  `json:"person_tmdb_id"`
 }
 
 func (q *Queries) GetCreditsForEntity(ctx context.Context, arg GetCreditsForEntityParams) ([]GetCreditsForEntityRow, error) {
@@ -427,29 +427,29 @@ ORDER BY c.billing_order, p.name
 `
 
 type GetCreditsForEntityByTypeParams struct {
-	MediaType  interface{} `json:"media_type"`
-	EntityID   int32       `json:"entity_id"`
-	CreditType interface{} `json:"credit_type"`
+	MediaType  string `json:"media_type"`
+	EntityID   int64  `json:"entity_id"`
+	CreditType string `json:"credit_type"`
 }
 
 type GetCreditsForEntityByTypeRow struct {
-	ID              int32          `json:"id"`
-	PersonID        int32          `json:"person_id"`
-	MediaType       interface{}    `json:"media_type"`
-	EntityID        int32          `json:"entity_id"`
-	CreditType      interface{}    `json:"credit_type"`
+	ID              int64          `json:"id"`
+	PersonID        int64          `json:"person_id"`
+	MediaType       string         `json:"media_type"`
+	EntityID        int64          `json:"entity_id"`
+	CreditType      string         `json:"credit_type"`
 	CharacterName   sql.NullString `json:"character_name"`
 	Department      sql.NullString `json:"department"`
 	Job             sql.NullString `json:"job"`
-	BillingOrder    sql.NullInt32  `json:"billing_order"`
+	BillingOrder    sql.NullInt64  `json:"billing_order"`
 	CreatedAt       sql.NullTime   `json:"created_at"`
-	PersonID_2      int32          `json:"person_id_2"`
+	PersonID_2      int64          `json:"person_id_2"`
 	PersonName      string         `json:"person_name"`
 	PersonSortName  sql.NullString `json:"person_sort_name"`
 	PersonPhotoPath sql.NullString `json:"person_photo_path"`
 	PersonPhotoUrl  sql.NullString `json:"person_photo_url"`
 	PersonImdbID    sql.NullString `json:"person_imdb_id"`
-	PersonTmdbID    sql.NullInt32  `json:"person_tmdb_id"`
+	PersonTmdbID    sql.NullInt64  `json:"person_tmdb_id"`
 }
 
 func (q *Queries) GetCreditsForEntityByType(ctx context.Context, arg GetCreditsForEntityByTypeParams) ([]GetCreditsForEntityByTypeRow, error) {
@@ -510,26 +510,26 @@ ORDER BY c.media_type, c.entity_id
 `
 
 type GetCreditsForPersonRow struct {
-	ID              int32          `json:"id"`
-	PersonID        int32          `json:"person_id"`
-	MediaType       interface{}    `json:"media_type"`
-	EntityID        int32          `json:"entity_id"`
-	CreditType      interface{}    `json:"credit_type"`
+	ID              int64          `json:"id"`
+	PersonID        int64          `json:"person_id"`
+	MediaType       string         `json:"media_type"`
+	EntityID        int64          `json:"entity_id"`
+	CreditType      string         `json:"credit_type"`
 	CharacterName   sql.NullString `json:"character_name"`
 	Department      sql.NullString `json:"department"`
 	Job             sql.NullString `json:"job"`
-	BillingOrder    sql.NullInt32  `json:"billing_order"`
+	BillingOrder    sql.NullInt64  `json:"billing_order"`
 	CreatedAt       sql.NullTime   `json:"created_at"`
-	PersonID_2      int32          `json:"person_id_2"`
+	PersonID_2      int64          `json:"person_id_2"`
 	PersonName      string         `json:"person_name"`
 	PersonSortName  sql.NullString `json:"person_sort_name"`
 	PersonPhotoPath sql.NullString `json:"person_photo_path"`
 	PersonPhotoUrl  sql.NullString `json:"person_photo_url"`
 	PersonImdbID    sql.NullString `json:"person_imdb_id"`
-	PersonTmdbID    sql.NullInt32  `json:"person_tmdb_id"`
+	PersonTmdbID    sql.NullInt64  `json:"person_tmdb_id"`
 }
 
-func (q *Queries) GetCreditsForPerson(ctx context.Context, personID int32) ([]GetCreditsForPersonRow, error) {
+func (q *Queries) GetCreditsForPerson(ctx context.Context, personID int64) ([]GetCreditsForPersonRow, error) {
 	rows, err := q.db.QueryContext(ctx, getCreditsForPerson, personID)
 	if err != nil {
 		return nil, err
@@ -587,28 +587,28 @@ ORDER BY c.billing_order, p.name
 `
 
 type GetDirectorsForEntityParams struct {
-	MediaType interface{} `json:"media_type"`
-	EntityID  int32       `json:"entity_id"`
+	MediaType string `json:"media_type"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 type GetDirectorsForEntityRow struct {
-	ID              int32          `json:"id"`
-	PersonID        int32          `json:"person_id"`
-	MediaType       interface{}    `json:"media_type"`
-	EntityID        int32          `json:"entity_id"`
-	CreditType      interface{}    `json:"credit_type"`
+	ID              int64          `json:"id"`
+	PersonID        int64          `json:"person_id"`
+	MediaType       string         `json:"media_type"`
+	EntityID        int64          `json:"entity_id"`
+	CreditType      string         `json:"credit_type"`
 	CharacterName   sql.NullString `json:"character_name"`
 	Department      sql.NullString `json:"department"`
 	Job             sql.NullString `json:"job"`
-	BillingOrder    sql.NullInt32  `json:"billing_order"`
+	BillingOrder    sql.NullInt64  `json:"billing_order"`
 	CreatedAt       sql.NullTime   `json:"created_at"`
-	PersonID_2      int32          `json:"person_id_2"`
+	PersonID_2      int64          `json:"person_id_2"`
 	PersonName      string         `json:"person_name"`
 	PersonSortName  sql.NullString `json:"person_sort_name"`
 	PersonPhotoPath sql.NullString `json:"person_photo_path"`
 	PersonPhotoUrl  sql.NullString `json:"person_photo_url"`
 	PersonImdbID    sql.NullString `json:"person_imdb_id"`
-	PersonTmdbID    sql.NullInt32  `json:"person_tmdb_id"`
+	PersonTmdbID    sql.NullInt64  `json:"person_tmdb_id"`
 }
 
 func (q *Queries) GetDirectorsForEntity(ctx context.Context, arg GetDirectorsForEntityParams) ([]GetDirectorsForEntityRow, error) {
@@ -656,7 +656,7 @@ const getPersonByID = `-- name: GetPersonByID :one
 SELECT id, name, sort_name, photo_path, photo_url, imdb_id, tmdb_id, created_at, updated_at FROM people WHERE id = $1
 `
 
-func (q *Queries) GetPersonByID(ctx context.Context, id int32) (Person, error) {
+func (q *Queries) GetPersonByID(ctx context.Context, id int64) (Person, error) {
 	row := q.db.QueryRowContext(ctx, getPersonByID, id)
 	var i Person
 	err := row.Scan(
@@ -719,7 +719,7 @@ const getPersonByTMDbID = `-- name: GetPersonByTMDbID :one
 SELECT id, name, sort_name, photo_path, photo_url, imdb_id, tmdb_id, created_at, updated_at FROM people WHERE tmdb_id = $1
 `
 
-func (q *Queries) GetPersonByTMDbID(ctx context.Context, tmdbID sql.NullInt32) (Person, error) {
+func (q *Queries) GetPersonByTMDbID(ctx context.Context, tmdbID sql.NullInt64) (Person, error) {
 	row := q.db.QueryRowContext(ctx, getPersonByTMDbID, tmdbID)
 	var i Person
 	err := row.Scan(
@@ -753,28 +753,28 @@ ORDER BY c.billing_order, p.name
 `
 
 type GetWritersForEntityParams struct {
-	MediaType interface{} `json:"media_type"`
-	EntityID  int32       `json:"entity_id"`
+	MediaType string `json:"media_type"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 type GetWritersForEntityRow struct {
-	ID              int32          `json:"id"`
-	PersonID        int32          `json:"person_id"`
-	MediaType       interface{}    `json:"media_type"`
-	EntityID        int32          `json:"entity_id"`
-	CreditType      interface{}    `json:"credit_type"`
+	ID              int64          `json:"id"`
+	PersonID        int64          `json:"person_id"`
+	MediaType       string         `json:"media_type"`
+	EntityID        int64          `json:"entity_id"`
+	CreditType      string         `json:"credit_type"`
 	CharacterName   sql.NullString `json:"character_name"`
 	Department      sql.NullString `json:"department"`
 	Job             sql.NullString `json:"job"`
-	BillingOrder    sql.NullInt32  `json:"billing_order"`
+	BillingOrder    sql.NullInt64  `json:"billing_order"`
 	CreatedAt       sql.NullTime   `json:"created_at"`
-	PersonID_2      int32          `json:"person_id_2"`
+	PersonID_2      int64          `json:"person_id_2"`
 	PersonName      string         `json:"person_name"`
 	PersonSortName  sql.NullString `json:"person_sort_name"`
 	PersonPhotoPath sql.NullString `json:"person_photo_path"`
 	PersonPhotoUrl  sql.NullString `json:"person_photo_url"`
 	PersonImdbID    sql.NullString `json:"person_imdb_id"`
-	PersonTmdbID    sql.NullInt32  `json:"person_tmdb_id"`
+	PersonTmdbID    sql.NullInt64  `json:"person_tmdb_id"`
 }
 
 func (q *Queries) GetWritersForEntity(ctx context.Context, arg GetWritersForEntityParams) ([]GetWritersForEntityRow, error) {
@@ -925,8 +925,8 @@ type UpdatePersonParams struct {
 	PhotoPath sql.NullString `json:"photo_path"`
 	PhotoUrl  sql.NullString `json:"photo_url"`
 	ImdbID    sql.NullString `json:"imdb_id"`
-	TmdbID    sql.NullInt32  `json:"tmdb_id"`
-	ID        int32          `json:"id"`
+	TmdbID    sql.NullInt64  `json:"tmdb_id"`
+	ID        int64          `json:"id"`
 }
 
 func (q *Queries) UpdatePerson(ctx context.Context, arg UpdatePersonParams) error {

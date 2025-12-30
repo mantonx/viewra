@@ -1,4 +1,4 @@
-.PHONY: help dev dev-debug dev-clean stop build build-tools build-ffmpeg clean-ffmpeg clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen proto-gen install-tools install-ollama ollama-status setup build-plugins build-plugin reload-plugin reload-plugins clean-plugins new-plugin
+.PHONY: help dev dev-debug dev-clean stop build build-tools build-ffmpeg clean-ffmpeg clean test migrate-up migrate-down migrate-sqlite-up migrate-sqlite-down migrate-create migrate-sqlite-create sqlc-gen swagger-gen api-client-gen proto-gen install-tools install-ollama ollama-status setup build-plugins build-plugin reload-plugin reload-plugins clean-plugins new-plugin
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -154,15 +154,32 @@ test: ## Run tests
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 
-migrate-up: ## Run database migrations up
+migrate-up: ## Run all database migrations up (main + SQLite-specific)
+	@echo "Running main migrations..."
 	~/go/bin/migrate -path migrations -database "sqlite3://data/viewra.db" up
+	@if ls migrations/sqlite/*.sql 1> /dev/null 2>&1; then \
+		echo "Running SQLite-specific migrations..."; \
+		~/go/bin/migrate -path migrations/sqlite -database "sqlite3://data/viewra.db?x-migrations-table=schema_migrations_sqlite" up; \
+	else \
+		echo "No SQLite-specific migrations found, skipping..."; \
+	fi
 
-migrate-down: ## Run database migrations down
+migrate-down: ## Run database migrations down (main only - use migrate-sqlite-down for SQLite-specific)
 	~/go/bin/migrate -path migrations -database "sqlite3://data/viewra.db" down
+
+migrate-sqlite-up: ## Run SQLite-specific migrations up
+	~/go/bin/migrate -path migrations/sqlite -database "sqlite3://data/viewra.db?x-migrations-table=schema_migrations_sqlite" up
+
+migrate-sqlite-down: ## Run SQLite-specific migrations down
+	~/go/bin/migrate -path migrations/sqlite -database "sqlite3://data/viewra.db?x-migrations-table=schema_migrations_sqlite" down
 
 migrate-create: ## Create a new migration (usage: make migrate-create NAME=add_users)
 	@if [ -z "$(NAME)" ]; then echo "Usage: make migrate-create NAME=migration_name"; exit 1; fi
 	migrate create -ext sql -dir migrations -seq $(NAME)
+
+migrate-sqlite-create: ## Create a new SQLite-specific migration (usage: make migrate-sqlite-create NAME=add_vec0)
+	@if [ -z "$(NAME)" ]; then echo "Usage: make migrate-sqlite-create NAME=migration_name"; exit 1; fi
+	migrate create -ext sql -dir migrations/sqlite -seq $(NAME)
 
 sqlc-gen: ## Generate sqlc code from queries
 	~/go/bin/sqlc generate

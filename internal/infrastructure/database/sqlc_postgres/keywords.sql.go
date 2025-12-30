@@ -17,7 +17,7 @@ WHERE media_type = $1 AND entity_id = $2
 
 type DeleteKeywordsByEntityParams struct {
 	MediaType string `json:"media_type"`
-	EntityID  int32  `json:"entity_id"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 func (q *Queries) DeleteKeywordsByEntity(ctx context.Context, arg DeleteKeywordsByEntityParams) error {
@@ -34,13 +34,13 @@ ORDER BY keyword
 
 type GetKeywordsByEntityParams struct {
 	MediaType string `json:"media_type"`
-	EntityID  int32  `json:"entity_id"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 type GetKeywordsByEntityRow struct {
-	KeywordID  int32        `json:"keyword_id"`
-	Keyword    string       `json:"keyword"`
-	IsLocation sql.NullBool `json:"is_location"`
+	KeywordID  int64         `json:"keyword_id"`
+	Keyword    string        `json:"keyword"`
+	IsLocation sql.NullInt64 `json:"is_location"`
 }
 
 func (q *Queries) GetKeywordsByEntity(ctx context.Context, arg GetKeywordsByEntityParams) ([]GetKeywordsByEntityRow, error) {
@@ -75,11 +75,11 @@ ORDER BY keyword
 
 type GetLocationKeywordsByEntityParams struct {
 	MediaType string `json:"media_type"`
-	EntityID  int32  `json:"entity_id"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 type GetLocationKeywordsByEntityRow struct {
-	KeywordID int32  `json:"keyword_id"`
+	KeywordID int64  `json:"keyword_id"`
 	Keyword   string `json:"keyword"`
 }
 
@@ -115,11 +115,11 @@ ORDER BY keyword
 
 type GetThemeKeywordsByEntityParams struct {
 	MediaType string `json:"media_type"`
-	EntityID  int32  `json:"entity_id"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 type GetThemeKeywordsByEntityRow struct {
-	KeywordID int32  `json:"keyword_id"`
+	KeywordID int64  `json:"keyword_id"`
 	Keyword   string `json:"keyword"`
 }
 
@@ -155,11 +155,11 @@ ON CONFLICT (media_type, entity_id, keyword_id) DO UPDATE SET
 `
 
 type InsertKeywordParams struct {
-	MediaType  string       `json:"media_type"`
-	EntityID   int32        `json:"entity_id"`
-	KeywordID  int32        `json:"keyword_id"`
-	Keyword    string       `json:"keyword"`
-	IsLocation sql.NullBool `json:"is_location"`
+	MediaType  string        `json:"media_type"`
+	EntityID   int64         `json:"entity_id"`
+	KeywordID  int64         `json:"keyword_id"`
+	Keyword    string        `json:"keyword"`
+	IsLocation sql.NullInt64 `json:"is_location"`
 }
 
 func (q *Queries) InsertKeyword(ctx context.Context, arg InsertKeywordParams) error {
@@ -182,7 +182,7 @@ ORDER BY entity_id
 
 type SearchByKeywordRow struct {
 	MediaType string `json:"media_type"`
-	EntityID  int32  `json:"entity_id"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 func (q *Queries) SearchByKeyword(ctx context.Context, keyword string) ([]SearchByKeywordRow, error) {
@@ -217,7 +217,7 @@ ORDER BY entity_id
 
 type SearchByLocationKeywordRow struct {
 	MediaType string `json:"media_type"`
-	EntityID  int32  `json:"entity_id"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 func (q *Queries) SearchByLocationKeyword(ctx context.Context, keyword string) ([]SearchByLocationKeywordRow, error) {

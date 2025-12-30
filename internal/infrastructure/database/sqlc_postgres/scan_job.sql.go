@@ -40,17 +40,17 @@ type CompleteScanJobParams struct {
 	FilesProcessed    sql.NullInt64   `json:"files_processed"`
 	BytesProcessed    sql.NullInt64   `json:"bytes_processed"`
 	ErrorCount        sql.NullInt64   `json:"error_count"`
-	WarningCount      sql.NullInt32   `json:"warning_count"`
+	WarningCount      sql.NullInt64   `json:"warning_count"`
 	CompletedAt       sql.NullTime    `json:"completed_at"`
 	ErrorMessage      sql.NullString  `json:"error_message"`
 	Phase             sql.NullString  `json:"phase"`
-	DiscoveryDone     sql.NullBool    `json:"discovery_done"`
-	DiscoveryErrors   sql.NullInt32   `json:"discovery_errors"`
-	DiscoveryWarnings sql.NullInt32   `json:"discovery_warnings"`
-	DirsScanned       sql.NullInt32   `json:"dirs_scanned"`
-	DirsSkipped       sql.NullInt32   `json:"dirs_skipped"`
-	FilesSkipped      sql.NullInt32   `json:"files_skipped"`
-	ID                int32           `json:"id"`
+	DiscoveryDone     sql.NullInt64   `json:"discovery_done"`
+	DiscoveryErrors   sql.NullInt64   `json:"discovery_errors"`
+	DiscoveryWarnings sql.NullInt64   `json:"discovery_warnings"`
+	DirsScanned       sql.NullInt64   `json:"dirs_scanned"`
+	DirsSkipped       sql.NullInt64   `json:"dirs_skipped"`
+	FilesSkipped      sql.NullInt64   `json:"files_skipped"`
+	ID                int64           `json:"id"`
 }
 
 func (q *Queries) CompleteScanJob(ctx context.Context, arg CompleteScanJobParams) error {
@@ -81,7 +81,7 @@ SELECT COUNT(*) FROM scan_jobs
 WHERE library_id = $1
 `
 
-func (q *Queries) CountScanJobsByLibrary(ctx context.Context, libraryID int32) (int64, error) {
+func (q *Queries) CountScanJobsByLibrary(ctx context.Context, libraryID int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countScanJobsByLibrary, libraryID)
 	var count int64
 	err := row.Scan(&count)
@@ -108,7 +108,7 @@ RETURNING id, library_id, status, progress, files_found, files_processed, bytes_
 `
 
 type CreateScanJobParams struct {
-	LibraryID      int32           `json:"library_id"`
+	LibraryID      int64           `json:"library_id"`
 	Status         string          `json:"status"`
 	Progress       sql.NullFloat64 `json:"progress"`
 	FilesFound     sql.NullInt64   `json:"files_found"`
@@ -118,7 +118,7 @@ type CreateScanJobParams struct {
 	StartedAt      sql.NullTime    `json:"started_at"`
 	Phase          sql.NullString  `json:"phase"`
 	EstimatedTotal sql.NullInt64   `json:"estimated_total"`
-	DiscoveryDone  sql.NullBool    `json:"discovery_done"`
+	DiscoveryDone  sql.NullInt64   `json:"discovery_done"`
 }
 
 func (q *Queries) CreateScanJob(ctx context.Context, arg CreateScanJobParams) (ScanJob, error) {
@@ -173,7 +173,7 @@ WHERE library_id = $1
 `
 
 type DeleteOldScanJobsParams struct {
-	LibraryID     int32  `json:"library_id"`
+	LibraryID     int64  `json:"library_id"`
 	RetentionDays string `json:"retention_days"`
 }
 
@@ -188,7 +188,7 @@ DELETE FROM scan_jobs
 WHERE id = $1
 `
 
-func (q *Queries) DeleteScanJob(ctx context.Context, id int32) error {
+func (q *Queries) DeleteScanJob(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteScanJob, id)
 	return err
 }
@@ -200,7 +200,7 @@ ORDER BY created_at DESC
 LIMIT 1
 `
 
-func (q *Queries) GetLatestScanJobByLibrary(ctx context.Context, libraryID int32) (ScanJob, error) {
+func (q *Queries) GetLatestScanJobByLibrary(ctx context.Context, libraryID int64) (ScanJob, error) {
 	row := q.db.QueryRowContext(ctx, getLatestScanJobByLibrary, libraryID)
 	var i ScanJob
 	err := row.Scan(
@@ -237,7 +237,7 @@ SELECT id, library_id, status, progress, files_found, files_processed, bytes_pro
 WHERE id = $1
 `
 
-func (q *Queries) GetScanJob(ctx context.Context, id int32) (ScanJob, error) {
+func (q *Queries) GetScanJob(ctx context.Context, id int64) (ScanJob, error) {
 	row := q.db.QueryRowContext(ctx, getScanJob, id)
 	var i ScanJob
 	err := row.Scan(
@@ -290,7 +290,7 @@ type GetScanJobStatsRow struct {
 	TotalBytesProcessed int64 `json:"total_bytes_processed"`
 }
 
-func (q *Queries) GetScanJobStats(ctx context.Context, libraryID int32) (GetScanJobStatsRow, error) {
+func (q *Queries) GetScanJobStats(ctx context.Context, libraryID int64) (GetScanJobStatsRow, error) {
 	row := q.db.QueryRowContext(ctx, getScanJobStats, libraryID)
 	var i GetScanJobStatsRow
 	err := row.Scan(
@@ -366,7 +366,7 @@ LIMIT $2
 `
 
 type ListScanJobsByLibraryParams struct {
-	LibraryID int32 `json:"library_id"`
+	LibraryID int64 `json:"library_id"`
 	Limit     int32 `json:"limit"`
 }
 
@@ -440,11 +440,11 @@ type UpdateScanJobProgressParams struct {
 	FilesProcessed sql.NullInt64   `json:"files_processed"`
 	BytesProcessed sql.NullInt64   `json:"bytes_processed"`
 	ErrorCount     sql.NullInt64   `json:"error_count"`
-	WarningCount   sql.NullInt32   `json:"warning_count"`
+	WarningCount   sql.NullInt64   `json:"warning_count"`
 	Phase          sql.NullString  `json:"phase"`
 	EstimatedTotal sql.NullInt64   `json:"estimated_total"`
-	DiscoveryDone  sql.NullBool    `json:"discovery_done"`
-	ID             int32           `json:"id"`
+	DiscoveryDone  sql.NullInt64   `json:"discovery_done"`
+	ID             int64           `json:"id"`
 }
 
 func (q *Queries) UpdateScanJobProgress(ctx context.Context, arg UpdateScanJobProgressParams) error {
@@ -473,7 +473,7 @@ WHERE id = $2
 
 type UpdateScanJobStatusParams struct {
 	Status string `json:"status"`
-	ID     int32  `json:"id"`
+	ID     int64  `json:"id"`
 }
 
 func (q *Queries) UpdateScanJobStatus(ctx context.Context, arg UpdateScanJobStatusParams) error {

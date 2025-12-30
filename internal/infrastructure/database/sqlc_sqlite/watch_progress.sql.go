@@ -30,7 +30,7 @@ type CreateWatchProgressParams struct {
 	UserID      sql.NullInt64   `json:"user_id"`
 	Position    float64         `json:"position"`
 	Duration    sql.NullFloat64 `json:"duration"`
-	Watched     sql.NullBool    `json:"watched"`
+	Watched     sql.NullInt64   `json:"watched"`
 	LastWatched sql.NullTime    `json:"last_watched"`
 	CreatedAt   sql.NullTime    `json:"created_at"`
 	UpdatedAt   sql.NullTime    `json:"updated_at"`
@@ -388,7 +388,7 @@ RETURNING id, media_id, user_id, position, duration, watched, last_watched, crea
 type UpdateWatchProgressParams struct {
 	Position    float64         `json:"position"`
 	Duration    sql.NullFloat64 `json:"duration"`
-	Watched     sql.NullBool    `json:"watched"`
+	Watched     sql.NullInt64   `json:"watched"`
 	LastWatched sql.NullTime    `json:"last_watched"`
 	UpdatedAt   sql.NullTime    `json:"updated_at"`
 	ID          int64           `json:"id"`
@@ -453,7 +453,7 @@ type UpsertWatchProgressParams struct {
 	UserID                sql.NullInt64   `json:"user_id"`
 	Position              float64         `json:"position"`
 	Duration              sql.NullFloat64 `json:"duration"`
-	Watched               sql.NullBool    `json:"watched"`
+	Watched               sql.NullInt64   `json:"watched"`
 	LastWatched           sql.NullTime    `json:"last_watched"`
 	CreatedAt             sql.NullTime    `json:"created_at"`
 	UpdatedAt             sql.NullTime    `json:"updated_at"`

@@ -8,6 +8,7 @@ package sqlc_sqlite
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 const deleteAllUserSettings = `-- name: DeleteAllUserSettings :exec
@@ -213,7 +214,7 @@ type UpsertSystemSettingParams struct {
 	ValueType   string         `json:"value_type"`
 	Category    string         `json:"category"`
 	Description sql.NullString `json:"description"`
-	UpdatedAt   string         `json:"updated_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
 	UpdatedBy   sql.NullString `json:"updated_by"`
 }
 
@@ -239,10 +240,10 @@ ON CONFLICT(user_id, key) DO UPDATE SET
 `
 
 type UpsertUserSettingParams struct {
-	UserID    string `json:"user_id"`
-	Key       string `json:"key"`
-	Value     string `json:"value"`
-	UpdatedAt string `json:"updated_at"`
+	UserID    string    `json:"user_id"`
+	Key       string    `json:"key"`
+	Value     string    `json:"value"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 func (q *Queries) UpsertUserSetting(ctx context.Context, arg UpsertUserSettingParams) error {

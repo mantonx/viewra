@@ -27,7 +27,7 @@ func (r *Repository) GetStudioByID(id int64) (*media.Studio, error) {
 	return common.QuerySingle(
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.Studio, error) {
-			return r.Postgres().GetStudioByID(ctx, int32(id))
+			return r.Postgres().GetStudioByID(ctx, id)
 		},
 		func() (sqlc_sqlite.Studio, error) {
 			return r.SQLite().GetStudioByID(ctx, id)
@@ -59,7 +59,7 @@ func (r *Repository) GetStudioByTMDbID(tmdbID int) (*media.Studio, error) {
 	return common.QuerySingle(
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.Studio, error) {
-			return r.Postgres().GetStudioByTMDbID(ctx, sql.NullInt32{Int32: int32(tmdbID), Valid: true})
+			return r.Postgres().GetStudioByTMDbID(ctx, sql.NullInt64{Int64: int64(tmdbID), Valid: true})
 		},
 		func() (sqlc_sqlite.Studio, error) {
 			return r.SQLite().GetStudioByTMDbID(ctx, sql.NullInt64{Int64: int64(tmdbID), Valid: true})
@@ -78,7 +78,7 @@ func (r *Repository) CreateStudio(studio *media.Studio) error {
 		if err != nil {
 			return err
 		}
-		studio.ID = int64(result.ID)
+		studio.ID = result.ID
 		return nil
 	}
 
@@ -157,7 +157,7 @@ func (r *Repository) GetStudiosForEntity(mediaType string, entityID int64) ([]*m
 		func() ([]sqlc_postgres.Studio, error) {
 			return r.Postgres().GetStudiosForEntity(ctx, sqlc_postgres.GetStudiosForEntityParams{
 				MediaType: mediaType,
-				EntityID:  int32(entityID),
+				EntityID:  entityID,
 			})
 		},
 		func() ([]sqlc_sqlite.Studio, error) {
@@ -179,8 +179,8 @@ func (r *Repository) AddStudioToEntity(mediaType string, entityID int64, studioI
 		func() error {
 			return r.Postgres().AddMediaStudio(ctx, sqlc_postgres.AddMediaStudioParams{
 				MediaType: mediaType,
-				EntityID:  int32(entityID),
-				StudioID:  int32(studioID),
+				EntityID:  entityID,
+				StudioID:  studioID,
 			})
 		},
 		func() error {
@@ -201,8 +201,8 @@ func (r *Repository) RemoveStudioFromEntity(mediaType string, entityID int64, st
 		func() error {
 			return r.Postgres().RemoveMediaStudio(ctx, sqlc_postgres.RemoveMediaStudioParams{
 				MediaType: mediaType,
-				EntityID:  int32(entityID),
-				StudioID:  int32(studioID),
+				EntityID:  entityID,
+				StudioID:  studioID,
 			})
 		},
 		func() error {
@@ -223,7 +223,7 @@ func (r *Repository) ClearStudiosForEntity(mediaType string, entityID int64) err
 		func() error {
 			return r.Postgres().ClearStudiosForEntity(ctx, sqlc_postgres.ClearStudiosForEntityParams{
 				MediaType: mediaType,
-				EntityID:  int32(entityID),
+				EntityID:  entityID,
 			})
 		},
 		func() error {
@@ -245,7 +245,7 @@ func (r *Repository) ReplaceStudiosForEntity(mediaType string, entityID int64, s
 		func() error {
 			return r.Postgres().ClearStudiosForEntity(ctx, sqlc_postgres.ClearStudiosForEntityParams{
 				MediaType: mediaType,
-				EntityID:  int32(entityID),
+				EntityID:  entityID,
 			})
 		},
 		func() error {

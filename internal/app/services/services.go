@@ -428,6 +428,9 @@ func initPluginManager(
 		return nil
 	}
 
+	// Set the plugin factory for creating gRPC plugin instances
+	pluginManager.SetPluginFactory(plugins.NewFactory())
+
 	// Wire host data server for media querying
 	if hostDataServer != nil {
 		pluginManager.SetHostDataServer(hostDataServer)

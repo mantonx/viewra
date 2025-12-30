@@ -17,9 +17,9 @@ ON CONFLICT DO NOTHING
 `
 
 type AddMediaStudioParams struct {
-	MediaType interface{} `json:"media_type"`
-	EntityID  int32       `json:"entity_id"`
-	StudioID  int32       `json:"studio_id"`
+	MediaType string `json:"media_type"`
+	EntityID  int64  `json:"entity_id"`
+	StudioID  int64  `json:"studio_id"`
 }
 
 func (q *Queries) AddMediaStudio(ctx context.Context, arg AddMediaStudioParams) error {
@@ -33,8 +33,8 @@ WHERE media_type = $1 AND entity_id = $2
 `
 
 type ClearStudiosForEntityParams struct {
-	MediaType interface{} `json:"media_type"`
-	EntityID  int32       `json:"entity_id"`
+	MediaType string `json:"media_type"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 func (q *Queries) ClearStudiosForEntity(ctx context.Context, arg ClearStudiosForEntityParams) error {
@@ -51,7 +51,7 @@ RETURNING id, name, logo_path, tmdb_id, created_at
 type CreateStudioParams struct {
 	Name     string         `json:"name"`
 	LogoPath sql.NullString `json:"logo_path"`
-	TmdbID   sql.NullInt32  `json:"tmdb_id"`
+	TmdbID   sql.NullInt64  `json:"tmdb_id"`
 }
 
 func (q *Queries) CreateStudio(ctx context.Context, arg CreateStudioParams) (Studio, error) {
@@ -71,7 +71,7 @@ const deleteStudio = `-- name: DeleteStudio :exec
 DELETE FROM studios WHERE id = $1
 `
 
-func (q *Queries) DeleteStudio(ctx context.Context, id int32) error {
+func (q *Queries) DeleteStudio(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteStudio, id)
 	return err
 }
@@ -80,7 +80,7 @@ const getStudioByID = `-- name: GetStudioByID :one
 SELECT id, name, logo_path, tmdb_id, created_at FROM studios WHERE id = $1
 `
 
-func (q *Queries) GetStudioByID(ctx context.Context, id int32) (Studio, error) {
+func (q *Queries) GetStudioByID(ctx context.Context, id int64) (Studio, error) {
 	row := q.db.QueryRowContext(ctx, getStudioByID, id)
 	var i Studio
 	err := row.Scan(
@@ -114,7 +114,7 @@ const getStudioByTMDbID = `-- name: GetStudioByTMDbID :one
 SELECT id, name, logo_path, tmdb_id, created_at FROM studios WHERE tmdb_id = $1
 `
 
-func (q *Queries) GetStudioByTMDbID(ctx context.Context, tmdbID sql.NullInt32) (Studio, error) {
+func (q *Queries) GetStudioByTMDbID(ctx context.Context, tmdbID sql.NullInt64) (Studio, error) {
 	row := q.db.QueryRowContext(ctx, getStudioByTMDbID, tmdbID)
 	var i Studio
 	err := row.Scan(
@@ -136,8 +136,8 @@ ORDER BY s.name
 `
 
 type GetStudiosForEntityParams struct {
-	MediaType interface{} `json:"media_type"`
-	EntityID  int32       `json:"entity_id"`
+	MediaType string `json:"media_type"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 func (q *Queries) GetStudiosForEntity(ctx context.Context, arg GetStudiosForEntityParams) ([]Studio, error) {
@@ -208,9 +208,9 @@ WHERE media_type = $1 AND entity_id = $2 AND studio_id = $3
 `
 
 type RemoveMediaStudioParams struct {
-	MediaType interface{} `json:"media_type"`
-	EntityID  int32       `json:"entity_id"`
-	StudioID  int32       `json:"studio_id"`
+	MediaType string `json:"media_type"`
+	EntityID  int64  `json:"entity_id"`
+	StudioID  int64  `json:"studio_id"`
 }
 
 func (q *Queries) RemoveMediaStudio(ctx context.Context, arg RemoveMediaStudioParams) error {
@@ -227,8 +227,8 @@ WHERE id = $4
 type UpdateStudioParams struct {
 	Name     string         `json:"name"`
 	LogoPath sql.NullString `json:"logo_path"`
-	TmdbID   sql.NullInt32  `json:"tmdb_id"`
-	ID       int32          `json:"id"`
+	TmdbID   sql.NullInt64  `json:"tmdb_id"`
+	ID       int64          `json:"id"`
 }
 
 func (q *Queries) UpdateStudio(ctx context.Context, arg UpdateStudioParams) error {

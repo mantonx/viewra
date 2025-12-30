@@ -6,6 +6,7 @@ import (
 
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // splitAndTrim splits a comma-separated string and trims whitespace.
@@ -106,7 +107,7 @@ func (q *DBMediaQuerier) getCreditsForEntity(ctx context.Context, mediaType stri
 	if q.router.IsPostgresDB() {
 		castRows, err := q.postgres.GetCreditsForEntityByType(ctx, sqlc_postgres.GetCreditsForEntityByTypeParams{
 			MediaType:  mediaType,
-			EntityID:   int32(entityID),
+			EntityID:   entityID,
 			CreditType: "cast",
 		})
 		if err == nil {
@@ -114,7 +115,7 @@ func (q *DBMediaQuerier) getCreditsForEntity(ctx context.Context, mediaType stri
 				cast = append(cast, CastMemberInfo{
 					Name:      row.PersonName,
 					Character: row.CharacterName.String,
-					Order:     int(row.BillingOrder.Int32),
+					Order:     int(row.BillingOrder.Int64),
 				})
 			}
 		}
@@ -122,7 +123,7 @@ func (q *DBMediaQuerier) getCreditsForEntity(ctx context.Context, mediaType stri
 		// Fetch directors
 		directorRows, err := q.postgres.GetCreditsForEntityByType(ctx, sqlc_postgres.GetCreditsForEntityByTypeParams{
 			MediaType:  mediaType,
-			EntityID:   int32(entityID),
+			EntityID:   entityID,
 			CreditType: "director",
 		})
 		if err == nil {
@@ -134,7 +135,7 @@ func (q *DBMediaQuerier) getCreditsForEntity(ctx context.Context, mediaType stri
 		// Fetch writers
 		writerRows, err := q.postgres.GetCreditsForEntityByType(ctx, sqlc_postgres.GetCreditsForEntityByTypeParams{
 			MediaType:  mediaType,
-			EntityID:   int32(entityID),
+			EntityID:   entityID,
 			CreditType: "writer",
 		})
 		if err == nil {
@@ -146,7 +147,7 @@ func (q *DBMediaQuerier) getCreditsForEntity(ctx context.Context, mediaType stri
 		// Fetch producers
 		producerRows, err := q.postgres.GetCreditsForEntityByType(ctx, sqlc_postgres.GetCreditsForEntityByTypeParams{
 			MediaType:  mediaType,
-			EntityID:   int32(entityID),
+			EntityID:   entityID,
 			CreditType: "producer",
 		})
 		if err == nil {
@@ -216,13 +217,13 @@ func (q *DBMediaQuerier) getCreditsForEntity(ctx context.Context, mediaType stri
 func (q *DBMediaQuerier) getPrimaryAudioLanguage(ctx context.Context, mediaID int64) string {
 	// Use SQLC-generated query to get all audio tracks, then find primary language
 	if q.router.IsPostgresDB() {
-		tracks, err := q.postgres.GetAudioTracksByMediaID(ctx, int32(mediaID))
+		tracks, err := q.postgres.GetAudioTracksByMediaID(ctx, mediaID)
 		if err != nil || len(tracks) == 0 {
 			return ""
 		}
 		// Find the default track, or use the first one
 		for _, track := range tracks {
-			if track.IsDefault.Valid && track.IsDefault.Bool && track.Language.Valid && track.Language.String != "" {
+			if common.NullInt64ToBool(track.IsDefault) && track.Language.Valid && track.Language.String != "" {
 				return normalizeLanguageCode(track.Language.String)
 			}
 		}
@@ -239,7 +240,7 @@ func (q *DBMediaQuerier) getPrimaryAudioLanguage(ctx context.Context, mediaID in
 		}
 		// Find the default track, or use the first one
 		for _, track := range tracks {
-			if track.IsDefault.Valid && track.IsDefault.Bool && track.Language.Valid && track.Language.String != "" {
+			if common.NullInt64ToBool(track.IsDefault) && track.Language.Valid && track.Language.String != "" {
 				return normalizeLanguageCode(track.Language.String)
 			}
 		}
@@ -260,7 +261,7 @@ func (q *DBMediaQuerier) getStudiosForEntity(ctx context.Context, mediaType stri
 	if q.router.IsPostgresDB() {
 		rows, err := q.postgres.GetStudiosForEntity(ctx, sqlc_postgres.GetStudiosForEntityParams{
 			MediaType: mediaType,
-			EntityID:  int32(entityID),
+			EntityID:  entityID,
 		})
 		if err == nil {
 			for _, row := range rows {
@@ -290,7 +291,7 @@ func (q *DBMediaQuerier) getLocationKeywordsForEntity(ctx context.Context, media
 	if q.router.IsPostgresDB() {
 		rows, err := q.postgres.GetLocationKeywordsByEntity(ctx, sqlc_postgres.GetLocationKeywordsByEntityParams{
 			MediaType: mediaType,
-			EntityID:  int32(entityID),
+			EntityID:  entityID,
 		})
 		if err == nil {
 			for _, row := range rows {
@@ -320,7 +321,7 @@ func (q *DBMediaQuerier) getThemeKeywordsForEntity(ctx context.Context, mediaTyp
 	if q.router.IsPostgresDB() {
 		rows, err := q.postgres.GetThemeKeywordsByEntity(ctx, sqlc_postgres.GetThemeKeywordsByEntityParams{
 			MediaType: mediaType,
-			EntityID:  int32(entityID),
+			EntityID:  entityID,
 		})
 		if err == nil {
 			for _, row := range rows {

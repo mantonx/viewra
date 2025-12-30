@@ -75,7 +75,7 @@ type CreateMusicTrackParams struct {
 	RecordLabel         sql.NullString `json:"record_label"`
 	Isrc                sql.NullString `json:"isrc"`
 	ReleaseType         sql.NullString `json:"release_type"`
-	Compilation         sql.NullBool   `json:"compilation"`
+	Compilation         sql.NullInt64  `json:"compilation"`
 	MusicbrainzTrackID  sql.NullString `json:"musicbrainz_track_id"`
 	MusicbrainzAlbumID  sql.NullString `json:"musicbrainz_album_id"`
 	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
@@ -185,7 +185,7 @@ type GetMusicTrackByMediaIDRow struct {
 	RecordLabel         sql.NullString  `json:"record_label"`
 	Isrc                sql.NullString  `json:"isrc"`
 	ReleaseType         sql.NullString  `json:"release_type"`
-	Compilation         sql.NullBool    `json:"compilation"`
+	Compilation         sql.NullInt64   `json:"compilation"`
 	MusicbrainzTrackID  sql.NullString  `json:"musicbrainz_track_id"`
 	MusicbrainzAlbumID  sql.NullString  `json:"musicbrainz_album_id"`
 	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
@@ -218,12 +218,12 @@ type GetMusicTrackByMediaIDRow struct {
 	SourceType          sql.NullString  `json:"source_type"`
 	ResolutionLabel     sql.NullString  `json:"resolution_label"`
 	QualityScore        sql.NullInt64   `json:"quality_score"`
-	Is3d                sql.NullBool    `json:"is_3d"`
+	Is3d                sql.NullInt64   `json:"is_3d"`
 	StereoMode          sql.NullString  `json:"stereo_mode"`
-	HasDash             sql.NullBool    `json:"has_dash"`
+	HasDash             sql.NullInt64   `json:"has_dash"`
 	DashManifestPath    sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus   sql.NullString  `json:"transcoding_status"`
-	IsExtra             bool            `json:"is_extra"`
+	IsExtra             int64           `json:"is_extra"`
 	DateAdded           sql.NullTime    `json:"date_added"`
 	DateModified        sql.NullTime    `json:"date_modified"`
 	CreatedAt           sql.NullTime    `json:"created_at"`
@@ -608,7 +608,7 @@ type ListMusicTracksByAlbumRow struct {
 	RecordLabel         sql.NullString  `json:"record_label"`
 	Isrc                sql.NullString  `json:"isrc"`
 	ReleaseType         sql.NullString  `json:"release_type"`
-	Compilation         sql.NullBool    `json:"compilation"`
+	Compilation         sql.NullInt64   `json:"compilation"`
 	MusicbrainzTrackID  sql.NullString  `json:"musicbrainz_track_id"`
 	MusicbrainzAlbumID  sql.NullString  `json:"musicbrainz_album_id"`
 	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
@@ -641,12 +641,12 @@ type ListMusicTracksByAlbumRow struct {
 	SourceType          sql.NullString  `json:"source_type"`
 	ResolutionLabel     sql.NullString  `json:"resolution_label"`
 	QualityScore        sql.NullInt64   `json:"quality_score"`
-	Is3d                sql.NullBool    `json:"is_3d"`
+	Is3d                sql.NullInt64   `json:"is_3d"`
 	StereoMode          sql.NullString  `json:"stereo_mode"`
-	HasDash             sql.NullBool    `json:"has_dash"`
+	HasDash             sql.NullInt64   `json:"has_dash"`
 	DashManifestPath    sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus   sql.NullString  `json:"transcoding_status"`
-	IsExtra             bool            `json:"is_extra"`
+	IsExtra             int64           `json:"is_extra"`
 	DateAdded           sql.NullTime    `json:"date_added"`
 	DateModified        sql.NullTime    `json:"date_modified"`
 	CreatedAt           sql.NullTime    `json:"created_at"`
@@ -802,7 +802,7 @@ type ListMusicTracksByAlbumArtistRow struct {
 	RecordLabel         sql.NullString  `json:"record_label"`
 	Isrc                sql.NullString  `json:"isrc"`
 	ReleaseType         sql.NullString  `json:"release_type"`
-	Compilation         sql.NullBool    `json:"compilation"`
+	Compilation         sql.NullInt64   `json:"compilation"`
 	MusicbrainzTrackID  sql.NullString  `json:"musicbrainz_track_id"`
 	MusicbrainzAlbumID  sql.NullString  `json:"musicbrainz_album_id"`
 	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
@@ -835,12 +835,12 @@ type ListMusicTracksByAlbumArtistRow struct {
 	SourceType          sql.NullString  `json:"source_type"`
 	ResolutionLabel     sql.NullString  `json:"resolution_label"`
 	QualityScore        sql.NullInt64   `json:"quality_score"`
-	Is3d                sql.NullBool    `json:"is_3d"`
+	Is3d                sql.NullInt64   `json:"is_3d"`
 	StereoMode          sql.NullString  `json:"stereo_mode"`
-	HasDash             sql.NullBool    `json:"has_dash"`
+	HasDash             sql.NullInt64   `json:"has_dash"`
 	DashManifestPath    sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus   sql.NullString  `json:"transcoding_status"`
-	IsExtra             bool            `json:"is_extra"`
+	IsExtra             int64           `json:"is_extra"`
 	DateAdded           sql.NullTime    `json:"date_added"`
 	DateModified        sql.NullTime    `json:"date_modified"`
 	CreatedAt           sql.NullTime    `json:"created_at"`
@@ -991,7 +991,7 @@ type ListMusicTracksByAlbumIDRow struct {
 	RecordLabel         sql.NullString  `json:"record_label"`
 	Isrc                sql.NullString  `json:"isrc"`
 	ReleaseType         sql.NullString  `json:"release_type"`
-	Compilation         sql.NullBool    `json:"compilation"`
+	Compilation         sql.NullInt64   `json:"compilation"`
 	MusicbrainzTrackID  sql.NullString  `json:"musicbrainz_track_id"`
 	MusicbrainzAlbumID  sql.NullString  `json:"musicbrainz_album_id"`
 	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
@@ -1024,12 +1024,12 @@ type ListMusicTracksByAlbumIDRow struct {
 	SourceType          sql.NullString  `json:"source_type"`
 	ResolutionLabel     sql.NullString  `json:"resolution_label"`
 	QualityScore        sql.NullInt64   `json:"quality_score"`
-	Is3d                sql.NullBool    `json:"is_3d"`
+	Is3d                sql.NullInt64   `json:"is_3d"`
 	StereoMode          sql.NullString  `json:"stereo_mode"`
-	HasDash             sql.NullBool    `json:"has_dash"`
+	HasDash             sql.NullInt64   `json:"has_dash"`
 	DashManifestPath    sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus   sql.NullString  `json:"transcoding_status"`
-	IsExtra             bool            `json:"is_extra"`
+	IsExtra             int64           `json:"is_extra"`
 	DateAdded           sql.NullTime    `json:"date_added"`
 	DateModified        sql.NullTime    `json:"date_modified"`
 	CreatedAt           sql.NullTime    `json:"created_at"`
@@ -1187,7 +1187,7 @@ type ListMusicTracksByArtistRow struct {
 	RecordLabel         sql.NullString  `json:"record_label"`
 	Isrc                sql.NullString  `json:"isrc"`
 	ReleaseType         sql.NullString  `json:"release_type"`
-	Compilation         sql.NullBool    `json:"compilation"`
+	Compilation         sql.NullInt64   `json:"compilation"`
 	MusicbrainzTrackID  sql.NullString  `json:"musicbrainz_track_id"`
 	MusicbrainzAlbumID  sql.NullString  `json:"musicbrainz_album_id"`
 	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
@@ -1220,12 +1220,12 @@ type ListMusicTracksByArtistRow struct {
 	SourceType          sql.NullString  `json:"source_type"`
 	ResolutionLabel     sql.NullString  `json:"resolution_label"`
 	QualityScore        sql.NullInt64   `json:"quality_score"`
-	Is3d                sql.NullBool    `json:"is_3d"`
+	Is3d                sql.NullInt64   `json:"is_3d"`
 	StereoMode          sql.NullString  `json:"stereo_mode"`
-	HasDash             sql.NullBool    `json:"has_dash"`
+	HasDash             sql.NullInt64   `json:"has_dash"`
 	DashManifestPath    sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus   sql.NullString  `json:"transcoding_status"`
-	IsExtra             bool            `json:"is_extra"`
+	IsExtra             int64           `json:"is_extra"`
 	DateAdded           sql.NullTime    `json:"date_added"`
 	DateModified        sql.NullTime    `json:"date_modified"`
 	CreatedAt           sql.NullTime    `json:"created_at"`
@@ -1376,7 +1376,7 @@ type ListMusicTracksByLibraryRow struct {
 	RecordLabel         sql.NullString  `json:"record_label"`
 	Isrc                sql.NullString  `json:"isrc"`
 	ReleaseType         sql.NullString  `json:"release_type"`
-	Compilation         sql.NullBool    `json:"compilation"`
+	Compilation         sql.NullInt64   `json:"compilation"`
 	MusicbrainzTrackID  sql.NullString  `json:"musicbrainz_track_id"`
 	MusicbrainzAlbumID  sql.NullString  `json:"musicbrainz_album_id"`
 	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
@@ -1409,12 +1409,12 @@ type ListMusicTracksByLibraryRow struct {
 	SourceType          sql.NullString  `json:"source_type"`
 	ResolutionLabel     sql.NullString  `json:"resolution_label"`
 	QualityScore        sql.NullInt64   `json:"quality_score"`
-	Is3d                sql.NullBool    `json:"is_3d"`
+	Is3d                sql.NullInt64   `json:"is_3d"`
 	StereoMode          sql.NullString  `json:"stereo_mode"`
-	HasDash             sql.NullBool    `json:"has_dash"`
+	HasDash             sql.NullInt64   `json:"has_dash"`
 	DashManifestPath    sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus   sql.NullString  `json:"transcoding_status"`
-	IsExtra             bool            `json:"is_extra"`
+	IsExtra             int64           `json:"is_extra"`
 	DateAdded           sql.NullTime    `json:"date_added"`
 	DateModified        sql.NullTime    `json:"date_modified"`
 	CreatedAt           sql.NullTime    `json:"created_at"`
@@ -1572,7 +1572,7 @@ type ListMusicTracksByLibraryPaginatedRow struct {
 	RecordLabel         sql.NullString  `json:"record_label"`
 	Isrc                sql.NullString  `json:"isrc"`
 	ReleaseType         sql.NullString  `json:"release_type"`
-	Compilation         sql.NullBool    `json:"compilation"`
+	Compilation         sql.NullInt64   `json:"compilation"`
 	MusicbrainzTrackID  sql.NullString  `json:"musicbrainz_track_id"`
 	MusicbrainzAlbumID  sql.NullString  `json:"musicbrainz_album_id"`
 	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
@@ -1605,12 +1605,12 @@ type ListMusicTracksByLibraryPaginatedRow struct {
 	SourceType          sql.NullString  `json:"source_type"`
 	ResolutionLabel     sql.NullString  `json:"resolution_label"`
 	QualityScore        sql.NullInt64   `json:"quality_score"`
-	Is3d                sql.NullBool    `json:"is_3d"`
+	Is3d                sql.NullInt64   `json:"is_3d"`
 	StereoMode          sql.NullString  `json:"stereo_mode"`
-	HasDash             sql.NullBool    `json:"has_dash"`
+	HasDash             sql.NullInt64   `json:"has_dash"`
 	DashManifestPath    sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus   sql.NullString  `json:"transcoding_status"`
-	IsExtra             bool            `json:"is_extra"`
+	IsExtra             int64           `json:"is_extra"`
 	DateAdded           sql.NullTime    `json:"date_added"`
 	DateModified        sql.NullTime    `json:"date_modified"`
 	CreatedAt           sql.NullTime    `json:"created_at"`
@@ -1768,7 +1768,7 @@ type ListMusicTracksByLibraryPaginatedDescRow struct {
 	RecordLabel         sql.NullString  `json:"record_label"`
 	Isrc                sql.NullString  `json:"isrc"`
 	ReleaseType         sql.NullString  `json:"release_type"`
-	Compilation         sql.NullBool    `json:"compilation"`
+	Compilation         sql.NullInt64   `json:"compilation"`
 	MusicbrainzTrackID  sql.NullString  `json:"musicbrainz_track_id"`
 	MusicbrainzAlbumID  sql.NullString  `json:"musicbrainz_album_id"`
 	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
@@ -1801,12 +1801,12 @@ type ListMusicTracksByLibraryPaginatedDescRow struct {
 	SourceType          sql.NullString  `json:"source_type"`
 	ResolutionLabel     sql.NullString  `json:"resolution_label"`
 	QualityScore        sql.NullInt64   `json:"quality_score"`
-	Is3d                sql.NullBool    `json:"is_3d"`
+	Is3d                sql.NullInt64   `json:"is_3d"`
 	StereoMode          sql.NullString  `json:"stereo_mode"`
-	HasDash             sql.NullBool    `json:"has_dash"`
+	HasDash             sql.NullInt64   `json:"has_dash"`
 	DashManifestPath    sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus   sql.NullString  `json:"transcoding_status"`
-	IsExtra             bool            `json:"is_extra"`
+	IsExtra             int64           `json:"is_extra"`
 	DateAdded           sql.NullTime    `json:"date_added"`
 	DateModified        sql.NullTime    `json:"date_modified"`
 	CreatedAt           sql.NullTime    `json:"created_at"`
@@ -1965,7 +1965,7 @@ type SearchMusicTracksRow struct {
 	RecordLabel         sql.NullString  `json:"record_label"`
 	Isrc                sql.NullString  `json:"isrc"`
 	ReleaseType         sql.NullString  `json:"release_type"`
-	Compilation         sql.NullBool    `json:"compilation"`
+	Compilation         sql.NullInt64   `json:"compilation"`
 	MusicbrainzTrackID  sql.NullString  `json:"musicbrainz_track_id"`
 	MusicbrainzAlbumID  sql.NullString  `json:"musicbrainz_album_id"`
 	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
@@ -1998,12 +1998,12 @@ type SearchMusicTracksRow struct {
 	SourceType          sql.NullString  `json:"source_type"`
 	ResolutionLabel     sql.NullString  `json:"resolution_label"`
 	QualityScore        sql.NullInt64   `json:"quality_score"`
-	Is3d                sql.NullBool    `json:"is_3d"`
+	Is3d                sql.NullInt64   `json:"is_3d"`
 	StereoMode          sql.NullString  `json:"stereo_mode"`
-	HasDash             sql.NullBool    `json:"has_dash"`
+	HasDash             sql.NullInt64   `json:"has_dash"`
 	DashManifestPath    sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus   sql.NullString  `json:"transcoding_status"`
-	IsExtra             bool            `json:"is_extra"`
+	IsExtra             int64           `json:"is_extra"`
 	DateAdded           sql.NullTime    `json:"date_added"`
 	DateModified        sql.NullTime    `json:"date_modified"`
 	CreatedAt           sql.NullTime    `json:"created_at"`
@@ -2142,7 +2142,7 @@ type UpdateMusicTrackParams struct {
 	RecordLabel         sql.NullString `json:"record_label"`
 	Isrc                sql.NullString `json:"isrc"`
 	ReleaseType         sql.NullString `json:"release_type"`
-	Compilation         sql.NullBool   `json:"compilation"`
+	Compilation         sql.NullInt64  `json:"compilation"`
 	MusicbrainzTrackID  sql.NullString `json:"musicbrainz_track_id"`
 	MusicbrainzAlbumID  sql.NullString `json:"musicbrainz_album_id"`
 	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`

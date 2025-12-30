@@ -143,24 +143,19 @@ func (s *StorageServer) KVSet(ctx context.Context, req *pluginv1.KVEntry) (*plug
 	}
 
 	// Calculate expiration time
-	var expiresAt sql.NullString
+	var expiresAt sql.NullTime
 	if req.TtlSeconds > 0 {
 		expiry := time.Now().Add(time.Duration(req.TtlSeconds) * time.Second)
-		expiresAt = sql.NullString{String: expiry.Format(time.RFC3339), Valid: true}
+		expiresAt = sql.NullTime{Time: expiry, Valid: true}
 	}
 
 	_, err := s.router.Route(
 		func() (any, error) {
-			var pgExpiry sql.NullTime
-			if expiresAt.Valid {
-				t, _ := time.Parse(time.RFC3339, expiresAt.String)
-				pgExpiry = sql.NullTime{Time: t, Valid: true}
-			}
 			return nil, s.postgres.PluginKVSet(ctx, sqlc_postgres.PluginKVSetParams{
 				PluginID:  pluginID,
 				Key:       req.Key,
 				Value:     req.Value,
-				ExpiresAt: pgExpiry,
+				ExpiresAt: expiresAt,
 			})
 		},
 		func() (any, error) {

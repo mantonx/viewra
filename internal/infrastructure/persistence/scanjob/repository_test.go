@@ -64,7 +64,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		phase TEXT DEFAULT 'processing' CHECK(phase IN ('discovering', 'processing', 'completed')),
 		estimated_total INTEGER DEFAULT 0,
-		discovery_done BOOLEAN DEFAULT 1,
+		discovery_done INTEGER DEFAULT 1,
 		last_checkpoint_at DATETIME,
 		resume_count INTEGER DEFAULT 0,
 		dirs_scanned INTEGER DEFAULT 0,

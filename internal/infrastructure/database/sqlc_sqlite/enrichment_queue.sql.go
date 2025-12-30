@@ -222,7 +222,7 @@ WHERE id = ?
 type FailEnrichmentJobParams struct {
 	ErrorMessage  sql.NullString `json:"error_message"`
 	ErrorCategory sql.NullString `json:"error_category"`
-	NextRetryAt   sql.NullString `json:"next_retry_at"`
+	NextRetryAt   sql.NullTime   `json:"next_retry_at"`
 	ID            int64          `json:"id"`
 }
 
@@ -408,8 +408,8 @@ type GetEnrichmentQueueStatsByMediaRow struct {
 	Status       sql.NullString `json:"status"`
 	Attempts     sql.NullInt64  `json:"attempts"`
 	ErrorMessage sql.NullString `json:"error_message"`
-	CreatedAt    sql.NullString `json:"created_at"`
-	UpdatedAt    sql.NullString `json:"updated_at"`
+	CreatedAt    sql.NullTime   `json:"created_at"`
+	UpdatedAt    sql.NullTime   `json:"updated_at"`
 }
 
 func (q *Queries) GetEnrichmentQueueStatsByMedia(ctx context.Context, mediaID int64) ([]GetEnrichmentQueueStatsByMediaRow, error) {
@@ -490,7 +490,7 @@ type GetLibraryEnrichmentFailuresRow struct {
 	MaxAttempts   sql.NullInt64  `json:"max_attempts"`
 	ErrorMessage  sql.NullString `json:"error_message"`
 	ErrorCategory sql.NullString `json:"error_category"`
-	LastAttemptAt sql.NullString `json:"last_attempt_at"`
+	LastAttemptAt sql.NullTime   `json:"last_attempt_at"`
 	Title         string         `json:"title"`
 }
 
@@ -693,7 +693,7 @@ WHERE id = ?
 type RequeueEnrichmentJobParams struct {
 	ErrorMessage  sql.NullString `json:"error_message"`
 	ErrorCategory sql.NullString `json:"error_category"`
-	NextRetryAt   sql.NullString `json:"next_retry_at"`
+	NextRetryAt   sql.NullTime   `json:"next_retry_at"`
 	ID            int64          `json:"id"`
 }
 

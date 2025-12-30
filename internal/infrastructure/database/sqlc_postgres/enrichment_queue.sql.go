@@ -17,8 +17,8 @@ WHERE media_id = $2 AND media_type = $3 AND status IN ('pending', 'processing')
 `
 
 type BoostPriorityParams struct {
-	Priority  sql.NullInt32 `json:"priority"`
-	MediaID   int32         `json:"media_id"`
+	Priority  sql.NullInt64 `json:"priority"`
+	MediaID   int64         `json:"media_id"`
 	MediaType string        `json:"media_type"`
 }
 
@@ -46,7 +46,7 @@ WHERE id IN (
     LIMIT $3
     FOR UPDATE SKIP LOCKED
 )
-RETURNING id, media_id, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, media_type, library_id
+RETURNING id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, library_id
 `
 
 type ClaimEnrichmentJobsParams struct {
@@ -67,6 +67,7 @@ func (q *Queries) ClaimEnrichmentJobs(ctx context.Context, arg ClaimEnrichmentJo
 		if err := rows.Scan(
 			&i.ID,
 			&i.MediaID,
+			&i.MediaType,
 			&i.Stage,
 			&i.Priority,
 			&i.Status,
@@ -79,7 +80,6 @@ func (q *Queries) ClaimEnrichmentJobs(ctx context.Context, arg ClaimEnrichmentJo
 			&i.LockedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.MediaType,
 			&i.LibraryID,
 		); err != nil {
 			return nil, err
@@ -105,7 +105,7 @@ SET
 WHERE id = $1
 `
 
-func (q *Queries) CompleteEnrichmentJob(ctx context.Context, id int32) error {
+func (q *Queries) CompleteEnrichmentJob(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, completeEnrichmentJob, id)
 	return err
 }
@@ -117,7 +117,7 @@ WHERE library_id = $1 AND status = 'failed'
 `
 
 // Count total failed enrichment jobs for a library.
-func (q *Queries) CountLibraryEnrichmentFailures(ctx context.Context, libraryID sql.NullInt32) (int64, error) {
+func (q *Queries) CountLibraryEnrichmentFailures(ctx context.Context, libraryID sql.NullInt64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countLibraryEnrichmentFailures, libraryID)
 	var total int64
 	err := row.Scan(&total)
@@ -129,7 +129,7 @@ DELETE FROM enrichment_queue WHERE media_id = $1 AND media_type = $2
 `
 
 type DeleteEnrichmentJobsByMediaParams struct {
-	MediaID   int32  `json:"media_id"`
+	MediaID   int64  `json:"media_id"`
 	MediaType string `json:"media_type"`
 }
 
@@ -159,16 +159,16 @@ ON CONFLICT(media_id, media_type, stage) DO UPDATE SET
     error_message = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN NULL ELSE enrichment_queue.error_message END,
     error_category = CASE WHEN enrichment_queue.status IN ('completed', 'skipped', 'failed') THEN NULL ELSE enrichment_queue.error_category END,
     updated_at = NOW()
-RETURNING id, media_id, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, media_type, library_id
+RETURNING id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, library_id
 `
 
 type EnqueueEnrichmentJobParams struct {
-	MediaID     int32         `json:"media_id"`
-	LibraryID   sql.NullInt32 `json:"library_id"`
+	MediaID     int64         `json:"media_id"`
+	LibraryID   sql.NullInt64 `json:"library_id"`
 	MediaType   string        `json:"media_type"`
 	Stage       string        `json:"stage"`
-	Priority    sql.NullInt32 `json:"priority"`
-	MaxAttempts sql.NullInt32 `json:"max_attempts"`
+	Priority    sql.NullInt64 `json:"priority"`
+	MaxAttempts sql.NullInt64 `json:"max_attempts"`
 }
 
 // Enqueue a job for enrichment processing. On conflict:
@@ -188,6 +188,7 @@ func (q *Queries) EnqueueEnrichmentJob(ctx context.Context, arg EnqueueEnrichmen
 	err := row.Scan(
 		&i.ID,
 		&i.MediaID,
+		&i.MediaType,
 		&i.Stage,
 		&i.Priority,
 		&i.Status,
@@ -200,7 +201,6 @@ func (q *Queries) EnqueueEnrichmentJob(ctx context.Context, arg EnqueueEnrichmen
 		&i.LockedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.MediaType,
 		&i.LibraryID,
 	)
 	return i, err
@@ -224,7 +224,7 @@ type FailEnrichmentJobParams struct {
 	ErrorMessage  sql.NullString `json:"error_message"`
 	ErrorCategory sql.NullString `json:"error_category"`
 	NextRetryAt   sql.NullTime   `json:"next_retry_at"`
-	ID            int32          `json:"id"`
+	ID            int64          `json:"id"`
 }
 
 func (q *Queries) FailEnrichmentJob(ctx context.Context, arg FailEnrichmentJobParams) error {
@@ -265,9 +265,9 @@ LIMIT 1
 `
 
 type GetCurrentEnrichmentItemRow struct {
-	ID        int32         `json:"id"`
-	MediaID   int32         `json:"media_id"`
-	LibraryID sql.NullInt32 `json:"library_id"`
+	ID        int64         `json:"id"`
+	MediaID   int64         `json:"media_id"`
+	LibraryID sql.NullInt64 `json:"library_id"`
 	MediaType string        `json:"media_type"`
 	Stage     string        `json:"stage"`
 	Title     string        `json:"title"`
@@ -276,7 +276,7 @@ type GetCurrentEnrichmentItemRow struct {
 // Get the currently processing enrichment item with its title for a library.
 // Joins with media/tv_shows/tv_seasons/music tables to get the title.
 // Returns the first processing item (by locked_at) for the library.
-func (q *Queries) GetCurrentEnrichmentItem(ctx context.Context, libraryID sql.NullInt32) (GetCurrentEnrichmentItemRow, error) {
+func (q *Queries) GetCurrentEnrichmentItem(ctx context.Context, libraryID sql.NullInt64) (GetCurrentEnrichmentItemRow, error) {
 	row := q.db.QueryRowContext(ctx, getCurrentEnrichmentItem, libraryID)
 	var i GetCurrentEnrichmentItemRow
 	err := row.Scan(
@@ -291,15 +291,16 @@ func (q *Queries) GetCurrentEnrichmentItem(ctx context.Context, libraryID sql.Nu
 }
 
 const getEnrichmentJob = `-- name: GetEnrichmentJob :one
-SELECT id, media_id, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, media_type, library_id FROM enrichment_queue WHERE id = $1
+SELECT id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, library_id FROM enrichment_queue WHERE id = $1
 `
 
-func (q *Queries) GetEnrichmentJob(ctx context.Context, id int32) (EnrichmentQueue, error) {
+func (q *Queries) GetEnrichmentJob(ctx context.Context, id int64) (EnrichmentQueue, error) {
 	row := q.db.QueryRowContext(ctx, getEnrichmentJob, id)
 	var i EnrichmentQueue
 	err := row.Scan(
 		&i.ID,
 		&i.MediaID,
+		&i.MediaType,
 		&i.Stage,
 		&i.Priority,
 		&i.Status,
@@ -312,18 +313,17 @@ func (q *Queries) GetEnrichmentJob(ctx context.Context, id int32) (EnrichmentQue
 		&i.LockedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.MediaType,
 		&i.LibraryID,
 	)
 	return i, err
 }
 
 const getEnrichmentJobByMediaAndStage = `-- name: GetEnrichmentJobByMediaAndStage :one
-SELECT id, media_id, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, media_type, library_id FROM enrichment_queue WHERE media_id = $1 AND media_type = $2 AND stage = $3
+SELECT id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, library_id FROM enrichment_queue WHERE media_id = $1 AND media_type = $2 AND stage = $3
 `
 
 type GetEnrichmentJobByMediaAndStageParams struct {
-	MediaID   int32  `json:"media_id"`
+	MediaID   int64  `json:"media_id"`
 	MediaType string `json:"media_type"`
 	Stage     string `json:"stage"`
 }
@@ -334,6 +334,7 @@ func (q *Queries) GetEnrichmentJobByMediaAndStage(ctx context.Context, arg GetEn
 	err := row.Scan(
 		&i.ID,
 		&i.MediaID,
+		&i.MediaType,
 		&i.Stage,
 		&i.Priority,
 		&i.Status,
@@ -346,7 +347,6 @@ func (q *Queries) GetEnrichmentJobByMediaAndStage(ctx context.Context, arg GetEn
 		&i.LockedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.MediaType,
 		&i.LibraryID,
 	)
 	return i, err
@@ -407,13 +407,13 @@ ORDER BY created_at
 type GetEnrichmentQueueStatsByMediaRow struct {
 	Stage        string         `json:"stage"`
 	Status       sql.NullString `json:"status"`
-	Attempts     sql.NullInt32  `json:"attempts"`
+	Attempts     sql.NullInt64  `json:"attempts"`
 	ErrorMessage sql.NullString `json:"error_message"`
 	CreatedAt    sql.NullTime   `json:"created_at"`
 	UpdatedAt    sql.NullTime   `json:"updated_at"`
 }
 
-func (q *Queries) GetEnrichmentQueueStatsByMedia(ctx context.Context, mediaID int32) ([]GetEnrichmentQueueStatsByMediaRow, error) {
+func (q *Queries) GetEnrichmentQueueStatsByMedia(ctx context.Context, mediaID int64) ([]GetEnrichmentQueueStatsByMediaRow, error) {
 	rows, err := q.db.QueryContext(ctx, getEnrichmentQueueStatsByMedia, mediaID)
 	if err != nil {
 		return nil, err
@@ -476,19 +476,19 @@ LIMIT $2 OFFSET $3
 `
 
 type GetLibraryEnrichmentFailuresParams struct {
-	LibraryID sql.NullInt32 `json:"library_id"`
+	LibraryID sql.NullInt64 `json:"library_id"`
 	Limit     int32         `json:"limit"`
 	Offset    int32         `json:"offset"`
 }
 
 type GetLibraryEnrichmentFailuresRow struct {
-	ID            int32          `json:"id"`
-	MediaID       int32          `json:"media_id"`
-	LibraryID     sql.NullInt32  `json:"library_id"`
+	ID            int64          `json:"id"`
+	MediaID       int64          `json:"media_id"`
+	LibraryID     sql.NullInt64  `json:"library_id"`
 	MediaType     string         `json:"media_type"`
 	Stage         string         `json:"stage"`
-	Attempts      sql.NullInt32  `json:"attempts"`
-	MaxAttempts   sql.NullInt32  `json:"max_attempts"`
+	Attempts      sql.NullInt64  `json:"attempts"`
+	MaxAttempts   sql.NullInt64  `json:"max_attempts"`
 	ErrorMessage  sql.NullString `json:"error_message"`
 	ErrorCategory sql.NullString `json:"error_category"`
 	LastAttemptAt sql.NullTime   `json:"last_attempt_at"`
@@ -571,7 +571,7 @@ AND NOT EXISTS (
 
 type GetOrphanedPipelineStatesRow struct {
 	MediaType      string `json:"media_type"`
-	MediaID        int32  `json:"media_id"`
+	MediaID        int64  `json:"media_id"`
 	CompletedStage string `json:"completed_stage"`
 	NextStage      string `json:"next_stage"`
 }
@@ -608,7 +608,7 @@ func (q *Queries) GetOrphanedPipelineStates(ctx context.Context) ([]GetOrphanedP
 }
 
 const getRetryableEnrichmentJobs = `-- name: GetRetryableEnrichmentJobs :many
-SELECT id, media_id, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, media_type, library_id FROM enrichment_queue
+SELECT id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, library_id FROM enrichment_queue
 WHERE status = 'failed'
   AND next_retry_at IS NOT NULL
   AND next_retry_at <= NOW()
@@ -634,6 +634,7 @@ func (q *Queries) GetRetryableEnrichmentJobs(ctx context.Context, arg GetRetryab
 		if err := rows.Scan(
 			&i.ID,
 			&i.MediaID,
+			&i.MediaType,
 			&i.Stage,
 			&i.Priority,
 			&i.Status,
@@ -646,7 +647,6 @@ func (q *Queries) GetRetryableEnrichmentJobs(ctx context.Context, arg GetRetryab
 			&i.LockedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.MediaType,
 			&i.LibraryID,
 		); err != nil {
 			return nil, err
@@ -695,7 +695,7 @@ type RequeueEnrichmentJobParams struct {
 	ErrorMessage  sql.NullString `json:"error_message"`
 	ErrorCategory sql.NullString `json:"error_category"`
 	NextRetryAt   sql.NullTime   `json:"next_retry_at"`
-	ID            int32          `json:"id"`
+	ID            int64          `json:"id"`
 }
 
 // Re-queue a job for retry without incrementing the attempt count.
@@ -721,7 +721,7 @@ SET
 WHERE id = $1
 `
 
-func (q *Queries) ResetEnrichmentJobForRetry(ctx context.Context, id int32) error {
+func (q *Queries) ResetEnrichmentJobForRetry(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, resetEnrichmentJobForRetry, id)
 	return err
 }
@@ -739,7 +739,7 @@ WHERE id = $1 AND status = 'failed'
 `
 
 // Reset a single failed job to pending for retry.
-func (q *Queries) RetryEnrichmentJob(ctx context.Context, id int32) error {
+func (q *Queries) RetryEnrichmentJob(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, retryEnrichmentJob, id)
 	return err
 }
@@ -757,7 +757,7 @@ WHERE library_id = $1 AND status = 'failed'
 `
 
 // Reset all failed jobs for a library to pending for retry.
-func (q *Queries) RetryEnrichmentJobsByLibrary(ctx context.Context, libraryID sql.NullInt32) (int64, error) {
+func (q *Queries) RetryEnrichmentJobsByLibrary(ctx context.Context, libraryID sql.NullInt64) (int64, error) {
 	result, err := q.db.ExecContext(ctx, retryEnrichmentJobsByLibrary, libraryID)
 	if err != nil {
 		return 0, err
@@ -775,7 +775,7 @@ SET
 WHERE id = $1
 `
 
-func (q *Queries) SkipEnrichmentJob(ctx context.Context, id int32) error {
+func (q *Queries) SkipEnrichmentJob(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, skipEnrichmentJob, id)
 	return err
 }
@@ -787,8 +787,8 @@ WHERE media_id = $2 AND media_type = $3 AND status IN ('pending', 'processing') 
 `
 
 type UpdatePriorityByMediaParams struct {
-	Priority  sql.NullInt32 `json:"priority"`
-	MediaID   int32         `json:"media_id"`
+	Priority  sql.NullInt64 `json:"priority"`
+	MediaID   int64         `json:"media_id"`
 	MediaType string        `json:"media_type"`
 }
 

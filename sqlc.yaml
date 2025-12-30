@@ -26,7 +26,43 @@ sql:
         emit_exact_table_names: false
         emit_empty_slices: true
         overrides:
-          - column: "users.id"
-            go_type: "int32"
-          - column: "sessions.id"
-            go_type: "int32"
+          # Unify integer types: PostgreSQL int4/serial -> int64 to match SQLite
+          - db_type: "pg_catalog.int4"
+            go_type: "int64"
+          - db_type: "pg_catalog.int4"
+            nullable: true
+            go_type:
+              type: "sql.NullInt64"
+          - db_type: "pg_catalog.int2"
+            go_type: "int64"
+          - db_type: "pg_catalog.int2"
+            nullable: true
+            go_type:
+              type: "sql.NullInt64"
+          # SERIAL is an alias for int4 with auto-increment
+          - db_type: "serial"
+            go_type: "int64"
+          - db_type: "serial4"
+            go_type: "int64"
+          # Unify boolean types: PostgreSQL bool -> int64 to match SQLite INTEGER
+          # SQLite doesn't have native boolean, uses INTEGER (0/1)
+          - db_type: "pg_catalog.bool"
+            go_type: "int64"
+          - db_type: "pg_catalog.bool"
+            nullable: true
+            go_type:
+              type: "sql.NullInt64"
+          # Unify JSON types: PostgreSQL jsonb -> sql.NullString to match SQLite TEXT
+          # PostgreSQL still validates JSON at the schema level
+          - db_type: "pg_catalog.jsonb"
+            nullable: true
+            go_type:
+              type: "sql.NullString"
+          - db_type: "pg_catalog.jsonb"
+            go_type: "string"
+          - db_type: "pg_catalog.json"
+            nullable: true
+            go_type:
+              type: "sql.NullString"
+          - db_type: "pg_catalog.json"
+            go_type: "string"

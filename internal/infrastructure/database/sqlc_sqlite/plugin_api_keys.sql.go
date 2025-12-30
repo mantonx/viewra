@@ -29,11 +29,11 @@ VALUES (?, ?, ?, ?, ?, datetime('now'))
 `
 
 type CreatePluginAPIKeyParams struct {
-	ID          string         `json:"id"`
-	PluginID    string         `json:"plugin_id"`
-	KeyHash     string         `json:"key_hash"`
-	Permissions string         `json:"permissions"`
-	ExpiresAt   sql.NullString `json:"expires_at"`
+	ID          string       `json:"id"`
+	PluginID    string       `json:"plugin_id"`
+	KeyHash     string       `json:"key_hash"`
+	Permissions string       `json:"permissions"`
+	ExpiresAt   sql.NullTime `json:"expires_at"`
 }
 
 func (q *Queries) CreatePluginAPIKey(ctx context.Context, arg CreatePluginAPIKeyParams) error {

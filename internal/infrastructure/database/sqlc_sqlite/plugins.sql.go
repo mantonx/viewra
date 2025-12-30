@@ -8,6 +8,7 @@ package sqlc_sqlite
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 const createPlugin = `-- name: CreatePlugin :exec
@@ -32,7 +33,7 @@ type CreatePluginParams struct {
 	Enabled       sql.NullInt64  `json:"enabled"`
 	Path          sql.NullString `json:"path"`
 	HealthStatus  sql.NullString `json:"health_status"`
-	LastHeartbeat sql.NullString `json:"last_heartbeat"`
+	LastHeartbeat sql.NullTime   `json:"last_heartbeat"`
 	RestartCount  sql.NullInt64  `json:"restart_count"`
 }
 
@@ -106,12 +107,12 @@ type GetPluginRow struct {
 	Enabled        sql.NullInt64  `json:"enabled"`
 	Path           sql.NullString `json:"path"`
 	HealthStatus   sql.NullString `json:"health_status"`
-	LastHeartbeat  sql.NullString `json:"last_heartbeat"`
+	LastHeartbeat  sql.NullTime   `json:"last_heartbeat"`
 	RestartCount   sql.NullInt64  `json:"restart_count"`
 	Settings       sql.NullString `json:"settings"`
 	SettingsSchema sql.NullString `json:"settings_schema"`
-	InstalledAt    string         `json:"installed_at"`
-	UpdatedAt      string         `json:"updated_at"`
+	InstalledAt    time.Time      `json:"installed_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
 func (q *Queries) GetPlugin(ctx context.Context, id string) (GetPluginRow, error) {
@@ -187,12 +188,12 @@ type ListEnabledPluginsRow struct {
 	Enabled        sql.NullInt64  `json:"enabled"`
 	Path           sql.NullString `json:"path"`
 	HealthStatus   sql.NullString `json:"health_status"`
-	LastHeartbeat  sql.NullString `json:"last_heartbeat"`
+	LastHeartbeat  sql.NullTime   `json:"last_heartbeat"`
 	RestartCount   sql.NullInt64  `json:"restart_count"`
 	Settings       sql.NullString `json:"settings"`
 	SettingsSchema sql.NullString `json:"settings_schema"`
-	InstalledAt    string         `json:"installed_at"`
-	UpdatedAt      string         `json:"updated_at"`
+	InstalledAt    time.Time      `json:"installed_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
 func (q *Queries) ListEnabledPlugins(ctx context.Context) ([]ListEnabledPluginsRow, error) {
@@ -260,12 +261,12 @@ type ListPluginsRow struct {
 	Enabled        sql.NullInt64  `json:"enabled"`
 	Path           sql.NullString `json:"path"`
 	HealthStatus   sql.NullString `json:"health_status"`
-	LastHeartbeat  sql.NullString `json:"last_heartbeat"`
+	LastHeartbeat  sql.NullTime   `json:"last_heartbeat"`
 	RestartCount   sql.NullInt64  `json:"restart_count"`
 	Settings       sql.NullString `json:"settings"`
 	SettingsSchema sql.NullString `json:"settings_schema"`
-	InstalledAt    string         `json:"installed_at"`
-	UpdatedAt      string         `json:"updated_at"`
+	InstalledAt    time.Time      `json:"installed_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
 func (q *Queries) ListPlugins(ctx context.Context) ([]ListPluginsRow, error) {
@@ -334,12 +335,12 @@ type ListPluginsByCategoryRow struct {
 	Enabled        sql.NullInt64  `json:"enabled"`
 	Path           sql.NullString `json:"path"`
 	HealthStatus   sql.NullString `json:"health_status"`
-	LastHeartbeat  sql.NullString `json:"last_heartbeat"`
+	LastHeartbeat  sql.NullTime   `json:"last_heartbeat"`
 	RestartCount   sql.NullInt64  `json:"restart_count"`
 	Settings       sql.NullString `json:"settings"`
 	SettingsSchema sql.NullString `json:"settings_schema"`
-	InstalledAt    string         `json:"installed_at"`
-	UpdatedAt      string         `json:"updated_at"`
+	InstalledAt    time.Time      `json:"installed_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
 func (q *Queries) ListPluginsByCategory(ctx context.Context, dollar_1 sql.NullString) ([]ListPluginsByCategoryRow, error) {

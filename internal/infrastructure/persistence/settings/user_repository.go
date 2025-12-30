@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"time"
 
 	"github.com/mantonx/viewra/internal/domain/settings"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
@@ -99,7 +98,7 @@ func (r *UserRepository) Set(ctx context.Context, setting *settings.UserSetting)
 			UserID:    setting.UserID,
 			Key:       setting.Key,
 			Value:     setting.Value,
-			UpdatedAt: setting.UpdatedAt.Format(time.RFC3339),
+			UpdatedAt: setting.UpdatedAt,
 		})
 	}
 
@@ -139,12 +138,11 @@ func (r *UserRepository) DeleteAll(ctx context.Context, userID string) error {
 // Conversion helpers
 
 func sqliteUserSettingToEntity(row sqlc_sqlite.UserSetting) *settings.UserSetting {
-	updatedAt, _ := time.Parse(time.RFC3339, row.UpdatedAt)
 	return &settings.UserSetting{
 		UserID:    row.UserID,
 		Key:       row.Key,
 		Value:     row.Value,
-		UpdatedAt: updatedAt,
+		UpdatedAt: row.UpdatedAt,
 	}
 }
 

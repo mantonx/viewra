@@ -8,7 +8,6 @@ package sqlc_postgres
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 )
 
 const countPluginAPIKeys = `-- name: CountPluginAPIKeys :one
@@ -30,11 +29,11 @@ VALUES ($1, $2, $3, $4, $5, NOW())
 `
 
 type CreatePluginAPIKeyParams struct {
-	ID          string          `json:"id"`
-	PluginID    string          `json:"plugin_id"`
-	KeyHash     string          `json:"key_hash"`
-	Permissions json.RawMessage `json:"permissions"`
-	ExpiresAt   sql.NullTime    `json:"expires_at"`
+	ID          string       `json:"id"`
+	PluginID    string       `json:"plugin_id"`
+	KeyHash     string       `json:"key_hash"`
+	Permissions string       `json:"permissions"`
+	ExpiresAt   sql.NullTime `json:"expires_at"`
 }
 
 func (q *Queries) CreatePluginAPIKey(ctx context.Context, arg CreatePluginAPIKeyParams) error {

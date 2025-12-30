@@ -18,7 +18,7 @@ WHERE med.library_id = $1
   AND med.is_extra = false
 `
 
-func (q *Queries) CountMoviesByLibrary(ctx context.Context, libraryID int32) (int64, error) {
+func (q *Queries) CountMoviesByLibrary(ctx context.Context, libraryID int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countMoviesByLibrary, libraryID)
 	var count int64
 	err := row.Scan(&count)
@@ -35,7 +35,7 @@ WHERE med.library_id = $1
 `
 
 type CountSearchMoviesByTitleParams struct {
-	LibraryID     int32          `json:"library_id"`
+	LibraryID     int64          `json:"library_id"`
 	Title         string         `json:"title"`
 	OriginalTitle sql.NullString `json:"original_title"`
 }
@@ -64,29 +64,29 @@ INSERT INTO movies (
 `
 
 type CreateMovieParams struct {
-	MediaID           int32           `json:"media_id"`
-	Year              sql.NullInt32   `json:"year"`
+	MediaID           int64           `json:"media_id"`
+	Year              sql.NullInt64   `json:"year"`
 	ReleaseDate       sql.NullTime    `json:"release_date"`
 	Genre             sql.NullString  `json:"genre"`
 	Director          sql.NullString  `json:"director"`
 	Cast              sql.NullString  `json:"cast"`
 	ContentRating     sql.NullString  `json:"content_rating"`
-	MaturityRating    sql.NullInt32   `json:"maturity_rating"`
+	MaturityRating    sql.NullInt64   `json:"maturity_rating"`
 	ContentAdvisories sql.NullString  `json:"content_advisories"`
 	Plot              sql.NullString  `json:"plot"`
 	Tagline           sql.NullString  `json:"tagline"`
 	OriginalTitle     sql.NullString  `json:"original_title"`
 	SortTitle         sql.NullString  `json:"sort_title"`
 	ImdbID            sql.NullString  `json:"imdb_id"`
-	TmdbID            sql.NullInt32   `json:"tmdb_id"`
-	RuntimeMinutes    sql.NullInt32   `json:"runtime_minutes"`
+	TmdbID            sql.NullInt64   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
 	Budget            sql.NullInt64   `json:"budget"`
 	Revenue           sql.NullInt64   `json:"revenue"`
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
 	Rating            sql.NullFloat64 `json:"rating"`
-	RatingVotes       sql.NullInt32   `json:"rating_votes"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
 }
 
 func (q *Queries) CreateMovie(ctx context.Context, arg CreateMovieParams) error {
@@ -123,7 +123,7 @@ DELETE FROM movies
 WHERE media_id = $1
 `
 
-func (q *Queries) DeleteMovie(ctx context.Context, mediaID int32) error {
+func (q *Queries) DeleteMovie(ctx context.Context, mediaID int64) error {
 	_, err := q.db.ExecContext(ctx, deleteMovie, mediaID)
 	return err
 }
@@ -172,39 +172,39 @@ WHERE m.media_id = $1
 `
 
 type GetMovieByMediaIDRow struct {
-	MediaID           int32           `json:"media_id"`
-	Year              sql.NullInt32   `json:"year"`
+	MediaID           int64           `json:"media_id"`
+	Year              sql.NullInt64   `json:"year"`
 	ReleaseDate       sql.NullTime    `json:"release_date"`
 	Genre             sql.NullString  `json:"genre"`
 	Director          sql.NullString  `json:"director"`
 	Cast              sql.NullString  `json:"cast"`
 	ContentRating     sql.NullString  `json:"content_rating"`
-	MaturityRating    sql.NullInt32   `json:"maturity_rating"`
+	MaturityRating    sql.NullInt64   `json:"maturity_rating"`
 	ContentAdvisories sql.NullString  `json:"content_advisories"`
 	Plot              sql.NullString  `json:"plot"`
 	Tagline           sql.NullString  `json:"tagline"`
 	OriginalTitle     sql.NullString  `json:"original_title"`
 	SortTitle         sql.NullString  `json:"sort_title"`
 	ImdbID            sql.NullString  `json:"imdb_id"`
-	TmdbID            sql.NullInt32   `json:"tmdb_id"`
-	RuntimeMinutes    sql.NullInt32   `json:"runtime_minutes"`
+	TmdbID            sql.NullInt64   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
 	Budget            sql.NullInt64   `json:"budget"`
 	Revenue           sql.NullInt64   `json:"revenue"`
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
 	Rating            sql.NullFloat64 `json:"rating"`
-	RatingVotes       sql.NullInt32   `json:"rating_votes"`
-	MediaID_2         int32           `json:"media_id_2"`
-	LibraryID         int32           `json:"library_id"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	MediaID_2         int64           `json:"media_id_2"`
+	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
 	FilePath          string          `json:"file_path"`
 	FileSize          sql.NullInt64   `json:"file_size"`
 	FileHash          sql.NullString  `json:"file_hash"`
 	ContainerFormat   sql.NullString  `json:"container_format"`
 	Duration          sql.NullFloat64 `json:"duration"`
-	Width             sql.NullInt32   `json:"width"`
-	Height            sql.NullInt32   `json:"height"`
+	Width             sql.NullInt64   `json:"width"`
+	Height            sql.NullInt64   `json:"height"`
 	AspectRatio       sql.NullString  `json:"aspect_ratio"`
 	Codec             sql.NullString  `json:"codec"`
 	AudioCodec        sql.NullString  `json:"audio_codec"`
@@ -219,20 +219,20 @@ type GetMovieByMediaIDRow struct {
 	Type              string          `json:"type"`
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
-	QualityScore      sql.NullInt32   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	QualityScore      sql.NullInt64   `json:"quality_score"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
 }
 
-func (q *Queries) GetMovieByMediaID(ctx context.Context, mediaID int32) (GetMovieByMediaIDRow, error) {
+func (q *Queries) GetMovieByMediaID(ctx context.Context, mediaID int64) (GetMovieByMediaIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getMovieByMediaID, mediaID)
 	var i GetMovieByMediaIDRow
 	err := row.Scan(
@@ -309,20 +309,20 @@ LIMIT $2 OFFSET $3
 `
 
 type ListMovieIDsByLibraryPaginatedParams struct {
-	LibraryID int32 `json:"library_id"`
+	LibraryID int64 `json:"library_id"`
 	Limit     int32 `json:"limit"`
 	Offset    int32 `json:"offset"`
 }
 
-func (q *Queries) ListMovieIDsByLibraryPaginated(ctx context.Context, arg ListMovieIDsByLibraryPaginatedParams) ([]int32, error) {
+func (q *Queries) ListMovieIDsByLibraryPaginated(ctx context.Context, arg ListMovieIDsByLibraryPaginatedParams) ([]int64, error) {
 	rows, err := q.db.QueryContext(ctx, listMovieIDsByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []int32{}
+	items := []int64{}
 	for rows.Next() {
-		var id int32
+		var id int64
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -348,20 +348,20 @@ LIMIT $2 OFFSET $3
 `
 
 type ListMovieIDsByLibraryPaginatedDescParams struct {
-	LibraryID int32 `json:"library_id"`
+	LibraryID int64 `json:"library_id"`
 	Limit     int32 `json:"limit"`
 	Offset    int32 `json:"offset"`
 }
 
-func (q *Queries) ListMovieIDsByLibraryPaginatedDesc(ctx context.Context, arg ListMovieIDsByLibraryPaginatedDescParams) ([]int32, error) {
+func (q *Queries) ListMovieIDsByLibraryPaginatedDesc(ctx context.Context, arg ListMovieIDsByLibraryPaginatedDescParams) ([]int64, error) {
 	rows, err := q.db.QueryContext(ctx, listMovieIDsByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []int32{}
+	items := []int64{}
 	for rows.Next() {
-		var id int32
+		var id int64
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -423,44 +423,44 @@ ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title)
 `
 
 type ListMoviesByGenreParams struct {
-	LibraryID int32          `json:"library_id"`
+	LibraryID int64          `json:"library_id"`
 	Genre     sql.NullString `json:"genre"`
 }
 
 type ListMoviesByGenreRow struct {
-	MediaID           int32           `json:"media_id"`
-	Year              sql.NullInt32   `json:"year"`
+	MediaID           int64           `json:"media_id"`
+	Year              sql.NullInt64   `json:"year"`
 	ReleaseDate       sql.NullTime    `json:"release_date"`
 	Genre             sql.NullString  `json:"genre"`
 	Director          sql.NullString  `json:"director"`
 	Cast              sql.NullString  `json:"cast"`
 	ContentRating     sql.NullString  `json:"content_rating"`
-	MaturityRating    sql.NullInt32   `json:"maturity_rating"`
+	MaturityRating    sql.NullInt64   `json:"maturity_rating"`
 	ContentAdvisories sql.NullString  `json:"content_advisories"`
 	Plot              sql.NullString  `json:"plot"`
 	Tagline           sql.NullString  `json:"tagline"`
 	OriginalTitle     sql.NullString  `json:"original_title"`
 	SortTitle         sql.NullString  `json:"sort_title"`
 	ImdbID            sql.NullString  `json:"imdb_id"`
-	TmdbID            sql.NullInt32   `json:"tmdb_id"`
-	RuntimeMinutes    sql.NullInt32   `json:"runtime_minutes"`
+	TmdbID            sql.NullInt64   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
 	Budget            sql.NullInt64   `json:"budget"`
 	Revenue           sql.NullInt64   `json:"revenue"`
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
 	Rating            sql.NullFloat64 `json:"rating"`
-	RatingVotes       sql.NullInt32   `json:"rating_votes"`
-	MediaID_2         int32           `json:"media_id_2"`
-	LibraryID         int32           `json:"library_id"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	MediaID_2         int64           `json:"media_id_2"`
+	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
 	FilePath          string          `json:"file_path"`
 	FileSize          sql.NullInt64   `json:"file_size"`
 	FileHash          sql.NullString  `json:"file_hash"`
 	ContainerFormat   sql.NullString  `json:"container_format"`
 	Duration          sql.NullFloat64 `json:"duration"`
-	Width             sql.NullInt32   `json:"width"`
-	Height            sql.NullInt32   `json:"height"`
+	Width             sql.NullInt64   `json:"width"`
+	Height            sql.NullInt64   `json:"height"`
 	AspectRatio       sql.NullString  `json:"aspect_ratio"`
 	Codec             sql.NullString  `json:"codec"`
 	AudioCodec        sql.NullString  `json:"audio_codec"`
@@ -475,13 +475,13 @@ type ListMoviesByGenreRow struct {
 	Type              string          `json:"type"`
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
-	QualityScore      sql.NullInt32   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	QualityScore      sql.NullInt64   `json:"quality_score"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -616,39 +616,39 @@ ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title)
 `
 
 type ListMoviesByLibraryRow struct {
-	MediaID           int32           `json:"media_id"`
-	Year              sql.NullInt32   `json:"year"`
+	MediaID           int64           `json:"media_id"`
+	Year              sql.NullInt64   `json:"year"`
 	ReleaseDate       sql.NullTime    `json:"release_date"`
 	Genre             sql.NullString  `json:"genre"`
 	Director          sql.NullString  `json:"director"`
 	Cast              sql.NullString  `json:"cast"`
 	ContentRating     sql.NullString  `json:"content_rating"`
-	MaturityRating    sql.NullInt32   `json:"maturity_rating"`
+	MaturityRating    sql.NullInt64   `json:"maturity_rating"`
 	ContentAdvisories sql.NullString  `json:"content_advisories"`
 	Plot              sql.NullString  `json:"plot"`
 	Tagline           sql.NullString  `json:"tagline"`
 	OriginalTitle     sql.NullString  `json:"original_title"`
 	SortTitle         sql.NullString  `json:"sort_title"`
 	ImdbID            sql.NullString  `json:"imdb_id"`
-	TmdbID            sql.NullInt32   `json:"tmdb_id"`
-	RuntimeMinutes    sql.NullInt32   `json:"runtime_minutes"`
+	TmdbID            sql.NullInt64   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
 	Budget            sql.NullInt64   `json:"budget"`
 	Revenue           sql.NullInt64   `json:"revenue"`
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
 	Rating            sql.NullFloat64 `json:"rating"`
-	RatingVotes       sql.NullInt32   `json:"rating_votes"`
-	MediaID_2         int32           `json:"media_id_2"`
-	LibraryID         int32           `json:"library_id"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	MediaID_2         int64           `json:"media_id_2"`
+	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
 	FilePath          string          `json:"file_path"`
 	FileSize          sql.NullInt64   `json:"file_size"`
 	FileHash          sql.NullString  `json:"file_hash"`
 	ContainerFormat   sql.NullString  `json:"container_format"`
 	Duration          sql.NullFloat64 `json:"duration"`
-	Width             sql.NullInt32   `json:"width"`
-	Height            sql.NullInt32   `json:"height"`
+	Width             sql.NullInt64   `json:"width"`
+	Height            sql.NullInt64   `json:"height"`
 	AspectRatio       sql.NullString  `json:"aspect_ratio"`
 	Codec             sql.NullString  `json:"codec"`
 	AudioCodec        sql.NullString  `json:"audio_codec"`
@@ -663,20 +663,20 @@ type ListMoviesByLibraryRow struct {
 	Type              string          `json:"type"`
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
-	QualityScore      sql.NullInt32   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	QualityScore      sql.NullInt64   `json:"quality_score"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
 }
 
-func (q *Queries) ListMoviesByLibrary(ctx context.Context, libraryID int32) ([]ListMoviesByLibraryRow, error) {
+func (q *Queries) ListMoviesByLibrary(ctx context.Context, libraryID int64) ([]ListMoviesByLibraryRow, error) {
 	rows, err := q.db.QueryContext(ctx, listMoviesByLibrary, libraryID)
 	if err != nil {
 		return nil, err
@@ -805,45 +805,45 @@ LIMIT $2 OFFSET $3
 `
 
 type ListMoviesByLibraryPaginatedParams struct {
-	LibraryID int32 `json:"library_id"`
+	LibraryID int64 `json:"library_id"`
 	Limit     int32 `json:"limit"`
 	Offset    int32 `json:"offset"`
 }
 
 type ListMoviesByLibraryPaginatedRow struct {
-	MediaID           int32           `json:"media_id"`
-	Year              sql.NullInt32   `json:"year"`
+	MediaID           int64           `json:"media_id"`
+	Year              sql.NullInt64   `json:"year"`
 	ReleaseDate       sql.NullTime    `json:"release_date"`
 	Genre             sql.NullString  `json:"genre"`
 	Director          sql.NullString  `json:"director"`
 	Cast              sql.NullString  `json:"cast"`
 	ContentRating     sql.NullString  `json:"content_rating"`
-	MaturityRating    sql.NullInt32   `json:"maturity_rating"`
+	MaturityRating    sql.NullInt64   `json:"maturity_rating"`
 	ContentAdvisories sql.NullString  `json:"content_advisories"`
 	Plot              sql.NullString  `json:"plot"`
 	Tagline           sql.NullString  `json:"tagline"`
 	OriginalTitle     sql.NullString  `json:"original_title"`
 	SortTitle         sql.NullString  `json:"sort_title"`
 	ImdbID            sql.NullString  `json:"imdb_id"`
-	TmdbID            sql.NullInt32   `json:"tmdb_id"`
-	RuntimeMinutes    sql.NullInt32   `json:"runtime_minutes"`
+	TmdbID            sql.NullInt64   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
 	Budget            sql.NullInt64   `json:"budget"`
 	Revenue           sql.NullInt64   `json:"revenue"`
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
 	Rating            sql.NullFloat64 `json:"rating"`
-	RatingVotes       sql.NullInt32   `json:"rating_votes"`
-	MediaID_2         int32           `json:"media_id_2"`
-	LibraryID         int32           `json:"library_id"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	MediaID_2         int64           `json:"media_id_2"`
+	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
 	FilePath          string          `json:"file_path"`
 	FileSize          sql.NullInt64   `json:"file_size"`
 	FileHash          sql.NullString  `json:"file_hash"`
 	ContainerFormat   sql.NullString  `json:"container_format"`
 	Duration          sql.NullFloat64 `json:"duration"`
-	Width             sql.NullInt32   `json:"width"`
-	Height            sql.NullInt32   `json:"height"`
+	Width             sql.NullInt64   `json:"width"`
+	Height            sql.NullInt64   `json:"height"`
 	AspectRatio       sql.NullString  `json:"aspect_ratio"`
 	Codec             sql.NullString  `json:"codec"`
 	AudioCodec        sql.NullString  `json:"audio_codec"`
@@ -858,13 +858,13 @@ type ListMoviesByLibraryPaginatedRow struct {
 	Type              string          `json:"type"`
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
-	QualityScore      sql.NullInt32   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	QualityScore      sql.NullInt64   `json:"quality_score"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -1000,45 +1000,45 @@ LIMIT $2 OFFSET $3
 `
 
 type ListMoviesByLibraryPaginatedDescParams struct {
-	LibraryID int32 `json:"library_id"`
+	LibraryID int64 `json:"library_id"`
 	Limit     int32 `json:"limit"`
 	Offset    int32 `json:"offset"`
 }
 
 type ListMoviesByLibraryPaginatedDescRow struct {
-	MediaID           int32           `json:"media_id"`
-	Year              sql.NullInt32   `json:"year"`
+	MediaID           int64           `json:"media_id"`
+	Year              sql.NullInt64   `json:"year"`
 	ReleaseDate       sql.NullTime    `json:"release_date"`
 	Genre             sql.NullString  `json:"genre"`
 	Director          sql.NullString  `json:"director"`
 	Cast              sql.NullString  `json:"cast"`
 	ContentRating     sql.NullString  `json:"content_rating"`
-	MaturityRating    sql.NullInt32   `json:"maturity_rating"`
+	MaturityRating    sql.NullInt64   `json:"maturity_rating"`
 	ContentAdvisories sql.NullString  `json:"content_advisories"`
 	Plot              sql.NullString  `json:"plot"`
 	Tagline           sql.NullString  `json:"tagline"`
 	OriginalTitle     sql.NullString  `json:"original_title"`
 	SortTitle         sql.NullString  `json:"sort_title"`
 	ImdbID            sql.NullString  `json:"imdb_id"`
-	TmdbID            sql.NullInt32   `json:"tmdb_id"`
-	RuntimeMinutes    sql.NullInt32   `json:"runtime_minutes"`
+	TmdbID            sql.NullInt64   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
 	Budget            sql.NullInt64   `json:"budget"`
 	Revenue           sql.NullInt64   `json:"revenue"`
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
 	Rating            sql.NullFloat64 `json:"rating"`
-	RatingVotes       sql.NullInt32   `json:"rating_votes"`
-	MediaID_2         int32           `json:"media_id_2"`
-	LibraryID         int32           `json:"library_id"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	MediaID_2         int64           `json:"media_id_2"`
+	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
 	FilePath          string          `json:"file_path"`
 	FileSize          sql.NullInt64   `json:"file_size"`
 	FileHash          sql.NullString  `json:"file_hash"`
 	ContainerFormat   sql.NullString  `json:"container_format"`
 	Duration          sql.NullFloat64 `json:"duration"`
-	Width             sql.NullInt32   `json:"width"`
-	Height            sql.NullInt32   `json:"height"`
+	Width             sql.NullInt64   `json:"width"`
+	Height            sql.NullInt64   `json:"height"`
 	AspectRatio       sql.NullString  `json:"aspect_ratio"`
 	Codec             sql.NullString  `json:"codec"`
 	AudioCodec        sql.NullString  `json:"audio_codec"`
@@ -1053,13 +1053,13 @@ type ListMoviesByLibraryPaginatedDescRow struct {
 	Type              string          `json:"type"`
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
-	QualityScore      sql.NullInt32   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	QualityScore      sql.NullInt64   `json:"quality_score"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -1195,44 +1195,44 @@ ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title)
 `
 
 type ListMoviesByYearParams struct {
-	LibraryID int32         `json:"library_id"`
-	Year      sql.NullInt32 `json:"year"`
+	LibraryID int64         `json:"library_id"`
+	Year      sql.NullInt64 `json:"year"`
 }
 
 type ListMoviesByYearRow struct {
-	MediaID           int32           `json:"media_id"`
-	Year              sql.NullInt32   `json:"year"`
+	MediaID           int64           `json:"media_id"`
+	Year              sql.NullInt64   `json:"year"`
 	ReleaseDate       sql.NullTime    `json:"release_date"`
 	Genre             sql.NullString  `json:"genre"`
 	Director          sql.NullString  `json:"director"`
 	Cast              sql.NullString  `json:"cast"`
 	ContentRating     sql.NullString  `json:"content_rating"`
-	MaturityRating    sql.NullInt32   `json:"maturity_rating"`
+	MaturityRating    sql.NullInt64   `json:"maturity_rating"`
 	ContentAdvisories sql.NullString  `json:"content_advisories"`
 	Plot              sql.NullString  `json:"plot"`
 	Tagline           sql.NullString  `json:"tagline"`
 	OriginalTitle     sql.NullString  `json:"original_title"`
 	SortTitle         sql.NullString  `json:"sort_title"`
 	ImdbID            sql.NullString  `json:"imdb_id"`
-	TmdbID            sql.NullInt32   `json:"tmdb_id"`
-	RuntimeMinutes    sql.NullInt32   `json:"runtime_minutes"`
+	TmdbID            sql.NullInt64   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
 	Budget            sql.NullInt64   `json:"budget"`
 	Revenue           sql.NullInt64   `json:"revenue"`
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
 	Rating            sql.NullFloat64 `json:"rating"`
-	RatingVotes       sql.NullInt32   `json:"rating_votes"`
-	MediaID_2         int32           `json:"media_id_2"`
-	LibraryID         int32           `json:"library_id"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	MediaID_2         int64           `json:"media_id_2"`
+	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
 	FilePath          string          `json:"file_path"`
 	FileSize          sql.NullInt64   `json:"file_size"`
 	FileHash          sql.NullString  `json:"file_hash"`
 	ContainerFormat   sql.NullString  `json:"container_format"`
 	Duration          sql.NullFloat64 `json:"duration"`
-	Width             sql.NullInt32   `json:"width"`
-	Height            sql.NullInt32   `json:"height"`
+	Width             sql.NullInt64   `json:"width"`
+	Height            sql.NullInt64   `json:"height"`
 	AspectRatio       sql.NullString  `json:"aspect_ratio"`
 	Codec             sql.NullString  `json:"codec"`
 	AudioCodec        sql.NullString  `json:"audio_codec"`
@@ -1247,13 +1247,13 @@ type ListMoviesByYearRow struct {
 	Type              string          `json:"type"`
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
-	QualityScore      sql.NullInt32   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	QualityScore      sql.NullInt64   `json:"quality_score"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -1389,45 +1389,45 @@ ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title)
 `
 
 type SearchMoviesByTitleParams struct {
-	LibraryID     int32          `json:"library_id"`
+	LibraryID     int64          `json:"library_id"`
 	Title         string         `json:"title"`
 	OriginalTitle sql.NullString `json:"original_title"`
 }
 
 type SearchMoviesByTitleRow struct {
-	MediaID           int32           `json:"media_id"`
-	Year              sql.NullInt32   `json:"year"`
+	MediaID           int64           `json:"media_id"`
+	Year              sql.NullInt64   `json:"year"`
 	ReleaseDate       sql.NullTime    `json:"release_date"`
 	Genre             sql.NullString  `json:"genre"`
 	Director          sql.NullString  `json:"director"`
 	Cast              sql.NullString  `json:"cast"`
 	ContentRating     sql.NullString  `json:"content_rating"`
-	MaturityRating    sql.NullInt32   `json:"maturity_rating"`
+	MaturityRating    sql.NullInt64   `json:"maturity_rating"`
 	ContentAdvisories sql.NullString  `json:"content_advisories"`
 	Plot              sql.NullString  `json:"plot"`
 	Tagline           sql.NullString  `json:"tagline"`
 	OriginalTitle     sql.NullString  `json:"original_title"`
 	SortTitle         sql.NullString  `json:"sort_title"`
 	ImdbID            sql.NullString  `json:"imdb_id"`
-	TmdbID            sql.NullInt32   `json:"tmdb_id"`
-	RuntimeMinutes    sql.NullInt32   `json:"runtime_minutes"`
+	TmdbID            sql.NullInt64   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
 	Budget            sql.NullInt64   `json:"budget"`
 	Revenue           sql.NullInt64   `json:"revenue"`
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
 	Rating            sql.NullFloat64 `json:"rating"`
-	RatingVotes       sql.NullInt32   `json:"rating_votes"`
-	MediaID_2         int32           `json:"media_id_2"`
-	LibraryID         int32           `json:"library_id"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	MediaID_2         int64           `json:"media_id_2"`
+	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
 	FilePath          string          `json:"file_path"`
 	FileSize          sql.NullInt64   `json:"file_size"`
 	FileHash          sql.NullString  `json:"file_hash"`
 	ContainerFormat   sql.NullString  `json:"container_format"`
 	Duration          sql.NullFloat64 `json:"duration"`
-	Width             sql.NullInt32   `json:"width"`
-	Height            sql.NullInt32   `json:"height"`
+	Width             sql.NullInt64   `json:"width"`
+	Height            sql.NullInt64   `json:"height"`
 	AspectRatio       sql.NullString  `json:"aspect_ratio"`
 	Codec             sql.NullString  `json:"codec"`
 	AudioCodec        sql.NullString  `json:"audio_codec"`
@@ -1442,13 +1442,13 @@ type SearchMoviesByTitleRow struct {
 	Type              string          `json:"type"`
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
-	QualityScore      sql.NullInt32   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	QualityScore      sql.NullInt64   `json:"quality_score"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -1585,7 +1585,7 @@ LIMIT $4 OFFSET $5
 `
 
 type SearchMoviesByTitlePaginatedParams struct {
-	LibraryID     int32          `json:"library_id"`
+	LibraryID     int64          `json:"library_id"`
 	Title         string         `json:"title"`
 	OriginalTitle sql.NullString `json:"original_title"`
 	Limit         int32          `json:"limit"`
@@ -1593,39 +1593,39 @@ type SearchMoviesByTitlePaginatedParams struct {
 }
 
 type SearchMoviesByTitlePaginatedRow struct {
-	MediaID           int32           `json:"media_id"`
-	Year              sql.NullInt32   `json:"year"`
+	MediaID           int64           `json:"media_id"`
+	Year              sql.NullInt64   `json:"year"`
 	ReleaseDate       sql.NullTime    `json:"release_date"`
 	Genre             sql.NullString  `json:"genre"`
 	Director          sql.NullString  `json:"director"`
 	Cast              sql.NullString  `json:"cast"`
 	ContentRating     sql.NullString  `json:"content_rating"`
-	MaturityRating    sql.NullInt32   `json:"maturity_rating"`
+	MaturityRating    sql.NullInt64   `json:"maturity_rating"`
 	ContentAdvisories sql.NullString  `json:"content_advisories"`
 	Plot              sql.NullString  `json:"plot"`
 	Tagline           sql.NullString  `json:"tagline"`
 	OriginalTitle     sql.NullString  `json:"original_title"`
 	SortTitle         sql.NullString  `json:"sort_title"`
 	ImdbID            sql.NullString  `json:"imdb_id"`
-	TmdbID            sql.NullInt32   `json:"tmdb_id"`
-	RuntimeMinutes    sql.NullInt32   `json:"runtime_minutes"`
+	TmdbID            sql.NullInt64   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
 	Budget            sql.NullInt64   `json:"budget"`
 	Revenue           sql.NullInt64   `json:"revenue"`
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
 	Rating            sql.NullFloat64 `json:"rating"`
-	RatingVotes       sql.NullInt32   `json:"rating_votes"`
-	MediaID_2         int32           `json:"media_id_2"`
-	LibraryID         int32           `json:"library_id"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	MediaID_2         int64           `json:"media_id_2"`
+	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
 	FilePath          string          `json:"file_path"`
 	FileSize          sql.NullInt64   `json:"file_size"`
 	FileHash          sql.NullString  `json:"file_hash"`
 	ContainerFormat   sql.NullString  `json:"container_format"`
 	Duration          sql.NullFloat64 `json:"duration"`
-	Width             sql.NullInt32   `json:"width"`
-	Height            sql.NullInt32   `json:"height"`
+	Width             sql.NullInt64   `json:"width"`
+	Height            sql.NullInt64   `json:"height"`
 	AspectRatio       sql.NullString  `json:"aspect_ratio"`
 	Codec             sql.NullString  `json:"codec"`
 	AudioCodec        sql.NullString  `json:"audio_codec"`
@@ -1640,13 +1640,13 @@ type SearchMoviesByTitlePaginatedRow struct {
 	Type              string          `json:"type"`
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
-	QualityScore      sql.NullInt32   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	QualityScore      sql.NullInt64   `json:"quality_score"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -1764,11 +1764,11 @@ type SearchMoviesGlobalParams struct {
 }
 
 type SearchMoviesGlobalRow struct {
-	MediaID       int32          `json:"media_id"`
-	LibraryID     int32          `json:"library_id"`
+	MediaID       int64          `json:"media_id"`
+	LibraryID     int64          `json:"library_id"`
 	Title         string         `json:"title"`
 	FilePath      string         `json:"file_path"`
-	Year          sql.NullInt32  `json:"year"`
+	Year          sql.NullInt64  `json:"year"`
 	OriginalTitle sql.NullString `json:"original_title"`
 }
 
@@ -1831,29 +1831,29 @@ WHERE media_id = $23
 `
 
 type UpdateMovieParams struct {
-	Year              sql.NullInt32   `json:"year"`
+	Year              sql.NullInt64   `json:"year"`
 	ReleaseDate       sql.NullTime    `json:"release_date"`
 	Genre             sql.NullString  `json:"genre"`
 	Director          sql.NullString  `json:"director"`
 	Cast              sql.NullString  `json:"cast"`
 	ContentRating     sql.NullString  `json:"content_rating"`
-	MaturityRating    sql.NullInt32   `json:"maturity_rating"`
+	MaturityRating    sql.NullInt64   `json:"maturity_rating"`
 	ContentAdvisories sql.NullString  `json:"content_advisories"`
 	Plot              sql.NullString  `json:"plot"`
 	Tagline           sql.NullString  `json:"tagline"`
 	OriginalTitle     sql.NullString  `json:"original_title"`
 	SortTitle         sql.NullString  `json:"sort_title"`
 	ImdbID            sql.NullString  `json:"imdb_id"`
-	TmdbID            sql.NullInt32   `json:"tmdb_id"`
-	RuntimeMinutes    sql.NullInt32   `json:"runtime_minutes"`
+	TmdbID            sql.NullInt64   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
 	Budget            sql.NullInt64   `json:"budget"`
 	Revenue           sql.NullInt64   `json:"revenue"`
 	OriginalLanguage  sql.NullString  `json:"original_language"`
 	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
 	AwardsSummary     sql.NullString  `json:"awards_summary"`
 	Rating            sql.NullFloat64 `json:"rating"`
-	RatingVotes       sql.NullInt32   `json:"rating_votes"`
-	MediaID           int32           `json:"media_id"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	MediaID           int64           `json:"media_id"`
 }
 
 func (q *Queries) UpdateMovie(ctx context.Context, arg UpdateMovieParams) error {

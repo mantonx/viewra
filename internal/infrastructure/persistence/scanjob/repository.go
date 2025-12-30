@@ -35,7 +35,7 @@ func (r *Repository) Create(ctx context.Context, job *scanner.ScanJob) error {
 	result, err := r.router.Route(
 		func() (any, error) {
 			return r.postgres.CreateScanJob(ctx, sqlc_postgres.CreateScanJobParams{
-				LibraryID:      int32(job.LibraryID),
+				LibraryID:      job.LibraryID,
 				Status:         string(job.Status),
 				Progress:       sql.NullFloat64{Float64: job.Progress, Valid: true},
 				FilesFound:     sql.NullInt64{Int64: job.FilesFound, Valid: true},
@@ -45,7 +45,7 @@ func (r *Repository) Create(ctx context.Context, job *scanner.ScanJob) error {
 				StartedAt:      common.NullTime(job.StartedAt),
 				Phase:          common.NullString(string(job.Phase)),
 				EstimatedTotal: sql.NullInt64{Int64: job.EstimatedTotal, Valid: true},
-				DiscoveryDone:  sql.NullBool{Bool: job.DiscoveryDone, Valid: true},
+				DiscoveryDone:  common.NullInt64FromBool(job.DiscoveryDone),
 			})
 		},
 		func() (any, error) {
@@ -60,7 +60,7 @@ func (r *Repository) Create(ctx context.Context, job *scanner.ScanJob) error {
 				StartedAt:      common.NullTime(job.StartedAt),
 				Phase:          common.NullString(string(job.Phase)),
 				EstimatedTotal: sql.NullInt64{Int64: job.EstimatedTotal, Valid: true},
-				DiscoveryDone:  sql.NullBool{Bool: job.DiscoveryDone, Valid: true},
+				DiscoveryDone:  common.NullInt64FromBool(job.DiscoveryDone),
 			})
 		},
 	)
@@ -88,7 +88,7 @@ func (r *Repository) Create(ctx context.Context, job *scanner.ScanJob) error {
 func (r *Repository) GetByID(ctx context.Context, id int64) (*scanner.ScanJob, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetScanJob(ctx, int32(id))
+			return r.postgres.GetScanJob(ctx, id)
 		},
 		func() (any, error) {
 			return r.sqlite.GetScanJob(ctx, id)
@@ -108,7 +108,7 @@ func (r *Repository) GetByID(ctx context.Context, id int64) (*scanner.ScanJob, e
 func (r *Repository) GetLatestByLibrary(ctx context.Context, libraryID int64) (*scanner.ScanJob, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetLatestScanJobByLibrary(ctx, int32(libraryID))
+			return r.postgres.GetLatestScanJobByLibrary(ctx, libraryID)
 		},
 		func() (any, error) {
 			return r.sqlite.GetLatestScanJobByLibrary(ctx, libraryID)
@@ -129,7 +129,7 @@ func (r *Repository) ListByLibrary(ctx context.Context, libraryID int64, limit i
 	result, err := r.router.Route(
 		func() (any, error) {
 			return r.postgres.ListScanJobsByLibrary(ctx, sqlc_postgres.ListScanJobsByLibraryParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Limit:     limit,
 			})
 		},
@@ -202,11 +202,11 @@ func (r *Repository) UpdateProgress(ctx context.Context, id int64, progress *sca
 				FilesProcessed: sql.NullInt64{Int64: progress.FilesProcessed, Valid: true},
 				BytesProcessed: sql.NullInt64{Int64: progress.BytesProcessed, Valid: true},
 				ErrorCount:     sql.NullInt64{Int64: progress.ErrorCount, Valid: true},
-				WarningCount:   sql.NullInt32{Int32: int32(progress.WarningCount), Valid: true},
+				WarningCount:   sql.NullInt64{Int64: progress.WarningCount, Valid: true},
 				Phase:          common.NullString(string(progress.Phase)),
 				EstimatedTotal: sql.NullInt64{Int64: progress.EstimatedTotal, Valid: true},
-				DiscoveryDone:  sql.NullBool{Bool: progress.DiscoveryDone, Valid: true},
-				ID:             int32(id),
+				DiscoveryDone:  common.NullInt64FromBool(progress.DiscoveryDone),
+				ID:             id,
 			})
 		},
 		func() (any, error) {
@@ -219,7 +219,7 @@ func (r *Repository) UpdateProgress(ctx context.Context, id int64, progress *sca
 				WarningCount:   sql.NullInt64{Int64: progress.WarningCount, Valid: true},
 				Phase:          common.NullString(string(progress.Phase)),
 				EstimatedTotal: sql.NullInt64{Int64: progress.EstimatedTotal, Valid: true},
-				DiscoveryDone:  sql.NullBool{Bool: progress.DiscoveryDone, Valid: true},
+				DiscoveryDone:  common.NullInt64FromBool(progress.DiscoveryDone),
 				ID:             id,
 			})
 		},
@@ -233,7 +233,7 @@ func (r *Repository) UpdateStatus(ctx context.Context, id int64, status scanner.
 		func() (any, error) {
 			return nil, r.postgres.UpdateScanJobStatus(ctx, sqlc_postgres.UpdateScanJobStatusParams{
 				Status: string(status),
-				ID:     int32(id),
+				ID:     id,
 			})
 		},
 		func() (any, error) {
@@ -257,12 +257,12 @@ func (r *Repository) Complete(ctx context.Context, job *scanner.ScanJob) error {
 				FilesProcessed: sql.NullInt64{Int64: job.FilesProcessed, Valid: true},
 				BytesProcessed: sql.NullInt64{Int64: job.BytesProcessed, Valid: true},
 				ErrorCount:     sql.NullInt64{Int64: job.ErrorCount, Valid: true},
-				WarningCount:   sql.NullInt32{Int32: int32(job.WarningCount), Valid: true},
+				WarningCount:   sql.NullInt64{Int64: job.WarningCount, Valid: true},
 				CompletedAt:    common.NullTimePtr(job.CompletedAt),
 				ErrorMessage:   common.NullString(job.ErrorMessage),
 				Phase:          common.NullString(string(job.Phase)),
-				DiscoveryDone:  sql.NullBool{Bool: job.DiscoveryDone, Valid: true},
-				ID:             int32(job.ID),
+				DiscoveryDone:  common.NullInt64FromBool(job.DiscoveryDone),
+				ID:             job.ID,
 			})
 		},
 		func() (any, error) {
@@ -277,7 +277,7 @@ func (r *Repository) Complete(ctx context.Context, job *scanner.ScanJob) error {
 				CompletedAt:    common.NullTimePtr(job.CompletedAt),
 				ErrorMessage:   common.NullString(job.ErrorMessage),
 				Phase:          common.NullString(string(job.Phase)),
-				DiscoveryDone:  sql.NullBool{Bool: job.DiscoveryDone, Valid: true},
+				DiscoveryDone:  common.NullInt64FromBool(job.DiscoveryDone),
 				ID:             job.ID,
 			})
 		},
@@ -289,7 +289,7 @@ func (r *Repository) Complete(ctx context.Context, job *scanner.ScanJob) error {
 func (r *Repository) Delete(ctx context.Context, id int64) error {
 	_, err := r.router.Route(
 		func() (any, error) {
-			return nil, r.postgres.DeleteScanJob(ctx, int32(id))
+			return nil, r.postgres.DeleteScanJob(ctx, id)
 		},
 		func() (any, error) {
 			return nil, r.sqlite.DeleteScanJob(ctx, id)
@@ -306,7 +306,7 @@ func (r *Repository) DeleteOld(ctx context.Context, libraryID int64, retentionMi
 			// Using float division to support sub-day retention
 			retentionDays := float64(retentionMinutes) / (24.0 * 60.0)
 			return nil, r.postgres.DeleteOldScanJobs(ctx, sqlc_postgres.DeleteOldScanJobsParams{
-				LibraryID:     int32(libraryID),
+				LibraryID:     libraryID,
 				RetentionDays: fmt.Sprintf("%.4f", retentionDays),
 			})
 		},
@@ -327,15 +327,15 @@ func (r *Repository) convertToScanJob(result any) *scanner.ScanJob {
 	if r.router.IsPostgresDB() {
 		pgJob := result.(sqlc_postgres.ScanJob)
 		return &scanner.ScanJob{
-			ID:             int64(pgJob.ID),
-			LibraryID:      int64(pgJob.LibraryID),
+			ID:             pgJob.ID,
+			LibraryID:      pgJob.LibraryID,
 			Status:         scanner.ScanStatus(pgJob.Status),
 			Progress:       pgJob.Progress.Float64,
 			FilesFound:     pgJob.FilesFound.Int64,
 			FilesProcessed: pgJob.FilesProcessed.Int64,
 			BytesProcessed: pgJob.BytesProcessed.Int64,
 			ErrorCount:     pgJob.ErrorCount.Int64,
-			WarningCount:   int64(pgJob.WarningCount.Int32),
+			WarningCount:   pgJob.WarningCount.Int64,
 			StartedAt:      common.ParseNullTime(pgJob.StartedAt),
 			CompletedAt:    common.ParseNullTimePtr(pgJob.CompletedAt),
 			ErrorMessage:   common.ParseNullString(pgJob.ErrorMessage),
@@ -343,7 +343,7 @@ func (r *Repository) convertToScanJob(result any) *scanner.ScanJob {
 			UpdatedAt:      common.ParseNullTime(pgJob.UpdatedAt),
 			Phase:          scanner.ScanPhase(common.ParseNullString(pgJob.Phase)),
 			EstimatedTotal: pgJob.EstimatedTotal.Int64,
-			DiscoveryDone:  pgJob.DiscoveryDone.Bool,
+			DiscoveryDone:  pgJob.DiscoveryDone.Int64 != 0,
 		}
 	}
 
@@ -365,6 +365,6 @@ func (r *Repository) convertToScanJob(result any) *scanner.ScanJob {
 		UpdatedAt:      common.ParseNullTime(sqJob.UpdatedAt),
 		Phase:          scanner.ScanPhase(common.ParseNullString(sqJob.Phase)),
 		EstimatedTotal: sqJob.EstimatedTotal.Int64,
-		DiscoveryDone:  sqJob.DiscoveryDone.Bool,
+		DiscoveryDone:  sqJob.DiscoveryDone.Int64 != 0,
 	}
 }

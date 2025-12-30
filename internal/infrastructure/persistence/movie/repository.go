@@ -56,7 +56,7 @@ func (r *Repository) GetMovieByID(ctx context.Context, id int64) (*media.Movie, 
 	return common.QuerySingle(
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.GetMovieByMediaIDRow, error) {
-			return r.Postgres().GetMovieByMediaID(ctx, int32(id))
+			return r.Postgres().GetMovieByMediaID(ctx, id)
 		},
 		func() (sqlc_sqlite.GetMovieByMediaIDRow, error) {
 			return r.SQLite().GetMovieByMediaID(ctx, id)
@@ -71,7 +71,7 @@ func (r *Repository) ListMoviesByLibrary(ctx context.Context, libraryID int64) (
 	return common.QueryMany(
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.ListMoviesByLibraryRow, error) {
-			return r.Postgres().ListMoviesByLibrary(ctx, int32(libraryID))
+			return r.Postgres().ListMoviesByLibrary(ctx, libraryID)
 		},
 		func() ([]sqlc_sqlite.ListMoviesByLibraryRow, error) {
 			return r.SQLite().ListMoviesByLibrary(ctx, libraryID)
@@ -113,7 +113,7 @@ func (r *Repository) SearchMovies(ctx context.Context, libraryID int64, query st
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.SearchMoviesByTitleRow, error) {
 			return r.Postgres().SearchMoviesByTitle(ctx, sqlc_postgres.SearchMoviesByTitleParams{
-				LibraryID:     int32(libraryID),
+				LibraryID:     libraryID,
 				Title:         searchPattern,
 				OriginalTitle: common.NullString(searchPattern),
 			})
@@ -138,7 +138,7 @@ func (r *Repository) ListMoviesByGenre(ctx context.Context, libraryID int64, gen
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.ListMoviesByGenreRow, error) {
 			return r.Postgres().ListMoviesByGenre(ctx, sqlc_postgres.ListMoviesByGenreParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Genre:     common.NullString(genrePattern),
 			})
 		},
@@ -159,8 +159,8 @@ func (r *Repository) ListMoviesByYear(ctx context.Context, libraryID int64, year
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.ListMoviesByYearRow, error) {
 			return r.Postgres().ListMoviesByYear(ctx, sqlc_postgres.ListMoviesByYearParams{
-				LibraryID: int32(libraryID),
-				Year:      common.NullInt32FromInt64(int64(year)),
+				LibraryID: libraryID,
+				Year:      common.NullInt64(int64(year)),
 			})
 		},
 		func() ([]sqlc_sqlite.ListMoviesByYearRow, error) {
@@ -179,7 +179,7 @@ func (r *Repository) DeleteMovie(ctx context.Context, mediaID int64) error {
 	err := common.ExecuteCommand(
 		r.BaseRepository, ctx,
 		func() error {
-			return r.Postgres().DeleteMovie(ctx, int32(mediaID))
+			return r.Postgres().DeleteMovie(ctx, mediaID)
 		},
 		func() error {
 			return r.SQLite().DeleteMovie(ctx, mediaID)
@@ -202,7 +202,7 @@ func (r *Repository) CountMoviesByLibrary(ctx context.Context, libraryID int64) 
 	return common.QueryScalar(
 		r.BaseRepository, ctx,
 		func() (int64, error) {
-			return r.Postgres().CountMoviesByLibrary(ctx, int32(libraryID))
+			return r.Postgres().CountMoviesByLibrary(ctx, libraryID)
 		},
 		func() (int64, error) {
 			return r.SQLite().CountMoviesByLibrary(ctx, libraryID)
@@ -226,7 +226,7 @@ func (r *Repository) ListMoviesByLibraryPaginated(ctx context.Context, libraryID
 			r.BaseRepository, ctx,
 			func() ([]sqlc_postgres.ListMoviesByLibraryPaginatedDescRow, error) {
 				return r.Postgres().ListMoviesByLibraryPaginatedDesc(ctx, sqlc_postgres.ListMoviesByLibraryPaginatedDescParams{
-					LibraryID: int32(libraryID),
+					LibraryID: libraryID,
 					Limit:     int32(pagination.Limit),
 					Offset:    int32(pagination.Offset),
 				})
@@ -251,7 +251,7 @@ func (r *Repository) ListMoviesByLibraryPaginated(ctx context.Context, libraryID
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.ListMoviesByLibraryPaginatedRow, error) {
 			return r.Postgres().ListMoviesByLibraryPaginated(ctx, sqlc_postgres.ListMoviesByLibraryPaginatedParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Limit:     int32(pagination.Limit),
 				Offset:    int32(pagination.Offset),
 			})
@@ -280,7 +280,7 @@ func (r *Repository) CountSearchMoviesByTitle(ctx context.Context, libraryID int
 		r.BaseRepository, ctx,
 		func() (int64, error) {
 			return r.Postgres().CountSearchMoviesByTitle(ctx, sqlc_postgres.CountSearchMoviesByTitleParams{
-				LibraryID:     int32(libraryID),
+				LibraryID:     libraryID,
 				Title:         searchPattern,
 				OriginalTitle: common.NullString(searchPattern),
 			})
@@ -307,7 +307,7 @@ func (r *Repository) SearchMoviesByTitlePaginated(ctx context.Context, libraryID
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.SearchMoviesByTitlePaginatedRow, error) {
 			return r.Postgres().SearchMoviesByTitlePaginated(ctx, sqlc_postgres.SearchMoviesByTitlePaginatedParams{
-				LibraryID:     int32(libraryID),
+				LibraryID:     libraryID,
 				Title:         searchPattern,
 				OriginalTitle: common.NullString(searchPattern),
 				Limit:         int32(pagination.Limit),
@@ -347,20 +347,11 @@ func (r *Repository) ListMovieIDsByLibraryPaginated(ctx context.Context, library
 		return common.QueryMany(
 			r.BaseRepository, ctx,
 			func() ([]int64, error) {
-				ids, err := r.Postgres().ListMovieIDsByLibraryPaginatedDesc(ctx, sqlc_postgres.ListMovieIDsByLibraryPaginatedDescParams{
-					LibraryID: int32(libraryID),
+				return r.Postgres().ListMovieIDsByLibraryPaginatedDesc(ctx, sqlc_postgres.ListMovieIDsByLibraryPaginatedDescParams{
+					LibraryID: libraryID,
 					Limit:     int32(pagination.Limit),
 					Offset:    int32(pagination.Offset),
 				})
-				if err != nil {
-					return nil, err
-				}
-				// Convert int32 to int64
-				result := make([]int64, len(ids))
-				for i, id := range ids {
-					result[i] = int64(id)
-				}
-				return result, nil
 			},
 			func() ([]int64, error) {
 				return r.SQLite().ListMovieIDsByLibraryPaginatedDesc(ctx, sqlc_sqlite.ListMovieIDsByLibraryPaginatedDescParams{
@@ -377,20 +368,11 @@ func (r *Repository) ListMovieIDsByLibraryPaginated(ctx context.Context, library
 	return common.QueryMany(
 		r.BaseRepository, ctx,
 		func() ([]int64, error) {
-			ids, err := r.Postgres().ListMovieIDsByLibraryPaginated(ctx, sqlc_postgres.ListMovieIDsByLibraryPaginatedParams{
-				LibraryID: int32(libraryID),
+			return r.Postgres().ListMovieIDsByLibraryPaginated(ctx, sqlc_postgres.ListMovieIDsByLibraryPaginatedParams{
+				LibraryID: libraryID,
 				Limit:     int32(pagination.Limit),
 				Offset:    int32(pagination.Offset),
 			})
-			if err != nil {
-				return nil, err
-			}
-			// Convert int32 to int64
-			result := make([]int64, len(ids))
-			for i, id := range ids {
-				result[i] = int64(id)
-			}
-			return result, nil
 		},
 		func() ([]int64, error) {
 			return r.SQLite().ListMovieIDsByLibraryPaginated(ctx, sqlc_sqlite.ListMovieIDsByLibraryPaginatedParams{

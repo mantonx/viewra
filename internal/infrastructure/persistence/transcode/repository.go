@@ -66,11 +66,11 @@ func (r *Repository) Create(ctx context.Context, job *transcode.TranscodeJob) er
 
 	// PostgreSQL
 	result, err := r.postgresQuerier.CreateTranscodeJob(ctx, sqlc_postgres.CreateTranscodeJobParams{
-		MediaID:   int32(job.MediaID),
+		MediaID:   job.MediaID,
 		Quality:   job.Quality,
 		Type:      job.Type,
 		Status:    job.Status,
-		Progress:  common.NullInt32FromInt64(int64(job.Progress)),
+		Progress:  common.NullInt64(int64(job.Progress)),
 		CreatedAt: common.NullTime(job.CreatedAt),
 	})
 	if err != nil {
@@ -112,15 +112,15 @@ func (r *Repository) Update(ctx context.Context, job *transcode.TranscodeJob) er
 
 	// PostgreSQL
 	err := r.postgresQuerier.UpdateTranscodeJob(ctx, sqlc_postgres.UpdateTranscodeJobParams{
-		ID:            int32(job.ID),
+		ID:            job.ID,
 		Status:        job.Status,
-		Progress:      common.NullInt32FromInt64(int64(job.Progress)),
+		Progress:      common.NullInt64(int64(job.Progress)),
 		Error:         common.NullString(job.Error),
 		StartedAt:     common.NullTime(job.StartedAt),
 		CompletedAt:   common.NullTime(job.CompletedAt),
 		FilePath:      common.NullString(job.FilePath),
 		FileSizeBytes: common.NullInt64(job.FileSizeBytes),
-		StartPosition: int32(job.StartPosition),
+		StartPosition: common.NullFloat64(float64(job.StartPosition)),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -145,7 +145,7 @@ func (r *Repository) GetByID(ctx context.Context, id int64) (*transcode.Transcod
 	}
 
 	// PostgreSQL
-	result, err := r.postgresQuerier.GetTranscodeJobByID(ctx, int32(id))
+	result, err := r.postgresQuerier.GetTranscodeJobByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, transcode.ErrJobNotFound
@@ -175,7 +175,7 @@ func (r *Repository) GetByMediaIDAndQuality(ctx context.Context, mediaID int64, 
 	// PostgreSQL
 	result, err := r.postgresQuerier.GetTranscodeJobByMediaIDAndQuality(ctx,
 		sqlc_postgres.GetTranscodeJobByMediaIDAndQualityParams{
-			MediaID: int32(mediaID),
+			MediaID: mediaID,
 			Quality: quality,
 		})
 	if err != nil {
@@ -294,7 +294,7 @@ func (r *Repository) Delete(ctx context.Context, id int64) error {
 	}
 
 	// PostgreSQL
-	err := r.postgresQuerier.DeleteTranscodeJob(ctx, int32(id))
+	err := r.postgresQuerier.DeleteTranscodeJob(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -312,7 +312,7 @@ func (r *Repository) DeleteByMediaID(ctx context.Context, mediaID int64) error {
 	}
 
 	// PostgreSQL
-	err := r.postgresQuerier.DeleteTranscodeJobsByMediaID(ctx, int32(mediaID))
+	err := r.postgresQuerier.DeleteTranscodeJobsByMediaID(ctx, mediaID)
 	if err != nil {
 		return err
 	}
@@ -393,12 +393,12 @@ func (r *Repository) sqliteModelToDomain(model sqlc_sqlite.TranscodeJob) *transc
 // postgresModelToDomain converts a PostgreSQL model to a domain entity.
 func (r *Repository) postgresModelToDomain(model sqlc_postgres.TranscodeJob) *transcode.TranscodeJob {
 	return &transcode.TranscodeJob{
-		ID:             int64(model.ID),
-		MediaID:        int64(model.MediaID),
+		ID:             model.ID,
+		MediaID:        model.MediaID,
 		Quality:        model.Quality,
 		Type:           model.Type,
 		Status:         model.Status,
-		Progress:       int(common.ParseNullInt32(model.Progress)),
+		Progress:       int(common.ParseNullInt64(model.Progress)),
 		Error:          common.ParseNullString(model.Error),
 		StartedAt:      common.ParseNullTime(model.StartedAt),
 		CompletedAt:    common.ParseNullTime(model.CompletedAt),
@@ -406,7 +406,7 @@ func (r *Repository) postgresModelToDomain(model sqlc_postgres.TranscodeJob) *tr
 		FilePath:       common.ParseNullString(model.FilePath),
 		FileSizeBytes:  common.ParseNullInt64(model.FileSizeBytes),
 		LastAccessedAt: common.ParseNullTime(model.LastAccessedAt),
-		AccessCount:    int(common.ParseNullInt32(model.AccessCount)),
-		StartPosition:  int(model.StartPosition),
+		AccessCount:    int(common.ParseNullInt64(model.AccessCount)),
+		StartPosition:  int(common.ParseNullFloat64(model.StartPosition)),
 	}
 }

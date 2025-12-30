@@ -38,9 +38,9 @@ type GetKeywordsByEntityParams struct {
 }
 
 type GetKeywordsByEntityRow struct {
-	KeywordID  int64        `json:"keyword_id"`
-	Keyword    string       `json:"keyword"`
-	IsLocation sql.NullBool `json:"is_location"`
+	KeywordID  int64         `json:"keyword_id"`
+	Keyword    string        `json:"keyword"`
+	IsLocation sql.NullInt64 `json:"is_location"`
 }
 
 func (q *Queries) GetKeywordsByEntity(ctx context.Context, arg GetKeywordsByEntityParams) ([]GetKeywordsByEntityRow, error) {
@@ -155,11 +155,11 @@ ON CONFLICT (media_type, entity_id, keyword_id) DO UPDATE SET
 `
 
 type InsertKeywordParams struct {
-	MediaType  string       `json:"media_type"`
-	EntityID   int64        `json:"entity_id"`
-	KeywordID  int64        `json:"keyword_id"`
-	Keyword    string       `json:"keyword"`
-	IsLocation sql.NullBool `json:"is_location"`
+	MediaType  string        `json:"media_type"`
+	EntityID   int64         `json:"entity_id"`
+	KeywordID  int64         `json:"keyword_id"`
+	Keyword    string        `json:"keyword"`
+	IsLocation sql.NullInt64 `json:"is_location"`
 }
 
 func (q *Queries) InsertKeyword(ctx context.Context, arg InsertKeywordParams) error {

@@ -48,7 +48,7 @@ func NewRepository(db *sql.DB, dbType string) *Repository {
 // Get retrieves a user's location preferences from the users table.
 func (r *Repository) Get(ctx context.Context, userID int64) (*UserLocationPreference, error) {
 	if common.IsPostgres(r.dbType) {
-		row, err := r.postgres.GetUserLocation(ctx, int32(userID))
+		row, err := r.postgres.GetUserLocation(ctx, userID)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				return nil, nil
@@ -56,11 +56,11 @@ func (r *Repository) Get(ctx context.Context, userID int64) (*UserLocationPrefer
 			return nil, err
 		}
 		return &UserLocationPreference{
-			UserID:       int64(row.ID),
+			UserID:       row.ID,
 			Latitude:     nullFloat64Value(row.LocationLatitude),
 			Longitude:    nullFloat64Value(row.LocationLongitude),
 			Timezone:     nullStringValue(row.LocationTimezone, "auto"),
-			Enabled:      nullBoolValue(row.LocationEnabled),
+			Enabled:      common.NullInt64ToBool(row.LocationEnabled),
 			LocationName: nullStringValue(row.LocationName, ""),
 		}, nil
 	}
@@ -77,7 +77,7 @@ func (r *Repository) Get(ctx context.Context, userID int64) (*UserLocationPrefer
 		Latitude:     nullFloat64Value(row.LocationLatitude),
 		Longitude:    nullFloat64Value(row.LocationLongitude),
 		Timezone:     nullStringValue(row.LocationTimezone, "auto"),
-		Enabled:      nullInt64ToBool(row.LocationEnabled),
+		Enabled:      common.NullInt64ToBool(row.LocationEnabled),
 		LocationName: nullStringValue(row.LocationName, ""),
 	}, nil
 }
@@ -91,10 +91,10 @@ func (r *Repository) Upsert(ctx context.Context, prefs *UserLocationPreference) 
 			LocationLatitude:  sql.NullFloat64{Float64: prefs.Latitude, Valid: prefs.Latitude != 0},
 			LocationLongitude: sql.NullFloat64{Float64: prefs.Longitude, Valid: prefs.Longitude != 0},
 			LocationTimezone:  sql.NullString{String: prefs.Timezone, Valid: prefs.Timezone != ""},
-			LocationEnabled:   sql.NullBool{Bool: prefs.Enabled, Valid: true},
+			LocationEnabled:   common.NullInt64FromBool(prefs.Enabled),
 			LocationName:      sql.NullString{String: prefs.LocationName, Valid: prefs.LocationName != ""},
 			UpdatedAt:         now,
-			ID:                int32(prefs.UserID),
+			ID:                prefs.UserID,
 		})
 	}
 
@@ -102,9 +102,9 @@ func (r *Repository) Upsert(ctx context.Context, prefs *UserLocationPreference) 
 		LocationLatitude:  sql.NullFloat64{Float64: prefs.Latitude, Valid: prefs.Latitude != 0},
 		LocationLongitude: sql.NullFloat64{Float64: prefs.Longitude, Valid: prefs.Longitude != 0},
 		LocationTimezone:  sql.NullString{String: prefs.Timezone, Valid: prefs.Timezone != ""},
-		LocationEnabled:   sql.NullInt64{Int64: boolToInt64(prefs.Enabled), Valid: true},
+		LocationEnabled:   common.NullInt64FromBool(prefs.Enabled),
 		LocationName:      sql.NullString{String: prefs.LocationName, Valid: prefs.LocationName != ""},
-		UpdatedAt:         now.Format(time.RFC3339),
+		UpdatedAt:         now,
 		ID:                prefs.UserID,
 	})
 }
@@ -121,19 +121,4 @@ func nullStringValue(n sql.NullString, defaultVal string) string {
 		return n.String
 	}
 	return defaultVal
-}
-
-func nullBoolValue(n sql.NullBool) bool {
-	return n.Valid && n.Bool
-}
-
-func nullInt64ToBool(n sql.NullInt64) bool {
-	return n.Valid && n.Int64 != 0
-}
-
-func boolToInt64(b bool) int64 {
-	if b {
-		return 1
-	}
-	return 0
 }

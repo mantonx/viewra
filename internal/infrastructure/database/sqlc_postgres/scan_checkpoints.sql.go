@@ -15,7 +15,7 @@ SELECT COUNT(*) FROM scan_checkpoints
 WHERE scan_job_id = $1 AND status = 'failed'
 `
 
-func (q *Queries) CountFailedScanCheckpoints(ctx context.Context, scanJobID int32) (int64, error) {
+func (q *Queries) CountFailedScanCheckpoints(ctx context.Context, scanJobID int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countFailedScanCheckpoints, scanJobID)
 	var count int64
 	err := row.Scan(&count)
@@ -35,7 +35,7 @@ RETURNING id, scan_job_id, file_path, status, file_size, file_hash, error_messag
 `
 
 type CreateScanCheckpointParams struct {
-	ScanJobID int32          `json:"scan_job_id"`
+	ScanJobID int64          `json:"scan_job_id"`
 	FilePath  string         `json:"file_path"`
 	Status    string         `json:"status"`
 	FileSize  sql.NullInt64  `json:"file_size"`
@@ -79,7 +79,7 @@ INSERT INTO scan_checkpoints (
 `
 
 type CreateScanCheckpointBatchParams struct {
-	ScanJobID int32          `json:"scan_job_id"`
+	ScanJobID int64          `json:"scan_job_id"`
 	FilePath  string         `json:"file_path"`
 	Status    string         `json:"status"`
 	FileSize  sql.NullInt64  `json:"file_size"`
@@ -102,7 +102,7 @@ DELETE FROM scan_checkpoints
 WHERE scan_job_id = $1
 `
 
-func (q *Queries) DeleteScanCheckpointsByJobID(ctx context.Context, scanJobID int32) error {
+func (q *Queries) DeleteScanCheckpointsByJobID(ctx context.Context, scanJobID int64) error {
 	_, err := q.db.ExecContext(ctx, deleteScanCheckpointsByJobID, scanJobID)
 	return err
 }
@@ -115,7 +115,7 @@ LIMIT $2
 `
 
 type GetPendingScanCheckpointsParams struct {
-	ScanJobID int32 `json:"scan_job_id"`
+	ScanJobID int64 `json:"scan_job_id"`
 	Limit     int32 `json:"limit"`
 }
 
@@ -159,7 +159,7 @@ SELECT id, scan_job_id, file_path, status, file_size, file_hash, error_message, 
 WHERE id = $1
 `
 
-func (q *Queries) GetScanCheckpointByID(ctx context.Context, id int32) (ScanCheckpoint, error) {
+func (q *Queries) GetScanCheckpointByID(ctx context.Context, id int64) (ScanCheckpoint, error) {
 	row := q.db.QueryRowContext(ctx, getScanCheckpointByID, id)
 	var i ScanCheckpoint
 	err := row.Scan(
@@ -184,7 +184,7 @@ WHERE scan_job_id = $1 AND file_path = $2
 `
 
 type GetScanCheckpointByPathParams struct {
-	ScanJobID int32  `json:"scan_job_id"`
+	ScanJobID int64  `json:"scan_job_id"`
 	FilePath  string `json:"file_path"`
 }
 
@@ -221,7 +221,7 @@ type GetScanCheckpointErrorsByCategoryRow struct {
 	ErrorCount    int64          `json:"error_count"`
 }
 
-func (q *Queries) GetScanCheckpointErrorsByCategory(ctx context.Context, scanJobID int32) ([]GetScanCheckpointErrorsByCategoryRow, error) {
+func (q *Queries) GetScanCheckpointErrorsByCategory(ctx context.Context, scanJobID int64) ([]GetScanCheckpointErrorsByCategoryRow, error) {
 	rows, err := q.db.QueryContext(ctx, getScanCheckpointErrorsByCategory, scanJobID)
 	if err != nil {
 		return nil, err
@@ -257,7 +257,7 @@ type GetScanCheckpointProgressRow struct {
 	Processed int64 `json:"processed"`
 }
 
-func (q *Queries) GetScanCheckpointProgress(ctx context.Context, scanJobID int32) (GetScanCheckpointProgressRow, error) {
+func (q *Queries) GetScanCheckpointProgress(ctx context.Context, scanJobID int64) (GetScanCheckpointProgressRow, error) {
 	row := q.db.QueryRowContext(ctx, getScanCheckpointProgress, scanJobID)
 	var i GetScanCheckpointProgressRow
 	err := row.Scan(&i.Total, &i.Processed)
@@ -287,7 +287,7 @@ type GetScanCheckpointStatsRow struct {
 	FirstProcessedAt interface{} `json:"first_processed_at"`
 }
 
-func (q *Queries) GetScanCheckpointStats(ctx context.Context, scanJobID int32) (GetScanCheckpointStatsRow, error) {
+func (q *Queries) GetScanCheckpointStats(ctx context.Context, scanJobID int64) (GetScanCheckpointStatsRow, error) {
 	row := q.db.QueryRowContext(ctx, getScanCheckpointStats, scanJobID)
 	var i GetScanCheckpointStatsRow
 	err := row.Scan(
@@ -315,7 +315,7 @@ LIMIT $2
 `
 
 type ListFailedScanCheckpointsParams struct {
-	ScanJobID int32 `json:"scan_job_id"`
+	ScanJobID int64 `json:"scan_job_id"`
 	Limit     int32 `json:"limit"`
 }
 
@@ -364,7 +364,7 @@ SET
 WHERE scan_job_id = $1 AND status = 'failed'
 `
 
-func (q *Queries) ResetFailedScanCheckpoints(ctx context.Context, scanJobID int32) error {
+func (q *Queries) ResetFailedScanCheckpoints(ctx context.Context, scanJobID int64) error {
 	_, err := q.db.ExecContext(ctx, resetFailedScanCheckpoints, scanJobID)
 	return err
 }
@@ -376,8 +376,8 @@ WHERE id = $2
 `
 
 type UpdateScanCheckpointRetryCountParams struct {
-	RetryCount int32 `json:"retry_count"`
-	ID         int32 `json:"id"`
+	RetryCount int64 `json:"retry_count"`
+	ID         int64 `json:"id"`
 }
 
 func (q *Queries) UpdateScanCheckpointRetryCount(ctx context.Context, arg UpdateScanCheckpointRetryCountParams) error {
@@ -400,7 +400,7 @@ type UpdateScanCheckpointStatusParams struct {
 	ErrorMessage  sql.NullString `json:"error_message"`
 	ErrorCategory sql.NullString `json:"error_category"`
 	ProcessedAt   sql.NullTime   `json:"processed_at"`
-	ID            int32          `json:"id"`
+	ID            int64          `json:"id"`
 }
 
 func (q *Queries) UpdateScanCheckpointStatus(ctx context.Context, arg UpdateScanCheckpointStatusParams) error {

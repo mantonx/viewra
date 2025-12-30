@@ -16,8 +16,8 @@ WHERE user_id = $1 AND media_id = $2 AND device_profile = $3
 `
 
 type DeletePlaybackPreferencesParams struct {
-	UserID        int32  `json:"user_id"`
-	MediaID       int32  `json:"media_id"`
+	UserID        int64  `json:"user_id"`
+	MediaID       int64  `json:"media_id"`
 	DeviceProfile string `json:"device_profile"`
 }
 
@@ -31,7 +31,7 @@ DELETE FROM playback_preferences
 WHERE media_id = $1
 `
 
-func (q *Queries) DeletePlaybackPreferencesByMediaID(ctx context.Context, mediaID int32) error {
+func (q *Queries) DeletePlaybackPreferencesByMediaID(ctx context.Context, mediaID int64) error {
 	_, err := q.db.ExecContext(ctx, deletePlaybackPreferencesByMediaID, mediaID)
 	return err
 }
@@ -41,7 +41,7 @@ DELETE FROM playback_preferences
 WHERE user_id = $1
 `
 
-func (q *Queries) DeletePlaybackPreferencesByUserID(ctx context.Context, userID int32) error {
+func (q *Queries) DeletePlaybackPreferencesByUserID(ctx context.Context, userID int64) error {
 	_, err := q.db.ExecContext(ctx, deletePlaybackPreferencesByUserID, userID)
 	return err
 }
@@ -53,8 +53,8 @@ LIMIT 1
 `
 
 type GetPlaybackPreferencesParams struct {
-	UserID        int32  `json:"user_id"`
-	MediaID       int32  `json:"media_id"`
+	UserID        int64  `json:"user_id"`
+	MediaID       int64  `json:"media_id"`
 	DeviceProfile string `json:"device_profile"`
 }
 
@@ -96,12 +96,12 @@ RETURNING id, user_id, media_id, device_profile, selected_quality, selected_audi
 `
 
 type UpsertPlaybackPreferencesParams struct {
-	UserID                int32          `json:"user_id"`
-	MediaID               int32          `json:"media_id"`
+	UserID                int64          `json:"user_id"`
+	MediaID               int64          `json:"media_id"`
 	DeviceProfile         string         `json:"device_profile"`
 	SelectedQuality       sql.NullString `json:"selected_quality"`
-	SelectedAudioTrack    sql.NullInt32  `json:"selected_audio_track"`
-	SelectedSubtitleTrack sql.NullInt32  `json:"selected_subtitle_track"`
+	SelectedAudioTrack    sql.NullInt64  `json:"selected_audio_track"`
+	SelectedSubtitleTrack sql.NullInt64  `json:"selected_subtitle_track"`
 }
 
 func (q *Queries) UpsertPlaybackPreferences(ctx context.Context, arg UpsertPlaybackPreferencesParams) (PlaybackPreference, error) {

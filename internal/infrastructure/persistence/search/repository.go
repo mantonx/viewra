@@ -117,7 +117,7 @@ func (r *Repository) searchTVShows(ctx context.Context, pattern string, limit in
 func postgresMovieRowToResult(row sqlc_postgres.SearchMoviesGlobalRow) search.Result {
 	year := 0
 	if row.Year.Valid {
-		year = int(row.Year.Int32)
+		year = int(row.Year.Int64)
 	}
 	return search.Result{
 		ID:        int64(row.MediaID),
@@ -147,7 +147,7 @@ func sqliteMovieRowToResult(row sqlc_sqlite.SearchMoviesGlobalRow) search.Result
 func postgresTVShowRowToResult(row sqlc_postgres.SearchTVShowsGlobalRow) search.Result {
 	year := 0
 	if row.Year.Valid {
-		year = int(row.Year.Int32)
+		year = int(row.Year.Int64)
 	}
 	return search.Result{
 		ID:        int64(row.ID),

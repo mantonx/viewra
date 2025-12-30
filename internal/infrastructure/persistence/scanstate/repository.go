@@ -42,7 +42,7 @@ func NewRepository(db *sql.DB, driver string) *Repository {
 func (r *Repository) GetLibraryState(ctx context.Context, libraryID int64) ([]*scanner.ScanState, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetLibraryScanState(ctx, int32(libraryID))
+			return r.postgres.GetLibraryScanState(ctx, libraryID)
 		},
 		func() (any, error) {
 			return r.sqlite.GetLibraryScanState(ctx, libraryID)
@@ -63,18 +63,18 @@ func (r *Repository) Upsert(ctx context.Context, state *scanner.ScanState) error
 	_, err := r.router.Route(
 		func() (any, error) {
 			return nil, r.postgres.UpsertScanState(ctx, sqlc_postgres.UpsertScanStateParams{
-				LibraryID:       int32(state.LibraryID),
+				LibraryID:       state.LibraryID,
 				FilePath:        state.FilePath,
 				FileSize:        state.FileSize,
 				FileMtime:       state.FileMTime,
 				FileHash:        common.NullString(state.FileHash),
-				MediaID:         common.NullInt32Ptr(state.MediaID),
+				MediaID:         common.NullInt64Ptr(state.MediaID),
 				LastScannedAt:   state.LastScannedAt,
-				ScanJobID:       int32(state.ScanJobID),
-				HasWarning:      common.NullBool(state.HasWarning),
+				ScanJobID:       state.ScanJobID,
+				HasWarning:      common.NullInt64FromBool(state.HasWarning),
 				WarningMessage:  common.NullString(state.WarningMessage),
 				WarningCategory: common.NullString(state.WarningCategory),
-				HasError:        common.NullBool(state.HasError),
+				HasError:        common.NullInt64FromBool(state.HasError),
 				ErrorMessage:    common.NullString(state.ErrorMessage),
 				ErrorCategory:   common.NullString(state.ErrorCategory),
 			})
@@ -89,10 +89,10 @@ func (r *Repository) Upsert(ctx context.Context, state *scanner.ScanState) error
 				MediaID:         common.NullInt64Ptr(state.MediaID),
 				LastScannedAt:   state.LastScannedAt,
 				ScanJobID:       state.ScanJobID,
-				HasWarning:      common.NullBool(state.HasWarning),
+				HasWarning:      common.NullInt64FromBool(state.HasWarning),
 				WarningMessage:  common.NullString(state.WarningMessage),
 				WarningCategory: common.NullString(state.WarningCategory),
-				HasError:        common.NullBool(state.HasError),
+				HasError:        common.NullInt64FromBool(state.HasError),
 				ErrorMessage:    common.NullString(state.ErrorMessage),
 				ErrorCategory:   common.NullString(state.ErrorCategory),
 			})
@@ -118,18 +118,18 @@ func (r *Repository) UpsertBatch(ctx context.Context, states []*scanner.ScanStat
 		qtx := r.postgres.WithTx(tx)
 		for _, state := range states {
 			err := qtx.UpsertScanState(ctx, sqlc_postgres.UpsertScanStateParams{
-				LibraryID:       int32(state.LibraryID),
+				LibraryID:       state.LibraryID,
 				FilePath:        state.FilePath,
 				FileSize:        state.FileSize,
 				FileMtime:       state.FileMTime,
 				FileHash:        common.NullString(state.FileHash),
-				MediaID:         common.NullInt32Ptr(state.MediaID),
+				MediaID:         common.NullInt64Ptr(state.MediaID),
 				LastScannedAt:   state.LastScannedAt,
-				ScanJobID:       int32(state.ScanJobID),
-				HasWarning:      common.NullBool(state.HasWarning),
+				ScanJobID:       state.ScanJobID,
+				HasWarning:      common.NullInt64FromBool(state.HasWarning),
 				WarningMessage:  common.NullString(state.WarningMessage),
 				WarningCategory: common.NullString(state.WarningCategory),
-				HasError:        common.NullBool(state.HasError),
+				HasError:        common.NullInt64FromBool(state.HasError),
 				ErrorMessage:    common.NullString(state.ErrorMessage),
 				ErrorCategory:   common.NullString(state.ErrorCategory),
 			})
@@ -149,10 +149,10 @@ func (r *Repository) UpsertBatch(ctx context.Context, states []*scanner.ScanStat
 				MediaID:         common.NullInt64Ptr(state.MediaID),
 				LastScannedAt:   state.LastScannedAt,
 				ScanJobID:       state.ScanJobID,
-				HasWarning:      common.NullBool(state.HasWarning),
+				HasWarning:      common.NullInt64FromBool(state.HasWarning),
 				WarningMessage:  common.NullString(state.WarningMessage),
 				WarningCategory: common.NullString(state.WarningCategory),
-				HasError:        common.NullBool(state.HasError),
+				HasError:        common.NullInt64FromBool(state.HasError),
 				ErrorMessage:    common.NullString(state.ErrorMessage),
 				ErrorCategory:   common.NullString(state.ErrorCategory),
 			})
@@ -170,7 +170,7 @@ func (r *Repository) DeleteByPath(ctx context.Context, libraryID int64, filePath
 	_, err := r.router.Route(
 		func() (any, error) {
 			return nil, r.postgres.DeleteScanStateByPath(ctx, sqlc_postgres.DeleteScanStateByPathParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				FilePath:  filePath,
 			})
 		},
@@ -201,7 +201,7 @@ func (r *Repository) DeleteByPaths(ctx context.Context, libraryID int64, filePat
 		qtx := r.postgres.WithTx(tx)
 		for _, filePath := range filePaths {
 			err := qtx.DeleteScanStateByPath(ctx, sqlc_postgres.DeleteScanStateByPathParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				FilePath:  filePath,
 			})
 			if err != nil {
@@ -228,7 +228,7 @@ func (r *Repository) DeleteByPaths(ctx context.Context, libraryID int64, filePat
 func (r *Repository) DeleteByLibrary(ctx context.Context, libraryID int64) error {
 	_, err := r.router.Route(
 		func() (any, error) {
-			return nil, r.postgres.DeleteScanStateByLibrary(ctx, int32(libraryID))
+			return nil, r.postgres.DeleteScanStateByLibrary(ctx, libraryID)
 		},
 		func() (any, error) {
 			return nil, r.sqlite.DeleteScanStateByLibrary(ctx, libraryID)
@@ -242,7 +242,7 @@ func (r *Repository) GetByPath(ctx context.Context, libraryID int64, filePath st
 	result, err := r.router.Route(
 		func() (any, error) {
 			return r.postgres.GetScanStateByPath(ctx, sqlc_postgres.GetScanStateByPathParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				FilePath:  filePath,
 			})
 		},
@@ -267,7 +267,7 @@ func (r *Repository) GetByPath(ctx context.Context, libraryID int64, filePath st
 func (r *Repository) CountByLibrary(ctx context.Context, libraryID int64) (int64, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.CountLibraryScanState(ctx, int32(libraryID))
+			return r.postgres.CountLibraryScanState(ctx, libraryID)
 		},
 		func() (any, error) {
 			return r.sqlite.CountLibraryScanState(ctx, libraryID)
@@ -307,20 +307,20 @@ func (r *Repository) convertToScanState(result any) *scanner.ScanState {
 	if r.router.IsPostgresDB() {
 		pg := result.(sqlc_postgres.ScanState)
 		return &scanner.ScanState{
-			ID:              int64(pg.ID),
-			LibraryID:       int64(pg.LibraryID),
+			ID:              pg.ID,
+			LibraryID:       pg.LibraryID,
 			FilePath:        pg.FilePath,
 			FileSize:        pg.FileSize,
 			FileMTime:       pg.FileMtime,
 			FileHash:        common.ParseNullString(pg.FileHash),
-			MediaID:         common.ParseNullInt32Ptr(pg.MediaID),
+			MediaID:         common.ParseNullInt64Ptr(pg.MediaID),
 			LastScannedAt:   pg.LastScannedAt,
-			ScanJobID:       int64(pg.ScanJobID),
+			ScanJobID:       pg.ScanJobID,
 			CreatedAt:       common.ParseNullTime(pg.CreatedAt),
-			HasWarning:      common.ParseNullBool(pg.HasWarning),
+			HasWarning:      common.NullInt64ToBool(pg.HasWarning),
 			WarningMessage:  common.ParseNullString(pg.WarningMessage),
 			WarningCategory: common.ParseNullString(pg.WarningCategory),
-			HasError:        common.ParseNullBool(pg.HasError),
+			HasError:        common.NullInt64ToBool(pg.HasError),
 			ErrorMessage:    common.ParseNullString(pg.ErrorMessage),
 			ErrorCategory:   common.ParseNullString(pg.ErrorCategory),
 		}
@@ -338,10 +338,10 @@ func (r *Repository) convertToScanState(result any) *scanner.ScanState {
 		LastScannedAt:   sq.LastScannedAt,
 		ScanJobID:       sq.ScanJobID,
 		CreatedAt:       common.ParseNullTime(sq.CreatedAt),
-		HasWarning:      common.ParseNullBool(sq.HasWarning),
+		HasWarning:      common.NullInt64ToBool(sq.HasWarning),
 		WarningMessage:  common.ParseNullString(sq.WarningMessage),
 		WarningCategory: common.ParseNullString(sq.WarningCategory),
-		HasError:        common.ParseNullBool(sq.HasError),
+		HasError:        common.NullInt64ToBool(sq.HasError),
 		ErrorMessage:    common.ParseNullString(sq.ErrorMessage),
 		ErrorCategory:   common.ParseNullString(sq.ErrorCategory),
 	}
@@ -351,7 +351,7 @@ func (r *Repository) convertToScanState(result any) *scanner.ScanState {
 func (r *Repository) GetLibraryWarnings(ctx context.Context, libraryID int64) ([]*scanner.ScanState, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetLibraryWarnings(ctx, int32(libraryID))
+			return r.postgres.GetLibraryWarnings(ctx, libraryID)
 		},
 		func() (any, error) {
 			return r.sqlite.GetLibraryWarnings(ctx, libraryID)
@@ -370,7 +370,7 @@ func (r *Repository) GetLibraryWarnings(ctx context.Context, libraryID int64) ([
 func (r *Repository) GetLibraryErrors(ctx context.Context, libraryID int64) ([]*scanner.ScanState, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetLibraryErrors(ctx, int32(libraryID))
+			return r.postgres.GetLibraryErrors(ctx, libraryID)
 		},
 		func() (any, error) {
 			return r.sqlite.GetLibraryErrors(ctx, libraryID)
@@ -389,7 +389,7 @@ func (r *Repository) GetLibraryErrors(ctx context.Context, libraryID int64) ([]*
 func (r *Repository) GetLibraryIssues(ctx context.Context, libraryID int64) ([]*scanner.ScanState, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetLibraryIssues(ctx, int32(libraryID))
+			return r.postgres.GetLibraryIssues(ctx, libraryID)
 		},
 		func() (any, error) {
 			return r.sqlite.GetLibraryIssues(ctx, libraryID)
@@ -408,7 +408,7 @@ func (r *Repository) GetLibraryIssues(ctx context.Context, libraryID int64) ([]*
 func (r *Repository) CountLibraryIssues(ctx context.Context, libraryID int64) (*scanner.LibraryIssueCounts, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.CountLibraryIssues(ctx, int32(libraryID))
+			return r.postgres.CountLibraryIssues(ctx, libraryID)
 		},
 		func() (any, error) {
 			return r.sqlite.CountLibraryIssues(ctx, libraryID)
@@ -438,16 +438,16 @@ func (r *Repository) SetWarning(ctx context.Context, libraryID int64, filePath, 
 	_, err := r.router.Route(
 		func() (any, error) {
 			return nil, r.postgres.SetScanStateWarning(ctx, sqlc_postgres.SetScanStateWarningParams{
-				HasWarning:      common.NullBool(true),
+				HasWarning:      common.NullInt64FromBool(true),
 				WarningMessage:  common.NullString(message),
 				WarningCategory: common.NullString(category),
-				LibraryID:       int32(libraryID),
+				LibraryID:       libraryID,
 				FilePath:        filePath,
 			})
 		},
 		func() (any, error) {
 			return nil, r.sqlite.SetScanStateWarning(ctx, sqlc_sqlite.SetScanStateWarningParams{
-				HasWarning:      common.NullBool(true),
+				HasWarning:      common.NullInt64FromBool(true),
 				WarningMessage:  common.NullString(message),
 				WarningCategory: common.NullString(category),
 				LibraryID:       libraryID,
@@ -463,16 +463,16 @@ func (r *Repository) SetError(ctx context.Context, libraryID int64, filePath, me
 	_, err := r.router.Route(
 		func() (any, error) {
 			return nil, r.postgres.SetScanStateError(ctx, sqlc_postgres.SetScanStateErrorParams{
-				HasError:      common.NullBool(true),
+				HasError:      common.NullInt64FromBool(true),
 				ErrorMessage:  common.NullString(message),
 				ErrorCategory: common.NullString(category),
-				LibraryID:     int32(libraryID),
+				LibraryID:     libraryID,
 				FilePath:      filePath,
 			})
 		},
 		func() (any, error) {
 			return nil, r.sqlite.SetScanStateError(ctx, sqlc_sqlite.SetScanStateErrorParams{
-				HasError:      common.NullBool(true),
+				HasError:      common.NullInt64FromBool(true),
 				ErrorMessage:  common.NullString(message),
 				ErrorCategory: common.NullString(category),
 				LibraryID:     libraryID,
@@ -488,7 +488,7 @@ func (r *Repository) ClearWarning(ctx context.Context, libraryID int64, filePath
 	_, err := r.router.Route(
 		func() (any, error) {
 			return nil, r.postgres.ClearScanStateWarning(ctx, sqlc_postgres.ClearScanStateWarningParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				FilePath:  filePath,
 			})
 		},
@@ -507,7 +507,7 @@ func (r *Repository) ClearError(ctx context.Context, libraryID int64, filePath s
 	_, err := r.router.Route(
 		func() (any, error) {
 			return nil, r.postgres.ClearScanStateError(ctx, sqlc_postgres.ClearScanStateErrorParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				FilePath:  filePath,
 			})
 		},

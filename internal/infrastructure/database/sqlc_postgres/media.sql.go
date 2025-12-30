@@ -16,7 +16,7 @@ WHERE library_id = $1 AND type = $2
 `
 
 type CountMediaByTypeParams struct {
-	LibraryID int32  `json:"library_id"`
+	LibraryID int64  `json:"library_id"`
 	Type      string `json:"type"`
 }
 
@@ -32,7 +32,7 @@ SELECT COUNT(*) FROM media
 WHERE library_id = $1
 `
 
-func (q *Queries) CountMediaInLibrary(ctx context.Context, libraryID int32) (int64, error) {
+func (q *Queries) CountMediaInLibrary(ctx context.Context, libraryID int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countMediaInLibrary, libraryID)
 	var count int64
 	err := row.Scan(&count)
@@ -59,15 +59,15 @@ INSERT INTO media (
 `
 
 type CreateMediaParams struct {
-	LibraryID         int32           `json:"library_id"`
+	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
 	FilePath          string          `json:"file_path"`
 	FileSize          sql.NullInt64   `json:"file_size"`
 	FileHash          sql.NullString  `json:"file_hash"`
 	ContainerFormat   sql.NullString  `json:"container_format"`
 	Duration          sql.NullFloat64 `json:"duration"`
-	Width             sql.NullInt32   `json:"width"`
-	Height            sql.NullInt32   `json:"height"`
+	Width             sql.NullInt64   `json:"width"`
+	Height            sql.NullInt64   `json:"height"`
 	AspectRatio       sql.NullString  `json:"aspect_ratio"`
 	Codec             sql.NullString  `json:"codec"`
 	AudioCodec        sql.NullString  `json:"audio_codec"`
@@ -82,13 +82,13 @@ type CreateMediaParams struct {
 	Type              string          `json:"type"`
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
-	QualityScore      sql.NullInt32   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	QualityScore      sql.NullInt64   `json:"quality_score"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 }
 
 // Media queries for PostgreSQL
@@ -171,7 +171,7 @@ DELETE FROM media
 WHERE id = $1
 `
 
-func (q *Queries) DeleteMedia(ctx context.Context, id int32) error {
+func (q *Queries) DeleteMedia(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteMedia, id)
 	return err
 }
@@ -182,11 +182,11 @@ WHERE library_id = $1
 `
 
 type GetFilePathCacheRow struct {
-	ID       int32  `json:"id"`
+	ID       int64  `json:"id"`
 	FilePath string `json:"file_path"`
 }
 
-func (q *Queries) GetFilePathCache(ctx context.Context, libraryID int32) ([]GetFilePathCacheRow, error) {
+func (q *Queries) GetFilePathCache(ctx context.Context, libraryID int64) ([]GetFilePathCacheRow, error) {
 	rows, err := q.db.QueryContext(ctx, getFilePathCache, libraryID)
 	if err != nil {
 		return nil, err
@@ -215,7 +215,7 @@ WHERE library_id = $1 AND file_path = $2
 `
 
 type GetMediaByFilePathParams struct {
-	LibraryID int32  `json:"library_id"`
+	LibraryID int64  `json:"library_id"`
 	FilePath  string `json:"file_path"`
 }
 
@@ -267,7 +267,7 @@ SELECT id, library_id, title, file_path, file_size, file_hash, container_format,
 WHERE id = $1
 `
 
-func (q *Queries) GetMediaByID(ctx context.Context, id int32) (Medium, error) {
+func (q *Queries) GetMediaByID(ctx context.Context, id int64) (Medium, error) {
 	row := q.db.QueryRowContext(ctx, getMediaByID, id)
 	var i Medium
 	err := row.Scan(
@@ -380,7 +380,7 @@ WHERE library_id = $1
 ORDER BY title
 `
 
-func (q *Queries) ListMediaByLibrary(ctx context.Context, libraryID int32) ([]Medium, error) {
+func (q *Queries) ListMediaByLibrary(ctx context.Context, libraryID int64) ([]Medium, error) {
 	rows, err := q.db.QueryContext(ctx, listMediaByLibrary, libraryID)
 	if err != nil {
 		return nil, err
@@ -446,7 +446,7 @@ ORDER BY title
 `
 
 type ListMediaByTypeParams struct {
-	LibraryID int32  `json:"library_id"`
+	LibraryID int64  `json:"library_id"`
 	Type      string `json:"type"`
 }
 
@@ -515,7 +515,7 @@ WHERE library_id = $1 AND file_path = $2
 `
 
 type MediaExistsInLibraryParams struct {
-	LibraryID int32  `json:"library_id"`
+	LibraryID int64  `json:"library_id"`
 	FilePath  string `json:"file_path"`
 }
 
@@ -565,15 +565,15 @@ RETURNING id, library_id, title, file_path, file_size, file_hash, container_form
 `
 
 type UpdateMediaParams struct {
-	LibraryID         int32           `json:"library_id"`
+	LibraryID         int64           `json:"library_id"`
 	Title             string          `json:"title"`
 	FilePath          string          `json:"file_path"`
 	FileSize          sql.NullInt64   `json:"file_size"`
 	FileHash          sql.NullString  `json:"file_hash"`
 	ContainerFormat   sql.NullString  `json:"container_format"`
 	Duration          sql.NullFloat64 `json:"duration"`
-	Width             sql.NullInt32   `json:"width"`
-	Height            sql.NullInt32   `json:"height"`
+	Width             sql.NullInt64   `json:"width"`
+	Height            sql.NullInt64   `json:"height"`
 	AspectRatio       sql.NullString  `json:"aspect_ratio"`
 	Codec             sql.NullString  `json:"codec"`
 	AudioCodec        sql.NullString  `json:"audio_codec"`
@@ -588,14 +588,14 @@ type UpdateMediaParams struct {
 	Type              string          `json:"type"`
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
-	QualityScore      sql.NullInt32   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	QualityScore      sql.NullInt64   `json:"quality_score"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
-	ID                int32           `json:"id"`
+	IsExtra           int64           `json:"is_extra"`
+	ID                int64           `json:"id"`
 }
 
 func (q *Queries) UpdateMedia(ctx context.Context, arg UpdateMediaParams) (Medium, error) {

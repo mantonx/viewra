@@ -16,7 +16,7 @@ FROM playback_sessions
 WHERE media_id = $1
 `
 
-func (q *Queries) CountPlaybackSessionsByMediaID(ctx context.Context, mediaID int32) (int64, error) {
+func (q *Queries) CountPlaybackSessionsByMediaID(ctx context.Context, mediaID int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countPlaybackSessionsByMediaID, mediaID)
 	var count int64
 	err := row.Scan(&count)
@@ -43,14 +43,14 @@ RETURNING id, session_id, media_id, from_quality, to_quality, switch_reason, pos
 
 type CreateQualitySwitchEventParams struct {
 	SessionID        string          `json:"session_id"`
-	MediaID          int32           `json:"media_id"`
+	MediaID          int64           `json:"media_id"`
 	FromQuality      sql.NullString  `json:"from_quality"`
 	ToQuality        string          `json:"to_quality"`
 	SwitchReason     string          `json:"switch_reason"`
-	PositionSeconds  float32         `json:"position_seconds"`
+	PositionSeconds  float64         `json:"position_seconds"`
 	NetworkSpeedMbps sql.NullFloat64 `json:"network_speed_mbps"`
 	BufferSeconds    sql.NullFloat64 `json:"buffer_seconds"`
-	CausedStall      sql.NullBool    `json:"caused_stall"`
+	CausedStall      sql.NullInt64   `json:"caused_stall"`
 	DeviceType       sql.NullString  `json:"device_type"`
 	ConnectionType   sql.NullString  `json:"connection_type"`
 	Timestamp        int64           `json:"timestamp"`
@@ -206,7 +206,7 @@ type GetPlaybackSummaryByMediaIDRow struct {
 	MaxStartupTimeMs    interface{} `json:"max_startup_time_ms"`
 }
 
-func (q *Queries) GetPlaybackSummaryByMediaID(ctx context.Context, mediaID int32) (GetPlaybackSummaryByMediaIDRow, error) {
+func (q *Queries) GetPlaybackSummaryByMediaID(ctx context.Context, mediaID int64) (GetPlaybackSummaryByMediaIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getPlaybackSummaryByMediaID, mediaID)
 	var i GetPlaybackSummaryByMediaIDRow
 	err := row.Scan(
@@ -237,7 +237,7 @@ type GetQualitySwitchStatsRow struct {
 	UniqueSessions    int64 `json:"unique_sessions"`
 }
 
-func (q *Queries) GetQualitySwitchStats(ctx context.Context, mediaID int32) (GetQualitySwitchStatsRow, error) {
+func (q *Queries) GetQualitySwitchStats(ctx context.Context, mediaID int64) (GetQualitySwitchStatsRow, error) {
 	row := q.db.QueryRowContext(ctx, getQualitySwitchStats, mediaID)
 	var i GetQualitySwitchStatsRow
 	err := row.Scan(&i.TotalSwitches, &i.SwitchesWithStall, &i.UniqueSessions)
@@ -252,7 +252,7 @@ LIMIT $2 OFFSET $3
 `
 
 type ListPlaybackSessionsByMediaIDParams struct {
-	MediaID int32 `json:"media_id"`
+	MediaID int64 `json:"media_id"`
 	Limit   int32 `json:"limit"`
 	Offset  int32 `json:"offset"`
 }
@@ -368,17 +368,17 @@ RETURNING id, session_id, media_id, start_time, end_time, total_play_time_ms, to
 
 type UpsertPlaybackSessionParams struct {
 	SessionID          string         `json:"session_id"`
-	MediaID            int32          `json:"media_id"`
+	MediaID            int64          `json:"media_id"`
 	StartTime          int64          `json:"start_time"`
 	EndTime            sql.NullInt64  `json:"end_time"`
-	TotalPlayTimeMs    sql.NullInt32  `json:"total_play_time_ms"`
-	TotalBufferTimeMs  sql.NullInt32  `json:"total_buffer_time_ms"`
-	StallCount         sql.NullInt32  `json:"stall_count"`
-	QualitySwitchCount sql.NullInt32  `json:"quality_switch_count"`
+	TotalPlayTimeMs    sql.NullInt64  `json:"total_play_time_ms"`
+	TotalBufferTimeMs  sql.NullInt64  `json:"total_buffer_time_ms"`
+	StallCount         sql.NullInt64  `json:"stall_count"`
+	QualitySwitchCount sql.NullInt64  `json:"quality_switch_count"`
 	AverageQuality     sql.NullString `json:"average_quality"`
 	DeviceType         sql.NullString `json:"device_type"`
 	ConnectionType     sql.NullString `json:"connection_type"`
-	StartupTimeMs      sql.NullInt32  `json:"startup_time_ms"`
+	StartupTimeMs      sql.NullInt64  `json:"startup_time_ms"`
 }
 
 func (q *Queries) UpsertPlaybackSession(ctx context.Context, arg UpsertPlaybackSessionParams) (PlaybackSession, error) {

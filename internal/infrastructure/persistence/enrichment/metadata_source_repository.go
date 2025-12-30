@@ -42,7 +42,7 @@ func (r *MetadataSourceRepository) Upsert(ctx context.Context, source *enrichmen
 	return r.router.RouteVoid(
 		func() error {
 			return r.postgres.UpsertMetadataSource(ctx, sqlc_postgres.UpsertMetadataSourceParams{
-				MediaID:   int32(source.MediaID),
+				MediaID:   source.MediaID,
 				FieldName: source.FieldName,
 				PluginID:  source.PluginID,
 				RawValue:  sql.NullString{String: source.RawValue, Valid: source.RawValue != ""},
@@ -63,7 +63,7 @@ func (r *MetadataSourceRepository) Upsert(ctx context.Context, source *enrichmen
 func (r *MetadataSourceRepository) GetByMedia(ctx context.Context, mediaID int64) ([]*enrichment.MetadataSource, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetMetadataSourcesByMedia(ctx, int32(mediaID))
+			return r.postgres.GetMetadataSourcesByMedia(ctx, mediaID)
 		},
 		func() (any, error) {
 			return r.sqlite.GetMetadataSourcesByMedia(ctx, mediaID)
@@ -94,7 +94,7 @@ func (r *MetadataSourceRepository) GetByMedia(ctx context.Context, mediaID int64
 func (r *MetadataSourceRepository) DeleteByMedia(ctx context.Context, mediaID int64) error {
 	return r.router.RouteVoid(
 		func() error {
-			return r.postgres.DeleteMetadataSourcesByMedia(ctx, int32(mediaID))
+			return r.postgres.DeleteMetadataSourcesByMedia(ctx, mediaID)
 		},
 		func() error {
 			return r.sqlite.DeleteMetadataSourcesByMedia(ctx, mediaID)
@@ -119,7 +119,7 @@ func (r *MetadataSourceRepository) convertToMetadataSource(result any) *enrichme
 	if r.router.IsPostgresDB() {
 		pgSource := result.(sqlc_postgres.MediaMetadataSource)
 		return &enrichment.MetadataSource{
-			MediaID:   int64(pgSource.MediaID),
+			MediaID:   pgSource.MediaID,
 			FieldName: pgSource.FieldName,
 			PluginID:  pgSource.PluginID,
 			RawValue:  common.ParseNullString(pgSource.RawValue),
@@ -133,6 +133,6 @@ func (r *MetadataSourceRepository) convertToMetadataSource(result any) *enrichme
 		FieldName: sqSource.FieldName,
 		PluginID:  sqSource.PluginID,
 		RawValue:  common.ParseNullString(sqSource.RawValue),
-		UpdatedAt: parseTimeString(sqSource.UpdatedAt),
+		UpdatedAt: common.ParseNullTime(sqSource.UpdatedAt),
 	}
 }

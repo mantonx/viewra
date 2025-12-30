@@ -427,12 +427,12 @@ type GetTVEpisodeByMediaIDRow struct {
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
 	QualityScore      sql.NullInt64   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -598,12 +598,12 @@ type GetTVEpisodeByShowSeasonEpisodeRow struct {
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
 	QualityScore      sql.NullInt64   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -1193,12 +1193,12 @@ type ListTVEpisodesByLibraryRow struct {
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
 	QualityScore      sql.NullInt64   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -1375,12 +1375,12 @@ type ListTVEpisodesBySeasonRow struct {
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
 	QualityScore      sql.NullInt64   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -1557,12 +1557,12 @@ type ListTVEpisodesByShowRow struct {
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
 	QualityScore      sql.NullInt64   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
@@ -2040,12 +2040,12 @@ type SearchTVEpisodesByTitleRow struct {
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
 	QualityScore      sql.NullInt64   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`

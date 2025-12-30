@@ -68,8 +68,8 @@ type PluginKVGetParams struct {
 }
 
 type PluginKVGetRow struct {
-	Value     []byte         `json:"value"`
-	ExpiresAt sql.NullString `json:"expires_at"`
+	Value     []byte       `json:"value"`
+	ExpiresAt sql.NullTime `json:"expires_at"`
 }
 
 func (q *Queries) PluginKVGet(ctx context.Context, arg PluginKVGetParams) (PluginKVGetRow, error) {
@@ -133,10 +133,10 @@ ON CONFLICT(plugin_id, key) DO UPDATE SET
 `
 
 type PluginKVSetParams struct {
-	PluginID  string         `json:"plugin_id"`
-	Key       string         `json:"key"`
-	Value     []byte         `json:"value"`
-	ExpiresAt sql.NullString `json:"expires_at"`
+	PluginID  string       `json:"plugin_id"`
+	Key       string       `json:"key"`
+	Value     []byte       `json:"value"`
+	ExpiresAt sql.NullTime `json:"expires_at"`
 }
 
 func (q *Queries) PluginKVSet(ctx context.Context, arg PluginKVSetParams) error {

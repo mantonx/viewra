@@ -32,35 +32,35 @@ type TranscodeAnalytics struct {
 
 // TranscodeSummary represents aggregated transcode analytics.
 type TranscodeSummary struct {
-	TotalSessions       int64
-	UniqueMedia         int64
-	AvgManifestReadyMs  float64
-	AvgFirstFrameMs     float64
-	AvgFirstSegmentMs   float64
-	MinManifestReadyMs  *int64
-	MaxManifestReadyMs  *int64
-	FailedCount         int64
-	HWAccelCount        int64
+	TotalSessions      int64
+	UniqueMedia        int64
+	AvgManifestReadyMs float64
+	AvgFirstFrameMs    float64
+	AvgFirstSegmentMs  float64
+	MinManifestReadyMs *int64
+	MaxManifestReadyMs *int64
+	FailedCount        int64
+	HWAccelCount       int64
 }
 
 // CorrelatedAnalytics combines frontend and backend analytics for a session.
 type CorrelatedAnalytics struct {
-	SessionID          string
-	MediaID            int64
-	FrontendStartupMs  *int64
-	TotalPlayTimeMs    *int64
-	TotalBufferTimeMs  *int64
-	StallCount         *int64
-	QualityProfile     *string
-	Strategy           *string
-	StrategyDisplay    *string
-	StrategyReason     *string
-	HWAccel            *string
-	BackendStartupMs   *int64
-	FirstFrameMs       *int64
-	FirstSegmentMs     *int64
-	TranscodeStatus    *string
-	SegmentsCreated    *int64
+	SessionID         string
+	MediaID           int64
+	FrontendStartupMs *int64
+	TotalPlayTimeMs   *int64
+	TotalBufferTimeMs *int64
+	StallCount        *int64
+	QualityProfile    *string
+	Strategy          *string
+	StrategyDisplay   *string
+	StrategyReason    *string
+	HWAccel           *string
+	BackendStartupMs  *int64
+	FirstFrameMs      *int64
+	FirstSegmentMs    *int64
+	TranscodeStatus   *string
+	SegmentsCreated   *int64
 }
 
 // Repository handles transcode analytics persistence.
@@ -104,7 +104,7 @@ func (r *Repository) Create(ctx context.Context, sessionID string, mediaID int64
 
 	return r.postgresQuerier.CreateTranscodeAnalytics(ctx, sqlc_postgres.CreateTranscodeAnalyticsParams{
 		SessionID:       sessionID,
-		MediaID:         int32(mediaID),
+		MediaID:         mediaID,
 		QualityProfile:  quality,
 		Strategy:        strategy,
 		StrategyDisplay: common.NullString(strategyDisplay),
@@ -123,7 +123,7 @@ func (r *Repository) UpdateFirstFrame(ctx context.Context, sessionID string, fir
 		})
 	}
 	return r.postgresQuerier.UpdateTranscodeFirstFrame(ctx, sqlc_postgres.UpdateTranscodeFirstFrameParams{
-		FirstFrameMs: common.NullInt32FromInt64(firstFrameMs),
+		FirstFrameMs: common.NullInt64(firstFrameMs),
 		SessionID:    sessionID,
 	})
 }
@@ -137,7 +137,7 @@ func (r *Repository) UpdateFirstSegment(ctx context.Context, sessionID string, f
 		})
 	}
 	return r.postgresQuerier.UpdateTranscodeFirstSegment(ctx, sqlc_postgres.UpdateTranscodeFirstSegmentParams{
-		FirstSegmentMs: common.NullInt32FromInt64(firstSegmentMs),
+		FirstSegmentMs: common.NullInt64(firstSegmentMs),
 		SessionID:      sessionID,
 	})
 }
@@ -151,7 +151,7 @@ func (r *Repository) UpdateManifestReady(ctx context.Context, sessionID string, 
 		})
 	}
 	return r.postgresQuerier.UpdateTranscodeManifestReady(ctx, sqlc_postgres.UpdateTranscodeManifestReadyParams{
-		ManifestReadyMs: common.NullInt32FromInt64(manifestReadyMs),
+		ManifestReadyMs: common.NullInt64(manifestReadyMs),
 		SessionID:       sessionID,
 	})
 }
@@ -165,7 +165,7 @@ func (r *Repository) UpdateSegmentCount(ctx context.Context, sessionID string, s
 		})
 	}
 	return r.postgresQuerier.UpdateTranscodeSegmentCount(ctx, sqlc_postgres.UpdateTranscodeSegmentCountParams{
-		SegmentsCreated: common.NullInt32FromInt64(segmentsCreated),
+		SegmentsCreated: common.NullInt64(segmentsCreated),
 		SessionID:       sessionID,
 	})
 }
@@ -180,7 +180,7 @@ func (r *Repository) Complete(ctx context.Context, sessionID string, totalDurati
 		})
 	}
 	return r.postgresQuerier.CompleteTranscodeAnalytics(ctx, sqlc_postgres.CompleteTranscodeAnalyticsParams{
-		TotalDurationMs: common.NullInt32FromInt64(totalDurationMs),
+		TotalDurationMs: common.NullInt64(totalDurationMs),
 		CompletedAt:     common.NullInt64(completedAt),
 		SessionID:       sessionID,
 	})
@@ -239,17 +239,17 @@ func (r *Repository) GetBySessionID(ctx context.Context, sessionID string) (*Tra
 	}
 	return &TranscodeAnalytics{
 		SessionID:       row.SessionID,
-		MediaID:         int64(row.MediaID),
+		MediaID:         row.MediaID,
 		QualityProfile:  row.QualityProfile,
 		Strategy:        row.Strategy,
 		HWAccel:         common.ParseNullString(row.HwAccel),
-		FirstFrameMs:    common.ParseNullInt32Ptr(row.FirstFrameMs),
-		FirstSegmentMs:  common.ParseNullInt32Ptr(row.FirstSegmentMs),
-		ManifestReadyMs: common.ParseNullInt32Ptr(row.ManifestReadyMs),
+		FirstFrameMs:    common.ParseNullInt64Ptr(row.FirstFrameMs),
+		FirstSegmentMs:  common.ParseNullInt64Ptr(row.FirstSegmentMs),
+		ManifestReadyMs: common.ParseNullInt64Ptr(row.ManifestReadyMs),
 		Status:          row.Status,
 		ErrorReason:     common.ParseNullString(row.ErrorReason),
-		TotalDurationMs: common.ParseNullInt32Ptr(row.TotalDurationMs),
-		SegmentsCreated: common.ParseNullInt32Ptr(row.SegmentsCreated),
+		TotalDurationMs: common.ParseNullInt64Ptr(row.TotalDurationMs),
+		SegmentsCreated: common.ParseNullInt64Ptr(row.SegmentsCreated),
 		CreatedAt:       row.CreatedAt,
 		CompletedAt:     common.ParseNullInt64Ptr(row.CompletedAt),
 	}, nil
@@ -270,29 +270,29 @@ func (r *Repository) GetCorrelatedByMediaID(ctx context.Context, mediaID int64, 
 		result := make([]CorrelatedAnalytics, len(rows))
 		for i, row := range rows {
 			result[i] = CorrelatedAnalytics{
-				SessionID:          row.SessionID,
-				MediaID:            row.MediaID,
-				FrontendStartupMs:  common.ParseNullInt64Ptr(row.FrontendStartupMs),
-				TotalPlayTimeMs:    common.ParseNullInt64Ptr(row.TotalPlayTimeMs),
-				TotalBufferTimeMs:  common.ParseNullInt64Ptr(row.TotalBufferTimeMs),
-				StallCount:         common.ParseNullInt64Ptr(row.StallCount),
-				QualityProfile:     common.ParseNullStringPtr(row.QualityProfile),
-				Strategy:           common.ParseNullStringPtr(row.Strategy),
-				StrategyDisplay:    common.ParseNullStringPtr(row.StrategyDisplay),
-				StrategyReason:     common.ParseNullStringPtr(row.StrategyReason),
-				HWAccel:            common.ParseNullStringPtr(row.HwAccel),
-				BackendStartupMs:   common.ParseNullInt64Ptr(row.BackendStartupMs),
-				FirstFrameMs:       common.ParseNullInt64Ptr(row.FirstFrameMs),
-				FirstSegmentMs:     common.ParseNullInt64Ptr(row.FirstSegmentMs),
-				TranscodeStatus:    common.ParseNullStringPtr(row.TranscodeStatus),
-				SegmentsCreated:    common.ParseNullInt64Ptr(row.SegmentsCreated),
+				SessionID:         row.SessionID,
+				MediaID:           row.MediaID,
+				FrontendStartupMs: common.ParseNullInt64Ptr(row.FrontendStartupMs),
+				TotalPlayTimeMs:   common.ParseNullInt64Ptr(row.TotalPlayTimeMs),
+				TotalBufferTimeMs: common.ParseNullInt64Ptr(row.TotalBufferTimeMs),
+				StallCount:        common.ParseNullInt64Ptr(row.StallCount),
+				QualityProfile:    common.ParseNullStringPtr(row.QualityProfile),
+				Strategy:          common.ParseNullStringPtr(row.Strategy),
+				StrategyDisplay:   common.ParseNullStringPtr(row.StrategyDisplay),
+				StrategyReason:    common.ParseNullStringPtr(row.StrategyReason),
+				HWAccel:           common.ParseNullStringPtr(row.HwAccel),
+				BackendStartupMs:  common.ParseNullInt64Ptr(row.BackendStartupMs),
+				FirstFrameMs:      common.ParseNullInt64Ptr(row.FirstFrameMs),
+				FirstSegmentMs:    common.ParseNullInt64Ptr(row.FirstSegmentMs),
+				TranscodeStatus:   common.ParseNullStringPtr(row.TranscodeStatus),
+				SegmentsCreated:   common.ParseNullInt64Ptr(row.SegmentsCreated),
 			}
 		}
 		return result, nil
 	}
 
 	rows, err := r.postgresQuerier.GetCorrelatedAnalytics(ctx, sqlc_postgres.GetCorrelatedAnalyticsParams{
-		MediaID: int32(mediaID),
+		MediaID: mediaID,
 		Limit:   int32(limit),
 		Offset:  int32(offset),
 	})
@@ -303,22 +303,22 @@ func (r *Repository) GetCorrelatedByMediaID(ctx context.Context, mediaID int64, 
 	result := make([]CorrelatedAnalytics, len(rows))
 	for i, row := range rows {
 		result[i] = CorrelatedAnalytics{
-			SessionID:          row.SessionID,
-			MediaID:            int64(row.MediaID),
-			FrontendStartupMs:  common.ParseNullInt32Ptr(row.FrontendStartupMs),
-			TotalPlayTimeMs:    common.ParseNullInt32Ptr(row.TotalPlayTimeMs),
-			TotalBufferTimeMs:  common.ParseNullInt32Ptr(row.TotalBufferTimeMs),
-			StallCount:         common.ParseNullInt32Ptr(row.StallCount),
-			QualityProfile:     common.ParseNullStringPtr(row.QualityProfile),
-			Strategy:           common.ParseNullStringPtr(row.Strategy),
-			StrategyDisplay:    common.ParseNullStringPtr(row.StrategyDisplay),
-			StrategyReason:     common.ParseNullStringPtr(row.StrategyReason),
-			HWAccel:            common.ParseNullStringPtr(row.HwAccel),
-			BackendStartupMs:   common.ParseNullInt32Ptr(row.BackendStartupMs),
-			FirstFrameMs:       common.ParseNullInt32Ptr(row.FirstFrameMs),
-			FirstSegmentMs:     common.ParseNullInt32Ptr(row.FirstSegmentMs),
-			TranscodeStatus:    common.ParseNullStringPtr(row.TranscodeStatus),
-			SegmentsCreated:    common.ParseNullInt32Ptr(row.SegmentsCreated),
+			SessionID:         row.SessionID,
+			MediaID:           row.MediaID,
+			FrontendStartupMs: common.ParseNullInt64Ptr(row.FrontendStartupMs),
+			TotalPlayTimeMs:   common.ParseNullInt64Ptr(row.TotalPlayTimeMs),
+			TotalBufferTimeMs: common.ParseNullInt64Ptr(row.TotalBufferTimeMs),
+			StallCount:        common.ParseNullInt64Ptr(row.StallCount),
+			QualityProfile:    common.ParseNullStringPtr(row.QualityProfile),
+			Strategy:          common.ParseNullStringPtr(row.Strategy),
+			StrategyDisplay:   common.ParseNullStringPtr(row.StrategyDisplay),
+			StrategyReason:    common.ParseNullStringPtr(row.StrategyReason),
+			HWAccel:           common.ParseNullStringPtr(row.HwAccel),
+			BackendStartupMs:  common.ParseNullInt64Ptr(row.BackendStartupMs),
+			FirstFrameMs:      common.ParseNullInt64Ptr(row.FirstFrameMs),
+			FirstSegmentMs:    common.ParseNullInt64Ptr(row.FirstSegmentMs),
+			TranscodeStatus:   common.ParseNullStringPtr(row.TranscodeStatus),
+			SegmentsCreated:   common.ParseNullInt64Ptr(row.SegmentsCreated),
 		}
 	}
 	return result, nil
@@ -338,22 +338,22 @@ func (r *Repository) GetCorrelatedAll(ctx context.Context, limit, offset int) ([
 		result := make([]CorrelatedAnalytics, len(rows))
 		for i, row := range rows {
 			result[i] = CorrelatedAnalytics{
-				SessionID:          row.SessionID,
-				MediaID:            row.MediaID,
-				FrontendStartupMs:  common.ParseNullInt64Ptr(row.FrontendStartupMs),
-				TotalPlayTimeMs:    common.ParseNullInt64Ptr(row.TotalPlayTimeMs),
-				TotalBufferTimeMs:  common.ParseNullInt64Ptr(row.TotalBufferTimeMs),
-				StallCount:         common.ParseNullInt64Ptr(row.StallCount),
-				QualityProfile:     common.ParseNullStringPtr(row.QualityProfile),
-				Strategy:           common.ParseNullStringPtr(row.Strategy),
-				StrategyDisplay:    common.ParseNullStringPtr(row.StrategyDisplay),
-				StrategyReason:     common.ParseNullStringPtr(row.StrategyReason),
-				HWAccel:            common.ParseNullStringPtr(row.HwAccel),
-				BackendStartupMs:   common.ParseNullInt64Ptr(row.BackendStartupMs),
-				FirstFrameMs:       common.ParseNullInt64Ptr(row.FirstFrameMs),
-				FirstSegmentMs:     common.ParseNullInt64Ptr(row.FirstSegmentMs),
-				TranscodeStatus:    common.ParseNullStringPtr(row.TranscodeStatus),
-				SegmentsCreated:    common.ParseNullInt64Ptr(row.SegmentsCreated),
+				SessionID:         row.SessionID,
+				MediaID:           row.MediaID,
+				FrontendStartupMs: common.ParseNullInt64Ptr(row.FrontendStartupMs),
+				TotalPlayTimeMs:   common.ParseNullInt64Ptr(row.TotalPlayTimeMs),
+				TotalBufferTimeMs: common.ParseNullInt64Ptr(row.TotalBufferTimeMs),
+				StallCount:        common.ParseNullInt64Ptr(row.StallCount),
+				QualityProfile:    common.ParseNullStringPtr(row.QualityProfile),
+				Strategy:          common.ParseNullStringPtr(row.Strategy),
+				StrategyDisplay:   common.ParseNullStringPtr(row.StrategyDisplay),
+				StrategyReason:    common.ParseNullStringPtr(row.StrategyReason),
+				HWAccel:           common.ParseNullStringPtr(row.HwAccel),
+				BackendStartupMs:  common.ParseNullInt64Ptr(row.BackendStartupMs),
+				FirstFrameMs:      common.ParseNullInt64Ptr(row.FirstFrameMs),
+				FirstSegmentMs:    common.ParseNullInt64Ptr(row.FirstSegmentMs),
+				TranscodeStatus:   common.ParseNullStringPtr(row.TranscodeStatus),
+				SegmentsCreated:   common.ParseNullInt64Ptr(row.SegmentsCreated),
 			}
 		}
 		return result, nil
@@ -370,22 +370,22 @@ func (r *Repository) GetCorrelatedAll(ctx context.Context, limit, offset int) ([
 	result := make([]CorrelatedAnalytics, len(rows))
 	for i, row := range rows {
 		result[i] = CorrelatedAnalytics{
-			SessionID:          row.SessionID,
-			MediaID:            int64(row.MediaID),
-			FrontendStartupMs:  common.ParseNullInt32Ptr(row.FrontendStartupMs),
-			TotalPlayTimeMs:    common.ParseNullInt32Ptr(row.TotalPlayTimeMs),
-			TotalBufferTimeMs:  common.ParseNullInt32Ptr(row.TotalBufferTimeMs),
-			StallCount:         common.ParseNullInt32Ptr(row.StallCount),
-			QualityProfile:     common.ParseNullStringPtr(row.QualityProfile),
-			Strategy:           common.ParseNullStringPtr(row.Strategy),
-			StrategyDisplay:    common.ParseNullStringPtr(row.StrategyDisplay),
-			StrategyReason:     common.ParseNullStringPtr(row.StrategyReason),
-			HWAccel:            common.ParseNullStringPtr(row.HwAccel),
-			BackendStartupMs:   common.ParseNullInt32Ptr(row.BackendStartupMs),
-			FirstFrameMs:       common.ParseNullInt32Ptr(row.FirstFrameMs),
-			FirstSegmentMs:     common.ParseNullInt32Ptr(row.FirstSegmentMs),
-			TranscodeStatus:    common.ParseNullStringPtr(row.TranscodeStatus),
-			SegmentsCreated:    common.ParseNullInt32Ptr(row.SegmentsCreated),
+			SessionID:         row.SessionID,
+			MediaID:           row.MediaID,
+			FrontendStartupMs: common.ParseNullInt64Ptr(row.FrontendStartupMs),
+			TotalPlayTimeMs:   common.ParseNullInt64Ptr(row.TotalPlayTimeMs),
+			TotalBufferTimeMs: common.ParseNullInt64Ptr(row.TotalBufferTimeMs),
+			StallCount:        common.ParseNullInt64Ptr(row.StallCount),
+			QualityProfile:    common.ParseNullStringPtr(row.QualityProfile),
+			Strategy:          common.ParseNullStringPtr(row.Strategy),
+			StrategyDisplay:   common.ParseNullStringPtr(row.StrategyDisplay),
+			StrategyReason:    common.ParseNullStringPtr(row.StrategyReason),
+			HWAccel:           common.ParseNullStringPtr(row.HwAccel),
+			BackendStartupMs:  common.ParseNullInt64Ptr(row.BackendStartupMs),
+			FirstFrameMs:      common.ParseNullInt64Ptr(row.FirstFrameMs),
+			FirstSegmentMs:    common.ParseNullInt64Ptr(row.FirstSegmentMs),
+			TranscodeStatus:   common.ParseNullStringPtr(row.TranscodeStatus),
+			SegmentsCreated:   common.ParseNullInt64Ptr(row.SegmentsCreated),
 		}
 	}
 	return result, nil

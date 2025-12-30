@@ -1,11 +1,10 @@
 package keywords
 
 import (
-	"database/sql"
-
 	"github.com/mantonx/viewra/internal/domain/media"
-	sqlc_postgres "github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	sqlc_sqlite "github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
+	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // SQLite mappers
@@ -14,7 +13,7 @@ func sqliteKeywordRowToDomain(row sqlc_sqlite.GetKeywordsByEntityRow) *media.Key
 	return &media.Keyword{
 		KeywordID:  int(row.KeywordID),
 		Name:       row.Keyword,
-		IsLocation: nullBoolToBool(row.IsLocation),
+		IsLocation: common.NullInt64ToBool(row.IsLocation),
 	}
 }
 
@@ -32,7 +31,7 @@ func postgresKeywordRowToDomain(row sqlc_postgres.GetKeywordsByEntityRow) *media
 	return &media.Keyword{
 		KeywordID:  int(row.KeywordID),
 		Name:       row.Keyword,
-		IsLocation: nullBoolToBool(row.IsLocation),
+		IsLocation: common.NullInt64ToBool(row.IsLocation),
 	}
 }
 
@@ -42,17 +41,4 @@ func postgresLocationKeywordRowToDomain(row sqlc_postgres.GetLocationKeywordsByE
 		Name:       row.Keyword,
 		IsLocation: true,
 	}
-}
-
-// Helper functions
-
-func boolToNullBool(b bool) sql.NullBool {
-	return sql.NullBool{Bool: b, Valid: true}
-}
-
-func nullBoolToBool(nb sql.NullBool) bool {
-	if !nb.Valid {
-		return false
-	}
-	return nb.Bool
 }

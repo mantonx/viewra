@@ -79,14 +79,14 @@ func sqliteLibraryToDomain(sq sqlc_sqlite.Library) *library.Library {
 // postgresLibraryToDomain converts a PostgreSQL library to domain model.
 func postgresLibraryToDomain(pg sqlc_postgres.Library) *library.Library {
 	return &library.Library{
-		ID:                int64(pg.ID),
+		ID:                pg.ID,
 		Name:              pg.Name,
 		Path:              pg.Path,
 		Type:              library.LibraryType(pg.Type),
 		CreatedAt:         common.ParseNullTime(pg.CreatedAt),
 		UpdatedAt:         common.ParseNullTime(pg.UpdatedAt),
-		MonitoringEnabled: pg.MonitoringEnabled,
-		MonitoringConfig:  parseMonitoringConfigPG(pg.MonitoringConfig),
+		MonitoringEnabled: common.Int64ToBool(pg.MonitoringEnabled),
+		MonitoringConfig:  parseMonitoringConfig(pg.MonitoringConfig),
 	}
 }
 
@@ -150,7 +150,7 @@ func (r *Repository) Create(ctx context.Context, lib *library.Library) error {
 func (r *Repository) GetByID(ctx context.Context, id int64) (*library.Library, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetLibraryByID(ctx, int32(id))
+			return r.postgres.GetLibraryByID(ctx, id)
 		},
 		func() (any, error) {
 			return r.sqlite.GetLibraryByID(ctx, id)
@@ -240,7 +240,7 @@ func (r *Repository) Update(ctx context.Context, lib *library.Library) error {
 				Name: lib.Name,
 				Path: lib.Path,
 				Type: string(lib.Type),
-				ID:   int32(lib.ID),
+				ID:   lib.ID,
 			})
 		},
 		func() (any, error) {
@@ -275,7 +275,7 @@ func (r *Repository) Update(ctx context.Context, lib *library.Library) error {
 func (r *Repository) Delete(ctx context.Context, id int64) error {
 	return r.router.RouteVoid(
 		func() error {
-			return r.postgres.DeleteLibrary(ctx, int32(id))
+			return r.postgres.DeleteLibrary(ctx, id)
 		},
 		func() error {
 			return r.sqlite.DeleteLibrary(ctx, id)
@@ -309,18 +309,14 @@ func (r *Repository) UpdateMonitoring(ctx context.Context, id int64, enabled boo
 	result, err := r.router.Route(
 		func() (any, error) {
 			return r.postgres.UpdateLibraryMonitoring(ctx, sqlc_postgres.UpdateLibraryMonitoringParams{
-				MonitoringEnabled: enabled,
-				MonitoringConfig:  serializeMonitoringConfigPG(config),
-				ID:                int32(id),
+				MonitoringEnabled: common.BoolToInt64(enabled),
+				MonitoringConfig:  serializeMonitoringConfig(config),
+				ID:                id,
 			})
 		},
 		func() (any, error) {
-			var enabledInt int64
-			if enabled {
-				enabledInt = 1
-			}
 			return r.sqlite.UpdateLibraryMonitoring(ctx, sqlc_sqlite.UpdateLibraryMonitoringParams{
-				MonitoringEnabled: enabledInt,
+				MonitoringEnabled: common.BoolToInt64(enabled),
 				MonitoringConfig:  serializeMonitoringConfig(config),
 				ID:                id,
 			})
@@ -395,17 +391,17 @@ func (r *Repository) CreateWithTx(ctx context.Context, tx domaincommon.Transacti
 	// Convert result to domain library
 	if r.router.IsPostgresDB() {
 		pgResult := result.(sqlc_postgres.Library)
-		lib.ID = int64(pgResult.ID)
+		lib.ID = pgResult.ID
 		lib.CreatedAt = common.ParseNullTime(pgResult.CreatedAt)
 		lib.UpdatedAt = common.ParseNullTime(pgResult.UpdatedAt)
-		lib.MonitoringEnabled = pgResult.MonitoringEnabled
-		lib.MonitoringConfig = parseMonitoringConfigPG(pgResult.MonitoringConfig)
+		lib.MonitoringEnabled = common.Int64ToBool(pgResult.MonitoringEnabled)
+		lib.MonitoringConfig = parseMonitoringConfig(pgResult.MonitoringConfig)
 	} else {
 		sqResult := result.(sqlc_sqlite.Library)
 		lib.ID = sqResult.ID
 		lib.CreatedAt = common.ParseNullTime(sqResult.CreatedAt)
 		lib.UpdatedAt = common.ParseNullTime(sqResult.UpdatedAt)
-		lib.MonitoringEnabled = sqResult.MonitoringEnabled != 0
+		lib.MonitoringEnabled = common.Int64ToBool(sqResult.MonitoringEnabled)
 		lib.MonitoringConfig = parseMonitoringConfig(sqResult.MonitoringConfig)
 	}
 
@@ -417,7 +413,7 @@ func (r *Repository) GetByIDWithTx(ctx context.Context, tx domaincommon.Transact
 	sqlTx := tx.Unwrap().(*sql.Tx)
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.WithTx(sqlTx).GetLibraryByID(ctx, int32(id))
+			return r.postgres.WithTx(sqlTx).GetLibraryByID(ctx, id)
 		},
 		func() (any, error) {
 			return r.sqlite.WithTx(sqlTx).GetLibraryByID(ctx, id)
@@ -445,7 +441,7 @@ func (r *Repository) DeleteWithTx(ctx context.Context, tx domaincommon.Transacti
 	sqlTx := tx.Unwrap().(*sql.Tx)
 	_, err := r.router.Route(
 		func() (any, error) {
-			return nil, r.postgres.WithTx(sqlTx).DeleteLibrary(ctx, int32(id))
+			return nil, r.postgres.WithTx(sqlTx).DeleteLibrary(ctx, id)
 		},
 		func() (any, error) {
 			return nil, r.sqlite.WithTx(sqlTx).DeleteLibrary(ctx, id)

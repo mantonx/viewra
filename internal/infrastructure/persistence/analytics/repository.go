@@ -58,17 +58,17 @@ func (r *Repository) UpsertSession(ctx context.Context, session *analytics.Playb
 	// PostgreSQL
 	_, err := r.postgresQuerier.UpsertPlaybackSession(ctx, sqlc_postgres.UpsertPlaybackSessionParams{
 		SessionID:          session.SessionID,
-		MediaID:            int32(session.MediaID),
+		MediaID:            session.MediaID,
 		StartTime:          session.StartTime,
 		EndTime:            common.NullInt64Ptr(session.EndTime),
-		TotalPlayTimeMs:    common.NullInt32FromInt64(session.TotalPlayTimeMs),
-		TotalBufferTimeMs:  common.NullInt32FromInt64(session.TotalBufferTimeMs),
-		StallCount:         common.NullInt32FromInt64(int64(session.StallCount)),
-		QualitySwitchCount: common.NullInt32FromInt64(int64(session.QualitySwitchCount)),
+		TotalPlayTimeMs:    common.NullInt64(session.TotalPlayTimeMs),
+		TotalBufferTimeMs:  common.NullInt64(session.TotalBufferTimeMs),
+		StallCount:         common.NullInt64(int64(session.StallCount)),
+		QualitySwitchCount: common.NullInt64(int64(session.QualitySwitchCount)),
 		AverageQuality:     common.NullString(session.AverageQuality),
 		DeviceType:         common.NullString(session.DeviceType),
 		ConnectionType:     common.NullString(session.ConnectionType),
-		StartupTimeMs:      common.NullInt32Ptr(session.StartupTimeMs),
+		StartupTimeMs:      common.NullInt64Ptr(session.StartupTimeMs),
 	})
 	return err
 }
@@ -101,14 +101,14 @@ func (r *Repository) CreateEvent(ctx context.Context, event *analytics.QualitySw
 	// PostgreSQL
 	_, err := r.postgresQuerier.CreateQualitySwitchEvent(ctx, sqlc_postgres.CreateQualitySwitchEventParams{
 		SessionID:        event.SessionID,
-		MediaID:          int32(event.MediaID),
+		MediaID:          event.MediaID,
 		FromQuality:      common.NullStringPtr(event.FromQuality),
 		ToQuality:        event.ToQuality,
 		SwitchReason:     event.SwitchReason,
-		PositionSeconds:  float32(event.PositionSeconds),
-		NetworkSpeedMbps: common.NullFloat32Ptr(event.NetworkSpeedMbps),
-		BufferSeconds:    common.NullFloat32Ptr(event.BufferSeconds),
-		CausedStall:      common.NullBool(event.CausedStall),
+		PositionSeconds:  event.PositionSeconds,
+		NetworkSpeedMbps: common.NullFloat64Ptr(event.NetworkSpeedMbps),
+		BufferSeconds:    common.NullFloat64Ptr(event.BufferSeconds),
+		CausedStall:      common.NullInt64FromBool(event.CausedStall),
 		DeviceType:       common.NullString(event.DeviceType),
 		ConnectionType:   common.NullString(event.ConnectionType),
 		Timestamp:        event.Timestamp,
@@ -162,17 +162,17 @@ func (r *Repository) GetSessionByID(ctx context.Context, sessionID string) (*ana
 	}
 	return &analytics.PlaybackSession{
 		SessionID:          row.SessionID,
-		MediaID:            int64(row.MediaID),
+		MediaID:            row.MediaID,
 		StartTime:          row.StartTime,
 		EndTime:            common.ParseNullInt64Ptr(row.EndTime),
-		TotalPlayTimeMs:    common.ParseNullInt32(row.TotalPlayTimeMs),
-		TotalBufferTimeMs:  common.ParseNullInt32(row.TotalBufferTimeMs),
-		StallCount:         int(common.ParseNullInt32(row.StallCount)),
-		QualitySwitchCount: int(common.ParseNullInt32(row.QualitySwitchCount)),
+		TotalPlayTimeMs:    common.ParseNullInt64(row.TotalPlayTimeMs),
+		TotalBufferTimeMs:  common.ParseNullInt64(row.TotalBufferTimeMs),
+		StallCount:         int(common.ParseNullInt64(row.StallCount)),
+		QualitySwitchCount: int(common.ParseNullInt64(row.QualitySwitchCount)),
 		AverageQuality:     common.ParseNullString(row.AverageQuality),
 		DeviceType:         common.ParseNullString(row.DeviceType),
 		ConnectionType:     common.ParseNullString(row.ConnectionType),
-		StartupTimeMs:      common.ParseNullInt32Ptr(row.StartupTimeMs),
+		StartupTimeMs:      common.ParseNullInt64Ptr(row.StartupTimeMs),
 	}, nil
 }
 
@@ -210,7 +210,7 @@ func (r *Repository) ListSessionsByMediaID(ctx context.Context, mediaID int64, l
 
 	// PostgreSQL
 	rows, err := r.postgresQuerier.ListPlaybackSessionsByMediaID(ctx, sqlc_postgres.ListPlaybackSessionsByMediaIDParams{
-		MediaID: int32(mediaID),
+		MediaID: mediaID,
 		Limit:   int32(limit),
 		Offset:  int32(offset),
 	})
@@ -222,17 +222,17 @@ func (r *Repository) ListSessionsByMediaID(ctx context.Context, mediaID int64, l
 	for i, row := range rows {
 		sessions[i] = analytics.PlaybackSession{
 			SessionID:          row.SessionID,
-			MediaID:            int64(row.MediaID),
+			MediaID:            row.MediaID,
 			StartTime:          row.StartTime,
 			EndTime:            common.ParseNullInt64Ptr(row.EndTime),
-			TotalPlayTimeMs:    common.ParseNullInt32(row.TotalPlayTimeMs),
-			TotalBufferTimeMs:  common.ParseNullInt32(row.TotalBufferTimeMs),
-			StallCount:         int(common.ParseNullInt32(row.StallCount)),
-			QualitySwitchCount: int(common.ParseNullInt32(row.QualitySwitchCount)),
+			TotalPlayTimeMs:    common.ParseNullInt64(row.TotalPlayTimeMs),
+			TotalBufferTimeMs:  common.ParseNullInt64(row.TotalBufferTimeMs),
+			StallCount:         int(common.ParseNullInt64(row.StallCount)),
+			QualitySwitchCount: int(common.ParseNullInt64(row.QualitySwitchCount)),
 			AverageQuality:     common.ParseNullString(row.AverageQuality),
 			DeviceType:         common.ParseNullString(row.DeviceType),
 			ConnectionType:     common.ParseNullString(row.ConnectionType),
-			StartupTimeMs:      common.ParseNullInt32Ptr(row.StartupTimeMs),
+			StartupTimeMs:      common.ParseNullInt64Ptr(row.StartupTimeMs),
 		}
 	}
 	return sessions, nil
@@ -258,7 +258,7 @@ func (r *Repository) GetSummaryByMediaID(ctx context.Context, mediaID int64) (*a
 	}
 
 	// PostgreSQL
-	row, err := r.postgresQuerier.GetPlaybackSummaryByMediaID(ctx, int32(mediaID))
+	row, err := r.postgresQuerier.GetPlaybackSummaryByMediaID(ctx, mediaID)
 	if err != nil {
 		return nil, err
 	}

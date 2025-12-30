@@ -59,7 +59,7 @@ type CreateAlbumParams struct {
 	TotalDiscs         sql.NullInt64  `json:"total_discs"`
 	RecordLabel        sql.NullString `json:"record_label"`
 	ReleaseType        sql.NullString `json:"release_type"`
-	Compilation        sql.NullBool   `json:"compilation"`
+	Compilation        sql.NullInt64  `json:"compilation"`
 	MusicbrainzAlbumID sql.NullString `json:"musicbrainz_album_id"`
 	CoverArtPath       sql.NullString `json:"cover_art_path"`
 	SortTitle          sql.NullString `json:"sort_title"`
@@ -371,7 +371,7 @@ type UpdateAlbumParams struct {
 	TotalDiscs         sql.NullInt64  `json:"total_discs"`
 	RecordLabel        sql.NullString `json:"record_label"`
 	ReleaseType        sql.NullString `json:"release_type"`
-	Compilation        sql.NullBool   `json:"compilation"`
+	Compilation        sql.NullInt64  `json:"compilation"`
 	MusicbrainzAlbumID sql.NullString `json:"musicbrainz_album_id"`
 	CoverArtPath       sql.NullString `json:"cover_art_path"`
 	SortTitle          sql.NullString `json:"sort_title"`

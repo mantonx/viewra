@@ -415,7 +415,7 @@ type UpsertEnrichmentStatusParams struct {
 	Stage        string         `json:"stage"`
 	Status       sql.NullString `json:"status"`
 	PluginID     sql.NullString `json:"plugin_id"`
-	CompletedAt  sql.NullString `json:"completed_at"`
+	CompletedAt  sql.NullTime   `json:"completed_at"`
 	ErrorMessage sql.NullString `json:"error_message"`
 	MetadataJson sql.NullString `json:"metadata_json"`
 }

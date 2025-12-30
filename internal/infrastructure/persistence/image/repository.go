@@ -58,7 +58,7 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*images.Image, error)
 	return common.QuerySingle(
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.MediaImage, error) {
-			return r.Postgres().GetImageByID(ctx, int32(id))
+			return r.Postgres().GetImageByID(ctx, int64(id))
 		},
 		func() (sqlc_sqlite.MediaImage, error) {
 			return r.SQLite().GetImageByID(ctx, int64(id))
@@ -73,7 +73,7 @@ func (r *Repository) GetByMediaID(ctx context.Context, mediaID int) ([]*images.I
 	return common.QueryMany(
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.MediaImage, error) {
-			return r.Postgres().ListImagesByMediaID(ctx, common.NullInt32FromInt64(int64(mediaID)))
+			return r.Postgres().ListImagesByMediaID(ctx, common.NullInt64(int64(mediaID)))
 		},
 		func() ([]sqlc_sqlite.MediaImage, error) {
 			return r.SQLite().ListImagesByMediaID(ctx, common.NullInt64(int64(mediaID)))
@@ -148,7 +148,7 @@ func (r *Repository) Delete(ctx context.Context, id int) error {
 	return common.ExecuteCommand(
 		r.BaseRepository, ctx,
 		func() error {
-			return r.Postgres().DeleteImage(ctx, int32(id))
+			return r.Postgres().DeleteImage(ctx, int64(id))
 		},
 		func() error {
 			return r.SQLite().DeleteImage(ctx, int64(id))
@@ -161,7 +161,7 @@ func (r *Repository) DeleteByMediaID(ctx context.Context, mediaID int) error {
 	return common.ExecuteCommand(
 		r.BaseRepository, ctx,
 		func() error {
-			return r.Postgres().DeleteImagesByMediaID(ctx, common.NullInt32FromInt64(int64(mediaID)))
+			return r.Postgres().DeleteImagesByMediaID(ctx, common.NullInt64(int64(mediaID)))
 		},
 		func() error {
 			return r.SQLite().DeleteImagesByMediaID(ctx, common.NullInt64(int64(mediaID)))
@@ -276,7 +276,7 @@ func (r *Repository) GetByExternalURL(ctx context.Context, externalURL string, m
 		func() (sqlc_postgres.MediaImage, error) {
 			return r.Postgres().GetImageByExternalURL(ctx, sqlc_postgres.GetImageByExternalURLParams{
 				ExternalUrl: common.NullString(externalURL),
-				MediaID:     common.NullInt32FromInt64(mediaID),
+				MediaID:     common.NullInt64(mediaID),
 			})
 		},
 		func() (sqlc_sqlite.MediaImage, error) {

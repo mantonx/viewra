@@ -8,7 +8,6 @@ package sqlc_postgres
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"time"
 )
 
@@ -22,20 +21,20 @@ INSERT INTO plugins (
 `
 
 type CreatePluginParams struct {
-	ID            string          `json:"id"`
-	Name          string          `json:"name"`
-	Version       string          `json:"version"`
-	Description   sql.NullString  `json:"description"`
-	Author        sql.NullString  `json:"author"`
-	License       sql.NullString  `json:"license"`
-	Homepage      sql.NullString  `json:"homepage"`
-	Categories    json.RawMessage `json:"categories"`
-	IsBuiltin     sql.NullBool    `json:"is_builtin"`
-	Enabled       sql.NullBool    `json:"enabled"`
-	Path          sql.NullString  `json:"path"`
-	HealthStatus  sql.NullString  `json:"health_status"`
-	LastHeartbeat sql.NullTime    `json:"last_heartbeat"`
-	RestartCount  sql.NullInt32   `json:"restart_count"`
+	ID            string         `json:"id"`
+	Name          string         `json:"name"`
+	Version       string         `json:"version"`
+	Description   sql.NullString `json:"description"`
+	Author        sql.NullString `json:"author"`
+	License       sql.NullString `json:"license"`
+	Homepage      sql.NullString `json:"homepage"`
+	Categories    string         `json:"categories"`
+	IsBuiltin     sql.NullInt64  `json:"is_builtin"`
+	Enabled       sql.NullInt64  `json:"enabled"`
+	Path          sql.NullString `json:"path"`
+	HealthStatus  sql.NullString `json:"health_status"`
+	LastHeartbeat sql.NullTime   `json:"last_heartbeat"`
+	RestartCount  sql.NullInt64  `json:"restart_count"`
 }
 
 func (q *Queries) CreatePlugin(ctx context.Context, arg CreatePluginParams) error {
@@ -96,24 +95,24 @@ WHERE id = $1
 `
 
 type GetPluginRow struct {
-	ID             string          `json:"id"`
-	Name           string          `json:"name"`
-	Version        string          `json:"version"`
-	Description    sql.NullString  `json:"description"`
-	Author         sql.NullString  `json:"author"`
-	License        sql.NullString  `json:"license"`
-	Homepage       sql.NullString  `json:"homepage"`
-	Categories     json.RawMessage `json:"categories"`
-	IsBuiltin      sql.NullBool    `json:"is_builtin"`
-	Enabled        sql.NullBool    `json:"enabled"`
-	Path           sql.NullString  `json:"path"`
-	HealthStatus   sql.NullString  `json:"health_status"`
-	LastHeartbeat  sql.NullTime    `json:"last_heartbeat"`
-	RestartCount   sql.NullInt32   `json:"restart_count"`
-	Settings       sql.NullString  `json:"settings"`
-	SettingsSchema sql.NullString  `json:"settings_schema"`
-	InstalledAt    time.Time       `json:"installed_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Version        string         `json:"version"`
+	Description    sql.NullString `json:"description"`
+	Author         sql.NullString `json:"author"`
+	License        sql.NullString `json:"license"`
+	Homepage       sql.NullString `json:"homepage"`
+	Categories     string         `json:"categories"`
+	IsBuiltin      sql.NullInt64  `json:"is_builtin"`
+	Enabled        sql.NullInt64  `json:"enabled"`
+	Path           sql.NullString `json:"path"`
+	HealthStatus   sql.NullString `json:"health_status"`
+	LastHeartbeat  sql.NullTime   `json:"last_heartbeat"`
+	RestartCount   sql.NullInt64  `json:"restart_count"`
+	Settings       sql.NullString `json:"settings"`
+	SettingsSchema sql.NullString `json:"settings_schema"`
+	InstalledAt    time.Time      `json:"installed_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
 func (q *Queries) GetPlugin(ctx context.Context, id string) (GetPluginRow, error) {
@@ -177,24 +176,24 @@ ORDER BY is_builtin DESC, name
 `
 
 type ListEnabledPluginsRow struct {
-	ID             string          `json:"id"`
-	Name           string          `json:"name"`
-	Version        string          `json:"version"`
-	Description    sql.NullString  `json:"description"`
-	Author         sql.NullString  `json:"author"`
-	License        sql.NullString  `json:"license"`
-	Homepage       sql.NullString  `json:"homepage"`
-	Categories     json.RawMessage `json:"categories"`
-	IsBuiltin      sql.NullBool    `json:"is_builtin"`
-	Enabled        sql.NullBool    `json:"enabled"`
-	Path           sql.NullString  `json:"path"`
-	HealthStatus   sql.NullString  `json:"health_status"`
-	LastHeartbeat  sql.NullTime    `json:"last_heartbeat"`
-	RestartCount   sql.NullInt32   `json:"restart_count"`
-	Settings       sql.NullString  `json:"settings"`
-	SettingsSchema sql.NullString  `json:"settings_schema"`
-	InstalledAt    time.Time       `json:"installed_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Version        string         `json:"version"`
+	Description    sql.NullString `json:"description"`
+	Author         sql.NullString `json:"author"`
+	License        sql.NullString `json:"license"`
+	Homepage       sql.NullString `json:"homepage"`
+	Categories     string         `json:"categories"`
+	IsBuiltin      sql.NullInt64  `json:"is_builtin"`
+	Enabled        sql.NullInt64  `json:"enabled"`
+	Path           sql.NullString `json:"path"`
+	HealthStatus   sql.NullString `json:"health_status"`
+	LastHeartbeat  sql.NullTime   `json:"last_heartbeat"`
+	RestartCount   sql.NullInt64  `json:"restart_count"`
+	Settings       sql.NullString `json:"settings"`
+	SettingsSchema sql.NullString `json:"settings_schema"`
+	InstalledAt    time.Time      `json:"installed_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
 func (q *Queries) ListEnabledPlugins(ctx context.Context) ([]ListEnabledPluginsRow, error) {
@@ -250,24 +249,24 @@ ORDER BY is_builtin DESC, name
 `
 
 type ListPluginsRow struct {
-	ID             string          `json:"id"`
-	Name           string          `json:"name"`
-	Version        string          `json:"version"`
-	Description    sql.NullString  `json:"description"`
-	Author         sql.NullString  `json:"author"`
-	License        sql.NullString  `json:"license"`
-	Homepage       sql.NullString  `json:"homepage"`
-	Categories     json.RawMessage `json:"categories"`
-	IsBuiltin      sql.NullBool    `json:"is_builtin"`
-	Enabled        sql.NullBool    `json:"enabled"`
-	Path           sql.NullString  `json:"path"`
-	HealthStatus   sql.NullString  `json:"health_status"`
-	LastHeartbeat  sql.NullTime    `json:"last_heartbeat"`
-	RestartCount   sql.NullInt32   `json:"restart_count"`
-	Settings       sql.NullString  `json:"settings"`
-	SettingsSchema sql.NullString  `json:"settings_schema"`
-	InstalledAt    time.Time       `json:"installed_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Version        string         `json:"version"`
+	Description    sql.NullString `json:"description"`
+	Author         sql.NullString `json:"author"`
+	License        sql.NullString `json:"license"`
+	Homepage       sql.NullString `json:"homepage"`
+	Categories     string         `json:"categories"`
+	IsBuiltin      sql.NullInt64  `json:"is_builtin"`
+	Enabled        sql.NullInt64  `json:"enabled"`
+	Path           sql.NullString `json:"path"`
+	HealthStatus   sql.NullString `json:"health_status"`
+	LastHeartbeat  sql.NullTime   `json:"last_heartbeat"`
+	RestartCount   sql.NullInt64  `json:"restart_count"`
+	Settings       sql.NullString `json:"settings"`
+	SettingsSchema sql.NullString `json:"settings_schema"`
+	InstalledAt    time.Time      `json:"installed_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
 func (q *Queries) ListPlugins(ctx context.Context) ([]ListPluginsRow, error) {
@@ -324,27 +323,27 @@ ORDER BY is_builtin DESC, name
 `
 
 type ListPluginsByCategoryRow struct {
-	ID             string          `json:"id"`
-	Name           string          `json:"name"`
-	Version        string          `json:"version"`
-	Description    sql.NullString  `json:"description"`
-	Author         sql.NullString  `json:"author"`
-	License        sql.NullString  `json:"license"`
-	Homepage       sql.NullString  `json:"homepage"`
-	Categories     json.RawMessage `json:"categories"`
-	IsBuiltin      sql.NullBool    `json:"is_builtin"`
-	Enabled        sql.NullBool    `json:"enabled"`
-	Path           sql.NullString  `json:"path"`
-	HealthStatus   sql.NullString  `json:"health_status"`
-	LastHeartbeat  sql.NullTime    `json:"last_heartbeat"`
-	RestartCount   sql.NullInt32   `json:"restart_count"`
-	Settings       sql.NullString  `json:"settings"`
-	SettingsSchema sql.NullString  `json:"settings_schema"`
-	InstalledAt    time.Time       `json:"installed_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Version        string         `json:"version"`
+	Description    sql.NullString `json:"description"`
+	Author         sql.NullString `json:"author"`
+	License        sql.NullString `json:"license"`
+	Homepage       sql.NullString `json:"homepage"`
+	Categories     string         `json:"categories"`
+	IsBuiltin      sql.NullInt64  `json:"is_builtin"`
+	Enabled        sql.NullInt64  `json:"enabled"`
+	Path           sql.NullString `json:"path"`
+	HealthStatus   sql.NullString `json:"health_status"`
+	LastHeartbeat  sql.NullTime   `json:"last_heartbeat"`
+	RestartCount   sql.NullInt64  `json:"restart_count"`
+	Settings       sql.NullString `json:"settings"`
+	SettingsSchema sql.NullString `json:"settings_schema"`
+	InstalledAt    time.Time      `json:"installed_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
-func (q *Queries) ListPluginsByCategory(ctx context.Context, categories json.RawMessage) ([]ListPluginsByCategoryRow, error) {
+func (q *Queries) ListPluginsByCategory(ctx context.Context, categories string) ([]ListPluginsByCategoryRow, error) {
 	rows, err := q.db.QueryContext(ctx, listPluginsByCategory, categories)
 	if err != nil {
 		return nil, err
@@ -424,15 +423,15 @@ WHERE id = $9
 `
 
 type UpdatePluginParams struct {
-	Name        string          `json:"name"`
-	Version     string          `json:"version"`
-	Description sql.NullString  `json:"description"`
-	Author      sql.NullString  `json:"author"`
-	License     sql.NullString  `json:"license"`
-	Homepage    sql.NullString  `json:"homepage"`
-	Categories  json.RawMessage `json:"categories"`
-	Path        sql.NullString  `json:"path"`
-	ID          string          `json:"id"`
+	Name        string         `json:"name"`
+	Version     string         `json:"version"`
+	Description sql.NullString `json:"description"`
+	Author      sql.NullString `json:"author"`
+	License     sql.NullString `json:"license"`
+	Homepage    sql.NullString `json:"homepage"`
+	Categories  string         `json:"categories"`
+	Path        sql.NullString `json:"path"`
+	ID          string         `json:"id"`
 }
 
 func (q *Queries) UpdatePlugin(ctx context.Context, arg UpdatePluginParams) error {
@@ -522,15 +521,15 @@ ON CONFLICT(id) DO UPDATE SET
 `
 
 type UpsertPluginParams struct {
-	ID          string          `json:"id"`
-	Name        string          `json:"name"`
-	Version     string          `json:"version"`
-	Description sql.NullString  `json:"description"`
-	Author      sql.NullString  `json:"author"`
-	License     sql.NullString  `json:"license"`
-	Homepage    sql.NullString  `json:"homepage"`
-	Categories  json.RawMessage `json:"categories"`
-	Path        sql.NullString  `json:"path"`
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Version     string         `json:"version"`
+	Description sql.NullString `json:"description"`
+	Author      sql.NullString `json:"author"`
+	License     sql.NullString `json:"license"`
+	Homepage    sql.NullString `json:"homepage"`
+	Categories  string         `json:"categories"`
+	Path        sql.NullString `json:"path"`
 }
 
 func (q *Queries) UpsertPlugin(ctx context.Context, arg UpsertPluginParams) error {

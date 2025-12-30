@@ -26,7 +26,7 @@ const createUser = `-- name: CreateUser :one
 
 INSERT INTO users (public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, id, location_latitude, location_longitude, location_timezone, location_enabled, location_name
+RETURNING id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, location_latitude, location_longitude, location_timezone, location_enabled, location_name
 `
 
 type CreateUserParams struct {
@@ -34,8 +34,8 @@ type CreateUserParams struct {
 	Username     string    `json:"username"`
 	DisplayName  string    `json:"display_name"`
 	PasswordHash string    `json:"password_hash"`
-	IsAdmin      bool      `json:"is_admin"`
-	IsDisabled   bool      `json:"is_disabled"`
+	IsAdmin      int64     `json:"is_admin"`
+	IsDisabled   int64     `json:"is_disabled"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
@@ -54,6 +54,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	)
 	var i User
 	err := row.Scan(
+		&i.ID,
 		&i.PublicID,
 		&i.Username,
 		&i.DisplayName,
@@ -62,7 +63,6 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.IsDisabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.ID,
 		&i.LocationLatitude,
 		&i.LocationLongitude,
 		&i.LocationTimezone,
@@ -77,7 +77,7 @@ DELETE FROM users
 WHERE id = $1
 `
 
-func (q *Queries) DeleteUser(ctx context.Context, id int32) error {
+func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteUser, id)
 	return err
 }
@@ -94,15 +94,16 @@ func (q *Queries) ExistsAnyUser(ctx context.Context) (bool, error) {
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, id, location_latitude, location_longitude, location_timezone, location_enabled, location_name FROM users
+SELECT id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, location_latitude, location_longitude, location_timezone, location_enabled, location_name FROM users
 WHERE id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetUserByID(ctx context.Context, id int32) (User, error) {
+func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByID, id)
 	var i User
 	err := row.Scan(
+		&i.ID,
 		&i.PublicID,
 		&i.Username,
 		&i.DisplayName,
@@ -111,7 +112,6 @@ func (q *Queries) GetUserByID(ctx context.Context, id int32) (User, error) {
 		&i.IsDisabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.ID,
 		&i.LocationLatitude,
 		&i.LocationLongitude,
 		&i.LocationTimezone,
@@ -122,7 +122,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int32) (User, error) {
 }
 
 const getUserByPublicID = `-- name: GetUserByPublicID :one
-SELECT public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, id, location_latitude, location_longitude, location_timezone, location_enabled, location_name FROM users
+SELECT id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, location_latitude, location_longitude, location_timezone, location_enabled, location_name FROM users
 WHERE public_id = $1
 LIMIT 1
 `
@@ -131,6 +131,7 @@ func (q *Queries) GetUserByPublicID(ctx context.Context, publicID string) (User,
 	row := q.db.QueryRowContext(ctx, getUserByPublicID, publicID)
 	var i User
 	err := row.Scan(
+		&i.ID,
 		&i.PublicID,
 		&i.Username,
 		&i.DisplayName,
@@ -139,7 +140,6 @@ func (q *Queries) GetUserByPublicID(ctx context.Context, publicID string) (User,
 		&i.IsDisabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.ID,
 		&i.LocationLatitude,
 		&i.LocationLongitude,
 		&i.LocationTimezone,
@@ -150,7 +150,7 @@ func (q *Queries) GetUserByPublicID(ctx context.Context, publicID string) (User,
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, id, location_latitude, location_longitude, location_timezone, location_enabled, location_name FROM users
+SELECT id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, location_latitude, location_longitude, location_timezone, location_enabled, location_name FROM users
 WHERE LOWER(username) = LOWER($1)
 LIMIT 1
 `
@@ -159,6 +159,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (User, er
 	row := q.db.QueryRowContext(ctx, getUserByUsername, lower)
 	var i User
 	err := row.Scan(
+		&i.ID,
 		&i.PublicID,
 		&i.Username,
 		&i.DisplayName,
@@ -167,7 +168,6 @@ func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (User, er
 		&i.IsDisabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.ID,
 		&i.LocationLatitude,
 		&i.LocationLongitude,
 		&i.LocationTimezone,
@@ -185,16 +185,16 @@ WHERE id = $1
 `
 
 type GetUserLocationRow struct {
-	ID                int32           `json:"id"`
+	ID                int64           `json:"id"`
 	LocationLatitude  sql.NullFloat64 `json:"location_latitude"`
 	LocationLongitude sql.NullFloat64 `json:"location_longitude"`
 	LocationTimezone  sql.NullString  `json:"location_timezone"`
-	LocationEnabled   sql.NullBool    `json:"location_enabled"`
+	LocationEnabled   sql.NullInt64   `json:"location_enabled"`
 	LocationName      sql.NullString  `json:"location_name"`
 }
 
 // Location Preferences (stored in users table)
-func (q *Queries) GetUserLocation(ctx context.Context, id int32) (GetUserLocationRow, error) {
+func (q *Queries) GetUserLocation(ctx context.Context, id int64) (GetUserLocationRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserLocation, id)
 	var i GetUserLocationRow
 	err := row.Scan(
@@ -209,7 +209,7 @@ func (q *Queries) GetUserLocation(ctx context.Context, id int32) (GetUserLocatio
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, id, location_latitude, location_longitude, location_timezone, location_enabled, location_name FROM users
+SELECT id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, location_latitude, location_longitude, location_timezone, location_enabled, location_name FROM users
 ORDER BY username
 LIMIT $1 OFFSET $2
 `
@@ -229,6 +229,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 	for rows.Next() {
 		var i User
 		if err := rows.Scan(
+			&i.ID,
 			&i.PublicID,
 			&i.Username,
 			&i.DisplayName,
@@ -237,7 +238,6 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.IsDisabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.ID,
 			&i.LocationLatitude,
 			&i.LocationLongitude,
 			&i.LocationTimezone,
@@ -264,15 +264,15 @@ SET display_name = $1,
     is_disabled = $3,
     updated_at = $4
 WHERE id = $5
-RETURNING public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, id, location_latitude, location_longitude, location_timezone, location_enabled, location_name
+RETURNING id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, location_latitude, location_longitude, location_timezone, location_enabled, location_name
 `
 
 type UpdateUserParams struct {
 	DisplayName string    `json:"display_name"`
-	IsAdmin     bool      `json:"is_admin"`
-	IsDisabled  bool      `json:"is_disabled"`
+	IsAdmin     int64     `json:"is_admin"`
+	IsDisabled  int64     `json:"is_disabled"`
 	UpdatedAt   time.Time `json:"updated_at"`
-	ID          int32     `json:"id"`
+	ID          int64     `json:"id"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
@@ -285,6 +285,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 	)
 	var i User
 	err := row.Scan(
+		&i.ID,
 		&i.PublicID,
 		&i.Username,
 		&i.DisplayName,
@@ -293,7 +294,6 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.IsDisabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.ID,
 		&i.LocationLatitude,
 		&i.LocationLongitude,
 		&i.LocationTimezone,
@@ -318,10 +318,10 @@ type UpdateUserLocationParams struct {
 	LocationLatitude  sql.NullFloat64 `json:"location_latitude"`
 	LocationLongitude sql.NullFloat64 `json:"location_longitude"`
 	LocationTimezone  sql.NullString  `json:"location_timezone"`
-	LocationEnabled   sql.NullBool    `json:"location_enabled"`
+	LocationEnabled   sql.NullInt64   `json:"location_enabled"`
 	LocationName      sql.NullString  `json:"location_name"`
 	UpdatedAt         time.Time       `json:"updated_at"`
-	ID                int32           `json:"id"`
+	ID                int64           `json:"id"`
 }
 
 func (q *Queries) UpdateUserLocation(ctx context.Context, arg UpdateUserLocationParams) error {
@@ -347,7 +347,7 @@ WHERE id = $3
 type UpdateUserPasswordParams struct {
 	PasswordHash string    `json:"password_hash"`
 	UpdatedAt    time.Time `json:"updated_at"`
-	ID           int32     `json:"id"`
+	ID           int64     `json:"id"`
 }
 
 func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {

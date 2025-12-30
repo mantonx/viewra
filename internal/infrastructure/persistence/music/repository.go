@@ -52,7 +52,7 @@ func (r *Repository) GetMusicTrackByID(ctx context.Context, id int64) (*media.Mu
 	return common.QuerySingle(
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.GetMusicTrackByMediaIDRow, error) {
-			return r.Postgres().GetMusicTrackByMediaID(ctx, int32(id))
+			return r.Postgres().GetMusicTrackByMediaID(ctx, id)
 		},
 		func() (sqlc_sqlite.GetMusicTrackByMediaIDRow, error) {
 			return r.SQLite().GetMusicTrackByMediaID(ctx, id)
@@ -67,7 +67,7 @@ func (r *Repository) ListMusicTracksByLibrary(ctx context.Context, libraryID int
 	return common.QueryMany(
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.ListMusicTracksByLibraryRow, error) {
-			return r.Postgres().ListMusicTracksByLibrary(ctx, int32(libraryID))
+			return r.Postgres().ListMusicTracksByLibrary(ctx, libraryID)
 		},
 		func() ([]sqlc_sqlite.ListMusicTracksByLibraryRow, error) {
 			return r.SQLite().ListMusicTracksByLibrary(ctx, libraryID)
@@ -83,7 +83,7 @@ func (r *Repository) ListMusicTracksByAlbum(ctx context.Context, libraryID int64
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.ListMusicTracksByAlbumRow, error) {
 			return r.Postgres().ListMusicTracksByAlbum(ctx, sqlc_postgres.ListMusicTracksByAlbumParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Album:     common.NullString(album),
 			})
 		},
@@ -107,7 +107,7 @@ func (r *Repository) ListMusicTracksByArtist(ctx context.Context, libraryID int6
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.ListMusicTracksByArtistRow, error) {
 			return r.Postgres().ListMusicTracksByArtist(ctx, sqlc_postgres.ListMusicTracksByArtistParams{
-				LibraryID:   int32(libraryID),
+				LibraryID:   libraryID,
 				Artist:      common.NullString(searchPattern),
 				AlbumArtist: common.NullString(searchPattern),
 			})
@@ -152,7 +152,7 @@ func (r *Repository) SearchMusicTracks(ctx context.Context, libraryID int64, que
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.SearchMusicTracksRow, error) {
 			return r.Postgres().SearchMusicTracks(ctx, sqlc_postgres.SearchMusicTracksParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Title:     searchPattern,
 				Artist:    common.NullString(searchPattern),
 				Album:     common.NullString(searchPattern),
@@ -237,7 +237,7 @@ func extractMusicTrackFields[T musicTrackRow](row T) musicTrackFields {
 		FrameRate:       r.FrameRate,
 		ContainerFormat: r.ContainerFormat,
 		Type:            r.Type,
-		IsExtra:         r.IsExtra,
+		IsExtra:         common.Int64ToBool(r.IsExtra),
 		CreatedAt:       r.CreatedAt,
 		UpdatedAt:       r.UpdatedAt,
 	}
@@ -248,7 +248,7 @@ func (r *Repository) CountArtistsByLibrary(ctx context.Context, libraryID int64)
 	return common.QueryScalar(
 		r.BaseRepository, ctx,
 		func() (int64, error) {
-			return r.Postgres().CountArtistsInLibrary(ctx, int32(libraryID))
+			return r.Postgres().CountArtistsInLibrary(ctx, libraryID)
 		},
 		func() (int64, error) {
 			return r.SQLite().CountArtistsInLibrary(ctx, libraryID)
@@ -274,7 +274,7 @@ func (r *Repository) ListArtistsByLibraryPaginated(ctx context.Context, libraryI
 			r.BaseRepository, ctx,
 			func() ([]sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescRow, error) {
 				return r.Postgres().GetArtistsWithCountsByLibraryPaginatedDesc(ctx, sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescParams{
-					LibraryID: int32(libraryID),
+					LibraryID: libraryID,
 					Limit:     int32(pagination.Limit),
 					Offset:    int32(pagination.Offset),
 				})
@@ -295,7 +295,7 @@ func (r *Repository) ListArtistsByLibraryPaginated(ctx context.Context, libraryI
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedRow, error) {
 			return r.Postgres().GetArtistsWithCountsByLibraryPaginated(ctx, sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Limit:     int32(pagination.Limit),
 				Offset:    int32(pagination.Offset),
 			})
@@ -324,8 +324,8 @@ type sqliteArtistRow interface {
 func postgresArtistRowToDomain[T postgresArtistRow](row T) media.MusicArtist {
 	// Use unsafe pointer to access fields since both types have the same structure
 	type artistFields struct {
-		ID         int32
-		LibraryID  int32
+		ID         int64
+		LibraryID  int64
 		Name       string
 		AlbumCount int64
 		TrackCount int64
@@ -333,7 +333,7 @@ func postgresArtistRowToDomain[T postgresArtistRow](row T) media.MusicArtist {
 	ptr := unsafe.Pointer(&row)
 	fields := (*artistFields)(ptr)
 	return media.MusicArtist{
-		RepresentativeID: int64(fields.ID),
+		RepresentativeID: fields.ID,
 		Artist:           fields.Name,
 		AlbumCount:       fields.AlbumCount,
 		TrackCount:       fields.TrackCount,
@@ -364,7 +364,7 @@ func (r *Repository) CountAlbumsByLibrary(ctx context.Context, libraryID int64) 
 	return common.QueryScalar(
 		r.BaseRepository, ctx,
 		func() (int64, error) {
-			return r.Postgres().CountAlbumsByLibrary(ctx, int32(libraryID))
+			return r.Postgres().CountAlbumsByLibrary(ctx, libraryID)
 		},
 		func() (int64, error) {
 			return r.SQLite().CountAlbumsByLibrary(ctx, libraryID)
@@ -389,7 +389,7 @@ func (r *Repository) ListAlbumsByLibraryPaginated(ctx context.Context, libraryID
 			r.BaseRepository, ctx,
 			func() ([]sqlc_postgres.ListAlbumsByLibraryPaginatedDescRow, error) {
 				return r.Postgres().ListAlbumsByLibraryPaginatedDesc(ctx, sqlc_postgres.ListAlbumsByLibraryPaginatedDescParams{
-					LibraryID: int32(libraryID),
+					LibraryID: libraryID,
 					Limit:     int32(pagination.Limit),
 					Offset:    int32(pagination.Offset),
 				})
@@ -410,7 +410,7 @@ func (r *Repository) ListAlbumsByLibraryPaginated(ctx context.Context, libraryID
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.ListAlbumsByLibraryPaginatedRow, error) {
 			return r.Postgres().ListAlbumsByLibraryPaginated(ctx, sqlc_postgres.ListAlbumsByLibraryPaginatedParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Limit:     int32(pagination.Limit),
 				Offset:    int32(pagination.Offset),
 			})
@@ -432,7 +432,7 @@ func (r *Repository) CountMusicTracksByLibrary(ctx context.Context, libraryID in
 	return common.QueryScalar(
 		r.BaseRepository, ctx,
 		func() (int64, error) {
-			return r.Postgres().CountMusicTracksByLibrary(ctx, int32(libraryID))
+			return r.Postgres().CountMusicTracksByLibrary(ctx, libraryID)
 		},
 		func() (int64, error) {
 			return r.SQLite().CountMusicTracksByLibrary(ctx, libraryID)
@@ -457,7 +457,7 @@ func (r *Repository) ListMusicTracksByLibraryPaginated(ctx context.Context, libr
 			r.BaseRepository, ctx,
 			func() ([]sqlc_postgres.ListMusicTracksByLibraryPaginatedDescRow, error) {
 				return r.Postgres().ListMusicTracksByLibraryPaginatedDesc(ctx, sqlc_postgres.ListMusicTracksByLibraryPaginatedDescParams{
-					LibraryID: int32(libraryID),
+					LibraryID: libraryID,
 					Limit:     int32(pagination.Limit),
 					Offset:    int32(pagination.Offset),
 				})
@@ -478,7 +478,7 @@ func (r *Repository) ListMusicTracksByLibraryPaginated(ctx context.Context, libr
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.ListMusicTracksByLibraryPaginatedRow, error) {
 			return r.Postgres().ListMusicTracksByLibraryPaginated(ctx, sqlc_postgres.ListMusicTracksByLibraryPaginatedParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Limit:     int32(pagination.Limit),
 				Offset:    int32(pagination.Offset),
 			})
@@ -510,9 +510,9 @@ func (r *Repository) ListArtistIDsByLibraryPaginated(ctx context.Context, librar
 	if sortBy == "title_desc" {
 		pgResults, err := common.QueryMany(
 			r.BaseRepository, ctx,
-			func() ([]int32, error) {
+			func() ([]int64, error) {
 				return r.Postgres().ListArtistIDsByLibraryPaginatedDesc(ctx, sqlc_postgres.ListArtistIDsByLibraryPaginatedDescParams{
-					LibraryID: int32(libraryID),
+					LibraryID: libraryID,
 					Limit:     int32(pagination.Limit),
 					Offset:    int32(pagination.Offset),
 				})
@@ -524,7 +524,7 @@ func (r *Repository) ListArtistIDsByLibraryPaginated(ctx context.Context, librar
 					Offset:    int64(pagination.Offset),
 				})
 			},
-			func(id int32) int64 { return int64(id) },
+			func(id int64) int64 { return id },
 			func(id int64) int64 { return id },
 		)
 		return pgResults, err
@@ -532,9 +532,9 @@ func (r *Repository) ListArtistIDsByLibraryPaginated(ctx context.Context, librar
 
 	return common.QueryMany(
 		r.BaseRepository, ctx,
-		func() ([]int32, error) {
+		func() ([]int64, error) {
 			return r.Postgres().ListArtistIDsByLibraryPaginated(ctx, sqlc_postgres.ListArtistIDsByLibraryPaginatedParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Limit:     int32(pagination.Limit),
 				Offset:    int32(pagination.Offset),
 			})
@@ -546,7 +546,7 @@ func (r *Repository) ListArtistIDsByLibraryPaginated(ctx context.Context, librar
 				Offset:    int64(pagination.Offset),
 			})
 		},
-		func(id int32) int64 { return int64(id) },
+		func(id int64) int64 { return id },
 		func(id int64) int64 { return id },
 	)
 }
@@ -582,7 +582,7 @@ func (r *Repository) GetAlbumByID(ctx context.Context, id int64) (*media.Album, 
 	album, err := common.QuerySingle(
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.MusicAlbum, error) {
-			return r.Postgres().GetAlbumByID(ctx, int32(id))
+			return r.Postgres().GetAlbumByID(ctx, id)
 		},
 		func() (sqlc_sqlite.MusicAlbum, error) {
 			return r.SQLite().GetAlbumByID(ctx, id)
@@ -612,7 +612,7 @@ func (r *Repository) FindAlbumByTitle(ctx context.Context, libraryID int64, titl
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.MusicAlbum, error) {
 			return r.Postgres().FindAlbumByTitle(ctx, sqlc_postgres.FindAlbumByTitleParams{
-				LibraryID:   int32(libraryID),
+				LibraryID:   libraryID,
 				Title:       title,
 				AlbumArtist: common.NullString(albumArtist),
 			})
@@ -635,7 +635,7 @@ func (r *Repository) ListAlbumsByLibrary(ctx context.Context, libraryID int64) (
 	return common.QueryMany(
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.MusicAlbum, error) {
-			return r.Postgres().ListAlbumsByLibrary(ctx, int32(libraryID))
+			return r.Postgres().ListAlbumsByLibrary(ctx, libraryID)
 		},
 		func() ([]sqlc_sqlite.MusicAlbum, error) {
 			return r.SQLite().ListAlbumsByLibrary(ctx, libraryID)
@@ -650,7 +650,7 @@ func (r *Repository) ListMusicTracksByAlbumID(ctx context.Context, albumID int64
 	return common.QueryMany(
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.ListMusicTracksByAlbumIDRow, error) {
-			return r.Postgres().ListMusicTracksByAlbumID(ctx, common.NullInt32FromInt64(albumID))
+			return r.Postgres().ListMusicTracksByAlbumID(ctx, common.NullInt64(albumID))
 		},
 		func() ([]sqlc_sqlite.ListMusicTracksByAlbumIDRow, error) {
 			return r.SQLite().ListMusicTracksByAlbumID(ctx, common.NullInt64(albumID))
@@ -699,7 +699,7 @@ func (r *Repository) GetArtistByID(ctx context.Context, id int64) (*media.Artist
 	return common.QuerySingle(
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.MusicArtist, error) {
-			return r.Postgres().GetArtistByID(ctx, int32(id))
+			return r.Postgres().GetArtistByID(ctx, id)
 		},
 		func() (sqlc_sqlite.MusicArtist, error) {
 			return r.SQLite().GetArtistByID(ctx, id)
@@ -728,7 +728,7 @@ func (r *Repository) FindArtistByName(ctx context.Context, libraryID int64, name
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.MusicArtist, error) {
 			return r.Postgres().FindArtistByName(ctx, sqlc_postgres.FindArtistByNameParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Name:      name,
 			})
 		},
@@ -748,7 +748,7 @@ func (r *Repository) ListArtistsByLibrary(ctx context.Context, libraryID int64) 
 	return common.QueryMany(
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.MusicArtist, error) {
-			return r.Postgres().ListArtistsByLibrary(ctx, int32(libraryID))
+			return r.Postgres().ListArtistsByLibrary(ctx, libraryID)
 		},
 		func() ([]sqlc_sqlite.MusicArtist, error) {
 			return r.SQLite().ListArtistsByLibrary(ctx, libraryID)
@@ -770,7 +770,7 @@ func (r *Repository) SearchArtistsByName(ctx context.Context, libraryID int64, q
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.MusicArtist, error) {
 			return r.Postgres().SearchArtistsByName(ctx, sqlc_postgres.SearchArtistsByNameParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Name:      searchPattern,
 				SortName:  common.NullString(searchPattern),
 				Limit:     int32(pagination.Limit),
@@ -799,7 +799,7 @@ func (r *Repository) CountSearchArtistsByName(ctx context.Context, libraryID int
 		r.BaseRepository, ctx,
 		func() (int64, error) {
 			return r.Postgres().CountSearchArtistsByName(ctx, sqlc_postgres.CountSearchArtistsByNameParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Name:      searchPattern,
 				SortName:  common.NullString(searchPattern),
 			})
@@ -839,7 +839,7 @@ func (r *Repository) GetArtistsWithCountsByLibraryPaginated(ctx context.Context,
 			r.BaseRepository, ctx,
 			func() ([]sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescRow, error) {
 				return r.Postgres().GetArtistsWithCountsByLibraryPaginatedDesc(ctx, sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescParams{
-					LibraryID: int32(libraryID),
+					LibraryID: libraryID,
 					Limit:     int32(pagination.Limit),
 					Offset:    int32(pagination.Offset),
 				})
@@ -853,8 +853,8 @@ func (r *Repository) GetArtistsWithCountsByLibraryPaginated(ctx context.Context,
 			},
 			func(row sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescRow) ArtistWithCounts {
 				return ArtistWithCounts{
-					ID:         int64(row.ID),
-					LibraryID:  int64(row.LibraryID),
+					ID:         row.ID,
+					LibraryID:  row.LibraryID,
 					Name:       row.Name,
 					AlbumCount: int(row.AlbumCount),
 					TrackCount: int(row.TrackCount),
@@ -876,7 +876,7 @@ func (r *Repository) GetArtistsWithCountsByLibraryPaginated(ctx context.Context,
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedRow, error) {
 			return r.Postgres().GetArtistsWithCountsByLibraryPaginated(ctx, sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Limit:     int32(pagination.Limit),
 				Offset:    int32(pagination.Offset),
 			})
@@ -890,8 +890,8 @@ func (r *Repository) GetArtistsWithCountsByLibraryPaginated(ctx context.Context,
 		},
 		func(row sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedRow) ArtistWithCounts {
 			return ArtistWithCounts{
-				ID:         int64(row.ID),
-				LibraryID:  int64(row.LibraryID),
+				ID:         row.ID,
+				LibraryID:  row.LibraryID,
 				Name:       row.Name,
 				AlbumCount: int(row.AlbumCount),
 				TrackCount: int(row.TrackCount),
@@ -921,7 +921,7 @@ func (r *Repository) SearchArtistsWithCountsByNamePaginated(ctx context.Context,
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.SearchArtistsWithCountsByNamePaginatedRow, error) {
 			return r.Postgres().SearchArtistsWithCountsByNamePaginated(ctx, sqlc_postgres.SearchArtistsWithCountsByNamePaginatedParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Name:      searchPattern,
 				SortName:  common.NullString(searchPattern),
 				Limit:     int32(pagination.Limit),
@@ -939,8 +939,8 @@ func (r *Repository) SearchArtistsWithCountsByNamePaginated(ctx context.Context,
 		},
 		func(row sqlc_postgres.SearchArtistsWithCountsByNamePaginatedRow) ArtistWithCounts {
 			return ArtistWithCounts{
-				ID:         int64(row.ID),
-				LibraryID:  int64(row.LibraryID),
+				ID:         row.ID,
+				LibraryID:  row.LibraryID,
 				Name:       row.Name,
 				AlbumCount: int(row.AlbumCount),
 				TrackCount: int(row.TrackCount),

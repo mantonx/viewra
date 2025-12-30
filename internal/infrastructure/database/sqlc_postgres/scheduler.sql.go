@@ -9,8 +9,6 @@ import (
 	"context"
 	"database/sql"
 	"time"
-
-	"github.com/sqlc-dev/pqtype"
 )
 
 const cleanExpiredSchedulerLocks = `-- name: CleanExpiredSchedulerLocks :execrows
@@ -54,15 +52,15 @@ type CreateSchedulerExecutionParams struct {
 	ScheduledAt       sql.NullTime   `json:"scheduled_at"`
 	StartedAt         sql.NullTime   `json:"started_at"`
 	EndedAt           sql.NullTime   `json:"ended_at"`
-	DurationMs        sql.NullInt32  `json:"duration_ms"`
-	Success           sql.NullBool   `json:"success"`
+	DurationMs        sql.NullInt64  `json:"duration_ms"`
+	Success           sql.NullInt64  `json:"success"`
 	Error             sql.NullString `json:"error"`
 	Logs              sql.NullString `json:"logs"`
-	Attempt           sql.NullInt32  `json:"attempt"`
+	Attempt           sql.NullInt64  `json:"attempt"`
 	ParentExecutionID sql.NullString `json:"parent_execution_id"`
 	TriggeredBy       string         `json:"triggered_by"`
 	DependencyExecID  sql.NullString `json:"dependency_exec_id"`
-	Resumable         sql.NullBool   `json:"resumable"`
+	Resumable         sql.NullInt64  `json:"resumable"`
 }
 
 // Scheduler Executions Queries
@@ -695,7 +693,7 @@ SET status = 'interrupted',
 WHERE status IN ('pending', 'running')
 `
 
-func (q *Queries) MarkRunningAsInterrupted(ctx context.Context, resumable sql.NullBool) (int64, error) {
+func (q *Queries) MarkRunningAsInterrupted(ctx context.Context, resumable sql.NullInt64) (int64, error) {
 	result, err := q.db.ExecContext(ctx, markRunningAsInterrupted, resumable)
 	if err != nil {
 		return 0, err
@@ -777,7 +775,7 @@ WHERE id = $3
 
 type UpdateScheduledTaskParams struct {
 	Schedule sql.NullString `json:"schedule"`
-	Enabled  sql.NullBool   `json:"enabled"`
+	Enabled  sql.NullInt64  `json:"enabled"`
 	ID       string         `json:"id"`
 }
 
@@ -803,11 +801,11 @@ type UpdateSchedulerExecutionParams struct {
 	Status     string         `json:"status"`
 	StartedAt  sql.NullTime   `json:"started_at"`
 	EndedAt    sql.NullTime   `json:"ended_at"`
-	DurationMs sql.NullInt32  `json:"duration_ms"`
-	Success    sql.NullBool   `json:"success"`
+	DurationMs sql.NullInt64  `json:"duration_ms"`
+	Success    sql.NullInt64  `json:"success"`
 	Error      sql.NullString `json:"error"`
 	Logs       sql.NullString `json:"logs"`
-	Resumable  sql.NullBool   `json:"resumable"`
+	Resumable  sql.NullInt64  `json:"resumable"`
 	ID         string         `json:"id"`
 }
 
@@ -848,18 +846,18 @@ ON CONFLICT(id) DO UPDATE SET
 `
 
 type UpsertScheduledTaskParams struct {
-	ID                string                `json:"id"`
-	Name              string                `json:"name"`
-	Description       sql.NullString        `json:"description"`
-	Schedule          sql.NullString        `json:"schedule"`
-	Enabled           bool                  `json:"enabled"`
-	Source            string                `json:"source"`
-	SourceID          sql.NullString        `json:"source_id"`
-	DependsOn         pqtype.NullRawMessage `json:"depends_on"`
-	TimeoutSeconds    sql.NullInt32         `json:"timeout_seconds"`
-	RetryCount        sql.NullInt32         `json:"retry_count"`
-	RetryDelaySeconds sql.NullInt32         `json:"retry_delay_seconds"`
-	ConcurrencyKey    sql.NullString        `json:"concurrency_key"`
+	ID                string         `json:"id"`
+	Name              string         `json:"name"`
+	Description       sql.NullString `json:"description"`
+	Schedule          sql.NullString `json:"schedule"`
+	Enabled           int64          `json:"enabled"`
+	Source            string         `json:"source"`
+	SourceID          sql.NullString `json:"source_id"`
+	DependsOn         sql.NullString `json:"depends_on"`
+	TimeoutSeconds    sql.NullInt64  `json:"timeout_seconds"`
+	RetryCount        sql.NullInt64  `json:"retry_count"`
+	RetryDelaySeconds sql.NullInt64  `json:"retry_delay_seconds"`
+	ConcurrencyKey    sql.NullString `json:"concurrency_key"`
 }
 
 func (q *Queries) UpsertScheduledTask(ctx context.Context, arg UpsertScheduledTaskParams) error {

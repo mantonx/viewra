@@ -9,18 +9,6 @@ import (
 	"time"
 )
 
-type AiUsage struct {
-	ID               int64         `json:"id"`
-	UserID           string        `json:"user_id"`
-	Date             string        `json:"date"`
-	PromptTokens     sql.NullInt64 `json:"prompt_tokens"`
-	CompletionTokens sql.NullInt64 `json:"completion_tokens"`
-	EmbeddingTokens  sql.NullInt64 `json:"embedding_tokens"`
-	RequestCount     sql.NullInt64 `json:"request_count"`
-	CreatedAt        sql.NullTime  `json:"created_at"`
-	UpdatedAt        sql.NullTime  `json:"updated_at"`
-}
-
 type Credit struct {
 	ID            int64          `json:"id"`
 	PersonID      int64          `json:"person_id"`
@@ -42,8 +30,8 @@ type EnrichmentPipeline struct {
 	Position   int64          `json:"position"`
 	Enabled    sql.NullInt64  `json:"enabled"`
 	ConfigJson sql.NullString `json:"config_json"`
-	CreatedAt  sql.NullString `json:"created_at"`
-	UpdatedAt  sql.NullString `json:"updated_at"`
+	CreatedAt  sql.NullTime   `json:"created_at"`
+	UpdatedAt  sql.NullTime   `json:"updated_at"`
 }
 
 type EnrichmentQueue struct {
@@ -57,11 +45,11 @@ type EnrichmentQueue struct {
 	MaxAttempts   sql.NullInt64  `json:"max_attempts"`
 	ErrorMessage  sql.NullString `json:"error_message"`
 	ErrorCategory sql.NullString `json:"error_category"`
-	NextRetryAt   sql.NullString `json:"next_retry_at"`
+	NextRetryAt   sql.NullTime   `json:"next_retry_at"`
 	LockedBy      sql.NullString `json:"locked_by"`
-	LockedAt      sql.NullString `json:"locked_at"`
-	CreatedAt     sql.NullString `json:"created_at"`
-	UpdatedAt     sql.NullString `json:"updated_at"`
+	LockedAt      sql.NullTime   `json:"locked_at"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
+	UpdatedAt     sql.NullTime   `json:"updated_at"`
 	LibraryID     sql.NullInt64  `json:"library_id"`
 }
 
@@ -71,7 +59,7 @@ type EnrichmentStatus struct {
 	Stage        string         `json:"stage"`
 	Status       sql.NullString `json:"status"`
 	PluginID     sql.NullString `json:"plugin_id"`
-	CompletedAt  sql.NullString `json:"completed_at"`
+	CompletedAt  sql.NullTime   `json:"completed_at"`
 	ErrorMessage sql.NullString `json:"error_message"`
 	MetadataJson sql.NullString `json:"metadata_json"`
 }
@@ -102,21 +90,21 @@ type MediaAudioTrack struct {
 	BitRate       sql.NullInt64  `json:"bit_rate"`
 	Language      sql.NullString `json:"language"`
 	Title         sql.NullString `json:"title"`
-	IsDefault     sql.NullBool   `json:"is_default"`
-	IsCommentary  sql.NullBool   `json:"is_commentary"`
-	IsDescriptive sql.NullBool   `json:"is_descriptive"`
+	IsDefault     sql.NullInt64  `json:"is_default"`
+	IsCommentary  sql.NullInt64  `json:"is_commentary"`
+	IsDescriptive sql.NullInt64  `json:"is_descriptive"`
 	CreatedAt     sql.NullTime   `json:"created_at"`
 }
 
 type MediaExternalID struct {
-	ID         int64          `json:"id"`
-	MediaID    sql.NullInt64  `json:"media_id"`
-	MediaType  string         `json:"media_type"`
-	EntityID   int64          `json:"entity_id"`
-	Provider   string         `json:"provider"`
-	ExternalID string         `json:"external_id"`
-	CreatedAt  sql.NullString `json:"created_at"`
-	UpdatedAt  sql.NullString `json:"updated_at"`
+	ID         int64         `json:"id"`
+	MediaID    sql.NullInt64 `json:"media_id"`
+	MediaType  string        `json:"media_type"`
+	EntityID   int64         `json:"entity_id"`
+	Provider   string        `json:"provider"`
+	ExternalID string        `json:"external_id"`
+	CreatedAt  sql.NullTime  `json:"created_at"`
+	UpdatedAt  sql.NullTime  `json:"updated_at"`
 }
 
 type MediaImage struct {
@@ -141,13 +129,13 @@ type MediaImage struct {
 }
 
 type MediaKeyword struct {
-	ID         int64        `json:"id"`
-	MediaType  string       `json:"media_type"`
-	EntityID   int64        `json:"entity_id"`
-	KeywordID  int64        `json:"keyword_id"`
-	Keyword    string       `json:"keyword"`
-	IsLocation sql.NullBool `json:"is_location"`
-	CreatedAt  sql.NullTime `json:"created_at"`
+	ID         int64         `json:"id"`
+	MediaType  string        `json:"media_type"`
+	EntityID   int64         `json:"entity_id"`
+	KeywordID  int64         `json:"keyword_id"`
+	Keyword    string        `json:"keyword"`
+	IsLocation sql.NullInt64 `json:"is_location"`
+	CreatedAt  sql.NullTime  `json:"created_at"`
 }
 
 type MediaMetadataSource struct {
@@ -155,7 +143,7 @@ type MediaMetadataSource struct {
 	FieldName string         `json:"field_name"`
 	PluginID  string         `json:"plugin_id"`
 	RawValue  sql.NullString `json:"raw_value"`
-	UpdatedAt sql.NullString `json:"updated_at"`
+	UpdatedAt sql.NullTime   `json:"updated_at"`
 }
 
 type MediaStudio struct {
@@ -173,11 +161,11 @@ type MediaSubtitleTrack struct {
 	Language     sql.NullString `json:"language"`
 	Title        sql.NullString `json:"title"`
 	FilePath     sql.NullString `json:"file_path"`
-	IsDefault    sql.NullBool   `json:"is_default"`
-	IsForced     sql.NullBool   `json:"is_forced"`
-	IsSdh        sql.NullBool   `json:"is_sdh"`
-	IsCommentary sql.NullBool   `json:"is_commentary"`
-	IsBitmap     sql.NullBool   `json:"is_bitmap"`
+	IsDefault    sql.NullInt64  `json:"is_default"`
+	IsForced     sql.NullInt64  `json:"is_forced"`
+	IsSdh        sql.NullInt64  `json:"is_sdh"`
+	IsCommentary sql.NullInt64  `json:"is_commentary"`
+	IsBitmap     sql.NullInt64  `json:"is_bitmap"`
 	CreatedAt    sql.NullTime   `json:"created_at"`
 }
 
@@ -206,16 +194,16 @@ type Medium struct {
 	SourceType        sql.NullString  `json:"source_type"`
 	ResolutionLabel   sql.NullString  `json:"resolution_label"`
 	QualityScore      sql.NullInt64   `json:"quality_score"`
-	Is3d              sql.NullBool    `json:"is_3d"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
 	StereoMode        sql.NullString  `json:"stereo_mode"`
-	HasDash           sql.NullBool    `json:"has_dash"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
 	DateAdded         sql.NullTime    `json:"date_added"`
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
-	IsExtra           bool            `json:"is_extra"`
+	IsExtra           int64           `json:"is_extra"`
 	AudioCodec        sql.NullString  `json:"audio_codec"`
 }
 
@@ -258,7 +246,7 @@ type MusicAlbum struct {
 	TotalDiscs         sql.NullInt64  `json:"total_discs"`
 	RecordLabel        sql.NullString `json:"record_label"`
 	ReleaseType        sql.NullString `json:"release_type"`
-	Compilation        sql.NullBool   `json:"compilation"`
+	Compilation        sql.NullInt64  `json:"compilation"`
 	MusicbrainzAlbumID sql.NullString `json:"musicbrainz_album_id"`
 	CoverArtPath       sql.NullString `json:"cover_art_path"`
 	SortTitle          sql.NullString `json:"sort_title"`
@@ -301,7 +289,7 @@ type MusicTrack struct {
 	RecordLabel         sql.NullString `json:"record_label"`
 	Isrc                sql.NullString `json:"isrc"`
 	ReleaseType         sql.NullString `json:"release_type"`
-	Compilation         sql.NullBool   `json:"compilation"`
+	Compilation         sql.NullInt64  `json:"compilation"`
 	MusicbrainzTrackID  sql.NullString `json:"musicbrainz_track_id"`
 	MusicbrainzAlbumID  sql.NullString `json:"musicbrainz_album_id"`
 	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
@@ -346,7 +334,7 @@ type PlaybackQualityEvent struct {
 	PositionSeconds  sql.NullFloat64 `json:"position_seconds"`
 	NetworkSpeedMbps sql.NullFloat64 `json:"network_speed_mbps"`
 	BufferSeconds    sql.NullFloat64 `json:"buffer_seconds"`
-	CausedStall      sql.NullBool    `json:"caused_stall"`
+	CausedStall      sql.NullInt64   `json:"caused_stall"`
 	DeviceType       sql.NullString  `json:"device_type"`
 	ConnectionType   sql.NullString  `json:"connection_type"`
 	CreatedAt        sql.NullTime    `json:"created_at"`
@@ -382,39 +370,39 @@ type Plugin struct {
 	Enabled        sql.NullInt64  `json:"enabled"`
 	Path           sql.NullString `json:"path"`
 	HealthStatus   sql.NullString `json:"health_status"`
-	LastHeartbeat  sql.NullString `json:"last_heartbeat"`
+	LastHeartbeat  sql.NullTime   `json:"last_heartbeat"`
 	RestartCount   sql.NullInt64  `json:"restart_count"`
-	InstalledAt    string         `json:"installed_at"`
-	UpdatedAt      string         `json:"updated_at"`
+	InstalledAt    time.Time      `json:"installed_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
 	Settings       sql.NullString `json:"settings"`
 	SettingsSchema sql.NullString `json:"settings_schema"`
 }
 
 type PluginApiKey struct {
-	ID          string         `json:"id"`
-	PluginID    string         `json:"plugin_id"`
-	KeyHash     string         `json:"key_hash"`
-	Permissions string         `json:"permissions"`
-	ExpiresAt   sql.NullString `json:"expires_at"`
-	CreatedAt   string         `json:"created_at"`
+	ID          string       `json:"id"`
+	PluginID    string       `json:"plugin_id"`
+	KeyHash     string       `json:"key_hash"`
+	Permissions string       `json:"permissions"`
+	ExpiresAt   sql.NullTime `json:"expires_at"`
+	CreatedAt   time.Time    `json:"created_at"`
 }
 
 type PluginKv struct {
-	PluginID  string         `json:"plugin_id"`
-	Key       string         `json:"key"`
-	Value     []byte         `json:"value"`
-	ExpiresAt sql.NullString `json:"expires_at"`
-	CreatedAt string         `json:"created_at"`
-	UpdatedAt string         `json:"updated_at"`
+	PluginID  string       `json:"plugin_id"`
+	Key       string       `json:"key"`
+	Value     []byte       `json:"value"`
+	ExpiresAt sql.NullTime `json:"expires_at"`
+	CreatedAt time.Time    `json:"created_at"`
+	UpdatedAt time.Time    `json:"updated_at"`
 }
 
 type PluginUserMetadatum struct {
-	PluginID  string `json:"plugin_id"`
-	UserID    int64  `json:"user_id"`
-	Key       string `json:"key"`
-	Value     []byte `json:"value"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	PluginID  string    `json:"plugin_id"`
+	UserID    int64     `json:"user_id"`
+	Key       string    `json:"key"`
+	Value     []byte    `json:"value"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type QualitySwitchEvent struct {
@@ -466,7 +454,7 @@ type ScanJob struct {
 	ResumeCount       sql.NullInt64   `json:"resume_count"`
 	Phase             sql.NullString  `json:"phase"`
 	EstimatedTotal    sql.NullInt64   `json:"estimated_total"`
-	DiscoveryDone     sql.NullBool    `json:"discovery_done"`
+	DiscoveryDone     sql.NullInt64   `json:"discovery_done"`
 	WarningCount      sql.NullInt64   `json:"warning_count"`
 	DiscoveryErrors   sql.NullInt64   `json:"discovery_errors"`
 	DiscoveryWarnings sql.NullInt64   `json:"discovery_warnings"`
@@ -486,10 +474,10 @@ type ScanState struct {
 	LastScannedAt   time.Time      `json:"last_scanned_at"`
 	ScanJobID       int64          `json:"scan_job_id"`
 	CreatedAt       sql.NullTime   `json:"created_at"`
-	HasWarning      sql.NullBool   `json:"has_warning"`
+	HasWarning      sql.NullInt64  `json:"has_warning"`
 	WarningMessage  sql.NullString `json:"warning_message"`
 	WarningCategory sql.NullString `json:"warning_category"`
-	HasError        sql.NullBool   `json:"has_error"`
+	HasError        sql.NullInt64  `json:"has_error"`
 	ErrorMessage    sql.NullString `json:"error_message"`
 	ErrorCategory   sql.NullString `json:"error_category"`
 }
@@ -544,9 +532,9 @@ type Session struct {
 	RefreshTokenHash string         `json:"refresh_token_hash"`
 	UserAgent        sql.NullString `json:"user_agent"`
 	IpAddress        sql.NullString `json:"ip_address"`
-	CreatedAt        string         `json:"created_at"`
-	LastUsedAt       string         `json:"last_used_at"`
-	ExpiresAt        string         `json:"expires_at"`
+	CreatedAt        time.Time      `json:"created_at"`
+	LastUsedAt       time.Time      `json:"last_used_at"`
+	ExpiresAt        time.Time      `json:"expires_at"`
 }
 
 type Studio struct {
@@ -563,7 +551,7 @@ type SystemSetting struct {
 	ValueType   string         `json:"value_type"`
 	Category    string         `json:"category"`
 	Description sql.NullString `json:"description"`
-	UpdatedAt   string         `json:"updated_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
 	UpdatedBy   sql.NullString `json:"updated_by"`
 }
 
@@ -682,8 +670,8 @@ type User struct {
 	PasswordHash      string          `json:"password_hash"`
 	IsAdmin           int64           `json:"is_admin"`
 	IsDisabled        int64           `json:"is_disabled"`
-	CreatedAt         string          `json:"created_at"`
-	UpdatedAt         string          `json:"updated_at"`
+	CreatedAt         time.Time       `json:"created_at"`
+	UpdatedAt         time.Time       `json:"updated_at"`
 	LocationLatitude  sql.NullFloat64 `json:"location_latitude"`
 	LocationLongitude sql.NullFloat64 `json:"location_longitude"`
 	LocationTimezone  sql.NullString  `json:"location_timezone"`
@@ -692,22 +680,22 @@ type User struct {
 }
 
 type UserSetting struct {
-	UserID    string `json:"user_id"`
-	Key       string `json:"key"`
-	Value     string `json:"value"`
-	UpdatedAt string `json:"updated_at"`
+	UserID    string    `json:"user_id"`
+	Key       string    `json:"key"`
+	Value     string    `json:"value"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type UserVideoPreference struct {
 	ID                 int64          `json:"id"`
 	UserIdentifier     string         `json:"user_identifier"`
 	QualityPreference  sql.NullString `json:"quality_preference"`
-	PreferDataSaving   sql.NullBool   `json:"prefer_data_saving"`
-	PreferQuality      sql.NullBool   `json:"prefer_quality"`
-	AllowCellularHd    sql.NullBool   `json:"allow_cellular_hd"`
-	AllowCellular4k    sql.NullBool   `json:"allow_cellular_4k"`
+	PreferDataSaving   sql.NullInt64  `json:"prefer_data_saving"`
+	PreferQuality      sql.NullInt64  `json:"prefer_quality"`
+	AllowCellularHd    sql.NullInt64  `json:"allow_cellular_hd"`
+	AllowCellular4k    sql.NullInt64  `json:"allow_cellular_4k"`
 	PreferredCodec     sql.NullString `json:"preferred_codec"`
-	AutoQualityEnabled sql.NullBool   `json:"auto_quality_enabled"`
+	AutoQualityEnabled sql.NullInt64  `json:"auto_quality_enabled"`
 	MaxAutoQuality     sql.NullString `json:"max_auto_quality"`
 	MinAutoQuality     sql.NullString `json:"min_auto_quality"`
 	CreatedAt          sql.NullTime   `json:"created_at"`
@@ -720,7 +708,7 @@ type WatchProgress struct {
 	UserID                sql.NullInt64   `json:"user_id"`
 	Position              float64         `json:"position"`
 	Duration              sql.NullFloat64 `json:"duration"`
-	Watched               sql.NullBool    `json:"watched"`
+	Watched               sql.NullInt64   `json:"watched"`
 	LastWatched           sql.NullTime    `json:"last_watched"`
 	CreatedAt             sql.NullTime    `json:"created_at"`
 	UpdatedAt             sql.NullTime    `json:"updated_at"`

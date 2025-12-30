@@ -36,12 +36,12 @@ func (r *QueueRepository) Enqueue(ctx context.Context, job *enrichment.QueueJob)
 	result, err := r.router.Route(
 		func() (any, error) {
 			return r.postgres.EnqueueEnrichmentJob(ctx, sqlc_postgres.EnqueueEnrichmentJobParams{
-				MediaID:     int32(job.MediaID),
-				LibraryID:   sql.NullInt32{Int32: int32(job.LibraryID), Valid: job.LibraryID > 0},
+				MediaID:     job.MediaID,
+				LibraryID:   sql.NullInt64{Int64: job.LibraryID, Valid: job.LibraryID > 0},
 				MediaType:   string(job.MediaType),
 				Stage:       job.Stage,
-				Priority:    sql.NullInt32{Int32: int32(job.Priority), Valid: true},
-				MaxAttempts: sql.NullInt32{Int32: int32(job.MaxAttempts), Valid: job.MaxAttempts > 0},
+				Priority:    sql.NullInt64{Int64: int64(job.Priority), Valid: true},
+				MaxAttempts: sql.NullInt64{Int64: int64(job.MaxAttempts), Valid: job.MaxAttempts > 0},
 			})
 		},
 		func() (any, error) {
@@ -106,7 +106,7 @@ func (r *QueueRepository) ClaimBatch(ctx context.Context, stage, workerID string
 func (r *QueueRepository) Complete(ctx context.Context, jobID int64) error {
 	return r.router.RouteVoid(
 		func() error {
-			return r.postgres.CompleteEnrichmentJob(ctx, int32(jobID))
+			return r.postgres.CompleteEnrichmentJob(ctx, jobID)
 		},
 		func() error {
 			return r.sqlite.CompleteEnrichmentJob(ctx, jobID)
@@ -127,18 +127,18 @@ func (r *QueueRepository) Fail(ctx context.Context, jobID int64, errMsg string, 
 				ErrorMessage:  sql.NullString{String: errMsg, Valid: errMsg != ""},
 				ErrorCategory: sql.NullString{String: string(category), Valid: category != ""},
 				NextRetryAt:   retryAt,
-				ID:            int32(jobID),
+				ID:            jobID,
 			})
 		},
 		func() error {
-			var retryAtStr sql.NullString
+			var retryAt sql.NullTime
 			if nextRetryAt != nil {
-				retryAtStr = sql.NullString{String: nextRetryAt.Format(time.RFC3339), Valid: true}
+				retryAt = sql.NullTime{Time: *nextRetryAt, Valid: true}
 			}
 			return r.sqlite.FailEnrichmentJob(ctx, sqlc_sqlite.FailEnrichmentJobParams{
 				ErrorMessage:  sql.NullString{String: errMsg, Valid: errMsg != ""},
 				ErrorCategory: sql.NullString{String: string(category), Valid: category != ""},
-				NextRetryAt:   retryAtStr,
+				NextRetryAt:   retryAt,
 				ID:            jobID,
 			})
 		},
@@ -159,18 +159,18 @@ func (r *QueueRepository) FailWithoutPenalty(ctx context.Context, jobID int64, e
 				ErrorMessage:  sql.NullString{String: errMsg, Valid: errMsg != ""},
 				ErrorCategory: sql.NullString{String: string(category), Valid: category != ""},
 				NextRetryAt:   retryAt,
-				ID:            int32(jobID),
+				ID:            jobID,
 			})
 		},
 		func() error {
-			var retryAtStr sql.NullString
+			var retryAt sql.NullTime
 			if nextRetryAt != nil {
-				retryAtStr = sql.NullString{String: nextRetryAt.Format(time.RFC3339), Valid: true}
+				retryAt = sql.NullTime{Time: *nextRetryAt, Valid: true}
 			}
 			return r.sqlite.RequeueEnrichmentJob(ctx, sqlc_sqlite.RequeueEnrichmentJobParams{
 				ErrorMessage:  sql.NullString{String: errMsg, Valid: errMsg != ""},
 				ErrorCategory: sql.NullString{String: string(category), Valid: category != ""},
-				NextRetryAt:   retryAtStr,
+				NextRetryAt:   retryAt,
 				ID:            jobID,
 			})
 		},
@@ -181,7 +181,7 @@ func (r *QueueRepository) FailWithoutPenalty(ctx context.Context, jobID int64, e
 func (r *QueueRepository) Skip(ctx context.Context, jobID int64) error {
 	return r.router.RouteVoid(
 		func() error {
-			return r.postgres.SkipEnrichmentJob(ctx, int32(jobID))
+			return r.postgres.SkipEnrichmentJob(ctx, jobID)
 		},
 		func() error {
 			return r.sqlite.SkipEnrichmentJob(ctx, jobID)
@@ -250,7 +250,7 @@ func (r *QueueRepository) DeleteByMedia(ctx context.Context, mediaID int64, medi
 	return r.router.RouteVoid(
 		func() error {
 			return r.postgres.DeleteEnrichmentJobsByMedia(ctx, sqlc_postgres.DeleteEnrichmentJobsByMediaParams{
-				MediaID:   int32(mediaID),
+				MediaID:   mediaID,
 				MediaType: string(mediaType),
 			})
 		},
@@ -267,7 +267,7 @@ func (r *QueueRepository) DeleteByMedia(ctx context.Context, mediaID int64, medi
 func (r *QueueRepository) GetByID(ctx context.Context, jobID int64) (*enrichment.QueueJob, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetEnrichmentJob(ctx, int32(jobID))
+			return r.postgres.GetEnrichmentJob(ctx, jobID)
 		},
 		func() (any, error) {
 			return r.sqlite.GetEnrichmentJob(ctx, jobID)
@@ -285,7 +285,7 @@ func (r *QueueRepository) GetByMediaAndStage(ctx context.Context, mediaID int64,
 	result, err := r.router.Route(
 		func() (any, error) {
 			return r.postgres.GetEnrichmentJobByMediaAndStage(ctx, sqlc_postgres.GetEnrichmentJobByMediaAndStageParams{
-				MediaID:   int32(mediaID),
+				MediaID:   mediaID,
 				MediaType: string(mediaType),
 				Stage:     stage,
 			})
@@ -310,15 +310,15 @@ func (r *QueueRepository) convertToQueueJob(result any) *enrichment.QueueJob {
 	if r.router.IsPostgresDB() {
 		pgJob := result.(sqlc_postgres.EnrichmentQueue)
 		return &enrichment.QueueJob{
-			ID:            int64(pgJob.ID),
-			MediaID:       int64(pgJob.MediaID),
-			LibraryID:     int64(pgJob.LibraryID.Int32),
+			ID:            pgJob.ID,
+			MediaID:       pgJob.MediaID,
+			LibraryID:     pgJob.LibraryID.Int64,
 			MediaType:     enrichment.MediaType(pgJob.MediaType),
 			Stage:         pgJob.Stage,
-			Priority:      int(pgJob.Priority.Int32),
+			Priority:      int(pgJob.Priority.Int64),
 			Status:        enrichment.JobStatus(common.ParseNullString(pgJob.Status)),
-			Attempts:      int(pgJob.Attempts.Int32),
-			MaxAttempts:   int(pgJob.MaxAttempts.Int32),
+			Attempts:      int(pgJob.Attempts.Int64),
+			MaxAttempts:   int(pgJob.MaxAttempts.Int64),
 			ErrorMessage:  common.ParseNullString(pgJob.ErrorMessage),
 			ErrorCategory: enrichment.ErrorCategory(common.ParseNullString(pgJob.ErrorCategory)),
 			NextRetryAt:   common.ParseNullTimePtr(pgJob.NextRetryAt),
@@ -342,11 +342,11 @@ func (r *QueueRepository) convertToQueueJob(result any) *enrichment.QueueJob {
 		MaxAttempts:   int(sqJob.MaxAttempts.Int64),
 		ErrorMessage:  common.ParseNullString(sqJob.ErrorMessage),
 		ErrorCategory: enrichment.ErrorCategory(common.ParseNullString(sqJob.ErrorCategory)),
-		NextRetryAt:   parseNullTimeString(sqJob.NextRetryAt),
+		NextRetryAt:   common.ParseNullTimePtr(sqJob.NextRetryAt),
 		LockedBy:      common.ParseNullString(sqJob.LockedBy),
-		LockedAt:      parseNullTimeString(sqJob.LockedAt),
-		CreatedAt:     parseTimeString(sqJob.CreatedAt),
-		UpdatedAt:     parseTimeString(sqJob.UpdatedAt),
+		LockedAt:      common.ParseNullTimePtr(sqJob.LockedAt),
+		CreatedAt:     common.ParseNullTime(sqJob.CreatedAt),
+		UpdatedAt:     common.ParseNullTime(sqJob.UpdatedAt),
 	}
 }
 
@@ -396,7 +396,7 @@ type CurrentEnrichmentItem struct {
 func (r *QueueRepository) GetCurrentItem(ctx context.Context, libraryID int64) (*CurrentEnrichmentItem, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetCurrentEnrichmentItem(ctx, sql.NullInt32{Int32: int32(libraryID), Valid: true})
+			return r.postgres.GetCurrentEnrichmentItem(ctx, sql.NullInt64{Int64: libraryID, Valid: true})
 		},
 		func() (any, error) {
 			return r.sqlite.GetCurrentEnrichmentItem(ctx, sql.NullInt64{Int64: libraryID, Valid: true})
@@ -412,9 +412,9 @@ func (r *QueueRepository) GetCurrentItem(ctx context.Context, libraryID int64) (
 	if r.router.IsPostgresDB() {
 		row := result.(sqlc_postgres.GetCurrentEnrichmentItemRow)
 		return &CurrentEnrichmentItem{
-			ID:        int64(row.ID),
-			MediaID:   int64(row.MediaID),
-			LibraryID: int64(row.LibraryID.Int32),
+			ID:        row.ID,
+			MediaID:   row.MediaID,
+			LibraryID: row.LibraryID.Int64,
 			MediaType: enrichment.MediaType(row.MediaType),
 			Stage:     row.Stage,
 			Title:     row.Title,
@@ -440,8 +440,8 @@ func (r *QueueRepository) UpdatePriorityByMedia(ctx context.Context, mediaID int
 		func() error {
 			// Postgres reuses $1 for both priority comparisons
 			return r.postgres.UpdatePriorityByMedia(ctx, sqlc_postgres.UpdatePriorityByMediaParams{
-				Priority:  sql.NullInt32{Int32: int32(priority), Valid: true},
-				MediaID:   int32(mediaID),
+				Priority:  sql.NullInt64{Int64: int64(priority), Valid: true},
+				MediaID:   mediaID,
 				MediaType: string(mediaType),
 			})
 		},
@@ -465,8 +465,8 @@ func (r *QueueRepository) BoostPriority(ctx context.Context, mediaID int64, medi
 
 	if r.router.IsPostgresDB() {
 		rowsAffected, err = r.postgres.BoostPriority(ctx, sqlc_postgres.BoostPriorityParams{
-			Priority:  sql.NullInt32{Int32: int32(priority), Valid: true},
-			MediaID:   int32(mediaID),
+			Priority:  sql.NullInt64{Int64: int64(priority), Valid: true},
+			MediaID:   mediaID,
 			MediaType: string(mediaType),
 		})
 	} else {
@@ -504,12 +504,12 @@ func (r *QueueRepository) EnqueueBatch(ctx context.Context, jobs []*enrichment.Q
 		q := r.postgres.WithTx(tx)
 		for _, job := range jobs {
 			_, err := q.EnqueueEnrichmentJob(ctx, sqlc_postgres.EnqueueEnrichmentJobParams{
-				MediaID:     int32(job.MediaID),
-				LibraryID:   sql.NullInt32{Int32: int32(job.LibraryID), Valid: job.LibraryID > 0},
+				MediaID:     job.MediaID,
+				LibraryID:   sql.NullInt64{Int64: job.LibraryID, Valid: job.LibraryID > 0},
 				MediaType:   string(job.MediaType),
 				Stage:       job.Stage,
-				Priority:    sql.NullInt32{Int32: int32(job.Priority), Valid: true},
-				MaxAttempts: sql.NullInt32{Int32: int32(job.MaxAttempts), Valid: job.MaxAttempts > 0},
+				Priority:    sql.NullInt64{Int64: int64(job.Priority), Valid: true},
+				MaxAttempts: sql.NullInt64{Int64: int64(job.MaxAttempts), Valid: job.MaxAttempts > 0},
 			})
 			if err == nil {
 				successCount++
@@ -561,7 +561,7 @@ func (r *QueueRepository) GetLibraryFailures(ctx context.Context, libraryID int6
 	result, err := r.router.Route(
 		func() (any, error) {
 			return r.postgres.GetLibraryEnrichmentFailures(ctx, sqlc_postgres.GetLibraryEnrichmentFailuresParams{
-				LibraryID: sql.NullInt32{Int32: int32(libraryID), Valid: true},
+				LibraryID: sql.NullInt64{Int64: libraryID, Valid: true},
 				Limit:     int32(limit),
 				Offset:    int32(offset),
 			})
@@ -583,14 +583,14 @@ func (r *QueueRepository) GetLibraryFailures(ctx context.Context, libraryID int6
 		failures := make([]*EnrichmentFailure, len(pgRows))
 		for i, row := range pgRows {
 			failures[i] = &EnrichmentFailure{
-				ID:            int64(row.ID),
-				MediaID:       int64(row.MediaID),
-				LibraryID:     int64(row.LibraryID.Int32),
+				ID:            row.ID,
+				MediaID:       row.MediaID,
+				LibraryID:     row.LibraryID.Int64,
 				MediaType:     enrichment.MediaType(row.MediaType),
 				Title:         row.Title,
 				Stage:         row.Stage,
-				Attempts:      int(row.Attempts.Int32),
-				MaxAttempts:   int(row.MaxAttempts.Int32),
+				Attempts:      int(row.Attempts.Int64),
+				MaxAttempts:   int(row.MaxAttempts.Int64),
 				ErrorMessage:  common.ParseNullString(row.ErrorMessage),
 				ErrorCategory: enrichment.ErrorCategory(common.ParseNullString(row.ErrorCategory)),
 				LastAttemptAt: common.ParseNullTime(row.LastAttemptAt),
@@ -613,7 +613,7 @@ func (r *QueueRepository) GetLibraryFailures(ctx context.Context, libraryID int6
 			MaxAttempts:   int(row.MaxAttempts.Int64),
 			ErrorMessage:  common.ParseNullString(row.ErrorMessage),
 			ErrorCategory: enrichment.ErrorCategory(common.ParseNullString(row.ErrorCategory)),
-			LastAttemptAt: parseTimeString(row.LastAttemptAt),
+			LastAttemptAt: common.ParseNullTime(row.LastAttemptAt),
 		}
 	}
 	return failures, nil
@@ -623,7 +623,7 @@ func (r *QueueRepository) GetLibraryFailures(ctx context.Context, libraryID int6
 func (r *QueueRepository) CountLibraryFailures(ctx context.Context, libraryID int64) (int64, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.CountLibraryEnrichmentFailures(ctx, sql.NullInt32{Int32: int32(libraryID), Valid: true})
+			return r.postgres.CountLibraryEnrichmentFailures(ctx, sql.NullInt64{Int64: libraryID, Valid: true})
 		},
 		func() (any, error) {
 			return r.sqlite.CountLibraryEnrichmentFailures(ctx, sql.NullInt64{Int64: libraryID, Valid: true})
@@ -643,7 +643,7 @@ func (r *QueueRepository) CountLibraryFailures(ctx context.Context, libraryID in
 // Returns the number of jobs that were reset.
 func (r *QueueRepository) RetryLibraryFailures(ctx context.Context, libraryID int64) (int64, error) {
 	if r.router.IsPostgresDB() {
-		return r.postgres.RetryEnrichmentJobsByLibrary(ctx, sql.NullInt32{Int32: int32(libraryID), Valid: true})
+		return r.postgres.RetryEnrichmentJobsByLibrary(ctx, sql.NullInt64{Int64: libraryID, Valid: true})
 	}
 	return r.sqlite.RetryEnrichmentJobsByLibrary(ctx, sql.NullInt64{Int64: libraryID, Valid: true})
 }
@@ -652,7 +652,7 @@ func (r *QueueRepository) RetryLibraryFailures(ctx context.Context, libraryID in
 func (r *QueueRepository) RetryJob(ctx context.Context, jobID int64) error {
 	return r.router.RouteVoid(
 		func() error {
-			return r.postgres.RetryEnrichmentJob(ctx, int32(jobID))
+			return r.postgres.RetryEnrichmentJob(ctx, jobID)
 		},
 		func() error {
 			return r.sqlite.RetryEnrichmentJob(ctx, jobID)
@@ -682,7 +682,7 @@ func (r *QueueRepository) GetOrphanedPipelineStates(ctx context.Context) ([]*enr
 		for i, row := range pgRows {
 			states[i] = &enrichment.OrphanedPipelineState{
 				MediaType:      enrichment.MediaType(row.MediaType),
-				MediaID:        int64(row.MediaID),
+				MediaID:        row.MediaID,
 				CompletedStage: row.CompletedStage,
 				NextStage:      row.NextStage,
 			}

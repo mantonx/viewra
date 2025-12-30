@@ -11,15 +11,14 @@ import (
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
-	"github.com/sqlc-dev/pqtype"
 )
 
-// toNullRawMessage converts JSON bytes to pqtype.NullRawMessage.
-func toNullRawMessage(data []byte) pqtype.NullRawMessage {
+// toNullString converts JSON bytes to sql.NullString.
+func toNullString(data []byte) sql.NullString {
 	if len(data) == 0 || string(data) == "null" {
-		return pqtype.NullRawMessage{Valid: false}
+		return sql.NullString{Valid: false}
 	}
-	return pqtype.NullRawMessage{RawMessage: data, Valid: true}
+	return sql.NullString{String: string(data), Valid: true}
 }
 
 // TaskRepository implements scheduler.TaskRepository.
@@ -57,13 +56,13 @@ func (r *TaskRepository) Upsert(ctx context.Context, task *scheduler.Task) error
 			Name:              task.Name,
 			Description:       common.NullString(task.Description),
 			Schedule:          common.NullString(task.Schedule),
-			Enabled:           task.Enabled,
+			Enabled:           common.BoolToInt64(task.Enabled),
 			Source:            string(task.Source),
 			SourceID:          common.NullString(task.SourceID),
-			DependsOn:         toNullRawMessage(dependsOnJSON),
-			TimeoutSeconds:    common.NullInt32(int32(task.TimeoutSeconds)),
-			RetryCount:        common.NullInt32(int32(task.RetryCount)),
-			RetryDelaySeconds: common.NullInt32(int32(task.RetryDelaySecs)),
+			DependsOn:         toNullString(dependsOnJSON),
+			TimeoutSeconds:    common.NullInt64(int64(task.TimeoutSeconds)),
+			RetryCount:        common.NullInt64(int64(task.RetryCount)),
+			RetryDelaySeconds: common.NullInt64(int64(task.RetryDelaySecs)),
 			ConcurrencyKey:    common.NullString(task.ConcurrencyKey),
 		})
 	}
@@ -188,7 +187,7 @@ func (r *TaskRepository) Update(ctx context.Context, id string, update scheduler
 		return r.postgresQuerier.UpdateScheduledTask(ctx, sqlc_postgres.UpdateScheduledTaskParams{
 			ID:       id,
 			Schedule: common.NullStringPtr(update.Schedule),
-			Enabled:  nullBoolPtr(update.Enabled),
+			Enabled:  nullBoolPtrToInt64(update.Enabled),
 		})
 	}
 
@@ -267,15 +266,15 @@ func (r *ExecutionRepository) Create(ctx context.Context, exec *scheduler.Execut
 			ScheduledAt:       common.NullTimePtr(exec.ScheduledAt),
 			StartedAt:         common.NullTimePtr(exec.StartedAt),
 			EndedAt:           common.NullTimePtr(exec.EndedAt),
-			DurationMs:        common.NullInt32(int32(exec.DurationMs)),
-			Success:           nullBoolPtrFromBoolPtr(exec.Success),
+			DurationMs:        common.NullInt64(exec.DurationMs),
+			Success:           boolPtrToNullInt64(exec.Success),
 			Error:             common.NullString(exec.Error),
 			Logs:              common.NullString(exec.Logs),
-			Attempt:           common.NullInt32(int32(exec.Attempt)),
+			Attempt:           common.NullInt64(int64(exec.Attempt)),
 			ParentExecutionID: common.NullString(exec.ParentID),
 			TriggeredBy:       string(exec.TriggeredBy),
 			DependencyExecID:  common.NullString(exec.DependencyExecID),
-			Resumable:         sql.NullBool{Bool: exec.Resumable, Valid: true},
+			Resumable:         common.NullInt64FromBool(exec.Resumable),
 		})
 	}
 
@@ -294,7 +293,7 @@ func (r *ExecutionRepository) Create(ctx context.Context, exec *scheduler.Execut
 		ParentExecutionID: common.NullString(exec.ParentID),
 		TriggeredBy:       string(exec.TriggeredBy),
 		DependencyExecID:  common.NullString(exec.DependencyExecID),
-		Resumable:         boolToNullInt64(exec.Resumable),
+		Resumable:         common.NullInt64FromBool(exec.Resumable),
 	})
 }
 
@@ -329,11 +328,11 @@ func (r *ExecutionRepository) Update(ctx context.Context, exec *scheduler.Execut
 			Status:     string(exec.Status),
 			StartedAt:  common.NullTimePtr(exec.StartedAt),
 			EndedAt:    common.NullTimePtr(exec.EndedAt),
-			DurationMs: common.NullInt32(int32(exec.DurationMs)),
-			Success:    nullBoolPtrFromBoolPtr(exec.Success),
+			DurationMs: common.NullInt64(exec.DurationMs),
+			Success:    boolPtrToNullInt64(exec.Success),
 			Error:      common.NullString(exec.Error),
 			Logs:       common.NullString(exec.Logs),
-			Resumable:  sql.NullBool{Bool: exec.Resumable, Valid: true},
+			Resumable:  common.NullInt64FromBool(exec.Resumable),
 		})
 	}
 
@@ -346,7 +345,7 @@ func (r *ExecutionRepository) Update(ctx context.Context, exec *scheduler.Execut
 		Success:    boolPtrToNullInt64(exec.Success),
 		Error:      common.NullString(exec.Error),
 		Logs:       common.NullString(exec.Logs),
-		Resumable:  boolToNullInt64(exec.Resumable),
+		Resumable:  common.NullInt64FromBool(exec.Resumable),
 	})
 }
 
@@ -491,9 +490,9 @@ func (r *ExecutionRepository) DeleteOlderThan(ctx context.Context, before time.T
 // MarkInterrupted marks all running executions as interrupted.
 func (r *ExecutionRepository) MarkInterrupted(ctx context.Context, resumable bool) (int64, error) {
 	if common.IsPostgres(r.dbType) {
-		return r.postgresQuerier.MarkRunningAsInterrupted(ctx, sql.NullBool{Bool: resumable, Valid: true})
+		return r.postgresQuerier.MarkRunningAsInterrupted(ctx, common.NullInt64FromBool(resumable))
 	}
-	return r.sqliteQuerier.MarkRunningAsInterrupted(ctx, boolToNullInt64(resumable))
+	return r.sqliteQuerier.MarkRunningAsInterrupted(ctx, common.NullInt64FromBool(resumable))
 }
 
 // LockRepository implements scheduler.LockRepository.

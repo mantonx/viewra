@@ -11,7 +11,7 @@ import (
 func (q *DBMediaQuerier) getMusicArtistDetailsDirectly(ctx context.Context, id int64, externalIDs map[string]string) (*MediaDetailsInfo, error) {
 	result, err := q.router.Route(
 		func() (any, error) {
-			return q.postgres.GetArtistByID(ctx, int32(id))
+			return q.postgres.GetArtistByID(ctx, id)
 		},
 		func() (any, error) {
 			return q.sqlite.GetArtistByID(ctx, id)
@@ -32,7 +32,7 @@ func (q *DBMediaQuerier) getMusicArtistDetailsDirectly(ctx context.Context, id i
 func (q *DBMediaQuerier) getMusicAlbumDetailsDirectly(ctx context.Context, id int64, externalIDs map[string]string) (*MediaDetailsInfo, error) {
 	result, err := q.router.Route(
 		func() (any, error) {
-			return q.postgres.GetAlbumByID(ctx, int32(id))
+			return q.postgres.GetAlbumByID(ctx, id)
 		},
 		func() (any, error) {
 			return q.sqlite.GetAlbumByID(ctx, id)
@@ -53,7 +53,7 @@ func (q *DBMediaQuerier) getMusicAlbumDetailsDirectly(ctx context.Context, id in
 func (q *DBMediaQuerier) getMusicTrackDetailsDirectly(ctx context.Context, id int64, externalIDs map[string]string) (*MediaDetailsInfo, error) {
 	result, err := q.router.Route(
 		func() (any, error) {
-			return q.postgres.GetMusicTrackByMediaID(ctx, int32(id))
+			return q.postgres.GetMusicTrackByMediaID(ctx, id)
 		},
 		func() (any, error) {
 			return q.sqlite.GetMusicTrackByMediaID(ctx, id)
@@ -79,9 +79,9 @@ func (q *DBMediaQuerier) musicArtistRowToDetails(result any, externalIDs map[str
 
 	if q.router.IsPostgresDB() {
 		row := result.(sqlc_postgres.MusicArtist)
-		info.ID = int64(row.ID)
+		info.ID = row.ID
 		info.Title = row.Name
-		info.LibraryID = int64(row.LibraryID)
+		info.LibraryID = row.LibraryID
 		if row.Bio.Valid {
 			info.Biography = row.Bio.String
 		}
@@ -119,11 +119,11 @@ func (q *DBMediaQuerier) musicAlbumRowToDetails(result any, externalIDs map[stri
 
 	if q.router.IsPostgresDB() {
 		row := result.(sqlc_postgres.MusicAlbum)
-		info.ID = int64(row.ID)
+		info.ID = row.ID
 		info.Title = row.Title
-		info.LibraryID = int64(row.LibraryID)
+		info.LibraryID = row.LibraryID
 		if row.Year.Valid {
-			info.Year = int(row.Year.Int32)
+			info.Year = int(row.Year.Int64)
 		}
 		if row.Genre.Valid {
 			info.Genres = splitAndTrim(row.Genre.String)
@@ -159,9 +159,9 @@ func (q *DBMediaQuerier) musicTrackRowToDetails(result any, externalIDs map[stri
 
 	if q.router.IsPostgresDB() {
 		row := result.(sqlc_postgres.GetMusicTrackByMediaIDRow)
-		info.ID = int64(row.MediaID)
+		info.ID = row.MediaID
 		info.Title = row.Title
-		info.LibraryID = int64(row.LibraryID)
+		info.LibraryID = row.LibraryID
 		if row.Artist.Valid {
 			info.ArtistName = row.Artist.String
 		}
@@ -195,7 +195,7 @@ func (q *DBMediaQuerier) listMusicDetailsByLibrary(ctx context.Context, libraryI
 	results, err := q.router.Route(
 		func() (any, error) {
 			return q.postgres.ListMusicTracksByLibraryPaginated(ctx, sqlc_postgres.ListMusicTracksByLibraryPaginatedParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Limit:     int32(limit),
 				Offset:    int32(offset),
 			})
@@ -214,7 +214,7 @@ func (q *DBMediaQuerier) listMusicDetailsByLibrary(ctx context.Context, libraryI
 
 	countResult, err := q.router.Route(
 		func() (any, error) {
-			return q.postgres.CountMusicTracksByLibrary(ctx, int32(libraryID))
+			return q.postgres.CountMusicTracksByLibrary(ctx, libraryID)
 		},
 		func() (any, error) {
 			return q.sqlite.CountMusicTracksByLibrary(ctx, libraryID)
@@ -234,10 +234,10 @@ func (q *DBMediaQuerier) musicTrackRowsToDetails(results any) []*MediaDetailsInf
 	if q.router.IsPostgresDB() {
 		for _, row := range results.([]sqlc_postgres.ListMusicTracksByLibraryPaginatedRow) {
 			info := &MediaDetailsInfo{
-				ID:        int64(row.MediaID),
+				ID:        row.MediaID,
 				MediaType: "music_track",
 				Title:     row.Title,
-				LibraryID: int64(row.LibraryID),
+				LibraryID: row.LibraryID,
 			}
 			if row.Artist.Valid {
 				info.ArtistName = row.Artist.String

@@ -113,7 +113,13 @@ type (
 	HostStorageBrokerInfo = pluginsgrpc.HostStorageBrokerInfo
 	HostWeatherBrokerInfo = pluginsgrpc.HostWeatherBrokerInfo
 	HostPluginsBrokerInfo = pluginsgrpc.HostPluginsBrokerInfo
+
+	// Factory creates go-plugin Plugin instances for the plugin manager.
+	Factory = pluginsgrpc.Factory
 )
+
+// NewFactory creates a new plugin factory.
+var NewFactory = pluginsgrpc.NewFactory
 
 // Logging interceptors re-exported from grpc package.
 var (

@@ -17,7 +17,7 @@ WHERE plugin_id = $1 AND user_id = $2
 
 type CountPluginUserMetadataParams struct {
 	PluginID string `json:"plugin_id"`
-	UserID   int32  `json:"user_id"`
+	UserID   int64  `json:"user_id"`
 }
 
 func (q *Queries) CountPluginUserMetadata(ctx context.Context, arg CountPluginUserMetadataParams) (int64, error) {
@@ -33,7 +33,7 @@ DELETE FROM plugin_user_metadata WHERE plugin_id = $1 AND user_id = $2 AND key =
 
 type DeletePluginUserMetadataParams struct {
 	PluginID string `json:"plugin_id"`
-	UserID   int32  `json:"user_id"`
+	UserID   int64  `json:"user_id"`
 	Key      string `json:"key"`
 }
 
@@ -55,7 +55,7 @@ const deletePluginUserMetadataByUser = `-- name: DeletePluginUserMetadataByUser 
 DELETE FROM plugin_user_metadata WHERE user_id = $1
 `
 
-func (q *Queries) DeletePluginUserMetadataByUser(ctx context.Context, userID int32) error {
+func (q *Queries) DeletePluginUserMetadataByUser(ctx context.Context, userID int64) error {
 	_, err := q.db.ExecContext(ctx, deletePluginUserMetadataByUser, userID)
 	return err
 }
@@ -68,7 +68,7 @@ WHERE plugin_id = $1 AND user_id = $2 AND key = $3
 
 type GetPluginUserMetadataParams struct {
 	PluginID string `json:"plugin_id"`
-	UserID   int32  `json:"user_id"`
+	UserID   int64  `json:"user_id"`
 	Key      string `json:"key"`
 }
 
@@ -93,7 +93,7 @@ ORDER BY key
 
 type ListPluginUserMetadataKeysParams struct {
 	PluginID string `json:"plugin_id"`
-	UserID   int32  `json:"user_id"`
+	UserID   int64  `json:"user_id"`
 }
 
 func (q *Queries) ListPluginUserMetadataKeys(ctx context.Context, arg ListPluginUserMetadataKeysParams) ([]string, error) {
@@ -129,7 +129,7 @@ ON CONFLICT(plugin_id, user_id, key) DO UPDATE SET
 
 type SetPluginUserMetadataParams struct {
 	PluginID string `json:"plugin_id"`
-	UserID   int32  `json:"user_id"`
+	UserID   int64  `json:"user_id"`
 	Key      string `json:"key"`
 	Value    []byte `json:"value"`
 }

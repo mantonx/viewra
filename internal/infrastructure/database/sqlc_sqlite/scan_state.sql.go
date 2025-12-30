@@ -406,7 +406,7 @@ WHERE library_id = ? AND file_path = ?
 `
 
 type SetScanStateErrorParams struct {
-	HasError      sql.NullBool   `json:"has_error"`
+	HasError      sql.NullInt64  `json:"has_error"`
 	ErrorMessage  sql.NullString `json:"error_message"`
 	ErrorCategory sql.NullString `json:"error_category"`
 	LibraryID     int64          `json:"library_id"`
@@ -433,7 +433,7 @@ WHERE library_id = ? AND file_path = ?
 `
 
 type SetScanStateWarningParams struct {
-	HasWarning      sql.NullBool   `json:"has_warning"`
+	HasWarning      sql.NullInt64  `json:"has_warning"`
 	WarningMessage  sql.NullString `json:"warning_message"`
 	WarningCategory sql.NullString `json:"warning_category"`
 	LibraryID       int64          `json:"library_id"`
@@ -493,10 +493,10 @@ type UpsertScanStateParams struct {
 	MediaID         sql.NullInt64  `json:"media_id"`
 	LastScannedAt   time.Time      `json:"last_scanned_at"`
 	ScanJobID       int64          `json:"scan_job_id"`
-	HasWarning      sql.NullBool   `json:"has_warning"`
+	HasWarning      sql.NullInt64  `json:"has_warning"`
 	WarningMessage  sql.NullString `json:"warning_message"`
 	WarningCategory sql.NullString `json:"warning_category"`
-	HasError        sql.NullBool   `json:"has_error"`
+	HasError        sql.NullInt64  `json:"has_error"`
 	ErrorMessage    sql.NullString `json:"error_message"`
 	ErrorCategory   sql.NullString `json:"error_category"`
 }

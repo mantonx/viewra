@@ -38,17 +38,17 @@ func mapEpisodeToDomain(row interface{}) *media.TVEpisode {
 			CreatedAt:       common.ParseNullTime(common.TimeFieldGetter(row, "CreatedAt")),
 			UpdatedAt:       common.ParseNullTime(common.TimeFieldGetter(row, "UpdatedAt")),
 		},
-		ShowID:         common.IntFieldGetter(row, "ShowID"),
-		ShowTitle:      "", // Will be populated from show lookup if needed
-		SeasonID:       common.IntFieldGetter(row, "SeasonID"),
-		Season:         int(common.IntFieldGetter(row, "SeasonNumber")),
-		Episode:        int(common.IntFieldGetter(row, "EpisodeNumber")),
-		EpisodeTitle:   common.ParseNullString(common.NullStringFieldGetter(row, "EpisodeTitle")),
-		TVDbID:         int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TvdbID"))),
-		TMDbID:         common.ParseNullInt64(common.NullIntFieldGetter(row, "TmdbID")),
-		IMDbID:         common.ParseNullString(common.NullStringFieldGetter(row, "ImdbID")),
-		AirDate:        common.FormatNullDate(common.TimeFieldGetter(row, "AirDate")),
-		Description:    common.ParseNullString(common.NullStringFieldGetter(row, "Plot")),
+		ShowID:       common.IntFieldGetter(row, "ShowID"),
+		ShowTitle:    "", // Will be populated from show lookup if needed
+		SeasonID:     common.IntFieldGetter(row, "SeasonID"),
+		Season:       int(common.IntFieldGetter(row, "SeasonNumber")),
+		Episode:      int(common.IntFieldGetter(row, "EpisodeNumber")),
+		EpisodeTitle: common.ParseNullString(common.NullStringFieldGetter(row, "EpisodeTitle")),
+		TVDbID:       int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TvdbID"))),
+		TMDbID:       common.ParseNullInt64(common.NullIntFieldGetter(row, "TmdbID")),
+		IMDbID:       common.ParseNullString(common.NullStringFieldGetter(row, "ImdbID")),
+		AirDate:      common.FormatNullDate(common.TimeFieldGetter(row, "AirDate")),
+		Description:  common.ParseNullString(common.NullStringFieldGetter(row, "Plot")),
 
 		// Alternative ordering
 		AbsoluteNumber: int(common.ParseNullInt64(common.NullIntFieldGetter(row, "AbsoluteNumber"))),
@@ -93,9 +93,9 @@ func mapShowToDomain(row interface{}) media.TVShow {
 		TMDbID:           int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TmdbID"))),
 		TVDbID:           int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TvdbID"))),
 		Directory:        common.ParseNullString(common.NullStringFieldGetter(row, "Directory")),
-		Tagline:         common.ParseNullString(common.NullStringFieldGetter(row, "Tagline")),
-		Rating:          float32(common.Float64FieldGetter(row, "Rating")),
-		RatingVotes:     int(common.ParseNullInt64(common.NullIntFieldGetter(row, "RatingVotes"))),
+		Tagline:          common.ParseNullString(common.NullStringFieldGetter(row, "Tagline")),
+		Rating:           float32(common.Float64FieldGetter(row, "Rating")),
+		RatingVotes:      int(common.ParseNullInt64(common.NullIntFieldGetter(row, "RatingVotes"))),
 	}
 }
 
@@ -236,26 +236,26 @@ func buildPostgresCreateEpisodeParams(e *media.TVEpisode, showID, seasonID int64
 	}
 
 	return sqlc_postgres.CreateTVEpisodeParams{
-		MediaID:        int32(e.Media.ID),
-		ShowID:         int32(showID),
-		SeasonID:       int32(seasonID),
-		SeasonNumber:   int32(e.Season),
-		EpisodeNumber:  int32(e.Episode),
-		AbsoluteNumber: common.NullInt32FromInt64(int64(e.AbsoluteNumber)),
-		DvdSeason:      common.NullInt32FromInt64(int64(e.DvdSeason)),
-		DvdEpisode:     common.NullInt32FromInt64(int64(e.DvdEpisode)),
+		MediaID:        e.Media.ID,
+		ShowID:         showID,
+		SeasonID:       seasonID,
+		SeasonNumber:   int64(e.Season),
+		EpisodeNumber:  int64(e.Episode),
+		AbsoluteNumber: common.NullInt64(int64(e.AbsoluteNumber)),
+		DvdSeason:      common.NullInt64(int64(e.DvdSeason)),
+		DvdEpisode:     common.NullInt64(int64(e.DvdEpisode)),
 		EpisodeTitle:   common.NullString(e.EpisodeTitle),
 		OriginalTitle:  common.NullString(e.OriginalTitle),
 		AirDate:        airDate,
 		Plot:           common.NullString(e.Description),
 		ContentRating:  common.NullString(e.ContentRating),
-		MaturityRating: common.NullInt32FromInt64(int64(e.MaturityRating)),
+		MaturityRating: common.NullInt64(int64(e.MaturityRating)),
 		ImdbID:         common.NullString(e.IMDbID),
-		TmdbID:         common.NullInt32FromInt64(e.TMDbID),
-		TvdbID:         common.NullInt32FromInt64(int64(e.TVDbID)),
+		TmdbID:         common.NullInt64(e.TMDbID),
+		TvdbID:         common.NullInt64(int64(e.TVDbID)),
 		Rating:         common.NullFloat64FromFloat32(e.Rating),
-		RatingVotes:    common.NullInt32FromInt64(int64(e.RatingVotes)),
-		RuntimeMinutes: common.NullInt32FromInt64(int64(e.RuntimeMinutes)),
+		RatingVotes:    common.NullInt64(int64(e.RatingVotes)),
+		RuntimeMinutes: common.NullInt64(int64(e.RuntimeMinutes)),
 	}
 }
 
@@ -282,7 +282,7 @@ func buildPostgresUpdateEpisodeParams(e *media.TVEpisode, showID, seasonID int64
 		Rating:         params.Rating,
 		RatingVotes:    params.RatingVotes,
 		RuntimeMinutes: params.RuntimeMinutes,
-		MediaID:        int32(e.Media.ID),
+		MediaID:        e.Media.ID,
 	}
 }
 
@@ -304,27 +304,27 @@ func sqliteShowToDomain(row sqlc_sqlite.TvShow) media.TVShow {
 func buildPostgresCreateTVShowParams(libraryID int64, title, directory string) sqlc_postgres.CreateTVShowParams {
 	sortTitle := domainCommon.NormalizeSortTitle(title)
 	return sqlc_postgres.CreateTVShowParams{
-		LibraryID:        int32(libraryID),
+		LibraryID:        libraryID,
 		Title:            title,
 		OriginalTitle:    sql.NullString{Valid: false},
 		SortTitle:        sql.NullString{String: sortTitle, Valid: true},
-		Year:             sql.NullInt32{Valid: false},
+		Year:             sql.NullInt64{Valid: false},
 		FirstAirDate:     sql.NullTime{Valid: false},
 		LastAirDate:      sql.NullTime{Valid: false},
 		Genre:            sql.NullString{Valid: false},
 		Plot:             sql.NullString{Valid: false},
 		Status:           sql.NullString{Valid: false},
 		ContentRating:    sql.NullString{Valid: false},
-		MaturityRating:   sql.NullInt32{Valid: false},
+		MaturityRating:   sql.NullInt64{Valid: false},
 		Network:          sql.NullString{Valid: false},
 		OriginalLanguage: sql.NullString{Valid: false},
 		CountryOfOrigin:  sql.NullString{Valid: false},
 		ImdbID:           sql.NullString{Valid: false},
-		TmdbID:           sql.NullInt32{Valid: false},
-		TvdbID:           sql.NullInt32{Valid: false},
+		TmdbID:           sql.NullInt64{Valid: false},
+		TvdbID:           sql.NullInt64{Valid: false},
 		Directory:        sql.NullString{String: directory, Valid: directory != ""},
 		Rating:           sql.NullFloat64{Valid: false},
-		RatingVotes:      sql.NullInt32{Valid: false},
+		RatingVotes:      sql.NullInt64{Valid: false},
 		Tagline:          sql.NullString{Valid: false},
 	}
 }
@@ -364,7 +364,7 @@ func buildPostgresUpsertTVShowParams(libraryID int64, title, directory string) s
 	normalizedTitle := domainCommon.NormalizeTitle(title)
 	sortTitle := domainCommon.NormalizeSortTitle(normalizedTitle)
 	return sqlc_postgres.UpsertTVShowParams{
-		LibraryID: int32(libraryID),
+		LibraryID: libraryID,
 		Title:     normalizedTitle,
 		SortTitle: sql.NullString{String: sortTitle, Valid: true},
 		Directory: sql.NullString{String: directory, Valid: directory != ""},
@@ -394,33 +394,33 @@ func buildPostgresUpdateTVShowParams(show media.TVShow) sqlc_postgres.UpdateTVSh
 		return sql.NullString{String: s, Valid: s != ""}
 	}
 
-	// Helper to convert int to sql.NullInt32
-	toNullInt32 := func(i int) sql.NullInt32 {
-		return sql.NullInt32{Int32: int32(i), Valid: i != 0}
+	// Helper to convert int to sql.NullInt64
+	toNullInt64 := func(i int) sql.NullInt64 {
+		return sql.NullInt64{Int64: int64(i), Valid: i != 0}
 	}
 
 	return sqlc_postgres.UpdateTVShowParams{
-		ID:               int32(show.ID),
+		ID:               show.ID,
 		Title:            show.Title,
 		OriginalTitle:    toNullString(show.OriginalTitle),
 		SortTitle:        toNullString(show.SortTitle),
-		Year:             toNullInt32(show.Year),
+		Year:             toNullInt64(show.Year),
 		FirstAirDate:     common.ParseDateString(show.FirstAirDate),
 		LastAirDate:      common.ParseDateString(show.LastAirDate),
 		Genre:            toNullString(genreStr),
 		Plot:             toNullString(show.Plot),
 		Status:           toNullString(show.Status),
 		ContentRating:    toNullString(show.ContentRating),
-		MaturityRating:   sql.NullInt32{Valid: false}, // Not exposed via enrichment proto
+		MaturityRating:   sql.NullInt64{Valid: false}, // Not exposed via enrichment proto
 		Network:          toNullString(show.Network),
 		OriginalLanguage: toNullString(show.OriginalLanguage),
 		CountryOfOrigin:  toNullString(show.CountryOfOrigin),
 		ImdbID:           toNullString(show.IMDbID),
-		TmdbID:           toNullInt32(show.TMDbID),
-		TvdbID:           toNullInt32(show.TVDbID),
+		TmdbID:           toNullInt64(show.TMDbID),
+		TvdbID:           toNullInt64(show.TVDbID),
 		Directory:        toNullString(show.Directory),
 		Rating:           common.NullFloat64FromFloat32(show.Rating),
-		RatingVotes:      toNullInt32(show.RatingVotes),
+		RatingVotes:      toNullInt64(show.RatingVotes),
 		Tagline:          toNullString(show.Tagline),
 	}
 }
@@ -488,14 +488,14 @@ func parseGenres(genreStr string) []string {
 func postgresShowWithCountsToDomain(row sqlc_postgres.GetTVShowsWithCountsByLibraryPaginatedRow) media.TVShowWithCounts {
 	return media.TVShowWithCounts{
 		TVShow: media.TVShow{
-			ID:            int64(row.ID),
-			LibraryID:     int64(row.LibraryID),
+			ID:            row.ID,
+			LibraryID:     row.LibraryID,
 			Title:         row.Title,
-			Year:          int(common.ParseNullInt32(row.Year)),
+			Year:          int(common.ParseNullInt64(row.Year)),
 			Genre:         parseGenres(common.ParseNullString(row.Genre)),
 			Plot:          common.ParseNullString(row.Plot),
 			IMDbID:        common.ParseNullString(row.ImdbID),
-			TMDbID:        int(common.ParseNullInt32(row.TmdbID)),
+			TMDbID:        int(common.ParseNullInt64(row.TmdbID)),
 			ContentRating: common.ParseNullString(row.ContentRating),
 			CreatedAt:     common.ParseNullTime(row.CreatedAt),
 		},
@@ -507,14 +507,14 @@ func postgresShowWithCountsToDomain(row sqlc_postgres.GetTVShowsWithCountsByLibr
 func postgresShowWithCountsDescToDomain(row sqlc_postgres.GetTVShowsWithCountsByLibraryPaginatedDescRow) media.TVShowWithCounts {
 	return media.TVShowWithCounts{
 		TVShow: media.TVShow{
-			ID:            int64(row.ID),
-			LibraryID:     int64(row.LibraryID),
+			ID:            row.ID,
+			LibraryID:     row.LibraryID,
 			Title:         row.Title,
-			Year:          int(common.ParseNullInt32(row.Year)),
+			Year:          int(common.ParseNullInt64(row.Year)),
 			Genre:         parseGenres(common.ParseNullString(row.Genre)),
 			Plot:          common.ParseNullString(row.Plot),
 			IMDbID:        common.ParseNullString(row.ImdbID),
-			TMDbID:        int(common.ParseNullInt32(row.TmdbID)),
+			TMDbID:        int(common.ParseNullInt64(row.TmdbID)),
 			ContentRating: common.ParseNullString(row.ContentRating),
 			CreatedAt:     common.ParseNullTime(row.CreatedAt),
 		},
@@ -565,14 +565,14 @@ func sqliteShowWithCountsDescToDomain(row sqlc_sqlite.GetTVShowsWithCountsByLibr
 func postgresSearchShowWithCountsToDomain(row sqlc_postgres.SearchTVShowsWithCountsByTitlePaginatedRow) media.TVShowWithCounts {
 	return media.TVShowWithCounts{
 		TVShow: media.TVShow{
-			ID:            int64(row.ID),
-			LibraryID:     int64(row.LibraryID),
+			ID:            row.ID,
+			LibraryID:     row.LibraryID,
 			Title:         row.Title,
-			Year:          int(common.ParseNullInt32(row.Year)),
+			Year:          int(common.ParseNullInt64(row.Year)),
 			Genre:         parseGenres(common.ParseNullString(row.Genre)),
 			Plot:          common.ParseNullString(row.Plot),
 			IMDbID:        common.ParseNullString(row.ImdbID),
-			TMDbID:        int(common.ParseNullInt32(row.TmdbID)),
+			TMDbID:        int(common.ParseNullInt64(row.TmdbID)),
 			ContentRating: common.ParseNullString(row.ContentRating),
 			CreatedAt:     common.ParseNullTime(row.CreatedAt),
 		},
@@ -617,9 +617,9 @@ func sqliteSeasonToDomain(row sqlc_sqlite.TvSeason) media.TVSeason {
 // buildPostgresCreateTVSeasonParams builds CreateTVSeasonParams for PostgreSQL
 func buildPostgresCreateTVSeasonParams(showID, seasonNumber int64) sqlc_postgres.CreateTVSeasonParams {
 	return sqlc_postgres.CreateTVSeasonParams{
-		ShowID:       int32(showID),
-		SeasonNumber: int32(seasonNumber),
-		EpisodeCount: sql.NullInt32{Int32: 0, Valid: true},
+		ShowID:       showID,
+		SeasonNumber: seasonNumber,
+		EpisodeCount: sql.NullInt64{Int64: 0, Valid: true},
 	}
 }
 

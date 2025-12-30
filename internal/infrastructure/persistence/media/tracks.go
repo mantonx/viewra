@@ -41,7 +41,7 @@ func (r *Repository) InsertAudioTrack(ctx context.Context, track *media.AudioTra
 func (r *Repository) GetAudioTracksByMediaID(ctx context.Context, mediaID int64) ([]*media.AudioTrack, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetAudioTracksByMediaID(ctx, int32(mediaID))
+			return r.postgres.GetAudioTracksByMediaID(ctx, mediaID)
 		},
 		func() (any, error) {
 			return r.sqlite.GetAudioTracksByMediaID(ctx, mediaID)
@@ -72,7 +72,7 @@ func (r *Repository) GetAudioTracksByMediaID(ctx context.Context, mediaID int64)
 func (r *Repository) DeleteAudioTracksByMediaID(ctx context.Context, mediaID int64) error {
 	_, err := r.router.Route(
 		func() (any, error) {
-			return nil, r.postgres.DeleteAudioTracksByMediaID(ctx, int32(mediaID))
+			return nil, r.postgres.DeleteAudioTracksByMediaID(ctx, mediaID)
 		},
 		func() (any, error) {
 			return nil, r.sqlite.DeleteAudioTracksByMediaID(ctx, mediaID)
@@ -112,7 +112,7 @@ func (r *Repository) InsertSubtitleTrack(ctx context.Context, track *media.Subti
 func (r *Repository) GetSubtitleTracksByMediaID(ctx context.Context, mediaID int64) ([]*media.SubtitleTrack, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetSubtitleTracksByMediaID(ctx, int32(mediaID))
+			return r.postgres.GetSubtitleTracksByMediaID(ctx, mediaID)
 		},
 		func() (any, error) {
 			return r.sqlite.GetSubtitleTracksByMediaID(ctx, mediaID)
@@ -143,7 +143,7 @@ func (r *Repository) GetSubtitleTracksByMediaID(ctx context.Context, mediaID int
 func (r *Repository) DeleteSubtitleTracksByMediaID(ctx context.Context, mediaID int64) error {
 	_, err := r.router.Route(
 		func() (any, error) {
-			return nil, r.postgres.DeleteSubtitleTracksByMediaID(ctx, int32(mediaID))
+			return nil, r.postgres.DeleteSubtitleTracksByMediaID(ctx, mediaID)
 		},
 		func() (any, error) {
 			return nil, r.sqlite.DeleteSubtitleTracksByMediaID(ctx, mediaID)
@@ -156,7 +156,7 @@ func (r *Repository) DeleteSubtitleTracksByMediaID(ctx context.Context, mediaID 
 func (r *Repository) DeleteExternalSubtitlesByMediaID(ctx context.Context, mediaID int64) error {
 	_, err := r.router.Route(
 		func() (any, error) {
-			return nil, r.postgres.DeleteExternalSubtitlesByMediaID(ctx, int32(mediaID))
+			return nil, r.postgres.DeleteExternalSubtitlesByMediaID(ctx, mediaID)
 		},
 		func() (any, error) {
 			return nil, r.sqlite.DeleteExternalSubtitlesByMediaID(ctx, mediaID)
@@ -178,28 +178,28 @@ func buildSQLiteInsertAudioParams(t *media.AudioTrack) sqlc_sqlite.InsertAudioTr
 		BitRate:       common.NullInt64(int64(t.BitRate)),
 		Language:      common.NullString(t.Language),
 		Title:         common.NullString(t.Title),
-		IsDefault:     common.NullBool(t.IsDefault),
-		IsCommentary:  common.NullBool(t.IsCommentary),
-		IsDescriptive: common.NullBool(t.IsDescriptive),
+		IsDefault:     common.NullInt64FromBool(t.IsDefault),
+		IsCommentary:  common.NullInt64FromBool(t.IsCommentary),
+		IsDescriptive: common.NullInt64FromBool(t.IsDescriptive),
 	}
 }
 
 // buildPostgresInsertAudioParams builds insert params for PostgreSQL.
 func buildPostgresInsertAudioParams(t *media.AudioTrack) sqlc_postgres.InsertAudioTrackParams {
 	return sqlc_postgres.InsertAudioTrackParams{
-		MediaID:       int32(t.MediaID),
-		StreamIndex:   int32(t.StreamIndex),
+		MediaID:       t.MediaID,
+		StreamIndex:   int64(t.StreamIndex),
 		Codec:         t.Codec,
 		CodecProfile:  common.NullString(t.CodecProfile),
-		Channels:      int32(t.Channels),
+		Channels:      int64(t.Channels),
 		ChannelLayout: common.NullString(t.ChannelLayout),
-		SampleRate:    common.NullInt32(int32(t.SampleRate)),
-		BitRate:       common.NullInt32(int32(t.BitRate)),
+		SampleRate:    common.NullInt64(int64(t.SampleRate)),
+		BitRate:       common.NullInt64(int64(t.BitRate)),
 		Language:      common.NullString(t.Language),
 		Title:         common.NullString(t.Title),
-		IsDefault:     common.NullBool(t.IsDefault),
-		IsCommentary:  common.NullBool(t.IsCommentary),
-		IsDescriptive: common.NullBool(t.IsDescriptive),
+		IsDefault:     common.NullInt64FromBool(t.IsDefault),
+		IsCommentary:  common.NullInt64FromBool(t.IsCommentary),
+		IsDescriptive: common.NullInt64FromBool(t.IsDescriptive),
 	}
 }
 
@@ -211,11 +211,11 @@ func buildSQLiteInsertSubtitleParams(t *media.SubtitleTrack) sqlc_sqlite.InsertS
 		Codec:        common.NullString(t.Codec),
 		Language:     common.NullString(t.Language),
 		Title:        common.NullString(t.Title),
-		IsDefault:    common.NullBool(t.IsDefault),
-		IsForced:     common.NullBool(t.IsForced),
-		IsSdh:        common.NullBool(t.IsSDH),
-		IsCommentary: common.NullBool(t.IsCommentary),
-		IsBitmap:     common.NullBool(t.IsBitmap),
+		IsDefault:    common.NullInt64FromBool(t.IsDefault),
+		IsForced:     common.NullInt64FromBool(t.IsForced),
+		IsSdh:        common.NullInt64FromBool(t.IsSDH),
+		IsCommentary: common.NullInt64FromBool(t.IsCommentary),
+		IsBitmap:     common.NullInt64FromBool(t.IsBitmap),
 	}
 	if t.StreamIndex != nil {
 		params.StreamIndex = sql.NullInt64{Int64: int64(*t.StreamIndex), Valid: true}
@@ -229,19 +229,19 @@ func buildSQLiteInsertSubtitleParams(t *media.SubtitleTrack) sqlc_sqlite.InsertS
 // buildPostgresInsertSubtitleParams builds insert params for PostgreSQL.
 func buildPostgresInsertSubtitleParams(t *media.SubtitleTrack) sqlc_postgres.InsertSubtitleTrackParams {
 	params := sqlc_postgres.InsertSubtitleTrackParams{
-		MediaID:      int32(t.MediaID),
+		MediaID:      t.MediaID,
 		SourceType:   string(t.SourceType),
 		Codec:        common.NullString(t.Codec),
 		Language:     common.NullString(t.Language),
 		Title:        common.NullString(t.Title),
-		IsDefault:    common.NullBool(t.IsDefault),
-		IsForced:     common.NullBool(t.IsForced),
-		IsSdh:        common.NullBool(t.IsSDH),
-		IsCommentary: common.NullBool(t.IsCommentary),
-		IsBitmap:     common.NullBool(t.IsBitmap),
+		IsDefault:    common.NullInt64FromBool(t.IsDefault),
+		IsForced:     common.NullInt64FromBool(t.IsForced),
+		IsSdh:        common.NullInt64FromBool(t.IsSDH),
+		IsCommentary: common.NullInt64FromBool(t.IsCommentary),
+		IsBitmap:     common.NullInt64FromBool(t.IsBitmap),
 	}
 	if t.StreamIndex != nil {
-		params.StreamIndex = sql.NullInt32{Int32: int32(*t.StreamIndex), Valid: true}
+		params.StreamIndex = sql.NullInt64{Int64: int64(*t.StreamIndex), Valid: true}
 	}
 	if t.FilePath != nil {
 		params.FilePath = sql.NullString{String: *t.FilePath, Valid: true}
@@ -263,9 +263,9 @@ func sqliteAudioTrackToDomain(row sqlc_sqlite.MediaAudioTrack) *media.AudioTrack
 		BitRate:       int(row.BitRate.Int64),
 		Language:      row.Language.String,
 		Title:         row.Title.String,
-		IsDefault:     row.IsDefault.Bool,
-		IsCommentary:  row.IsCommentary.Bool,
-		IsDescriptive: row.IsDescriptive.Bool,
+		IsDefault:     common.NullInt64ToBool(row.IsDefault),
+		IsCommentary:  common.NullInt64ToBool(row.IsCommentary),
+		IsDescriptive: common.NullInt64ToBool(row.IsDescriptive),
 		CreatedAt:     common.ParseNullTime(row.CreatedAt),
 	}
 }
@@ -273,20 +273,20 @@ func sqliteAudioTrackToDomain(row sqlc_sqlite.MediaAudioTrack) *media.AudioTrack
 // pgAudioTrackToDomain converts PostgreSQL audio track to domain entity.
 func pgAudioTrackToDomain(row sqlc_postgres.MediaAudioTrack) *media.AudioTrack {
 	return &media.AudioTrack{
-		ID:            int64(row.ID),
-		MediaID:       int64(row.MediaID),
+		ID:            row.ID,
+		MediaID:       row.MediaID,
 		StreamIndex:   int(row.StreamIndex),
 		Codec:         row.Codec,
 		CodecProfile:  row.CodecProfile.String,
 		Channels:      int(row.Channels),
 		ChannelLayout: row.ChannelLayout.String,
-		SampleRate:    int(row.SampleRate.Int32),
-		BitRate:       int(row.BitRate.Int32),
+		SampleRate:    int(row.SampleRate.Int64),
+		BitRate:       int(row.BitRate.Int64),
 		Language:      row.Language.String,
 		Title:         row.Title.String,
-		IsDefault:     row.IsDefault.Bool,
-		IsCommentary:  row.IsCommentary.Bool,
-		IsDescriptive: row.IsDescriptive.Bool,
+		IsDefault:     common.NullInt64ToBool(row.IsDefault),
+		IsCommentary:  common.NullInt64ToBool(row.IsCommentary),
+		IsDescriptive: common.NullInt64ToBool(row.IsDescriptive),
 		CreatedAt:     common.ParseNullTime(row.CreatedAt),
 	}
 }
@@ -300,11 +300,11 @@ func sqliteSubtitleTrackToDomain(row sqlc_sqlite.MediaSubtitleTrack) *media.Subt
 		Codec:        row.Codec.String,
 		Language:     row.Language.String,
 		Title:        row.Title.String,
-		IsDefault:    row.IsDefault.Bool,
-		IsForced:     row.IsForced.Bool,
-		IsSDH:        row.IsSdh.Bool,
-		IsCommentary: row.IsCommentary.Bool,
-		IsBitmap:     row.IsBitmap.Bool,
+		IsDefault:    common.NullInt64ToBool(row.IsDefault),
+		IsForced:     common.NullInt64ToBool(row.IsForced),
+		IsSDH:        common.NullInt64ToBool(row.IsSdh),
+		IsCommentary: common.NullInt64ToBool(row.IsCommentary),
+		IsBitmap:     common.NullInt64ToBool(row.IsBitmap),
 		CreatedAt:    common.ParseNullTime(row.CreatedAt),
 	}
 	if row.StreamIndex.Valid {
@@ -320,21 +320,21 @@ func sqliteSubtitleTrackToDomain(row sqlc_sqlite.MediaSubtitleTrack) *media.Subt
 // pgSubtitleTrackToDomain converts PostgreSQL subtitle track to domain entity.
 func pgSubtitleTrackToDomain(row sqlc_postgres.MediaSubtitleTrack) *media.SubtitleTrack {
 	track := &media.SubtitleTrack{
-		ID:           int64(row.ID),
-		MediaID:      int64(row.MediaID),
+		ID:           row.ID,
+		MediaID:      row.MediaID,
 		SourceType:   media.SubtitleSourceType(row.SourceType),
 		Codec:        row.Codec.String,
 		Language:     row.Language.String,
 		Title:        row.Title.String,
-		IsDefault:    row.IsDefault.Bool,
-		IsForced:     row.IsForced.Bool,
-		IsSDH:        row.IsSdh.Bool,
-		IsCommentary: row.IsCommentary.Bool,
-		IsBitmap:     row.IsBitmap.Bool,
+		IsDefault:    common.NullInt64ToBool(row.IsDefault),
+		IsForced:     common.NullInt64ToBool(row.IsForced),
+		IsSDH:        common.NullInt64ToBool(row.IsSdh),
+		IsCommentary: common.NullInt64ToBool(row.IsCommentary),
+		IsBitmap:     common.NullInt64ToBool(row.IsBitmap),
 		CreatedAt:    common.ParseNullTime(row.CreatedAt),
 	}
 	if row.StreamIndex.Valid {
-		idx := int(row.StreamIndex.Int32)
+		idx := int(row.StreamIndex.Int64)
 		track.StreamIndex = &idx
 	}
 	if row.FilePath.Valid {

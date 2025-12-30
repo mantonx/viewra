@@ -32,7 +32,7 @@ func (r *Repository) GetPersonByID(id int64) (*media.Person, error) {
 	return common.QuerySingle(
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.Person, error) {
-			return r.Postgres().GetPersonByID(ctx, int32(id))
+			return r.Postgres().GetPersonByID(ctx, id)
 		},
 		func() (sqlc_sqlite.Person, error) {
 			return r.SQLite().GetPersonByID(ctx, id)
@@ -64,7 +64,7 @@ func (r *Repository) GetPersonByTMDbID(tmdbID int) (*media.Person, error) {
 	return common.QuerySingle(
 		r.BaseRepository, ctx,
 		func() (sqlc_postgres.Person, error) {
-			return r.Postgres().GetPersonByTMDbID(ctx, common.NullInt32(int32(tmdbID)))
+			return r.Postgres().GetPersonByTMDbID(ctx, common.NullInt64(int64(tmdbID)))
 		},
 		func() (sqlc_sqlite.Person, error) {
 			return r.SQLite().GetPersonByTMDbID(ctx, common.NullInt64(int64(tmdbID)))
@@ -83,7 +83,7 @@ func (r *Repository) CreatePerson(person *media.Person) error {
 		if err != nil {
 			return fmt.Errorf("create person: %w", err)
 		}
-		person.ID = int64(result.ID)
+		person.ID = result.ID
 		return nil
 	}
 
@@ -222,7 +222,7 @@ func (r *Repository) GetCreditsForEntity(mediaType string, entityID int64) ([]*m
 		func() ([]sqlc_postgres.GetCreditsForEntityRow, error) {
 			return r.Postgres().GetCreditsForEntity(ctx, sqlc_postgres.GetCreditsForEntityParams{
 				MediaType: mediaType,
-				EntityID:  int32(entityID),
+				EntityID:  entityID,
 			})
 		},
 		func() ([]sqlc_sqlite.GetCreditsForEntityRow, error) {
@@ -242,7 +242,7 @@ func (r *Repository) GetCreditsForPerson(personID int64) ([]*media.Credit, error
 	return common.QueryMany(
 		r.BaseRepository, ctx,
 		func() ([]sqlc_postgres.GetCreditsForPersonRow, error) {
-			return r.Postgres().GetCreditsForPerson(ctx, int32(personID))
+			return r.Postgres().GetCreditsForPerson(ctx, personID)
 		},
 		func() ([]sqlc_sqlite.GetCreditsForPersonRow, error) {
 			return r.SQLite().GetCreditsForPerson(ctx, personID)
@@ -261,7 +261,7 @@ func (r *Repository) CreateCredit(credit *media.Credit) error {
 		if err != nil {
 			return fmt.Errorf("create credit: %w", err)
 		}
-		credit.ID = int64(result.ID)
+		credit.ID = result.ID
 		return nil
 	}
 
@@ -281,7 +281,7 @@ func (r *Repository) DeleteCreditsForEntity(mediaType string, entityID int64) er
 		func() error {
 			return r.Postgres().DeleteCreditsForEntity(ctx, sqlc_postgres.DeleteCreditsForEntityParams{
 				MediaType: mediaType,
-				EntityID:  int32(entityID),
+				EntityID:  entityID,
 			})
 		},
 		func() error {
@@ -322,7 +322,7 @@ func (r *Repository) GetCastForEntity(mediaType string, entityID int64, limit in
 		func() ([]sqlc_postgres.GetCastForEntityRow, error) {
 			return r.Postgres().GetCastForEntity(ctx, sqlc_postgres.GetCastForEntityParams{
 				MediaType: mediaType,
-				EntityID:  int32(entityID),
+				EntityID:  entityID,
 				Limit:     int32(limit),
 			})
 		},
@@ -346,7 +346,7 @@ func (r *Repository) GetDirectorsForEntity(mediaType string, entityID int64) ([]
 		func() ([]sqlc_postgres.GetDirectorsForEntityRow, error) {
 			return r.Postgres().GetDirectorsForEntity(ctx, sqlc_postgres.GetDirectorsForEntityParams{
 				MediaType: mediaType,
-				EntityID:  int32(entityID),
+				EntityID:  entityID,
 			})
 		},
 		func() ([]sqlc_sqlite.GetDirectorsForEntityRow, error) {
@@ -368,7 +368,7 @@ func (r *Repository) GetWritersForEntity(mediaType string, entityID int64) ([]*m
 		func() ([]sqlc_postgres.GetWritersForEntityRow, error) {
 			return r.Postgres().GetWritersForEntity(ctx, sqlc_postgres.GetWritersForEntityParams{
 				MediaType: mediaType,
-				EntityID:  int32(entityID),
+				EntityID:  entityID,
 			})
 		},
 		func() ([]sqlc_sqlite.GetWritersForEntityRow, error) {
@@ -390,7 +390,7 @@ func (r *Repository) GetCreatorsForEntity(mediaType string, entityID int64) ([]*
 		func() ([]sqlc_postgres.GetCreatorsForEntityRow, error) {
 			return r.Postgres().GetCreatorsForEntity(ctx, sqlc_postgres.GetCreatorsForEntityParams{
 				MediaType: mediaType,
-				EntityID:  int32(entityID),
+				EntityID:  entityID,
 			})
 		},
 		func() ([]sqlc_sqlite.GetCreatorsForEntityRow, error) {

@@ -18,9 +18,9 @@ WHERE media_type = $1 AND entity_id = $2 AND provider = $3
 `
 
 type DeleteExternalIDParams struct {
-	MediaType interface{} `json:"media_type"`
-	EntityID  int32       `json:"entity_id"`
-	Provider  string      `json:"provider"`
+	MediaType string `json:"media_type"`
+	EntityID  int64  `json:"entity_id"`
+	Provider  string `json:"provider"`
 }
 
 func (q *Queries) DeleteExternalID(ctx context.Context, arg DeleteExternalIDParams) error {
@@ -34,8 +34,8 @@ WHERE media_type = $1 AND entity_id = $2
 `
 
 type DeleteExternalIDsByMediaParams struct {
-	MediaType interface{} `json:"media_type"`
-	EntityID  int32       `json:"entity_id"`
+	MediaType string `json:"media_type"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 // Deletes by media_type and entity_id
@@ -49,7 +49,7 @@ DELETE FROM media_external_ids WHERE media_id = $1
 `
 
 // Legacy: deletes by media table ID
-func (q *Queries) DeleteExternalIDsByMediaID(ctx context.Context, mediaID sql.NullInt32) error {
+func (q *Queries) DeleteExternalIDsByMediaID(ctx context.Context, mediaID sql.NullInt64) error {
 	_, err := q.db.ExecContext(ctx, deleteExternalIDsByMediaID, mediaID)
 	return err
 }
@@ -60,7 +60,7 @@ WHERE media_id = $1 AND field_name = $2 AND plugin_id = $3
 `
 
 type DeleteMetadataSourceParams struct {
-	MediaID   int32  `json:"media_id"`
+	MediaID   int64  `json:"media_id"`
 	FieldName string `json:"field_name"`
 	PluginID  string `json:"plugin_id"`
 }
@@ -74,7 +74,7 @@ const deleteMetadataSourcesByMedia = `-- name: DeleteMetadataSourcesByMedia :exe
 DELETE FROM media_metadata_sources WHERE media_id = $1
 `
 
-func (q *Queries) DeleteMetadataSourcesByMedia(ctx context.Context, mediaID int32) error {
+func (q *Queries) DeleteMetadataSourcesByMedia(ctx context.Context, mediaID int64) error {
 	_, err := q.db.ExecContext(ctx, deleteMetadataSourcesByMedia, mediaID)
 	return err
 }
@@ -99,8 +99,8 @@ type GetEntityByExternalIDParams struct {
 }
 
 type GetEntityByExternalIDRow struct {
-	MediaType interface{} `json:"media_type"`
-	EntityID  int32       `json:"entity_id"`
+	MediaType string `json:"media_type"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 // Returns full entity info for external ID lookup
@@ -117,9 +117,9 @@ WHERE media_type = $1 AND entity_id = $2 AND provider = $3
 `
 
 type GetExternalIDParams struct {
-	MediaType interface{} `json:"media_type"`
-	EntityID  int32       `json:"entity_id"`
-	Provider  string      `json:"provider"`
+	MediaType string `json:"media_type"`
+	EntityID  int64  `json:"entity_id"`
+	Provider  string `json:"provider"`
 }
 
 func (q *Queries) GetExternalID(ctx context.Context, arg GetExternalIDParams) (MediaExternalID, error) {
@@ -145,8 +145,8 @@ ORDER BY provider
 `
 
 type GetExternalIDsByMediaParams struct {
-	MediaType interface{} `json:"media_type"`
-	EntityID  int32       `json:"entity_id"`
+	MediaType string `json:"media_type"`
+	EntityID  int64  `json:"entity_id"`
 }
 
 // Gets external IDs by media_type and entity_id (polymorphic)
@@ -189,7 +189,7 @@ ORDER BY provider
 `
 
 // Legacy query: gets external IDs by media table ID (for backward compatibility)
-func (q *Queries) GetExternalIDsByMediaID(ctx context.Context, mediaID sql.NullInt32) ([]MediaExternalID, error) {
+func (q *Queries) GetExternalIDsByMediaID(ctx context.Context, mediaID sql.NullInt64) ([]MediaExternalID, error) {
 	rows, err := q.db.QueryContext(ctx, getExternalIDsByMediaID, mediaID)
 	if err != nil {
 		return nil, err
@@ -228,7 +228,7 @@ ORDER BY media_id, provider
 `
 
 // Batch fetch: gets external IDs for multiple media IDs
-func (q *Queries) GetExternalIDsByMediaIDBatch(ctx context.Context, dollar_1 []int32) ([]MediaExternalID, error) {
+func (q *Queries) GetExternalIDsByMediaIDBatch(ctx context.Context, dollar_1 []int64) ([]MediaExternalID, error) {
 	rows, err := q.db.QueryContext(ctx, getExternalIDsByMediaIDBatch, pq.Array(dollar_1))
 	if err != nil {
 		return nil, err
@@ -271,9 +271,9 @@ type GetMediaByExternalIDParams struct {
 }
 
 // Returns entity_id for the given provider/external_id combination
-func (q *Queries) GetMediaByExternalID(ctx context.Context, arg GetMediaByExternalIDParams) (int32, error) {
+func (q *Queries) GetMediaByExternalID(ctx context.Context, arg GetMediaByExternalIDParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getMediaByExternalID, arg.Provider, arg.ExternalID)
-	var entity_id int32
+	var entity_id int64
 	err := row.Scan(&entity_id)
 	return entity_id, err
 }
@@ -284,7 +284,7 @@ WHERE media_id = $1 AND field_name = $2 AND plugin_id = $3
 `
 
 type GetMetadataSourceParams struct {
-	MediaID   int32  `json:"media_id"`
+	MediaID   int64  `json:"media_id"`
 	FieldName string `json:"field_name"`
 	PluginID  string `json:"plugin_id"`
 }
@@ -309,7 +309,7 @@ ORDER BY plugin_id
 `
 
 type GetMetadataSourcesByFieldParams struct {
-	MediaID   int32  `json:"media_id"`
+	MediaID   int64  `json:"media_id"`
 	FieldName string `json:"field_name"`
 }
 
@@ -348,7 +348,7 @@ WHERE media_id = $1
 ORDER BY field_name, plugin_id
 `
 
-func (q *Queries) GetMetadataSourcesByMedia(ctx context.Context, mediaID int32) ([]MediaMetadataSource, error) {
+func (q *Queries) GetMetadataSourcesByMedia(ctx context.Context, mediaID int64) ([]MediaMetadataSource, error) {
 	rows, err := q.db.QueryContext(ctx, getMetadataSourcesByMedia, mediaID)
 	if err != nil {
 		return nil, err
@@ -388,9 +388,9 @@ type GetPersonByExternalIDParams struct {
 }
 
 // Looks up a person by external ID (e.g., TMDb person ID)
-func (q *Queries) GetPersonByExternalID(ctx context.Context, arg GetPersonByExternalIDParams) (int32, error) {
+func (q *Queries) GetPersonByExternalID(ctx context.Context, arg GetPersonByExternalIDParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getPersonByExternalID, arg.Provider, arg.ExternalID)
-	var entity_id int32
+	var entity_id int64
 	err := row.Scan(&entity_id)
 	return entity_id, err
 }
@@ -407,7 +407,7 @@ type GetPersonExternalIDsRow struct {
 }
 
 // Gets all external IDs for a person
-func (q *Queries) GetPersonExternalIDs(ctx context.Context, entityID int32) ([]GetPersonExternalIDsRow, error) {
+func (q *Queries) GetPersonExternalIDs(ctx context.Context, entityID int64) ([]GetPersonExternalIDsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getPersonExternalIDs, entityID)
 	if err != nil {
 		return nil, err
@@ -441,9 +441,9 @@ type GetStudioByExternalIDParams struct {
 }
 
 // Looks up a studio by external ID (e.g., TMDb company ID)
-func (q *Queries) GetStudioByExternalID(ctx context.Context, arg GetStudioByExternalIDParams) (int32, error) {
+func (q *Queries) GetStudioByExternalID(ctx context.Context, arg GetStudioByExternalIDParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getStudioByExternalID, arg.Provider, arg.ExternalID)
-	var entity_id int32
+	var entity_id int64
 	err := row.Scan(&entity_id)
 	return entity_id, err
 }
@@ -460,7 +460,7 @@ type GetStudioExternalIDsRow struct {
 }
 
 // Gets all external IDs for a studio
-func (q *Queries) GetStudioExternalIDs(ctx context.Context, entityID int32) ([]GetStudioExternalIDsRow, error) {
+func (q *Queries) GetStudioExternalIDs(ctx context.Context, entityID int64) ([]GetStudioExternalIDsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getStudioExternalIDs, entityID)
 	if err != nil {
 		return nil, err
@@ -499,9 +499,9 @@ ON CONFLICT(media_type, entity_id, provider) DO UPDATE SET
 `
 
 type UpsertExternalIDParams struct {
-	MediaID    sql.NullInt32 `json:"media_id"`
-	MediaType  interface{}   `json:"media_type"`
-	EntityID   int32         `json:"entity_id"`
+	MediaID    sql.NullInt64 `json:"media_id"`
+	MediaType  string        `json:"media_type"`
+	EntityID   int64         `json:"entity_id"`
 	Provider   string        `json:"provider"`
 	ExternalID string        `json:"external_id"`
 }
@@ -533,7 +533,7 @@ ON CONFLICT(media_id, field_name, plugin_id) DO UPDATE SET
 `
 
 type UpsertMetadataSourceParams struct {
-	MediaID   int32          `json:"media_id"`
+	MediaID   int64          `json:"media_id"`
 	FieldName string         `json:"field_name"`
 	PluginID  string         `json:"plugin_id"`
 	RawValue  sql.NullString `json:"raw_value"`

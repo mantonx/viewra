@@ -254,9 +254,9 @@ type InsertAudioTrackParams struct {
 	BitRate       sql.NullInt64  `json:"bit_rate"`
 	Language      sql.NullString `json:"language"`
 	Title         sql.NullString `json:"title"`
-	IsDefault     sql.NullBool   `json:"is_default"`
-	IsCommentary  sql.NullBool   `json:"is_commentary"`
-	IsDescriptive sql.NullBool   `json:"is_descriptive"`
+	IsDefault     sql.NullInt64  `json:"is_default"`
+	IsCommentary  sql.NullInt64  `json:"is_commentary"`
+	IsDescriptive sql.NullInt64  `json:"is_descriptive"`
 }
 
 type InsertAudioTrackRow struct {
@@ -302,11 +302,11 @@ type InsertSubtitleTrackParams struct {
 	Language     sql.NullString `json:"language"`
 	Title        sql.NullString `json:"title"`
 	FilePath     sql.NullString `json:"file_path"`
-	IsDefault    sql.NullBool   `json:"is_default"`
-	IsForced     sql.NullBool   `json:"is_forced"`
-	IsSdh        sql.NullBool   `json:"is_sdh"`
-	IsCommentary sql.NullBool   `json:"is_commentary"`
-	IsBitmap     sql.NullBool   `json:"is_bitmap"`
+	IsDefault    sql.NullInt64  `json:"is_default"`
+	IsForced     sql.NullInt64  `json:"is_forced"`
+	IsSdh        sql.NullInt64  `json:"is_sdh"`
+	IsCommentary sql.NullInt64  `json:"is_commentary"`
+	IsBitmap     sql.NullInt64  `json:"is_bitmap"`
 }
 
 type InsertSubtitleTrackRow struct {

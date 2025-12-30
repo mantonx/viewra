@@ -8,8 +8,6 @@ package sqlc_postgres
 import (
 	"context"
 	"database/sql"
-
-	"github.com/sqlc-dev/pqtype"
 )
 
 const createPipelineStage = `-- name: CreatePipelineStage :one
@@ -27,12 +25,12 @@ RETURNING id, media_type, plugin_id, stage_name, position, enabled, config_json,
 `
 
 type CreatePipelineStageParams struct {
-	MediaType  string                `json:"media_type"`
-	PluginID   string                `json:"plugin_id"`
-	StageName  string                `json:"stage_name"`
-	Position   int32                 `json:"position"`
-	Enabled    sql.NullBool          `json:"enabled"`
-	ConfigJson pqtype.NullRawMessage `json:"config_json"`
+	MediaType  string         `json:"media_type"`
+	PluginID   string         `json:"plugin_id"`
+	StageName  string         `json:"stage_name"`
+	Position   int64          `json:"position"`
+	Enabled    sql.NullInt64  `json:"enabled"`
+	ConfigJson sql.NullString `json:"config_json"`
 }
 
 func (q *Queries) CreatePipelineStage(ctx context.Context, arg CreatePipelineStageParams) (EnrichmentPipeline, error) {
@@ -63,7 +61,7 @@ const deletePipelineStage = `-- name: DeletePipelineStage :exec
 DELETE FROM enrichment_pipelines WHERE id = $1
 `
 
-func (q *Queries) DeletePipelineStage(ctx context.Context, id int32) error {
+func (q *Queries) DeletePipelineStage(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deletePipelineStage, id)
 	return err
 }
@@ -85,7 +83,7 @@ SET
 WHERE id = $1
 `
 
-func (q *Queries) DisablePipelineStage(ctx context.Context, id int32) error {
+func (q *Queries) DisablePipelineStage(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, disablePipelineStage, id)
 	return err
 }
@@ -98,7 +96,7 @@ SET
 WHERE id = $1
 `
 
-func (q *Queries) EnablePipelineStage(ctx context.Context, id int32) error {
+func (q *Queries) EnablePipelineStage(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, enablePipelineStage, id)
 	return err
 }
@@ -227,7 +225,7 @@ LIMIT 1
 
 type GetNextPipelineStageParams struct {
 	MediaType string `json:"media_type"`
-	Position  int32  `json:"position"`
+	Position  int64  `json:"position"`
 }
 
 func (q *Queries) GetNextPipelineStage(ctx context.Context, arg GetNextPipelineStageParams) (EnrichmentPipeline, error) {
@@ -251,7 +249,7 @@ const getPipelineStage = `-- name: GetPipelineStage :one
 SELECT id, media_type, plugin_id, stage_name, position, enabled, config_json, created_at, updated_at FROM enrichment_pipelines WHERE id = $1
 `
 
-func (q *Queries) GetPipelineStage(ctx context.Context, id int32) (EnrichmentPipeline, error) {
+func (q *Queries) GetPipelineStage(ctx context.Context, id int64) (EnrichmentPipeline, error) {
 	row := q.db.QueryRowContext(ctx, getPipelineStage, id)
 	var i EnrichmentPipeline
 	err := row.Scan(
@@ -334,11 +332,11 @@ WHERE id = $5
 `
 
 type UpdatePipelineStageParams struct {
-	StageName  string                `json:"stage_name"`
-	Position   int32                 `json:"position"`
-	Enabled    sql.NullBool          `json:"enabled"`
-	ConfigJson pqtype.NullRawMessage `json:"config_json"`
-	ID         int32                 `json:"id"`
+	StageName  string         `json:"stage_name"`
+	Position   int64          `json:"position"`
+	Enabled    sql.NullInt64  `json:"enabled"`
+	ConfigJson sql.NullString `json:"config_json"`
+	ID         int64          `json:"id"`
 }
 
 func (q *Queries) UpdatePipelineStage(ctx context.Context, arg UpdatePipelineStageParams) error {
@@ -361,8 +359,8 @@ WHERE id = $2
 `
 
 type UpdatePipelineStagePositionParams struct {
-	Position int32 `json:"position"`
-	ID       int32 `json:"id"`
+	Position int64 `json:"position"`
+	ID       int64 `json:"id"`
 }
 
 func (q *Queries) UpdatePipelineStagePosition(ctx context.Context, arg UpdatePipelineStagePositionParams) error {

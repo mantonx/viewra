@@ -64,7 +64,7 @@ func (r *Repository) Create(ctx context.Context, m *media.Media) error {
 func (r *Repository) GetByID(ctx context.Context, id int64) (*media.Media, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetMediaByID(ctx, int32(id))
+			return r.postgres.GetMediaByID(ctx, id)
 		},
 		func() (any, error) {
 			return r.sqlite.GetMediaByID(ctx, id)
@@ -89,7 +89,7 @@ func (r *Repository) GetByFilePath(ctx context.Context, libraryID int64, filePat
 	result, err := r.router.Route(
 		func() (any, error) {
 			return r.postgres.GetMediaByFilePath(ctx, sqlc_postgres.GetMediaByFilePathParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				FilePath:  filePath,
 			})
 		},
@@ -150,7 +150,7 @@ func (r *Repository) ListAll(ctx context.Context) ([]*media.Media, error) {
 func (r *Repository) ListByLibrary(ctx context.Context, libraryID int64) ([]*media.Media, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.ListMediaByLibrary(ctx, int32(libraryID))
+			return r.postgres.ListMediaByLibrary(ctx, libraryID)
 		},
 		func() (any, error) {
 			return r.sqlite.ListMediaByLibrary(ctx, libraryID)
@@ -187,7 +187,7 @@ func (r *Repository) GetFilePathCache(ctx context.Context, libraryID int64) (map
 	// First, get count to pre-allocate map (avoids repeated reallocation)
 	count, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.CountMediaInLibrary(ctx, int32(libraryID))
+			return r.postgres.CountMediaInLibrary(ctx, libraryID)
 		},
 		func() (any, error) {
 			return r.sqlite.CountMediaInLibrary(ctx, libraryID)
@@ -201,7 +201,7 @@ func (r *Repository) GetFilePathCache(ctx context.Context, libraryID int64) (map
 	// Get file path cache rows
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetFilePathCache(ctx, int32(libraryID))
+			return r.postgres.GetFilePathCache(ctx, libraryID)
 		},
 		func() (any, error) {
 			return r.sqlite.GetFilePathCache(ctx, libraryID)
@@ -247,7 +247,7 @@ func (r *Repository) ListByType(
 	result, err := r.router.Route(
 		func() (any, error) {
 			return r.postgres.ListMediaByType(ctx, sqlc_postgres.ListMediaByTypeParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Type:      string(mediaType),
 			})
 		},
@@ -310,7 +310,7 @@ func (r *Repository) Update(ctx context.Context, m *media.Media) error {
 func (r *Repository) Delete(ctx context.Context, id int64) error {
 	return r.router.RouteVoid(
 		func() error {
-			return r.postgres.DeleteMedia(ctx, int32(id))
+			return r.postgres.DeleteMedia(ctx, id)
 		},
 		func() error {
 			return r.sqlite.DeleteMedia(ctx, id)
@@ -323,7 +323,7 @@ func (r *Repository) ExistsInLibrary(ctx context.Context, libraryID int64, fileP
 	result, err := r.router.Route(
 		func() (any, error) {
 			return r.postgres.MediaExistsInLibrary(ctx, sqlc_postgres.MediaExistsInLibraryParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				FilePath:  filePath,
 			})
 		},
@@ -349,7 +349,7 @@ func (r *Repository) ExistsInLibrary(ctx context.Context, libraryID int64, fileP
 func (r *Repository) Count(ctx context.Context, libraryID int64) (int64, error) {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.CountMediaInLibrary(ctx, int32(libraryID))
+			return r.postgres.CountMediaInLibrary(ctx, libraryID)
 		},
 		func() (any, error) {
 			return r.sqlite.CountMediaInLibrary(ctx, libraryID)
@@ -367,7 +367,7 @@ func (r *Repository) CountByType(ctx context.Context, libraryID int64, mediaType
 	result, err := r.router.Route(
 		func() (any, error) {
 			return r.postgres.CountMediaByType(ctx, sqlc_postgres.CountMediaByTypeParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Type:      string(mediaType),
 			})
 		},
@@ -390,7 +390,7 @@ func (r *Repository) DeleteWithTx(ctx context.Context, tx domaincommon.Transacti
 	sqlTx := tx.Unwrap().(*sql.Tx)
 	_, err := r.router.Route(
 		func() (any, error) {
-			return nil, r.postgres.WithTx(sqlTx).DeleteMedia(ctx, int32(id))
+			return nil, r.postgres.WithTx(sqlTx).DeleteMedia(ctx, id)
 		},
 		func() (any, error) {
 			return nil, r.sqlite.WithTx(sqlTx).DeleteMedia(ctx, id)
@@ -404,7 +404,7 @@ func (r *Repository) ListByLibraryWithTx(ctx context.Context, tx domaincommon.Tr
 	sqlTx := tx.Unwrap().(*sql.Tx)
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.WithTx(sqlTx).ListMediaByLibrary(ctx, int32(libraryID))
+			return r.postgres.WithTx(sqlTx).ListMediaByLibrary(ctx, libraryID)
 		},
 		func() (any, error) {
 			return r.sqlite.WithTx(sqlTx).ListMediaByLibrary(ctx, libraryID)

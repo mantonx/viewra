@@ -27,11 +27,11 @@ RETURNING id, media_id, user_id, position, duration, watched, last_watched, crea
 `
 
 type CreateWatchProgressParams struct {
-	MediaID     int32           `json:"media_id"`
-	UserID      sql.NullInt32   `json:"user_id"`
+	MediaID     int64           `json:"media_id"`
+	UserID      sql.NullInt64   `json:"user_id"`
 	Position    float64         `json:"position"`
 	Duration    sql.NullFloat64 `json:"duration"`
-	Watched     sql.NullBool    `json:"watched"`
+	Watched     sql.NullInt64   `json:"watched"`
 	LastWatched sql.NullTime    `json:"last_watched"`
 	CreatedAt   sql.NullTime    `json:"created_at"`
 	UpdatedAt   sql.NullTime    `json:"updated_at"`
@@ -71,7 +71,7 @@ DELETE FROM watch_progress
 WHERE id = $1
 `
 
-func (q *Queries) DeleteWatchProgress(ctx context.Context, id int32) error {
+func (q *Queries) DeleteWatchProgress(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteWatchProgress, id)
 	return err
 }
@@ -81,7 +81,7 @@ DELETE FROM watch_progress
 WHERE media_id = $1
 `
 
-func (q *Queries) DeleteWatchProgressByMediaID(ctx context.Context, mediaID int32) error {
+func (q *Queries) DeleteWatchProgressByMediaID(ctx context.Context, mediaID int64) error {
 	_, err := q.db.ExecContext(ctx, deleteWatchProgressByMediaID, mediaID)
 	return err
 }
@@ -93,7 +93,7 @@ WHERE media_id = ANY($1::bigint[]) AND user_id = $2
 
 type GetBatchWatchProgressByMediaIDsParams struct {
 	Column1 []int64       `json:"column_1"`
-	UserID  sql.NullInt32 `json:"user_id"`
+	UserID  sql.NullInt64 `json:"user_id"`
 }
 
 func (q *Queries) GetBatchWatchProgressByMediaIDs(ctx context.Context, arg GetBatchWatchProgressByMediaIDsParams) ([]WatchProgress, error) {
@@ -137,7 +137,7 @@ SELECT id, media_id, user_id, position, duration, watched, last_watched, created
 WHERE id = $1
 `
 
-func (q *Queries) GetWatchProgressByID(ctx context.Context, id int32) (WatchProgress, error) {
+func (q *Queries) GetWatchProgressByID(ctx context.Context, id int64) (WatchProgress, error) {
 	row := q.db.QueryRowContext(ctx, getWatchProgressByID, id)
 	var i WatchProgress
 	err := row.Scan(
@@ -163,7 +163,7 @@ WHERE media_id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetWatchProgressByMediaID(ctx context.Context, mediaID int32) (WatchProgress, error) {
+func (q *Queries) GetWatchProgressByMediaID(ctx context.Context, mediaID int64) (WatchProgress, error) {
 	row := q.db.QueryRowContext(ctx, getWatchProgressByMediaID, mediaID)
 	var i WatchProgress
 	err := row.Scan(
@@ -190,8 +190,8 @@ LIMIT 1
 `
 
 type GetWatchProgressByMediaIDAndUserIDParams struct {
-	MediaID int32         `json:"media_id"`
-	UserID  sql.NullInt32 `json:"user_id"`
+	MediaID int64         `json:"media_id"`
+	UserID  sql.NullInt64 `json:"user_id"`
 }
 
 func (q *Queries) GetWatchProgressByMediaIDAndUserID(ctx context.Context, arg GetWatchProgressByMediaIDAndUserIDParams) (WatchProgress, error) {
@@ -224,7 +224,7 @@ LIMIT $2 OFFSET $3
 `
 
 type ListInProgressByUserIDParams struct {
-	UserID sql.NullInt32 `json:"user_id"`
+	UserID sql.NullInt64 `json:"user_id"`
 	Limit  int32         `json:"limit"`
 	Offset int32         `json:"offset"`
 }
@@ -273,7 +273,7 @@ LIMIT $2 OFFSET $3
 `
 
 type ListWatchProgressByUserIDParams struct {
-	UserID sql.NullInt32 `json:"user_id"`
+	UserID sql.NullInt64 `json:"user_id"`
 	Limit  int32         `json:"limit"`
 	Offset int32         `json:"offset"`
 }
@@ -323,7 +323,7 @@ LIMIT $2 OFFSET $3
 `
 
 type ListWatchedByUserIDParams struct {
-	UserID sql.NullInt32 `json:"user_id"`
+	UserID sql.NullInt64 `json:"user_id"`
 	Limit  int32         `json:"limit"`
 	Offset int32         `json:"offset"`
 }
@@ -378,10 +378,10 @@ RETURNING id, media_id, user_id, position, duration, watched, last_watched, crea
 type UpdateWatchProgressParams struct {
 	Position    float64         `json:"position"`
 	Duration    sql.NullFloat64 `json:"duration"`
-	Watched     sql.NullBool    `json:"watched"`
+	Watched     sql.NullInt64   `json:"watched"`
 	LastWatched sql.NullTime    `json:"last_watched"`
 	UpdatedAt   sql.NullTime    `json:"updated_at"`
-	ID          int32           `json:"id"`
+	ID          int64           `json:"id"`
 }
 
 func (q *Queries) UpdateWatchProgress(ctx context.Context, arg UpdateWatchProgressParams) (WatchProgress, error) {
@@ -439,17 +439,17 @@ RETURNING id, media_id, user_id, position, duration, watched, last_watched, crea
 `
 
 type UpsertWatchProgressParams struct {
-	MediaID               int32           `json:"media_id"`
-	UserID                sql.NullInt32   `json:"user_id"`
+	MediaID               int64           `json:"media_id"`
+	UserID                sql.NullInt64   `json:"user_id"`
 	Position              float64         `json:"position"`
 	Duration              sql.NullFloat64 `json:"duration"`
-	Watched               sql.NullBool    `json:"watched"`
+	Watched               sql.NullInt64   `json:"watched"`
 	LastWatched           sql.NullTime    `json:"last_watched"`
 	CreatedAt             sql.NullTime    `json:"created_at"`
 	UpdatedAt             sql.NullTime    `json:"updated_at"`
 	SelectedQuality       sql.NullString  `json:"selected_quality"`
-	SelectedAudioTrack    sql.NullInt32   `json:"selected_audio_track"`
-	SelectedSubtitleTrack sql.NullInt32   `json:"selected_subtitle_track"`
+	SelectedAudioTrack    sql.NullInt64   `json:"selected_audio_track"`
+	SelectedSubtitleTrack sql.NullInt64   `json:"selected_subtitle_track"`
 }
 
 func (q *Queries) UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) (WatchProgress, error) {

@@ -117,7 +117,7 @@ func (r *CheckpointRepo) GetPendingBatch(ctx context.Context, jobID int64, limit
 	result, err := r.router.Route(
 		func() (any, error) {
 			return r.postgres.GetPendingScanCheckpoints(ctx, sqlc_postgres.GetPendingScanCheckpointsParams{
-				ScanJobID: int32(jobID),
+				ScanJobID: jobID,
 				Limit:     int32(limit),
 			})
 		},
@@ -150,7 +150,7 @@ func (r *CheckpointRepo) UpdateStatus(ctx context.Context, id int64, status scan
 				ErrorMessage:  common.NullString(errorMsg),
 				ErrorCategory: common.NullString(string(errorCategory)),
 				ProcessedAt:   processedAt,
-				ID:            int32(id),
+				ID:            id,
 			})
 		},
 		func() (any, error) {
@@ -171,8 +171,8 @@ func (r *CheckpointRepo) UpdateRetryCount(ctx context.Context, id int64, retryCo
 	_, err := r.router.Route(
 		func() (any, error) {
 			return nil, r.postgres.UpdateScanCheckpointRetryCount(ctx, sqlc_postgres.UpdateScanCheckpointRetryCountParams{
-				RetryCount: int32(retryCount),
-				ID:         int32(id),
+				RetryCount: int64(retryCount),
+				ID:         id,
 			})
 		},
 		func() (any, error) {
@@ -190,7 +190,7 @@ func (r *CheckpointRepo) GetStats(ctx context.Context, jobID int64) (*scanner.Ch
 	// Get basic stats
 	statsResult, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetScanCheckpointStats(ctx, int32(jobID))
+			return r.postgres.GetScanCheckpointStats(ctx, jobID)
 		},
 		func() (any, error) {
 			return r.sqlite.GetScanCheckpointStats(ctx, jobID)
@@ -203,7 +203,7 @@ func (r *CheckpointRepo) GetStats(ctx context.Context, jobID int64) (*scanner.Ch
 	// Get error breakdown by category
 	errorResult, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.GetScanCheckpointErrorsByCategory(ctx, int32(jobID))
+			return r.postgres.GetScanCheckpointErrorsByCategory(ctx, jobID)
 		},
 		func() (any, error) {
 			return r.sqlite.GetScanCheckpointErrorsByCategory(ctx, jobID)
@@ -263,7 +263,7 @@ func (r *CheckpointRepo) ListFailed(ctx context.Context, jobID int64, limit int)
 	result, err := r.router.Route(
 		func() (any, error) {
 			return r.postgres.ListFailedScanCheckpoints(ctx, sqlc_postgres.ListFailedScanCheckpointsParams{
-				ScanJobID: int32(jobID),
+				ScanJobID: jobID,
 				Limit:     int32(limit),
 			})
 		},
@@ -289,7 +289,7 @@ func (r *CheckpointRepo) GetByPath(ctx context.Context, jobID int64, filePath st
 	result, err := r.router.Route(
 		func() (any, error) {
 			return r.postgres.GetScanCheckpointByPath(ctx, sqlc_postgres.GetScanCheckpointByPathParams{
-				ScanJobID: int32(jobID),
+				ScanJobID: jobID,
 				FilePath:  filePath,
 			})
 		},
@@ -315,7 +315,7 @@ func (r *CheckpointRepo) ResetFailed(ctx context.Context, jobID int64) (int64, e
 	// First count the failed checkpoints
 	countResult, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.CountFailedScanCheckpoints(ctx, int32(jobID))
+			return r.postgres.CountFailedScanCheckpoints(ctx, jobID)
 		},
 		func() (any, error) {
 			return r.sqlite.CountFailedScanCheckpoints(ctx, jobID)
@@ -339,7 +339,7 @@ func (r *CheckpointRepo) ResetFailed(ctx context.Context, jobID int64) (int64, e
 	// Reset the failed checkpoints
 	_, err = r.router.Route(
 		func() (any, error) {
-			return nil, r.postgres.ResetFailedScanCheckpoints(ctx, int32(jobID))
+			return nil, r.postgres.ResetFailedScanCheckpoints(ctx, jobID)
 		},
 		func() (any, error) {
 			return nil, r.sqlite.ResetFailedScanCheckpoints(ctx, jobID)
@@ -356,7 +356,7 @@ func (r *CheckpointRepo) ResetFailed(ctx context.Context, jobID int64) (int64, e
 func (r *CheckpointRepo) DeleteByJobID(ctx context.Context, jobID int64) error {
 	_, err := r.router.Route(
 		func() (any, error) {
-			return nil, r.postgres.DeleteScanCheckpointsByJobID(ctx, int32(jobID))
+			return nil, r.postgres.DeleteScanCheckpointsByJobID(ctx, jobID)
 		},
 		func() (any, error) {
 			return nil, r.sqlite.DeleteScanCheckpointsByJobID(ctx, jobID)

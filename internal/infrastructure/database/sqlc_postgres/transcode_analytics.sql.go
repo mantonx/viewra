@@ -19,7 +19,7 @@ WHERE session_id = $3
 `
 
 type CompleteTranscodeAnalyticsParams struct {
-	TotalDurationMs sql.NullInt32 `json:"total_duration_ms"`
+	TotalDurationMs sql.NullInt64 `json:"total_duration_ms"`
 	CompletedAt     sql.NullInt64 `json:"completed_at"`
 	SessionID       string        `json:"session_id"`
 }
@@ -45,7 +45,7 @@ INSERT INTO transcode_analytics (
 
 type CreateTranscodeAnalyticsParams struct {
 	SessionID       string         `json:"session_id"`
-	MediaID         int32          `json:"media_id"`
+	MediaID         int64          `json:"media_id"`
 	QualityProfile  string         `json:"quality_profile"`
 	Strategy        string         `json:"strategy"`
 	StrategyDisplay sql.NullString `json:"strategy_display"`
@@ -113,28 +113,28 @@ LIMIT $2 OFFSET $3
 `
 
 type GetCorrelatedAnalyticsParams struct {
-	MediaID int32 `json:"media_id"`
+	MediaID int64 `json:"media_id"`
 	Limit   int32 `json:"limit"`
 	Offset  int32 `json:"offset"`
 }
 
 type GetCorrelatedAnalyticsRow struct {
 	SessionID         string         `json:"session_id"`
-	MediaID           int32          `json:"media_id"`
-	FrontendStartupMs sql.NullInt32  `json:"frontend_startup_ms"`
-	TotalPlayTimeMs   sql.NullInt32  `json:"total_play_time_ms"`
-	TotalBufferTimeMs sql.NullInt32  `json:"total_buffer_time_ms"`
-	StallCount        sql.NullInt32  `json:"stall_count"`
+	MediaID           int64          `json:"media_id"`
+	FrontendStartupMs sql.NullInt64  `json:"frontend_startup_ms"`
+	TotalPlayTimeMs   sql.NullInt64  `json:"total_play_time_ms"`
+	TotalBufferTimeMs sql.NullInt64  `json:"total_buffer_time_ms"`
+	StallCount        sql.NullInt64  `json:"stall_count"`
 	QualityProfile    sql.NullString `json:"quality_profile"`
 	Strategy          sql.NullString `json:"strategy"`
 	StrategyDisplay   sql.NullString `json:"strategy_display"`
 	StrategyReason    sql.NullString `json:"strategy_reason"`
 	HwAccel           sql.NullString `json:"hw_accel"`
-	BackendStartupMs  sql.NullInt32  `json:"backend_startup_ms"`
-	FirstFrameMs      sql.NullInt32  `json:"first_frame_ms"`
-	FirstSegmentMs    sql.NullInt32  `json:"first_segment_ms"`
+	BackendStartupMs  sql.NullInt64  `json:"backend_startup_ms"`
+	FirstFrameMs      sql.NullInt64  `json:"first_frame_ms"`
+	FirstSegmentMs    sql.NullInt64  `json:"first_segment_ms"`
 	TranscodeStatus   sql.NullString `json:"transcode_status"`
-	SegmentsCreated   sql.NullInt32  `json:"segments_created"`
+	SegmentsCreated   sql.NullInt64  `json:"segments_created"`
 }
 
 func (q *Queries) GetCorrelatedAnalytics(ctx context.Context, arg GetCorrelatedAnalyticsParams) ([]GetCorrelatedAnalyticsRow, error) {
@@ -208,21 +208,21 @@ type GetCorrelatedAnalyticsAllParams struct {
 
 type GetCorrelatedAnalyticsAllRow struct {
 	SessionID         string         `json:"session_id"`
-	MediaID           int32          `json:"media_id"`
-	FrontendStartupMs sql.NullInt32  `json:"frontend_startup_ms"`
-	TotalPlayTimeMs   sql.NullInt32  `json:"total_play_time_ms"`
-	TotalBufferTimeMs sql.NullInt32  `json:"total_buffer_time_ms"`
-	StallCount        sql.NullInt32  `json:"stall_count"`
+	MediaID           int64          `json:"media_id"`
+	FrontendStartupMs sql.NullInt64  `json:"frontend_startup_ms"`
+	TotalPlayTimeMs   sql.NullInt64  `json:"total_play_time_ms"`
+	TotalBufferTimeMs sql.NullInt64  `json:"total_buffer_time_ms"`
+	StallCount        sql.NullInt64  `json:"stall_count"`
 	QualityProfile    sql.NullString `json:"quality_profile"`
 	Strategy          sql.NullString `json:"strategy"`
 	StrategyDisplay   sql.NullString `json:"strategy_display"`
 	StrategyReason    sql.NullString `json:"strategy_reason"`
 	HwAccel           sql.NullString `json:"hw_accel"`
-	BackendStartupMs  sql.NullInt32  `json:"backend_startup_ms"`
-	FirstFrameMs      sql.NullInt32  `json:"first_frame_ms"`
-	FirstSegmentMs    sql.NullInt32  `json:"first_segment_ms"`
+	BackendStartupMs  sql.NullInt64  `json:"backend_startup_ms"`
+	FirstFrameMs      sql.NullInt64  `json:"first_frame_ms"`
+	FirstSegmentMs    sql.NullInt64  `json:"first_segment_ms"`
 	TranscodeStatus   sql.NullString `json:"transcode_status"`
-	SegmentsCreated   sql.NullInt32  `json:"segments_created"`
+	SegmentsCreated   sql.NullInt64  `json:"segments_created"`
 }
 
 func (q *Queries) GetCorrelatedAnalyticsAll(ctx context.Context, arg GetCorrelatedAnalyticsAllParams) ([]GetCorrelatedAnalyticsAllRow, error) {
@@ -361,7 +361,7 @@ type GetTranscodeSummaryByMediaIDRow struct {
 	FailedCount        int64       `json:"failed_count"`
 }
 
-func (q *Queries) GetTranscodeSummaryByMediaID(ctx context.Context, mediaID int32) (GetTranscodeSummaryByMediaIDRow, error) {
+func (q *Queries) GetTranscodeSummaryByMediaID(ctx context.Context, mediaID int64) (GetTranscodeSummaryByMediaIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getTranscodeSummaryByMediaID, mediaID)
 	var i GetTranscodeSummaryByMediaIDRow
 	err := row.Scan(
@@ -384,7 +384,7 @@ LIMIT $2 OFFSET $3
 `
 
 type ListTranscodeAnalyticsByMediaIDParams struct {
-	MediaID int32 `json:"media_id"`
+	MediaID int64 `json:"media_id"`
 	Limit   int32 `json:"limit"`
 	Offset  int32 `json:"offset"`
 }
@@ -437,7 +437,7 @@ WHERE session_id = $2
 `
 
 type UpdateTranscodeFirstFrameParams struct {
-	FirstFrameMs sql.NullInt32 `json:"first_frame_ms"`
+	FirstFrameMs sql.NullInt64 `json:"first_frame_ms"`
 	SessionID    string        `json:"session_id"`
 }
 
@@ -453,7 +453,7 @@ WHERE session_id = $2
 `
 
 type UpdateTranscodeFirstSegmentParams struct {
-	FirstSegmentMs sql.NullInt32 `json:"first_segment_ms"`
+	FirstSegmentMs sql.NullInt64 `json:"first_segment_ms"`
 	SessionID      string        `json:"session_id"`
 }
 
@@ -469,7 +469,7 @@ WHERE session_id = $2
 `
 
 type UpdateTranscodeManifestReadyParams struct {
-	ManifestReadyMs sql.NullInt32 `json:"manifest_ready_ms"`
+	ManifestReadyMs sql.NullInt64 `json:"manifest_ready_ms"`
 	SessionID       string        `json:"session_id"`
 }
 
@@ -485,7 +485,7 @@ WHERE session_id = $2
 `
 
 type UpdateTranscodeSegmentCountParams struct {
-	SegmentsCreated sql.NullInt32 `json:"segments_created"`
+	SegmentsCreated sql.NullInt64 `json:"segments_created"`
 	SessionID       string        `json:"session_id"`
 }
 

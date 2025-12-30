@@ -41,19 +41,19 @@ func (q *DBMediaQuerier) movieResultsToInfo(results any, yearFilter int) []*Medi
 		for _, row := range results.([]sqlc_postgres.SearchMoviesGlobalRow) {
 			year := 0
 			if row.Year.Valid {
-				year = int(row.Year.Int32)
+				year = int(row.Year.Int64)
 			}
 			// Filter by year if specified
 			if yearFilter > 0 && year != yearFilter {
 				continue
 			}
 			infos = append(infos, &MediaInfo{
-				ID:        int64(row.MediaID),
+				ID:        row.MediaID,
 				MediaType: "movie",
 				Title:     row.Title,
 				Year:      year,
 				FilePath:  row.FilePath,
-				LibraryID: int64(row.LibraryID),
+				LibraryID: row.LibraryID,
 			})
 		}
 	} else {
@@ -85,7 +85,7 @@ func (q *DBMediaQuerier) movieResultsToInfo(results any, yearFilter int) []*Medi
 func (q *DBMediaQuerier) getMovieDetailsDirectly(ctx context.Context, id int64, externalIDs map[string]string) (*MediaDetailsInfo, error) {
 	result, err := q.router.Route(
 		func() (any, error) {
-			return q.postgres.GetMovieByMediaID(ctx, int32(id))
+			return q.postgres.GetMovieByMediaID(ctx, id)
 		},
 		func() (any, error) {
 			return q.sqlite.GetMovieByMediaID(ctx, id)
@@ -148,7 +148,7 @@ func (q *DBMediaQuerier) getMovieDetailsDirectly(ctx context.Context, id int64, 
 func (q *DBMediaQuerier) getMovieDetails(ctx context.Context, id int64, basic *MediaInfo, externalIDs map[string]string) (*MediaDetailsInfo, error) {
 	result, err := q.router.Route(
 		func() (any, error) {
-			return q.postgres.GetMovieByMediaID(ctx, int32(id))
+			return q.postgres.GetMovieByMediaID(ctx, id)
 		},
 		func() (any, error) {
 			return q.sqlite.GetMovieByMediaID(ctx, id)
@@ -177,11 +177,11 @@ func (q *DBMediaQuerier) movieRowToDetails(result any, externalIDs map[string]st
 
 	if q.router.IsPostgresDB() {
 		row := result.(sqlc_postgres.GetMovieByMediaIDRow)
-		info.ID = int64(row.MediaID)
+		info.ID = row.MediaID
 		info.Title = row.Title
-		info.LibraryID = int64(row.LibraryID)
+		info.LibraryID = row.LibraryID
 		if row.Year.Valid {
-			info.Year = int(row.Year.Int32)
+			info.Year = int(row.Year.Int64)
 		}
 		if row.Plot.Valid {
 			info.Plot = row.Plot.String
@@ -202,7 +202,7 @@ func (q *DBMediaQuerier) movieRowToDetails(result any, externalIDs map[string]st
 			info.ContentRating = row.ContentRating.String
 		}
 		if row.RuntimeMinutes.Valid {
-			info.RuntimeMinutes = int(row.RuntimeMinutes.Int32)
+			info.RuntimeMinutes = int(row.RuntimeMinutes.Int64)
 		}
 		if row.OriginalLanguage.Valid {
 			info.OriginalLanguage = row.OriginalLanguage.String
@@ -254,7 +254,7 @@ func (q *DBMediaQuerier) listMovieDetailsByLibrary(ctx context.Context, libraryI
 	results, err := q.router.Route(
 		func() (any, error) {
 			return q.postgres.ListMoviesByLibraryPaginated(ctx, sqlc_postgres.ListMoviesByLibraryPaginatedParams{
-				LibraryID: int32(libraryID),
+				LibraryID: libraryID,
 				Limit:     int32(limit),
 				Offset:    int32(offset),
 			})
@@ -273,7 +273,7 @@ func (q *DBMediaQuerier) listMovieDetailsByLibrary(ctx context.Context, libraryI
 
 	countResult, err := q.router.Route(
 		func() (any, error) {
-			return q.postgres.CountMoviesByLibrary(ctx, int32(libraryID))
+			return q.postgres.CountMoviesByLibrary(ctx, libraryID)
 		},
 		func() (any, error) {
 			return q.sqlite.CountMoviesByLibrary(ctx, libraryID)
@@ -293,13 +293,13 @@ func (q *DBMediaQuerier) moviePaginatedRowsToDetails(results any) []*MediaDetail
 	if q.router.IsPostgresDB() {
 		for _, row := range results.([]sqlc_postgres.ListMoviesByLibraryPaginatedRow) {
 			info := &MediaDetailsInfo{
-				ID:        int64(row.MediaID),
+				ID:        row.MediaID,
 				MediaType: "movie",
 				Title:     row.Title,
-				LibraryID: int64(row.LibraryID),
+				LibraryID: row.LibraryID,
 			}
 			if row.Year.Valid {
-				info.Year = int(row.Year.Int32)
+				info.Year = int(row.Year.Int64)
 			}
 			if row.Plot.Valid {
 				info.Plot = row.Plot.String
@@ -320,7 +320,7 @@ func (q *DBMediaQuerier) moviePaginatedRowsToDetails(results any) []*MediaDetail
 				info.ContentRating = row.ContentRating.String
 			}
 			if row.RuntimeMinutes.Valid {
-				info.RuntimeMinutes = int(row.RuntimeMinutes.Int32)
+				info.RuntimeMinutes = int(row.RuntimeMinutes.Int64)
 			}
 			if row.OriginalLanguage.Valid {
 				info.OriginalLanguage = row.OriginalLanguage.String

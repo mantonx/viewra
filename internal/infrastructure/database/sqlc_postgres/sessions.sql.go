@@ -16,7 +16,7 @@ SELECT COUNT(*) FROM sessions
 WHERE user_id = $1
 `
 
-func (q *Queries) CountSessionsByUserID(ctx context.Context, userID int32) (int64, error) {
+func (q *Queries) CountSessionsByUserID(ctx context.Context, userID int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countSessionsByUserID, userID)
 	var count int64
 	err := row.Scan(&count)
@@ -27,12 +27,12 @@ const createSession = `-- name: CreateSession :one
 
 INSERT INTO sessions (public_id, user_id, refresh_token_hash, user_agent, ip_address, created_at, last_used_at, expires_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING refresh_token_hash, user_agent, ip_address, created_at, last_used_at, expires_at, user_id, public_id, id
+RETURNING id, public_id, user_id, refresh_token_hash, user_agent, ip_address, created_at, last_used_at, expires_at
 `
 
 type CreateSessionParams struct {
 	PublicID         string         `json:"public_id"`
-	UserID           int32          `json:"user_id"`
+	UserID           int64          `json:"user_id"`
 	RefreshTokenHash string         `json:"refresh_token_hash"`
 	UserAgent        sql.NullString `json:"user_agent"`
 	IpAddress        sql.NullString `json:"ip_address"`
@@ -55,15 +55,15 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 	)
 	var i Session
 	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.UserID,
 		&i.RefreshTokenHash,
 		&i.UserAgent,
 		&i.IpAddress,
 		&i.CreatedAt,
 		&i.LastUsedAt,
 		&i.ExpiresAt,
-		&i.UserID,
-		&i.PublicID,
-		&i.ID,
 	)
 	return i, err
 }
@@ -86,7 +86,7 @@ DELETE FROM sessions
 WHERE id = $1
 `
 
-func (q *Queries) DeleteSession(ctx context.Context, id int32) error {
+func (q *Queries) DeleteSession(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteSession, id)
 	return err
 }
@@ -96,36 +96,36 @@ DELETE FROM sessions
 WHERE user_id = $1
 `
 
-func (q *Queries) DeleteSessionsByUserID(ctx context.Context, userID int32) error {
+func (q *Queries) DeleteSessionsByUserID(ctx context.Context, userID int64) error {
 	_, err := q.db.ExecContext(ctx, deleteSessionsByUserID, userID)
 	return err
 }
 
 const getSessionByID = `-- name: GetSessionByID :one
-SELECT refresh_token_hash, user_agent, ip_address, created_at, last_used_at, expires_at, user_id, public_id, id FROM sessions
+SELECT id, public_id, user_id, refresh_token_hash, user_agent, ip_address, created_at, last_used_at, expires_at FROM sessions
 WHERE id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetSessionByID(ctx context.Context, id int32) (Session, error) {
+func (q *Queries) GetSessionByID(ctx context.Context, id int64) (Session, error) {
 	row := q.db.QueryRowContext(ctx, getSessionByID, id)
 	var i Session
 	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.UserID,
 		&i.RefreshTokenHash,
 		&i.UserAgent,
 		&i.IpAddress,
 		&i.CreatedAt,
 		&i.LastUsedAt,
 		&i.ExpiresAt,
-		&i.UserID,
-		&i.PublicID,
-		&i.ID,
 	)
 	return i, err
 }
 
 const getSessionByPublicID = `-- name: GetSessionByPublicID :one
-SELECT refresh_token_hash, user_agent, ip_address, created_at, last_used_at, expires_at, user_id, public_id, id FROM sessions
+SELECT id, public_id, user_id, refresh_token_hash, user_agent, ip_address, created_at, last_used_at, expires_at FROM sessions
 WHERE public_id = $1
 LIMIT 1
 `
@@ -134,21 +134,21 @@ func (q *Queries) GetSessionByPublicID(ctx context.Context, publicID string) (Se
 	row := q.db.QueryRowContext(ctx, getSessionByPublicID, publicID)
 	var i Session
 	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.UserID,
 		&i.RefreshTokenHash,
 		&i.UserAgent,
 		&i.IpAddress,
 		&i.CreatedAt,
 		&i.LastUsedAt,
 		&i.ExpiresAt,
-		&i.UserID,
-		&i.PublicID,
-		&i.ID,
 	)
 	return i, err
 }
 
 const getSessionByTokenHash = `-- name: GetSessionByTokenHash :one
-SELECT refresh_token_hash, user_agent, ip_address, created_at, last_used_at, expires_at, user_id, public_id, id FROM sessions
+SELECT id, public_id, user_id, refresh_token_hash, user_agent, ip_address, created_at, last_used_at, expires_at FROM sessions
 WHERE refresh_token_hash = $1
 LIMIT 1
 `
@@ -157,26 +157,26 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, refreshTokenHash st
 	row := q.db.QueryRowContext(ctx, getSessionByTokenHash, refreshTokenHash)
 	var i Session
 	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.UserID,
 		&i.RefreshTokenHash,
 		&i.UserAgent,
 		&i.IpAddress,
 		&i.CreatedAt,
 		&i.LastUsedAt,
 		&i.ExpiresAt,
-		&i.UserID,
-		&i.PublicID,
-		&i.ID,
 	)
 	return i, err
 }
 
 const getSessionsByUserID = `-- name: GetSessionsByUserID :many
-SELECT refresh_token_hash, user_agent, ip_address, created_at, last_used_at, expires_at, user_id, public_id, id FROM sessions
+SELECT id, public_id, user_id, refresh_token_hash, user_agent, ip_address, created_at, last_used_at, expires_at FROM sessions
 WHERE user_id = $1
 ORDER BY last_used_at DESC
 `
 
-func (q *Queries) GetSessionsByUserID(ctx context.Context, userID int32) ([]Session, error) {
+func (q *Queries) GetSessionsByUserID(ctx context.Context, userID int64) ([]Session, error) {
 	rows, err := q.db.QueryContext(ctx, getSessionsByUserID, userID)
 	if err != nil {
 		return nil, err
@@ -186,15 +186,15 @@ func (q *Queries) GetSessionsByUserID(ctx context.Context, userID int32) ([]Sess
 	for rows.Next() {
 		var i Session
 		if err := rows.Scan(
+			&i.ID,
+			&i.PublicID,
+			&i.UserID,
 			&i.RefreshTokenHash,
 			&i.UserAgent,
 			&i.IpAddress,
 			&i.CreatedAt,
 			&i.LastUsedAt,
 			&i.ExpiresAt,
-			&i.UserID,
-			&i.PublicID,
-			&i.ID,
 		); err != nil {
 			return nil, err
 		}
@@ -217,7 +217,7 @@ WHERE id = $2
 
 type UpdateSessionLastUsedParams struct {
 	LastUsedAt time.Time `json:"last_used_at"`
-	ID         int32     `json:"id"`
+	ID         int64     `json:"id"`
 }
 
 func (q *Queries) UpdateSessionLastUsed(ctx context.Context, arg UpdateSessionLastUsedParams) error {

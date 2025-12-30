@@ -7,6 +7,7 @@ package sqlc_sqlite
 
 import (
 	"context"
+	"time"
 )
 
 const countPluginUserMetadata = `-- name: CountPluginUserMetadata :one
@@ -72,9 +73,9 @@ type GetPluginUserMetadataParams struct {
 }
 
 type GetPluginUserMetadataRow struct {
-	Value     []byte `json:"value"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	Value     []byte    `json:"value"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 func (q *Queries) GetPluginUserMetadata(ctx context.Context, arg GetPluginUserMetadataParams) (GetPluginUserMetadataRow, error) {
