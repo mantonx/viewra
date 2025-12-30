@@ -335,7 +335,7 @@ func (m *Manager) registerPluginServices(ctx context.Context, instance *types.In
 				"plugin", mf.ID,
 				"error", err)
 		} else {
-			m.logger.Debug("registered AI provider",
+			m.logger.Debug("registered provider",
 				"plugin", mf.ID,
 				"provider_id", caps.ProviderId,
 				"supports_chat", caps.SupportsChat,

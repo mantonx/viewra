@@ -71,7 +71,7 @@ func (c *DataClient) GetMedia(ctx context.Context, mediaID int64, mediaType stri
 }
 
 // GetMediaDetails retrieves full metadata for a media item.
-// Includes plot, cast, genres, mood tags, etc. for AI indexing.
+// Includes plot, cast, genres, etc. for plugin indexing.
 func (c *DataClient) GetMediaDetails(ctx context.Context, mediaID int64, mediaType string) (*MediaDetails, error) {
 	resp, err := c.client.GetMediaDetails(ctx, &pluginv1.MediaQuery{
 		MediaId:   mediaID,
@@ -137,7 +137,7 @@ type Media struct {
 	ExternalIDs map[string]string
 }
 
-// MediaDetails contains full metadata for AI indexing.
+// MediaDetails contains full metadata for plugin indexing.
 type MediaDetails struct {
 	ID          int64
 	MediaType   string
@@ -159,7 +159,6 @@ type MediaDetails struct {
 	OriginalLanguage string
 	CountryOfOrigin  string
 	Producers        []string
-	MoodTags         []string
 	LocationKeywords []string
 	ThemeKeywords    []string
 
@@ -183,7 +182,7 @@ type MediaList struct {
 	HasMore bool
 }
 
-// MoodTag represents an AI-generated mood tag.
+// MoodTag represents a generated mood tag.
 type MoodTag struct {
 	Tag        string
 	Confidence float32
@@ -226,7 +225,6 @@ func protoToMediaDetails(m *pluginv1.MediaDetails) *MediaDetails {
 		OriginalLanguage: m.OriginalLanguage,
 		CountryOfOrigin:  m.CountryOfOrigin,
 		Producers:        m.Producers,
-		MoodTags:         m.MoodTags,
 		LocationKeywords: m.LocationKeywords,
 		ThemeKeywords:    m.ThemeKeywords,
 		ShowTitle:        m.ShowTitle,

@@ -342,9 +342,6 @@ func (q *DBMediaQuerier) GetMediaDetails(ctx context.Context, id int64, mediaTyp
 		return nil, err
 	}
 
-	// Note: MoodTags are now managed by the semantic-search plugin
-	// and stored in plugin-owned tables. The plugin adds them to search results.
-
 	return details, nil
 }
 

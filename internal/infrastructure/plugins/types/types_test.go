@@ -66,22 +66,22 @@ func TestInstance_IsHealthy(t *testing.T) {
 func TestInstance_HasCategory(t *testing.T) {
 	instance := &Instance{
 		ID:         "test",
-		Categories: []Category{CategoryEnricher, CategoryAI},
+		Categories: []Category{CategoryEnricher, CategoryProvider},
 	}
 
 	if !instance.HasCategory(CategoryEnricher) {
 		t.Error("expected HasCategory(CategoryEnricher) to be true")
 	}
-	if !instance.HasCategory(CategoryAI) {
-		t.Error("expected HasCategory(CategoryAI) to be true")
+	if !instance.HasCategory(CategoryProvider) {
+		t.Error("expected HasCategory(CategoryProvider) to be true")
 	}
-	if instance.HasCategory(CategoryProvider) {
-		t.Error("expected HasCategory(CategoryProvider) to be false")
+	if instance.HasCategory(CategoryNotificationSink) {
+		t.Error("expected HasCategory(CategoryNotificationSink) to be false")
 	}
 }
 
 func TestParseCategories(t *testing.T) {
-	input := []string{"enricher", "provider", "ai"}
+	input := []string{"enricher", "provider", "notification_sink"}
 	result := ParseCategories(input)
 
 	if len(result) != 3 {
@@ -93,19 +93,19 @@ func TestParseCategories(t *testing.T) {
 	if result[1] != CategoryProvider {
 		t.Errorf("expected second category to be provider, got %v", result[1])
 	}
-	if result[2] != CategoryAI {
-		t.Errorf("expected third category to be ai, got %v", result[2])
+	if result[2] != CategoryNotificationSink {
+		t.Errorf("expected third category to be notification_sink, got %v", result[2])
 	}
 }
 
 func TestHasCategoryIn(t *testing.T) {
-	categories := []Category{CategoryEnricher, CategoryAI}
+	categories := []Category{CategoryEnricher, CategoryProvider}
 
 	if !HasCategoryIn(categories, CategoryEnricher) {
 		t.Error("expected HasCategoryIn to find enricher")
 	}
-	if HasCategoryIn(categories, CategoryProvider) {
-		t.Error("expected HasCategoryIn to not find provider")
+	if HasCategoryIn(categories, CategoryNotificationSink) {
+		t.Error("expected HasCategoryIn to not find notification_sink")
 	}
 	if HasCategoryIn(nil, CategoryEnricher) {
 		t.Error("expected HasCategoryIn to return false for nil slice")

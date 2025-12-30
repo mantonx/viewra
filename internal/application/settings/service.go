@@ -524,15 +524,10 @@ func (s *Service) GetEffectiveSystemValue(ctx context.Context, key string) (sett
 }
 
 // GetAllEffectiveSystemValues returns all system settings with their effective values.
-// Note: AI settings are excluded as they have a dedicated API endpoint.
 func (s *Service) GetAllEffectiveSystemValues(ctx context.Context) (map[string]settingsDomain.EffectiveValue, error) {
 	result := make(map[string]settingsDomain.EffectiveValue)
 
 	for _, def := range settingsDomain.SystemSettingDefinitions {
-		// Skip AI settings - they have their own dedicated endpoint
-		if def.Category == settingsDomain.CategoryAI {
-			continue
-		}
 		effectiveValue, err := s.GetEffectiveSystemValue(ctx, def.Key)
 		if err != nil {
 			continue // Skip settings that fail to resolve

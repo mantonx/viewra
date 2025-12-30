@@ -1,3 +1,4 @@
+basePath: /
 definitions:
   github_com_mantonx_viewra_internal_application_auth.ListUsersResponse:
     properties:
@@ -50,6 +51,35 @@ definitions:
       username:
         type: string
     type: object
+  github_com_mantonx_viewra_internal_application_enrichment_pipeline.CircuitBreakerStatus:
+    properties:
+      consecutive_failures:
+        type: integer
+      failure_threshold:
+        type: integer
+      last_failure:
+        type: string
+      last_state_change:
+        type: string
+      retry_after_seconds:
+        $ref: '#/definitions/time.Duration'
+      retry_at:
+        type: string
+      stage:
+        type: string
+      state:
+        $ref: '#/definitions/github_com_mantonx_viewra_internal_application_enrichment_pipeline.CircuitState'
+    type: object
+  github_com_mantonx_viewra_internal_application_enrichment_pipeline.CircuitState:
+    enum:
+    - closed
+    - open
+    - half_open
+    type: string
+    x-enum-varnames:
+    - CircuitClosed
+    - CircuitOpen
+    - CircuitHalfOpen
   github_com_mantonx_viewra_internal_application_images.BatchImagesResponse:
     properties:
       media_images:
@@ -140,6 +170,10 @@ definitions:
         type: string
       id:
         type: integer
+      monitoring_config:
+        $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_library.MonitoringConfig'
+      monitoring_enabled:
+        type: boolean
       name:
         type: string
       path:
@@ -173,6 +207,10 @@ definitions:
     properties:
       id:
         type: integer
+      monitoring_config:
+        $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_library.MonitoringConfig'
+      monitoring_enabled:
+        type: boolean
       name:
         maxLength: 100
         minLength: 1
@@ -544,8 +582,11 @@ definitions:
         type: string
       artist:
         type: string
+      artist_id:
+        description: Artist entity ID for navigation
+        type: integer
       id:
-        description: Representative media_id (first track)
+        description: Album entity ID
         type: integer
       track_count:
         type: integer
@@ -617,9 +658,14 @@ definitions:
         type: string
       album_artist:
         type: string
-      artist:
+      album_id:
         description: Music Track-specific fields
+        type: integer
+      artist:
         type: string
+      artist_id:
+        description: Artist entity ID for navigation
+        type: integer
       audio_codec:
         type: string
       bitrate:
@@ -782,6 +828,9 @@ definitions:
         type: string
       enabled:
         type: boolean
+      has_settings:
+        description: Settings availability
+        type: boolean
       health:
         description: '"healthy", "degraded", "unhealthy", "unknown"'
         type: string
@@ -799,7 +848,21 @@ definitions:
         type: string
       license:
         type: string
+      meta:
+        additionalProperties: {}
+        description: x-viewra-meta from settings schema
+        type: object
+      missing_dependencies:
+        description: |-
+          Dependencies this plugin requires but are not currently available
+          Used to show warnings in the UI about missing capabilities
+        items:
+          type: string
+        type: array
       name:
+        type: string
+      provider_id:
+        description: Provider ID if this is a provider plugin (e.g., "ollama")
         type: string
       restart_count:
         type: integer
@@ -842,6 +905,12 @@ definitions:
     properties:
       author:
         type: string
+      capabilities:
+        description: Capabilities this plugin provides (e.g., "semantic_search", "embedding",
+          "chat")
+        items:
+          type: string
+        type: array
       categories:
         items:
           type: string
@@ -850,6 +919,9 @@ definitions:
         type: string
       enabled:
         type: boolean
+      has_settings:
+        description: Settings availability
+        type: boolean
       health:
         description: '"healthy", "degraded", "unhealthy", "unknown"'
         type: string
@@ -857,7 +929,21 @@ definitions:
         type: string
       is_builtin:
         type: boolean
+      meta:
+        additionalProperties: {}
+        description: x-viewra-meta from settings schema
+        type: object
+      missing_dependencies:
+        description: |-
+          Dependencies this plugin requires but are not currently available
+          Used to show warnings in the UI about missing capabilities
+        items:
+          type: string
+        type: array
       name:
+        type: string
+      provider_id:
+        description: Provider ID if this is a provider plugin (e.g., "ollama")
         type: string
       version:
         type: string
@@ -888,6 +974,11 @@ definitions:
     type: object
   github_com_mantonx_viewra_internal_application_progress.UpdateProgressRequest:
     properties:
+      device_profile:
+        description: |-
+          Device profile for device-specific preferences (e.g., "chrome-h264-sdr", "firefox-h264h265-hdr")
+          If provided, preferences are stored per-device; otherwise stored globally
+        type: string
       duration_seconds:
         type: number
       media_id:
@@ -1128,21 +1219,6 @@ definitions:
     - library_id
     - title
     type: object
-  github_com_mantonx_viewra_internal_domain_ai.ModelInfo:
-    properties:
-      contextSize:
-        type: integer
-      description:
-        type: string
-      id:
-        type: string
-      isChat:
-        type: boolean
-      isEmbedding:
-        type: boolean
-      name:
-        type: string
-    type: object
   github_com_mantonx_viewra_internal_domain_common.PaginationMetadata:
     properties:
       hasMore:
@@ -1161,24 +1237,18 @@ definitions:
   github_com_mantonx_viewra_internal_domain_enrichment.QueueStats:
     properties:
       completedCount:
-        format: int64
         type: integer
       failedCount:
-        format: int64
         type: integer
       pendingCount:
-        format: int64
         type: integer
       processingCount:
-        format: int64
         type: integer
       skippedCount:
-        format: int64
         type: integer
       stage:
         type: string
       totalCount:
-        format: int64
         type: integer
     type: object
   github_com_mantonx_viewra_internal_domain_library.BrowseResult:
@@ -1207,6 +1277,59 @@ definitions:
         type: boolean
       writable:
         type: boolean
+    type: object
+  github_com_mantonx_viewra_internal_domain_library.MonitoringConfig:
+    properties:
+      debounce_seconds:
+        description: |-
+          DebounceSeconds is the window to collect events before processing
+          to handle bulk file operations (default: 5)
+        type: integer
+      polling_interval_minutes:
+        description: |-
+          PollingIntervalMinutes is the interval for polling-based monitoring
+          on network drives where fsnotify doesn't work (default: 60)
+        type: integer
+      priority:
+        description: 'Priority for enrichment queue (default: 1000 = PriorityInteractive)'
+        type: integer
+    type: object
+  github_com_mantonx_viewra_internal_domain_search.Response:
+    properties:
+      fallback:
+        description: True if using fallback search (no semantic search plugin)
+        type: boolean
+      results:
+        items:
+          $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_search.Result'
+        type: array
+      total:
+        type: integer
+    type: object
+  github_com_mantonx_viewra_internal_domain_search.Result:
+    properties:
+      id:
+        description: Entity ID (media_id for movies, show_id for TV shows)
+        format: int64
+        type: integer
+      libraryID:
+        description: Library this item belongs to
+        format: int64
+        type: integer
+      mediaType:
+        description: '"movie", "tv_show", "tv_episode", "music_artist", "music_album",
+          "music_track"'
+        type: string
+      score:
+        description: Relevance score (0.0 - 1.0), higher is better
+        format: float32
+        type: number
+      title:
+        description: Display title
+        type: string
+      year:
+        description: Release/air year
+        type: integer
     type: object
   github_com_mantonx_viewra_internal_infrastructure_subtitles.PGSFrame:
     properties:
@@ -1259,45 +1382,16 @@ definitions:
       size_bytes:
         type: integer
     type: object
-  internal_api_handlers.AISettingsRequest:
+  internal_api_handlers.APIError:
     properties:
-      enabled:
-        type: boolean
-      maxResults:
-        type: integer
-      ollamaModel:
+      code:
         type: string
-      ollamaUrl:
+      details: {}
+      message:
         type: string
-      openaiApiKey:
+      request_id:
         type: string
-      openaiModel:
-        type: string
-      provider:
-        type: string
-      similarityThreshold:
-        type: string
-    type: object
-  internal_api_handlers.AISettingsResponse:
-    properties:
-      enabled:
-        type: boolean
-      maxResults:
-        type: integer
-      ollamaAvailable:
-        type: boolean
-      ollamaModel:
-        type: string
-      ollamaUrl:
-        type: string
-      openaiApiKey:
-        description: Masked for display
-        type: string
-      openaiModel:
-        type: string
-      provider:
-        type: string
-      similarityThreshold:
+      timestamp:
         type: string
     type: object
   internal_api_handlers.ActiveSessionInfo:
@@ -1342,6 +1436,34 @@ definitions:
       type:
         type: string
     type: object
+  internal_api_handlers.BulkEnqueueRequest:
+    properties:
+      library_id:
+        type: integer
+      media_type:
+        description: movie, tv_episode, music_track
+        type: string
+      priority:
+        type: integer
+      stage:
+        description: metadata, images, etc.
+        type: string
+    required:
+    - library_id
+    - media_type
+    - stage
+    type: object
+  internal_api_handlers.BulkEnqueueResponse:
+    properties:
+      enqueued_count:
+        type: integer
+      media_type:
+        type: string
+      stage:
+        type: string
+      status:
+        type: string
+    type: object
   internal_api_handlers.CPUInfoResponse:
     properties:
       logicalCpus:
@@ -1367,6 +1489,17 @@ definitions:
         type: string
       status:
         description: '"pass", "fail", "warn"'
+        type: string
+    type: object
+  internal_api_handlers.CircuitBreakerStatusResponse:
+    properties:
+      consecutive_failures:
+        type: integer
+      failure_threshold:
+        type: integer
+      stage:
+        type: string
+      state:
         type: string
     type: object
   internal_api_handlers.CleanupRequest:
@@ -1400,15 +1533,6 @@ definitions:
         type: array
       failed_count:
         type: integer
-    type: object
-  internal_api_handlers.ConnectionTestResponse:
-    properties:
-      error:
-        type: string
-      message:
-        type: string
-      success:
-        type: boolean
     type: object
   internal_api_handlers.CreateTranscodeJobRequest:
     properties:
@@ -1448,13 +1572,6 @@ definitions:
         type: string
       title:
         type: string
-    type: object
-  internal_api_handlers.DeleteOllamaModelRequest:
-    properties:
-      model:
-        type: string
-    required:
-    - model
     type: object
   internal_api_handlers.DiskUsageResponse:
     properties:
@@ -1543,11 +1660,27 @@ definitions:
       status:
         type: string
     type: object
-  internal_api_handlers.ErrorResponse:
+  internal_api_handlers.EnrichmentFailureResponse:
     properties:
-      error:
+      attempts:
+        type: integer
+      error_category:
         type: string
-      message:
+      error_message:
+        type: string
+      id:
+        type: integer
+      last_attempt_at:
+        type: string
+      max_attempts:
+        type: integer
+      media_id:
+        type: integer
+      media_type:
+        type: string
+      stage:
+        type: string
+      title:
         type: string
     type: object
   internal_api_handlers.GPUInfoResponse:
@@ -1570,6 +1703,10 @@ definitions:
         type: string
       type:
         type: string
+      vramBytes:
+        type: integer
+      vramFormatted:
+        type: string
     type: object
   internal_api_handlers.HealthResponse:
     properties:
@@ -1589,10 +1726,26 @@ definitions:
       version:
         type: string
     type: object
+  internal_api_handlers.LibraryEnrichmentFailuresResponse:
+    properties:
+      failures:
+        items:
+          $ref: '#/definitions/internal_api_handlers.EnrichmentFailureResponse'
+        type: array
+      total:
+        type: integer
+    type: object
   internal_api_handlers.LibraryEnrichmentProgressResponse:
     properties:
+      circuit_breakers:
+        items:
+          $ref: '#/definitions/internal_api_handlers.CircuitBreakerStatusResponse'
+        type: array
       current_item:
         $ref: '#/definitions/internal_api_handlers.CurrentItemResponse'
+      eta_seconds:
+        description: Estimated time to completion in seconds, 0 if unknown
+        type: integer
       is_active:
         type: boolean
       library_id:
@@ -1620,6 +1773,19 @@ definitions:
         type: array
       total:
         type: integer
+    type: object
+  internal_api_handlers.LocationPreferencesResponse:
+    properties:
+      enabled:
+        type: boolean
+      latitude:
+        type: number
+      location_name:
+        type: string
+      longitude:
+        type: number
+      timezone:
+        type: string
     type: object
   internal_api_handlers.LogContentResponse:
     properties:
@@ -1668,13 +1834,6 @@ definitions:
         type: integer
       totalFormatted:
         type: string
-    type: object
-  internal_api_handlers.OllamaModelsResponse:
-    properties:
-      models:
-        items:
-          $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_ai.ModelInfo'
-        type: array
     type: object
   internal_api_handlers.OverallProgressResponse:
     properties:
@@ -1811,12 +1970,29 @@ definitions:
       plugin_id:
         type: string
     type: object
-  internal_api_handlers.PullOllamaModelRequest:
+  internal_api_handlers.PrioritizeRequest:
     properties:
-      model:
+      library_id:
+        type: integer
+      media_id:
+        type: integer
+      media_type:
+        description: movie, tv, tv_show, music, etc.
         type: string
     required:
-    - model
+    - library_id
+    - media_id
+    - media_type
+    type: object
+  internal_api_handlers.PrioritizeResponse:
+    properties:
+      media_id:
+        type: integer
+      priority:
+        type: integer
+      status:
+        description: '"boosted", "enqueued", or "already_complete"'
+        type: string
     type: object
   internal_api_handlers.QualityProfile:
     properties:
@@ -1982,6 +2158,20 @@ definitions:
       count:
         type: integer
       message:
+        type: string
+    type: object
+  internal_api_handlers.RetryJobRequest:
+    properties:
+      job_id:
+        type: integer
+    required:
+    - job_id
+    type: object
+  internal_api_handlers.RetryLibraryFailuresResponse:
+    properties:
+      retried_count:
+        type: integer
+      status:
         type: string
     type: object
   internal_api_handlers.ScanErrorDetail:
@@ -2268,6 +2458,33 @@ definitions:
           $ref: '#/definitions/internal_api_handlers.SystemSettingResponse'
         type: array
     type: object
+  internal_api_handlers.TaskResponse:
+    properties:
+      description:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: string
+      is_running:
+        type: boolean
+      last_error:
+        type: string
+      last_run:
+        type: string
+      last_success:
+        type: boolean
+      name:
+        type: string
+      next_run:
+        type: string
+      schedule:
+        type: string
+      source:
+        type: string
+      source_id:
+        type: string
+    type: object
   internal_api_handlers.TranscodeJobResponse:
     properties:
       codec:
@@ -2295,6 +2512,19 @@ definitions:
         description: 'Job type: remux, remux_audio, or transcode'
         type: string
     type: object
+  internal_api_handlers.UpdateLocationPreferencesRequest:
+    properties:
+      enabled:
+        type: boolean
+      latitude:
+        type: number
+      location_name:
+        type: string
+      longitude:
+        type: number
+      timezone:
+        type: string
+    type: object
   internal_api_handlers.UpdatePluginSettingsRequest:
     properties:
       values:
@@ -2303,6 +2533,13 @@ definitions:
         type: array
     required:
     - values
+    type: object
+  internal_api_handlers.UpdateScheduleRequest:
+    properties:
+      schedule:
+        type: string
+    required:
+    - schedule
     type: object
   internal_api_handlers.UpdateUserRequest:
     properties:
@@ -2335,8 +2572,61 @@ definitions:
           $ref: '#/definitions/internal_api_handlers.UserSettingResponse'
         type: array
     type: object
+  internal_api_handlers.WeatherContextResponse:
+    properties:
+      available:
+        type: boolean
+      cloud_cover:
+        type: integer
+      condition:
+        type: string
+      humidity:
+        type: integer
+      is_day:
+        type: boolean
+      precipitation:
+        type: number
+      season:
+        type: string
+      temperature:
+        type: number
+      time_of_day:
+        type: string
+    type: object
+  time.Duration:
+    enum:
+    - -9223372036854775808
+    - 9223372036854775807
+    - 1
+    - 1000
+    - 1000000
+    - 1000000000
+    - 60000000000
+    - 3600000000000
+    format: int64
+    type: integer
+    x-enum-varnames:
+    - minDuration
+    - maxDuration
+    - Nanosecond
+    - Microsecond
+    - Millisecond
+    - Second
+    - Minute
+    - Hour
+host: localhost:8080
 info:
-  contact: {}
+  contact:
+    email: support@swagger.io
+    name: ViewRA Support
+    url: http://www.swagger.io/support
+  description: Self-hosted media server for movies, TV shows, and music
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: ViewRA Media Server API
+  version: 0.0.1
 paths:
   /api/adaptive/ladder:
     post:
@@ -2360,7 +2650,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get adaptive bitrate ladder
       tags:
       - adaptive
@@ -2386,10 +2676,227 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Recommend optimal quality profile
       tags:
       - adaptive
+  /api/admin/scheduler/executions/{id}/cancel:
+    post:
+      parameters:
+      - description: Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Cancel running execution
+      tags:
+      - scheduler
+  /api/admin/scheduler/executions/running:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List running executions
+      tags:
+      - scheduler
+  /api/admin/scheduler/tasks:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List all scheduled tasks
+      tags:
+      - scheduler
+  /api/admin/scheduler/tasks/{id}:
+    get:
+      parameters:
+      - description: Task ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.TaskResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get task status
+      tags:
+      - scheduler
+  /api/admin/scheduler/tasks/{id}/disable:
+    post:
+      parameters:
+      - description: Task ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Disable task
+      tags:
+      - scheduler
+  /api/admin/scheduler/tasks/{id}/enable:
+    post:
+      parameters:
+      - description: Task ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Enable task
+      tags:
+      - scheduler
+  /api/admin/scheduler/tasks/{id}/history:
+    get:
+      parameters:
+      - description: Task ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 10
+        description: Maximum results
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get task execution history
+      tags:
+      - scheduler
+  /api/admin/scheduler/tasks/{id}/schedule:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Task ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New schedule
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.UpdateScheduleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update task schedule
+      tags:
+      - scheduler
+  /api/admin/scheduler/tasks/{id}/trigger:
+    post:
+      parameters:
+      - description: Task ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Trigger task execution
+      tags:
+      - scheduler
   /api/admin/status/stream:
     get:
       description: SSE stream of admin-relevant status updates (restart pending, etc.)
@@ -2403,11 +2910,11 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Stream admin status updates
@@ -2426,15 +2933,15 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: No pending restart
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Cancel pending restart
@@ -2452,7 +2959,7 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Get restart status
@@ -2479,11 +2986,11 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Request server restart
@@ -2502,11 +3009,11 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Execute restart immediately
@@ -2536,7 +3043,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Record playback analytics
       tags:
       - analytics
@@ -2566,7 +3073,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List playback sessions
       tags:
       - analytics
@@ -2589,7 +3096,7 @@ paths:
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get playback session by ID
       tags:
       - analytics
@@ -2634,11 +3141,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: User login
       tags:
       - auth
@@ -2662,7 +3169,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Logout
       tags:
       - auth
@@ -2675,7 +3182,7 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Logout from all sessions
@@ -2694,7 +3201,7 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Get current user
@@ -2720,11 +3227,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Change password
@@ -2752,11 +3259,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Refresh access token
       tags:
       - auth
@@ -2775,7 +3282,7 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: List sessions
@@ -2796,11 +3303,11 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Revoke session
@@ -2840,14 +3347,64 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "409":
           description: Setup already completed
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Initial setup
       tags:
       - auth
+  /api/context/weather:
+    get:
+      description: Returns weather context for the current user's location
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.WeatherContextResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+      security:
+      - BearerAuth: []
+      summary: Get current weather context
+      tags:
+      - context
+  /api/enrichment/bulk-enqueue:
+    post:
+      consumes:
+      - application/json
+      description: Enqueues all media items of a specific type in a library for a
+        specific enrichment stage
+      parameters:
+      - description: Bulk enqueue request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.BulkEnqueueRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/internal_api_handlers.BulkEnqueueResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+      summary: Bulk enqueue media for enrichment
+      tags:
+      - enrichment
   /api/enrichment/enqueue:
     post:
       consumes:
@@ -2870,12 +3427,102 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Enqueue media for enrichment
+      tags:
+      - enrichment
+  /api/enrichment/prioritize:
+    post:
+      consumes:
+      - application/json
+      description: Boosts enrichment priority for a media item so it processes immediately
+      parameters:
+      - description: Prioritize request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.PrioritizeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.PrioritizeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+      summary: Prioritize media for immediate enrichment
+      tags:
+      - enrichment
+  /api/enrichment/retry:
+    post:
+      consumes:
+      - application/json
+      description: Resets a single failed enrichment job to pending status
+      parameters:
+      - description: Retry request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.RetryJobRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+      summary: Retry a single failed enrichment job
+      tags:
+      - enrichment
+  /api/enrichment/stages:
+    get:
+      description: Returns status for all enrichment stages including circuit breaker
+        state
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_mantonx_viewra_internal_application_enrichment_pipeline.CircuitBreakerStatus'
+            type: array
+      summary: Get enrichment stage statuses
+      tags:
+      - enrichment
+  /api/enrichment/stages/{stage}/reset:
+    post:
+      description: Manually resets the circuit breaker for a stage, allowing requests
+        to flow again
+      parameters:
+      - description: Stage name
+        in: path
+        name: stage
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      summary: Reset stage circuit breaker
       tags:
       - enrichment
   /api/enrichment/stats:
@@ -2893,7 +3540,7 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get enrichment queue statistics
       tags:
       - enrichment
@@ -2915,15 +3562,15 @@ paths:
         "400":
           description: Invalid path
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Access denied
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Directory not found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Browse server filesystem
       tags:
       - filesystem
@@ -2946,11 +3593,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get image metadata by ID
       tags:
       - images
@@ -2980,11 +3627,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Serve image file
       tags:
       - images
@@ -3022,11 +3669,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get images for multiple media items or entities
       tags:
       - images
@@ -3043,7 +3690,7 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List all libraries
       tags:
       - libraries
@@ -3068,11 +3715,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Create a new library
       tags:
       - libraries
@@ -3093,15 +3740,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Delete a library
       tags:
       - libraries
@@ -3123,15 +3770,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get a library by ID
       tags:
       - libraries
@@ -3161,18 +3808,80 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Update a library
       tags:
       - libraries
+  /api/libraries/{id}/enrichment/failures:
+    get:
+      description: Returns failed enrichment jobs for a specific library with pagination
+      parameters:
+      - description: Library ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Maximum results (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Results offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.LibraryEnrichmentFailuresResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+      summary: Get library enrichment failures
+      tags:
+      - enrichment
+  /api/libraries/{id}/enrichment/failures/retry:
+    post:
+      description: Resets all failed enrichment jobs for a library to pending status
+      parameters:
+      - description: Library ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.RetryLibraryFailuresResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+      summary: Retry all failed enrichment jobs for a library
+      tags:
+      - enrichment
   /api/libraries/{id}/enrichment/progress:
     get:
       description: Returns enrichment progress for a specific library
@@ -3192,11 +3901,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get library enrichment progress
       tags:
       - enrichment
@@ -3220,7 +3929,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Stream library enrichment progress
       tags:
       - enrichment
@@ -3246,11 +3955,11 @@ paths:
         "400":
           description: Invalid library ID
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get library warnings and errors
       tags:
       - scans
@@ -3273,19 +3982,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "409":
           description: Library is already being scanned
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Scan a library
       tags:
       - libraries
@@ -3316,11 +4025,11 @@ paths:
         "400":
           description: Invalid library ID or job ID
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get scan errors
       tags:
       - scans
@@ -3350,19 +4059,19 @@ paths:
         "400":
           description: Invalid library ID or job ID
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Scan job not found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "409":
           description: Scan is not running
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Pause scan
       tags:
       - scans
@@ -3392,19 +4101,19 @@ paths:
         "400":
           description: Invalid library ID or job ID
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Scan job not found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "409":
           description: Scan is not paused
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Resume scan
       tags:
       - scans
@@ -3435,11 +4144,11 @@ paths:
         "400":
           description: Invalid library ID or job ID
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Retry failed files
       tags:
       - scans
@@ -3470,11 +4179,11 @@ paths:
         "400":
           description: Invalid library ID or limit
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get scan history
       tags:
       - scans
@@ -3499,15 +4208,15 @@ paths:
         "400":
           description: Invalid library ID
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: No scan jobs found for this library
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get current scan status
       tags:
       - scans
@@ -3533,15 +4242,15 @@ paths:
         "400":
           description: Invalid library ID
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: No active scan found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Stream scan progress
       tags:
       - scans
@@ -3577,11 +4286,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List media items
       tags:
       - media
@@ -3604,300 +4313,26 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get a media item by ID
       tags:
       - media
-  /api/media/{id}/stream-info:
-    get:
-      description: |-
-        Returns detailed technical information about video and audio streams for the stats panel.
-        The strategy field indicates how the video will be processed (direct, remux, transcode).
-        Include X-Supported-Video-Codecs header for accurate strategy detection.
-        Pass quality query param to get accurate strategy for the selected quality level.
-      parameters:
-      - description: Media ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Selected quality level (e.g., 'original', '1080p-10m', '480p')
-        in: query
-        name: quality
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_media.StreamInfoResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-      summary: Get detailed stream information for a media item
-      tags:
-      - media
-  /api/media/{id}/subtitles/{trackId}:
-    get:
-      description: Returns subtitle content converted to WebVTT format for HLS playback
-      parameters:
-      - description: Media ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Subtitle Track ID
-        in: path
-        name: trackId
-        required: true
-        type: integer
-      produces:
-      - text/vtt
-      responses:
-        "200":
-          description: WebVTT content
-          schema:
-            type: string
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-      summary: Get subtitle track as WebVTT
-      tags:
-      - subtitles
-  /api/media/{id}/subtitles/pgs/{index}:
-    get:
-      description: Extracts all PGS subtitle frames and returns them as a JSON array
-        with base64-encoded WebP images
-      parameters:
-      - description: Media ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Stream Index (relative, 0-based among bitmap subtitle streams)
-        in: path
-        name: index
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Array of PGS frames
-          schema:
-            items:
-              $ref: '#/definitions/github_com_mantonx_viewra_internal_infrastructure_subtitles.PGSFrame'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-      summary: Get all PGS subtitle frames as JSON array
-      tags:
-      - subtitles
-  /api/media/{id}/subtitles/pgs/{index}/stream:
-    get:
-      description: Extracts PGS subtitle frames and returns them as JSON lines with
-        base64-encoded WebP images. Use start/end params to request frames in time
-        windows for efficient playback.
-      parameters:
-      - description: Media ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Stream Index (relative, 0-based among bitmap subtitle streams)
-        in: path
-        name: index
-        required: true
-        type: integer
-      - description: 'Start time in milliseconds (default: 0)'
-        in: query
-        name: start
-        type: integer
-      - description: 'End time in milliseconds (default: 5 minutes from start). Use
-          0 for unlimited (not recommended for large files).'
-        in: query
-        name: end
-        type: integer
-      produces:
-      - application/x-ndjson
-      responses:
-        "200":
-          description: JSON lines of PGS frames
-          schema:
-            $ref: '#/definitions/github_com_mantonx_viewra_internal_infrastructure_subtitles.PGSFrame'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-      summary: Stream PGS subtitle frames as WebP images
-      tags:
-      - subtitles
-  /api/media/{id}/subtitles/stream/{index}:
-    get:
-      description: Extracts and converts an embedded subtitle stream to WebVTT format
-      parameters:
-      - description: Media ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Stream Index
-        in: path
-        name: index
-        required: true
-        type: integer
-      produces:
-      - text/vtt
-      responses:
-        "200":
-          description: WebVTT content
-          schema:
-            type: string
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-      summary: Get embedded subtitle by stream index as WebVTT
-      tags:
-      - subtitles
-  /api/media/{id}/subtitles/text/{index}/stream:
-    get:
-      description: Streams the embedded subtitle stream, converting to WebVTT. Supports
-        time-windowed extraction for faster initial load.
-      parameters:
-      - description: Media ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Stream Index (relative, 0-based among subtitle streams)
-        in: path
-        name: index
-        required: true
-        type: integer
-      - description: 'Start time in milliseconds (default: 0, extracts full file)'
-        in: query
-        name: start
-        type: integer
-      - description: 'End time in milliseconds (default: 0, extracts full file)'
-        in: query
-        name: end
-        type: integer
-      produces:
-      - text/vtt
-      responses:
-        "200":
-          description: WebVTT content
-          schema:
-            type: string
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-      summary: Stream embedded text subtitle as WebVTT
-      tags:
-      - subtitles
-  /api/media/{id}/tracks:
-    get:
-      description: Returns all audio and subtitle tracks (both embedded and external)
-        for a specific media item
-      parameters:
-      - description: Media ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_media.GetTracksResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-      summary: Get audio and subtitle tracks for a media item
-      tags:
-      - media
-  /api/media/{media_id}/ffmpeg-logs:
+  /api/media/{id}/ffmpeg-logs:
     get:
       description: Lists all available FFmpeg transcode logs for a specific media
         item
       parameters:
       - description: Media ID
         in: path
-        name: media_id
+        name: id
         required: true
         type: integer
       produces:
@@ -3910,21 +4345,21 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List FFmpeg logs for media
       tags:
       - ffmpeg-logs
-  /api/media/{media_id}/ffmpeg-logs/{session_id}:
+  /api/media/{id}/ffmpeg-logs/{session_id}:
     delete:
       description: Deletes a specific FFmpeg transcode log (cannot delete active logs)
       parameters:
       - description: Media ID
         in: path
-        name: media_id
+        name: id
         required: true
         type: integer
       - description: Session ID
@@ -3944,19 +4379,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "409":
           description: Cannot delete active log
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Delete FFmpeg log
       tags:
       - ffmpeg-logs
@@ -3965,7 +4400,7 @@ paths:
       parameters:
       - description: Media ID
         in: path
-        name: media_id
+        name: id
         required: true
         type: integer
       - description: Session ID
@@ -3987,26 +4422,26 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get FFmpeg log content
       tags:
       - ffmpeg-logs
-  /api/media/{media_id}/ffmpeg-logs/{session_id}/info:
+  /api/media/{id}/ffmpeg-logs/{session_id}/info:
     get:
       description: Retrieves metadata about a specific FFmpeg log (size, line count,
         error count)
       parameters:
       - description: Media ID
         in: path
-        name: media_id
+        name: id
         required: true
         type: integer
       - description: Session ID
@@ -4024,19 +4459,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get FFmpeg log info
       tags:
       - ffmpeg-logs
-  /api/media/{media_id}/ffmpeg-logs/{session_id}/stream:
+  /api/media/{id}/ffmpeg-logs/{session_id}/stream:
     get:
       description: |-
         Streams FFmpeg log output in real-time using Server-Sent Events (SSE).
@@ -4045,7 +4480,7 @@ paths:
       parameters:
       - description: Media ID
         in: path
-        name: media_id
+        name: id
         required: true
         type: integer
       - description: Session ID
@@ -4063,25 +4498,25 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Stream FFmpeg log in real-time
       tags:
       - ffmpeg-logs
-  /api/media/{media_id}/hls/{quality}/{filename}:
+  /api/media/{id}/hls/{quality}/{filename}:
     get:
       description: Serves HLS segment files (.ts) from progressive transcoding sessions
       parameters:
       - description: Media ID
         in: path
-        name: media_id
+        name: id
         required: true
         type: integer
       - description: Quality level (360p, 720p, 1080p, 4k)
@@ -4104,19 +4539,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Serve HLS segment
       tags:
       - transcode
-  /api/media/{media_id}/hls/{quality}/playlist.m3u8:
+  /api/media/{id}/hls/{quality}/playlist.m3u8:
     get:
       description: |-
         Serves the HLS playlist (.m3u8) file for adaptive streaming. Generates complete manifest instantly
@@ -4124,7 +4559,7 @@ paths:
       parameters:
       - description: Media ID
         in: path
-        name: media_id
+        name: id
         required: true
         type: integer
       - description: Quality level (360p, 720p, 1080p, 4k)
@@ -4145,19 +4580,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Serve HLS playlist (instant manifest generation)
       tags:
       - transcode
-  /api/media/{media_id}/hls/master.m3u8:
+  /api/media/{id}/hls/master.m3u8:
     get:
       description: |-
         Serves an HLS master playlist (.m3u8) with the optimal quality based on client capabilities.
@@ -4166,7 +4601,7 @@ paths:
       parameters:
       - description: Media ID
         in: path
-        name: media_id
+        name: id
         required: true
         type: integer
       - description: Start position in seconds for seeking
@@ -4206,26 +4641,26 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Serve HLS master playlist
       tags:
       - transcode
-  /api/media/{media_id}/hls/subtitle/{trackIndex}/subtitles.vtt:
+  /api/media/{id}/hls/subtitle/{trackIndex}/subtitles.vtt:
     get:
       description: Streams a text subtitle as WebVTT for HLS playback (fast demux,
         no full file scan)
       parameters:
       - description: Media ID
         in: path
-        name: media_id
+        name: id
         required: true
         type: integer
       - description: Subtitle track index (0-based, among text subtitles only)
@@ -4247,19 +4682,320 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Serve subtitle WebVTT file
       tags:
       - transcode
-  /api/media/{media_id}/transcode:
+  /api/media/{id}/images:
+    get:
+      description: Returns all images associated with a specific media item
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_images.ListImagesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+      summary: Get all images for a media item
+      tags:
+      - images
+  /api/media/{id}/stream-info:
+    get:
+      description: |-
+        Returns detailed technical information about video and audio streams for the stats panel.
+        The strategy field indicates how the video will be processed (direct, remux, transcode).
+        Include X-Supported-Video-Codecs header for accurate strategy detection.
+        Pass quality query param to get accurate strategy for the selected quality level.
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Selected quality level (e.g., 'original', '1080p-10m', '480p')
+        in: query
+        name: quality
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_media.StreamInfoResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+      summary: Get detailed stream information for a media item
+      tags:
+      - media
+  /api/media/{id}/subtitles/{trackId}:
+    get:
+      description: Returns subtitle content converted to WebVTT format for HLS playback
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Subtitle Track ID
+        in: path
+        name: trackId
+        required: true
+        type: integer
+      produces:
+      - text/vtt
+      responses:
+        "200":
+          description: WebVTT content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+      summary: Get subtitle track as WebVTT
+      tags:
+      - subtitles
+  /api/media/{id}/subtitles/pgs/{index}:
+    get:
+      description: Extracts all PGS subtitle frames and returns them as a JSON array
+        with base64-encoded WebP images
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Stream Index (relative, 0-based among bitmap subtitle streams)
+        in: path
+        name: index
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Array of PGS frames
+          schema:
+            items:
+              $ref: '#/definitions/github_com_mantonx_viewra_internal_infrastructure_subtitles.PGSFrame'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+      summary: Get all PGS subtitle frames as JSON array
+      tags:
+      - subtitles
+  /api/media/{id}/subtitles/pgs/{index}/stream:
+    get:
+      description: Extracts PGS subtitle frames and returns them as JSON lines with
+        base64-encoded WebP images. Use start/end params to request frames in time
+        windows for efficient playback.
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Stream Index (relative, 0-based among bitmap subtitle streams)
+        in: path
+        name: index
+        required: true
+        type: integer
+      - description: 'Start time in milliseconds (default: 0)'
+        in: query
+        name: start
+        type: integer
+      - description: 'End time in milliseconds (default: 5 minutes from start). Use
+          0 for unlimited (not recommended for large files).'
+        in: query
+        name: end
+        type: integer
+      produces:
+      - application/x-ndjson
+      responses:
+        "200":
+          description: JSON lines of PGS frames
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_infrastructure_subtitles.PGSFrame'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+      summary: Stream PGS subtitle frames as WebP images
+      tags:
+      - subtitles
+  /api/media/{id}/subtitles/stream/{index}:
+    get:
+      description: Extracts and converts an embedded subtitle stream to WebVTT format
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Stream Index
+        in: path
+        name: index
+        required: true
+        type: integer
+      produces:
+      - text/vtt
+      responses:
+        "200":
+          description: WebVTT content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+      summary: Get embedded subtitle by stream index as WebVTT
+      tags:
+      - subtitles
+  /api/media/{id}/subtitles/text/{index}/stream:
+    get:
+      description: Streams the embedded subtitle stream, converting to WebVTT. Supports
+        time-windowed extraction for faster initial load.
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Stream Index (relative, 0-based among subtitle streams)
+        in: path
+        name: index
+        required: true
+        type: integer
+      - description: 'Start time in milliseconds (default: 0, extracts full file)'
+        in: query
+        name: start
+        type: integer
+      - description: 'End time in milliseconds (default: 0, extracts full file)'
+        in: query
+        name: end
+        type: integer
+      produces:
+      - text/vtt
+      responses:
+        "200":
+          description: WebVTT content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+      summary: Stream embedded text subtitle as WebVTT
+      tags:
+      - subtitles
+  /api/media/{id}/tracks:
+    get:
+      description: Returns all audio and subtitle tracks (both embedded and external)
+        for a specific media item
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_media.GetTracksResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.APIError'
+      summary: Get audio and subtitle tracks for a media item
+      tags:
+      - media
+  /api/media/{id}/transcode:
     post:
       consumes:
       - application/json
@@ -4268,7 +5004,7 @@ paths:
       parameters:
       - description: Media ID
         in: path
-        name: media_id
+        name: id
         required: true
         type: integer
       - description: Transcode request
@@ -4287,25 +5023,25 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "409":
           description: Job already exists
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Start transcoding
       tags:
       - transcode
-  /api/media/{media_id}/transcode/{quality}:
+  /api/media/{id}/transcode/{quality}:
     get:
       description: Gets the status of a transcode job for specific media and quality
       parameters:
       - description: Media ID
         in: path
-        name: media_id
+        name: id
         required: true
         type: integer
       - description: Quality level (360p, 720p, 1080p, 4k)
@@ -4323,22 +5059,22 @@ paths:
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get transcode status
       tags:
       - transcode
-  /api/media/{media_id}/transcode/{quality}/cancel:
+  /api/media/{id}/transcode/{quality}/cancel:
     post:
       description: Cancels an actively transcoding job (called when user pauses/stops
         video)
       parameters:
       - description: Media ID
         in: path
-        name: media_id
+        name: id
         required: true
         type: integer
       - description: Quality level (360p, 720p, 1080p, 4k)
@@ -4356,45 +5092,18 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Cancel transcode job
       tags:
       - transcode
-  /api/media/{mediaId}/images:
-    get:
-      description: Returns all images associated with a specific media item
-      parameters:
-      - description: Media ID
-        in: path
-        name: mediaId
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_mantonx_viewra_internal_application_images.ListImagesResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-      summary: Get all images for a media item
-      tags:
-      - images
   /api/movies:
     get:
       description: Returns a list of all movies in a specific library with optional
@@ -4431,11 +5140,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List movies
       tags:
       - movies
@@ -4458,15 +5167,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get a movie by ID
       tags:
       - movies
@@ -4489,15 +5198,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get credits for a movie
       tags:
       - movies
@@ -4521,11 +5230,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get all images for a movie
       tags:
       - movies
@@ -4562,11 +5271,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List movie IDs
       tags:
       - movies
@@ -4603,11 +5312,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Search movies
       tags:
       - movies
@@ -4631,11 +5340,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get all images for a music album
       tags:
       - music
@@ -4660,15 +5369,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List tracks for an album by ID
       tags:
       - music
@@ -4708,11 +5417,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List music artists
       tags:
       - music
@@ -4736,15 +5445,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List albums for an artist by ID
       tags:
       - music
@@ -4768,11 +5477,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get all images for a music artist
       tags:
       - music
@@ -4809,11 +5518,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List artist IDs
       tags:
       - music
@@ -4842,11 +5551,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Search music
       tags:
       - music
@@ -4869,15 +5578,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get a music track by ID
       tags:
       - music
@@ -4900,15 +5609,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get a person by ID
       tags:
       - people
@@ -4931,15 +5640,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get a person's credits (filmography)
       tags:
       - people
@@ -4956,11 +5665,11 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: List all plugins
@@ -4985,15 +5694,15 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Get plugin details
@@ -5018,23 +5727,23 @@ paths:
         "400":
           description: Cannot disable built-in plugin
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Disable plugin
@@ -5059,19 +5768,19 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Enable plugin
@@ -5096,15 +5805,15 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Get plugin health
@@ -5142,19 +5851,19 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Get plugin logs
@@ -5179,19 +5888,19 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Restart plugin
@@ -5216,15 +5925,15 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Get plugin settings
@@ -5256,23 +5965,23 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Update plugin settings
@@ -5302,7 +6011,7 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List watch progress
       tags:
       - progress
@@ -5329,11 +6038,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Update watch progress
       tags:
       - progress
@@ -5360,21 +6069,21 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Update watch progress
       tags:
       - progress
-  /api/progress/{media_id}:
+  /api/progress/{id}:
     delete:
       description: Deletes watch progress for a specific media item
       parameters:
       - description: Media ID
         in: path
-        name: media_id
+        name: id
         required: true
         type: integer
       responses:
@@ -5383,26 +6092,33 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Delete watch progress
       tags:
       - progress
     get:
-      description: Gets watch progress for a specific media item
+      description: Gets watch progress for a specific media item. If device_profile
+        is provided, returns device-specific playback preferences (quality, audio
+        track, subtitle track) if available.
       parameters:
       - description: Media ID
         in: path
-        name: media_id
+        name: id
         required: true
         type: integer
+      - description: Device profile hash (e.g., 'chrome-h264-sdr') for device-specific
+          preferences
+        in: query
+        name: device_profile
+        type: string
       produces:
       - application/json
       responses:
@@ -5413,11 +6129,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get watch progress
       tags:
       - progress
@@ -5440,11 +6156,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get batch watch progress
       tags:
       - progress
@@ -5473,7 +6189,7 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List in-progress items
       tags:
       - progress
@@ -5499,15 +6215,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Mark as unwatched
       tags:
       - progress
@@ -5533,11 +6249,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Mark as watched
       tags:
       - progress
@@ -5565,198 +6281,89 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List watched items
       tags:
       - progress
-  /api/settings/ai:
+  /api/search:
     get:
-      description: Returns AI configuration with sensitive values masked
+      description: Searches for movies, TV shows, and other media. Uses semantic search
+        if available, otherwise falls back to text search.
+      parameters:
+      - description: Search query
+        in: query
+        name: q
+        required: true
+        type: string
+      - collectionFormat: csv
+        description: Filter by media types (movie, tv_show, tv_episode)
+        in: query
+        items:
+          type: string
+        name: types
+        type: array
+      - description: Maximum results to return (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_api_handlers.AISettingsResponse'
+            $ref: '#/definitions/github_com_mantonx_viewra_internal_domain_search.Response'
+      summary: Search media
+      tags:
+      - search
+  /api/settings/location:
+    get:
+      description: Returns the current user's location preferences
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.LocationPreferencesResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
-      summary: Get AI settings
+      summary: Get location preferences
       tags:
       - settings
     put:
       consumes:
       - application/json
-      description: Updates AI configuration
+      description: Updates the current user's location preferences
       parameters:
-      - description: AI settings to update
-        in: body
-        name: settings
-        required: true
-        schema:
-          $ref: '#/definitions/internal_api_handlers.AISettingsRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/internal_api_handlers.AISettingsResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Update AI settings
-      tags:
-      - settings
-  /api/settings/ai/models:
-    delete:
-      consumes:
-      - application/json
-      description: Removes a model from the local Ollama installation
-      parameters:
-      - description: Model to delete
+      - description: Location preferences
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_api_handlers.DeleteOllamaModelRequest'
+          $ref: '#/definitions/internal_api_handlers.UpdateLocationPreferencesRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api_handlers.LocationPreferencesResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "503":
-          description: Ollama unavailable
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
-      summary: Delete an Ollama model
-      tags:
-      - settings
-    get:
-      description: Returns list of models available on the Ollama server
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/internal_api_handlers.OllamaModelsResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "503":
-          description: Ollama unavailable
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: List available Ollama models
-      tags:
-      - settings
-  /api/settings/ai/models/pull:
-    post:
-      consumes:
-      - application/json
-      description: Initiates download of an Ollama model with SSE progress streaming
-      parameters:
-      - description: Model to pull
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/internal_api_handlers.PullOllamaModelRequest'
-      produces:
-      - text/event-stream
-      responses:
-        "200":
-          description: SSE stream of pull progress
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-        "503":
-          description: Ollama unavailable
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Pull an Ollama model
-      tags:
-      - settings
-  /api/settings/ai/test/ollama:
-    post:
-      description: Tests connectivity to the Ollama server
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ConnectionTestResponse'
-        "503":
-          description: Service Unavailable
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ConnectionTestResponse'
-      security:
-      - BearerAuth: []
-      summary: Test Ollama connection
-      tags:
-      - settings
-  /api/settings/ai/test/openai:
-    post:
-      description: Tests connectivity to OpenAI with the configured API key
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ConnectionTestResponse'
-        "503":
-          description: Service Unavailable
-          schema:
-            $ref: '#/definitions/internal_api_handlers.ConnectionTestResponse'
-      security:
-      - BearerAuth: []
-      summary: Test OpenAI connection
+      summary: Update location preferences
       tags:
       - settings
   /api/settings/schema:
@@ -5772,7 +6379,7 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Get settings schema
@@ -5791,11 +6398,11 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: List system settings
@@ -5820,15 +6427,15 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Get system setting
@@ -5860,19 +6467,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Update system setting
@@ -5892,11 +6499,11 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: List effective system settings
@@ -5915,7 +6522,7 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: List user settings
@@ -5936,11 +6543,11 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Delete user setting
@@ -5964,11 +6571,11 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Get user setting
@@ -6000,15 +6607,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Update user setting
@@ -6060,19 +6667,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "416":
           description: Range not satisfiable
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Stream media file
       tags:
       - streaming
@@ -6089,7 +6696,7 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Get system information
@@ -6109,7 +6716,7 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List active transcode sessions
       tags:
       - ffmpeg-logs
@@ -6135,11 +6742,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Cleanup transcodes
       tags:
       - transcode
@@ -6156,7 +6763,7 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get disk usage
       tags:
       - transcode
@@ -6173,7 +6780,7 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get transcode queue statistics
       tags:
       - transcode
@@ -6196,15 +6803,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get a TV episode by ID
       tags:
       - tv
@@ -6227,15 +6834,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get credits for a TV episode
       tags:
       - tv
@@ -6258,11 +6865,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get all images for a TV episode
       tags:
       - tv
@@ -6299,11 +6906,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List TV show IDs
       tags:
       - tv
@@ -6331,11 +6938,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Search TV shows and episodes
       tags:
       - tv
@@ -6359,11 +6966,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get all images for a TV season
       tags:
       - tv
@@ -6400,11 +7007,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List TV shows
       tags:
       - tv
@@ -6428,15 +7035,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get a TV show by ID
       tags:
       - tv
@@ -6459,15 +7066,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get credits for a TV show
       tags:
       - tv
@@ -6490,15 +7097,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List episodes for a TV show by ID
       tags:
       - tv
@@ -6522,11 +7129,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get all images for a TV show
       tags:
       - tv
@@ -6552,15 +7159,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: Get next episode to watch for a show
       tags:
       - tv
@@ -6588,15 +7195,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       summary: List episodes for a TV show
       tags:
       - tv
@@ -6624,11 +7231,11 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: List users
@@ -6655,19 +7262,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "409":
           description: Username exists
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Create user
@@ -6688,15 +7295,15 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Delete user
@@ -6720,15 +7327,15 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Get user
@@ -6760,19 +7367,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Update user
@@ -6801,19 +7408,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+            $ref: '#/definitions/internal_api_handlers.APIError'
       security:
       - BearerAuth: []
       summary: Reset user password
@@ -6837,4 +7444,7 @@ paths:
       summary: Health check endpoint
       tags:
       - health
+schemes:
+- http
+- https
 swagger: "2.0"

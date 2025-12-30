@@ -24,7 +24,7 @@ type MediaQuerier interface {
 	// GetMediaByID returns a media item by its database ID.
 	GetMediaByID(ctx context.Context, id int64) (*MediaInfo, error)
 
-	// GetMediaDetails returns full metadata for a media item (for AI indexing).
+	// GetMediaDetails returns full metadata for a media item (for plugin indexing).
 	// mediaType is optional - if empty, it will try to determine the type from the media table.
 	GetMediaDetails(ctx context.Context, id int64, mediaType string) (*MediaDetailsInfo, error)
 
@@ -275,7 +275,6 @@ func mediaDetailsToProto(d *MediaDetailsInfo) *pluginv1.MediaDetails {
 		Biography:        d.Biography,
 		Country:          d.Country,
 		ReleaseType:      d.ReleaseType,
-		MoodTags:         d.MoodTags,
 		LocationKeywords: d.LocationKeywords,
 		ThemeKeywords:    d.ThemeKeywords,
 	}

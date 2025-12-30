@@ -320,7 +320,7 @@ type GetEpisodeWithShowTitleRow struct {
 	ShowGenre     sql.NullString `json:"show_genre"`
 }
 
-// Returns episode details with the parent show's title for AI indexing
+// Returns episode details with the parent show's title for plugin indexing
 func (q *Queries) GetEpisodeWithShowTitle(ctx context.Context, mediaID int64) (GetEpisodeWithShowTitleRow, error) {
 	row := q.db.QueryRowContext(ctx, getEpisodeWithShowTitle, mediaID)
 	var i GetEpisodeWithShowTitleRow

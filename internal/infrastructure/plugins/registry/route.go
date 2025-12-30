@@ -13,7 +13,7 @@ import (
 type RegisteredRoute struct {
 	PluginID    string
 	Path        string   // Original path pattern (e.g., "/items/:id")
-	FullPath    string   // Full path with plugin prefix (e.g., "/api/plugins/ai-search/items/:id")
+	FullPath    string   // Full path with plugin prefix (e.g., "/api/plugins/semantic-search/items/:id")
 	Methods     []string // HTTP methods
 	AdminOnly   bool
 	Description string

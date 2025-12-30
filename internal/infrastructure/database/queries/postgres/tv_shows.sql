@@ -195,7 +195,7 @@ JOIN media med ON e.media_id = med.id
 WHERE e.media_id = $1;
 
 -- name: GetEpisodeWithShowTitle :one
--- Returns episode details with the parent show's title for AI indexing
+-- Returns episode details with the parent show's title for plugin indexing
 SELECT
     e.media_id,
     med.library_id,

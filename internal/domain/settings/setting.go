@@ -26,7 +26,6 @@ const (
 	CategoryPlayback    Category = "playback"
 	CategoryUI          Category = "ui"
 	CategorySystem      Category = "system" // Read-only system info
-	CategoryAI          Category = "ai"     // AI/LLM provider settings
 )
 
 // SettingSource indicates where a setting value comes from.

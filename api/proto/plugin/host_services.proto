@@ -266,9 +266,6 @@ message MediaDetails {
   string country = 33;          // For artists
   string release_type = 34;     // For albums: "album", "single", "ep", etc.
 
-  // AI-generated metadata
-  repeated string mood_tags = 40;  // e.g., ["dark", "tense", "atmospheric"]
-
   // Location/setting keywords (from TMDB)
   repeated string location_keywords = 41;  // e.g., ["new york city", "manhattan", "paris"]
 

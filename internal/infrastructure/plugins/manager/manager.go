@@ -78,7 +78,7 @@ type Manager struct {
 	// hostStorageServer provides KV storage for plugins.
 	hostStorageServer HostStorageServer
 
-	// hostWeatherServer provides weather context for AI plugins.
+	// hostWeatherServer provides weather context for plugins.
 	hostWeatherServer HostWeatherServer
 
 	// hostPluginsServer provides capability-based plugin discovery.
@@ -99,7 +99,7 @@ type Manager struct {
 	// httpProxy proxies HTTP requests to plugins.
 	httpProxy HTTPProxy
 
-	// providerRegistry tracks AI provider plugins.
+	// providerRegistry tracks provider plugins.
 	providerRegistry *registry.ProviderRegistry
 
 	// systemInfo contains host system resource information to pass to plugins.
@@ -132,8 +132,8 @@ type ManagerConfig struct {
 	// If nil, plugins will not be able to use host storage.
 	HostStorageServer HostStorageServer
 
-	// HostWeatherServer provides weather context for AI plugins.
-	// If nil, AI plugins will not receive weather-based context enrichment.
+	// HostWeatherServer provides weather context for plugins.
+	// If nil, plugins will not receive weather-based context enrichment.
 	HostWeatherServer HostWeatherServer
 }
 
@@ -412,7 +412,7 @@ func (m *Manager) GetCapabilityRegistry() *registry.CapabilityRegistry {
 	return m.capabilityRegistry
 }
 
-// GetProviderRegistry returns the provider registry for AI provider plugins.
+// GetProviderRegistry returns the provider registry for provider plugins.
 func (m *Manager) GetProviderRegistry() *registry.ProviderRegistry {
 	return m.providerRegistry
 }

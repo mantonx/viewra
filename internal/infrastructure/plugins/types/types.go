@@ -17,7 +17,6 @@ type Category string
 const (
 	CategoryEnricher         Category = "enricher"
 	CategoryNotificationSink Category = "notification_sink"
-	CategoryAI               Category = "ai"
 	CategoryProvider         Category = "provider"
 )
 
@@ -62,8 +61,8 @@ type Instance struct {
 	// EnricherClient provides access to enricher-specific methods (if applicable).
 	EnricherClient pluginv1.EnricherClient
 
-	// ProviderClient provides access to AI provider methods (if applicable).
-	// This is set for plugins with category "provider" (e.g., provider-ollama, provider-openai).
+	// ProviderClient provides access to provider methods (if applicable).
+	// This is set for plugins with category "provider".
 	ProviderClient pluginv1.PluginProviderClient
 
 	// Health tracks the plugin's current health status.

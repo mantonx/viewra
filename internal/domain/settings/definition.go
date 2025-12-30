@@ -293,36 +293,6 @@ var SystemSettingDefinitions = []Definition{
 	},
 
 	// ============================================================
-	// AI / LLM SETTINGS
-	// ============================================================
-	// NOTE: Core AI settings (enabled, provider selection) are now managed by the
-	// ai-local plugin. Configure at: Settings > Plugins > AI Features
-	//
-	// Provider-specific settings (API keys, models, URLs) are also managed by plugins.
-	// Each provider plugin defines its own settings schema via GetSettingsSchema().
-
-	// --- Search Settings ---
-	{
-		Key:         "ai.max_results",
-		Type:        TypeInt,
-		Category:    CategoryAI,
-		Label:       "Maximum Search Results",
-		Description: "Maximum number of results to return from AI search",
-		Default:     20,
-		Validation:  &Validation{Min: intPtr(5), Max: intPtr(100)},
-		AdminOnly:   true,
-		Restartable: false,
-	},
-	{
-		Key:         "ai.similarity_threshold",
-		Type:        TypeString,
-		Category:    CategoryAI,
-		Label:       "Similarity Threshold",
-		Description: "Minimum similarity score for search results (0.0-1.0)",
-		Default:     "0.5",
-		AdminOnly:   true,
-		Restartable: false,
-	},
 }
 
 // UserSettingDefinitions contains all known user settings.

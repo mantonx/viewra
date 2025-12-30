@@ -26,8 +26,8 @@ type RegisteredProvider struct {
 	Capabilities *pluginv1.ProviderCapabilities
 }
 
-// ProviderRegistry manages AI provider plugins.
-// It tracks which plugins provide AI capabilities (embeddings, chat)
+// ProviderRegistry manages provider plugins.
+// It tracks which plugins provide capabilities (embeddings, chat)
 // and routes requests to the appropriate plugin.
 type ProviderRegistry struct {
 	mu sync.RWMutex

@@ -322,11 +322,6 @@ func (s *IndexingService) buildMovieText(m *sdk.MediaDetails) string {
 		b.WriteString(fmt.Sprintf("Studios: %s\n", strings.Join(m.Studios, ", ")))
 	}
 
-	// Mood tags (AI-generated)
-	if len(m.MoodTags) > 0 {
-		b.WriteString(fmt.Sprintf("Mood: %s\n", strings.Join(m.MoodTags, ", ")))
-	}
-
 	// Location/setting keywords (from TMDB)
 	if len(m.LocationKeywords) > 0 {
 		b.WriteString(fmt.Sprintf("Setting: %s\n", strings.Join(m.LocationKeywords, ", ")))
@@ -417,11 +412,6 @@ func (s *IndexingService) buildTVShowText(m *sdk.MediaDetails) string {
 	// Studios/Networks
 	if len(m.Studios) > 0 {
 		b.WriteString(fmt.Sprintf("Network: %s\n", strings.Join(m.Studios, ", ")))
-	}
-
-	// Mood tags (AI-generated)
-	if len(m.MoodTags) > 0 {
-		b.WriteString(fmt.Sprintf("Mood: %s\n", strings.Join(m.MoodTags, ", ")))
 	}
 
 	// Location/setting keywords (from TMDB)
@@ -561,11 +551,6 @@ func (s *IndexingService) buildGenericText(m *sdk.MediaDetails) string {
 
 	if m.Plot != "" {
 		b.WriteString(fmt.Sprintf("Description: %s\n", m.Plot))
-	}
-
-	// Mood tags (AI-generated)
-	if len(m.MoodTags) > 0 {
-		b.WriteString(fmt.Sprintf("Mood: %s\n", strings.Join(m.MoodTags, ", ")))
 	}
 
 	return b.String()

@@ -133,7 +133,6 @@ type (
 const (
 	CategoryEnricher         = types.CategoryEnricher
 	CategoryNotificationSink = types.CategoryNotificationSink
-	CategoryAI               = types.CategoryAI
 	CategoryProvider         = types.CategoryProvider
 )
 

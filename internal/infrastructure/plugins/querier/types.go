@@ -19,7 +19,7 @@ type MediaInfo struct {
 	ExternalIDs map[string]string
 }
 
-// MediaDetailsInfo contains full metadata for AI indexing.
+// MediaDetailsInfo contains full metadata for plugin indexing.
 type MediaDetailsInfo struct {
 	ID          int64
 	MediaType   string
@@ -53,9 +53,6 @@ type MediaDetailsInfo struct {
 	Biography   string
 	Country     string
 	ReleaseType string
-
-	// AI-generated
-	MoodTags []string
 
 	// Keywords for search (from TMDB)
 	LocationKeywords []string // Location-related keywords (cities, countries, etc.)

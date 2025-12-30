@@ -228,7 +228,7 @@ type Querier interface {
 	GetEnrichmentStatusByStage(ctx context.Context, arg GetEnrichmentStatusByStageParams) ([]EnrichmentStatus, error)
 	// Returns full entity info for external ID lookup
 	GetEntityByExternalID(ctx context.Context, arg GetEntityByExternalIDParams) (GetEntityByExternalIDRow, error)
-	// Returns episode details with the parent show's title for AI indexing
+	// Returns episode details with the parent show's title for plugin indexing
 	GetEpisodeWithShowTitle(ctx context.Context, mediaID int32) (GetEpisodeWithShowTitleRow, error)
 	GetExternalID(ctx context.Context, arg GetExternalIDParams) (MediaExternalID, error)
 	// Gets external IDs by media_type and entity_id (polymorphic)

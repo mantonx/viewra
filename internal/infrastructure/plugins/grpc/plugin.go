@@ -242,8 +242,8 @@ func (w *hostStorageContextWrapper) VectorCount(ctx context.Context, req *plugin
 }
 
 // PluginProviderPlugin is the go-plugin implementation for the PluginProvider service.
-// This allows the host to call the plugin's AI provider methods (chat, embeddings, etc.).
-// Provider plugins (e.g., provider-ollama, provider-openai) implement this service.
+// This allows the host to call the plugin's provider methods (chat, embeddings, etc.).
+// Provider plugins implement this service.
 type PluginProviderPlugin struct {
 	plugin.Plugin
 }
@@ -259,7 +259,7 @@ func (p *PluginProviderPlugin) GRPCClient(ctx context.Context, broker *plugin.GR
 
 // HostWeatherPlugin is the go-plugin implementation for the HostWeather service.
 // On the host side, this starts a gRPC server on a broker ID that the plugin can connect to.
-// This provides weather context for AI search query enrichment.
+// This provides weather context for search query enrichment.
 type HostWeatherPlugin struct {
 	plugin.Plugin
 	Impl   pluginv1.HostWeatherServer

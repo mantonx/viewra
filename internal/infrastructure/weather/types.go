@@ -1,4 +1,4 @@
-// Package weather provides weather context for AI search features.
+// Package weather provides weather context for search features.
 package weather
 
 import "time"

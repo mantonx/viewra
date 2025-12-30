@@ -97,7 +97,6 @@ type Handlers struct {
 	System           *handlers.SystemHandler
 
 	// PluginProxy proxies HTTP requests to plugin-defined routes.
-	// This replaces the hardcoded AISearchHandler.
 	PluginProxy *plugins.HTTPProxy
 
 	// Search handles /api/search with fallback to text search when no plugin provides semantic search.

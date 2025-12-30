@@ -690,8 +690,6 @@ type MediaDetails struct {
 	Biography   string `protobuf:"bytes,32,opt,name=biography,proto3" json:"biography,omitempty"`                        // For artists
 	Country     string `protobuf:"bytes,33,opt,name=country,proto3" json:"country,omitempty"`                            // For artists
 	ReleaseType string `protobuf:"bytes,34,opt,name=release_type,json=releaseType,proto3" json:"release_type,omitempty"` // For albums: "album", "single", "ep", etc.
-	// AI-generated metadata
-	MoodTags []string `protobuf:"bytes,40,rep,name=mood_tags,json=moodTags,proto3" json:"mood_tags,omitempty"` // e.g., ["dark", "tense", "atmospheric"]
 	// Location/setting keywords (from TMDB)
 	LocationKeywords []string `protobuf:"bytes,41,rep,name=location_keywords,json=locationKeywords,proto3" json:"location_keywords,omitempty"` // e.g., ["new york city", "manhattan", "paris"]
 	// Theme/topic keywords (from TMDB) - non-location keywords for thematic search
@@ -910,13 +908,6 @@ func (x *MediaDetails) GetReleaseType() string {
 		return x.ReleaseType
 	}
 	return ""
-}
-
-func (x *MediaDetails) GetMoodTags() []string {
-	if x != nil {
-		return x.MoodTags
-	}
-	return nil
 }
 
 func (x *MediaDetails) GetLocationKeywords() []string {
@@ -4190,7 +4181,7 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\n" +
 	"library_id\x18\x01 \x01(\x03R\tlibraryId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\x05R\x06offset\"\xa9\b\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\"\x8c\b\n" +
 	"\fMediaDetails\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1d\n" +
 	"\n" +
@@ -4223,8 +4214,7 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"albumTitle\x12\x1c\n" +
 	"\tbiography\x18  \x01(\tR\tbiography\x12\x18\n" +
 	"\acountry\x18! \x01(\tR\acountry\x12!\n" +
-	"\frelease_type\x18\" \x01(\tR\vreleaseType\x12\x1b\n" +
-	"\tmood_tags\x18( \x03(\tR\bmoodTags\x12+\n" +
+	"\frelease_type\x18\" \x01(\tR\vreleaseType\x12+\n" +
 	"\x11location_keywords\x18) \x03(\tR\x10locationKeywords\x12%\n" +
 	"\x0etheme_keywords\x18* \x03(\tR\rthemeKeywords\x1a>\n" +
 	"\x10ExternalIdsEntry\x12\x10\n" +
