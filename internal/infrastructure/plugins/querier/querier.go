@@ -1,4 +1,4 @@
-package plugins
+package querier
 
 import (
 	"context"

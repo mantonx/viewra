@@ -26,6 +26,7 @@ import (
 	tvRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/tvshow"
 	userRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/user"
 	"github.com/mantonx/viewra/internal/infrastructure/plugins"
+	"github.com/mantonx/viewra/internal/infrastructure/plugins/querier"
 )
 
 // Repositories holds all data access layer implementations.
@@ -131,7 +132,7 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 
 	// Create plugin repositories
 	pluginRepository := pluginRepo.NewRepository(db, driver)
-	pluginMediaQuerier := plugins.NewDBMediaQuerier(db, driver)
+	pluginMediaQuerier := querier.NewDBMediaQuerier(db, driver)
 
 	// Create transcode analytics repository
 	transcodeAnalyticsRepository := transcodeAnalyticsRepo.NewRepository(db, driver)
