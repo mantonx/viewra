@@ -1,10 +1,46 @@
 package host
 
 import (
+	"context"
 	"testing"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 )
+
+func TestContextWithPluginID(t *testing.T) {
+	ctx := context.Background()
+	pluginID := "test-plugin"
+
+	// Set plugin ID
+	ctxWithID := ContextWithPluginID(ctx, pluginID)
+
+	// Retrieve it
+	got := GetPluginIDFromContext(ctxWithID)
+	if got != pluginID {
+		t.Errorf("GetPluginIDFromContext() = %q, want %q", got, pluginID)
+	}
+}
+
+func TestGetPluginIDFromContext_Empty(t *testing.T) {
+	ctx := context.Background()
+
+	// No plugin ID set
+	got := GetPluginIDFromContext(ctx)
+	if got != "" {
+		t.Errorf("GetPluginIDFromContext() = %q, want empty string", got)
+	}
+}
+
+func TestGetPluginIDFromContext_WrongType(t *testing.T) {
+	// Set a non-string value with the same key type
+	ctx := context.WithValue(context.Background(), pluginIDKey, 123)
+
+	// Should return empty string for wrong type
+	got := GetPluginIDFromContext(ctx)
+	if got != "" {
+		t.Errorf("GetPluginIDFromContext() = %q, want empty string for wrong type", got)
+	}
+}
 
 func TestSanitizePluginID(t *testing.T) {
 	tests := []struct {
