@@ -15,23 +15,24 @@ import (
 	"google.golang.org/grpc/status"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/internal/infrastructure/plugins/registry"
 )
 
 // HTTPProxy handles proxying HTTP requests to plugin gRPC handlers.
 type HTTPProxy struct {
 	manager            *Manager
-	routeRegistry      *RouteRegistry
-	capabilityRegistry *CapabilityRegistry
-	rateLimiter        *RouteRateLimiter
+	routeRegistry      *registry.RouteRegistry
+	capabilityRegistry *registry.CapabilityRegistry
+	rateLimiter        *registry.RouteRateLimiter
 	logger             *slog.Logger
 }
 
 // NewHTTPProxy creates a new HTTP proxy for plugin routes.
 func NewHTTPProxy(
 	manager *Manager,
-	routeRegistry *RouteRegistry,
-	capabilityRegistry *CapabilityRegistry,
-	rateLimiter *RouteRateLimiter,
+	routeRegistry *registry.RouteRegistry,
+	capabilityRegistry *registry.CapabilityRegistry,
+	rateLimiter *registry.RouteRateLimiter,
 	logger *slog.Logger,
 ) *HTTPProxy {
 	return &HTTPProxy{
@@ -473,7 +474,7 @@ func (p *HTTPProxy) Stop() {
 // RegisterCapabilityRoutes registers all capability alias routes on the router.
 // Call this after loading plugins to set up stable URLs like /api/search.
 func (p *HTTPProxy) RegisterCapabilityRoutes(router *gin.RouterGroup, authMiddleware gin.HandlerFunc) {
-	for capability, aliasPath := range CapabilityAliases {
+	for capability, aliasPath := range registry.CapabilityAliases {
 		// Strip /api prefix since router is already under /api
 		path := strings.TrimPrefix(aliasPath, "/api")
 		if path == "" {
@@ -558,11 +559,11 @@ func (p *HTTPProxy) UnregisterPlugin(pluginID string) {
 }
 
 // GetRouteRegistry returns the route registry.
-func (p *HTTPProxy) GetRouteRegistry() *RouteRegistry {
+func (p *HTTPProxy) GetRouteRegistry() *registry.RouteRegistry {
 	return p.routeRegistry
 }
 
 // GetCapabilityRegistry returns the capability registry.
-func (p *HTTPProxy) GetCapabilityRegistry() *CapabilityRegistry {
+func (p *HTTPProxy) GetCapabilityRegistry() *registry.CapabilityRegistry {
 	return p.capabilityRegistry
 }

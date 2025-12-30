@@ -15,6 +15,7 @@ import (
 	appplugins "github.com/mantonx/viewra/internal/application/plugins"
 	appscheduler "github.com/mantonx/viewra/internal/application/scheduler"
 	infraPlugins "github.com/mantonx/viewra/internal/infrastructure/plugins"
+	"github.com/mantonx/viewra/internal/infrastructure/plugins/registry"
 	"github.com/mantonx/viewra/internal/infrastructure/streaming"
 )
 
@@ -188,7 +189,7 @@ func BuildHandlers(
 
 	// Get the plugin HTTP proxy if plugin manager is available
 	var pluginProxy *infraPlugins.HTTPProxy
-	var capabilityRegistry *infraPlugins.CapabilityRegistry
+	var capabilityRegistry *registry.CapabilityRegistry
 	if svcs.PluginManager != nil {
 		pluginProxy = svcs.PluginManager.GetHTTPProxy()
 		capabilityRegistry = svcs.PluginManager.GetCapabilityRegistry()

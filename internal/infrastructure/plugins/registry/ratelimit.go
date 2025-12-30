@@ -1,4 +1,4 @@
-package plugins
+package registry
 
 import (
 	"fmt"
@@ -53,17 +53,23 @@ func (rl *RouteRateLimiter) cleanupLoop() {
 	for {
 		select {
 		case <-rl.cleanup.C:
-			rl.mu.Lock()
-			now := time.Now()
-			for key, bucket := range rl.buckets {
-				// Remove buckets that haven't been used in 10 minutes
-				if now.Sub(bucket.lastRefill) > 10*time.Minute {
-					delete(rl.buckets, key)
-				}
-			}
-			rl.mu.Unlock()
+			rl.cleanupStaleBuckets()
 		case <-rl.done:
 			return
+		}
+	}
+}
+
+// cleanupStaleBuckets removes buckets that haven't been used recently.
+func (rl *RouteRateLimiter) cleanupStaleBuckets() {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	for key, bucket := range rl.buckets {
+		// Remove buckets that haven't been used in 10 minutes
+		if now.Sub(bucket.lastRefill) > 10*time.Minute {
+			delete(rl.buckets, key)
 		}
 	}
 }
@@ -184,7 +190,8 @@ var (
 	sharedRateLimiterOnce sync.Once
 )
 
-func getSharedRateLimiter() *RouteRateLimiter {
+// GetSharedRateLimiter returns the singleton rate limiter.
+func GetSharedRateLimiter() *RouteRateLimiter {
 	sharedRateLimiterOnce.Do(func() {
 		sharedRateLimiter = NewRouteRateLimiter()
 	})
@@ -200,7 +207,7 @@ func CreateRateLimitMiddleware(limit *pluginv1.PluginRateLimit, routePath string
 		}
 	}
 
-	rl := getSharedRateLimiter()
+	rl := GetSharedRateLimiter()
 	route := &RegisteredRoute{
 		FullPath:  routePath,
 		RateLimit: limit,

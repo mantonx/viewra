@@ -9,20 +9,21 @@ import (
 	appSearch "github.com/mantonx/viewra/internal/application/search"
 	"github.com/mantonx/viewra/internal/domain/search"
 	"github.com/mantonx/viewra/internal/infrastructure/plugins"
+	"github.com/mantonx/viewra/internal/infrastructure/plugins/registry"
 )
 
 // SearchHandler handles /api/search requests.
 // It first checks if a semantic search plugin is available, and if not,
 // falls back to basic text search.
 type SearchHandler struct {
-	capabilityRegistry *plugins.CapabilityRegistry
+	capabilityRegistry *registry.CapabilityRegistry
 	httpProxy          *plugins.HTTPProxy
 	searchService      *appSearch.Service
 }
 
 // NewSearchHandler creates a new search handler.
 func NewSearchHandler(
-	capabilityRegistry *plugins.CapabilityRegistry,
+	capabilityRegistry *registry.CapabilityRegistry,
 	httpProxy *plugins.HTTPProxy,
 	searchService *appSearch.Service,
 ) *SearchHandler {

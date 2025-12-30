@@ -1,4 +1,4 @@
-package plugins
+package registry
 
 import (
 	"testing"
@@ -143,42 +143,137 @@ func TestRouteRegistry_Unregister(t *testing.T) {
 	}
 }
 
-func TestCapabilityRegistry(t *testing.T) {
-	registry := NewCapabilityRegistry()
+func TestRouteRegistry_GetAllRoutes(t *testing.T) {
+	registry := NewRouteRegistry()
 
-	// Register a capability
-	ok := registry.Register("plugin-a", "semantic_search", "/search")
-	if !ok {
-		t.Error("first registration should succeed")
+	registry.RegisterRoutes("plugin-a", []*pluginv1.PluginRoute{
+		{Path: "/route-a1", Methods: []string{"GET"}},
+		{Path: "/route-a2", Methods: []string{"POST"}},
+	})
+	registry.RegisterRoutes("plugin-b", []*pluginv1.PluginRoute{
+		{Path: "/route-b1", Methods: []string{"GET"}},
+	})
+
+	all := registry.GetAllRoutes()
+	if len(all) != 3 {
+		t.Errorf("GetAllRoutes() returned %d routes, want 3", len(all))
+	}
+}
+
+func TestRouteRegistry_FindRouteByCapability(t *testing.T) {
+	registry := NewRouteRegistry()
+
+	registry.RegisterRoutes("search-plugin", []*pluginv1.PluginRoute{
+		{
+			Path:       "/search",
+			Methods:    []string{"GET"},
+			Capability: "semantic_search",
+		},
+	})
+
+	route, found := registry.FindRouteByCapability("semantic_search")
+	if !found {
+		t.Fatal("FindRouteByCapability() should find the route")
+	}
+	if route.Capability != "semantic_search" {
+		t.Errorf("route.Capability = %s, want semantic_search", route.Capability)
 	}
 
-	// Try to register same capability from another plugin
-	ok = registry.Register("plugin-b", "semantic_search", "/my-search")
-	if ok {
-		t.Error("duplicate capability registration should fail")
+	// Non-existent capability
+	_, found = registry.FindRouteByCapability("non_existent")
+	if found {
+		t.Error("FindRouteByCapability() should not find non-existent capability")
+	}
+}
+
+func TestRegisteredRoute_Match(t *testing.T) {
+	tests := []struct {
+		name       string
+		pattern    string
+		path       string
+		wantMatch  bool
+		wantParams map[string]string
+	}{
+		{
+			name:      "exact match",
+			pattern:   "/search",
+			path:      "/search",
+			wantMatch: true,
+		},
+		{
+			name:      "no match",
+			pattern:   "/search",
+			path:      "/other",
+			wantMatch: false,
+		},
+		{
+			name:       "single param",
+			pattern:    "/items/:id",
+			path:       "/items/123",
+			wantMatch:  true,
+			wantParams: map[string]string{"id": "123"},
+		},
+		{
+			name:       "multiple params",
+			pattern:    "/users/:userId/posts/:postId",
+			path:       "/users/42/posts/99",
+			wantMatch:  true,
+			wantParams: map[string]string{"userId": "42", "postId": "99"},
+		},
+		{
+			name:      "partial match fails",
+			pattern:   "/items/:id/details",
+			path:      "/items/123",
+			wantMatch: false,
+		},
 	}
 
-	// Same plugin can re-register
-	ok = registry.Register("plugin-a", "semantic_search", "/new-search")
-	if !ok {
-		t.Error("same plugin should be able to update capability")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			regex, paramNames := compilePathPattern(tt.pattern)
+			route := &RegisteredRoute{
+				pathRegex:  regex,
+				paramNames: paramNames,
+			}
+
+			params, matched := route.Match(tt.path)
+			if matched != tt.wantMatch {
+				t.Errorf("Match() = %v, want %v", matched, tt.wantMatch)
+			}
+
+			if tt.wantParams != nil && matched {
+				for key, want := range tt.wantParams {
+					if got := params[key]; got != want {
+						t.Errorf("params[%s] = %s, want %s", key, got, want)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestRegisteredRoute_HasMethod(t *testing.T) {
+	route := &RegisteredRoute{
+		Methods: []string{"GET", "POST"},
 	}
 
-	// Resolve the capability
-	mapping := registry.Resolve("semantic_search")
-	if mapping == nil {
-		t.Fatal("capability should be resolvable")
-	}
-	if mapping.PluginID != "plugin-a" {
-		t.Errorf("PluginID = %s, want plugin-a", mapping.PluginID)
-	}
-	if mapping.PluginPath != "/new-search" {
-		t.Errorf("PluginPath = %s, want /new-search", mapping.PluginPath)
+	tests := []struct {
+		method string
+		want   bool
+	}{
+		{"GET", true},
+		{"get", true},
+		{"POST", true},
+		{"post", true},
+		{"DELETE", false},
+		{"PUT", false},
 	}
 
-	// Unregister and verify
-	registry.Unregister("plugin-a")
-	if registry.Resolve("semantic_search") != nil {
-		t.Error("capability should be nil after unregister")
+	for _, tt := range tests {
+		t.Run(tt.method, func(t *testing.T) {
+			if got := route.HasMethod(tt.method); got != tt.want {
+				t.Errorf("HasMethod(%s) = %v, want %v", tt.method, got, tt.want)
+			}
+		})
 	}
 }

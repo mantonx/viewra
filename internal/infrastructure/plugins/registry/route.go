@@ -1,4 +1,5 @@
-package plugins
+// Package registry provides route, provider, and capability registries for plugins.
+package registry
 
 import (
 	"regexp"

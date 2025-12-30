@@ -1,4 +1,4 @@
-package plugins
+package registry
 
 import (
 	"context"
@@ -127,7 +127,7 @@ func TestProviderRegistry_Unregister(t *testing.T) {
 	registry := NewProviderRegistry()
 	ctx := context.Background()
 
-	// Register two providers from same plugin
+	// Register a provider
 	client := &mockProviderClient{
 		capabilities: &pluginv1.ProviderCapabilities{
 			ProviderId:  "ollama",
@@ -208,5 +208,34 @@ func TestProviderRegistry_GetNonExistent(t *testing.T) {
 	provider := registry.Get("non-existent")
 	if provider != nil {
 		t.Error("Get(non-existent) should return nil")
+	}
+}
+
+func TestProviderRegistry_GetByPluginID(t *testing.T) {
+	registry := NewProviderRegistry()
+	ctx := context.Background()
+
+	client := &mockProviderClient{
+		capabilities: &pluginv1.ProviderCapabilities{
+			ProviderId:  "ollama",
+			DisplayName: "Ollama",
+		},
+	}
+	coreClient := &mockCoreClient{}
+	_, err := registry.Register(ctx, "provider-ollama", client, coreClient)
+	if err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+
+	// Get provider ID by plugin ID
+	providerID := registry.GetByPluginID("provider-ollama")
+	if providerID != "ollama" {
+		t.Errorf("GetByPluginID() = %s, want ollama", providerID)
+	}
+
+	// Non-existent plugin
+	providerID = registry.GetByPluginID("non-existent")
+	if providerID != "" {
+		t.Errorf("GetByPluginID(non-existent) = %s, want empty string", providerID)
 	}
 }

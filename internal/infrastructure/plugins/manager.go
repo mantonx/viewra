@@ -23,6 +23,7 @@ import (
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 	domainevents "github.com/mantonx/viewra/internal/domain/events"
+	"github.com/mantonx/viewra/internal/infrastructure/plugins/registry"
 )
 
 // PluginCategory defines the type of functionality a plugin provides.
@@ -148,19 +149,19 @@ type Manager struct {
 	publisher domainevents.Publisher
 
 	// routeRegistry tracks routes registered by plugins.
-	routeRegistry *RouteRegistry
+	routeRegistry *registry.RouteRegistry
 
 	// capabilityRegistry tracks which plugins provide which capabilities.
-	capabilityRegistry *CapabilityRegistry
+	capabilityRegistry *registry.CapabilityRegistry
 
 	// rateLimiter provides rate limiting for plugin routes.
-	rateLimiter *RouteRateLimiter
+	rateLimiter *registry.RouteRateLimiter
 
 	// httpProxy proxies HTTP requests to plugins.
 	httpProxy *HTTPProxy
 
 	// providerRegistry tracks AI provider plugins.
-	providerRegistry *ProviderRegistry
+	providerRegistry *registry.ProviderRegistry
 
 	// systemInfo contains host system resource information to pass to plugins.
 	systemInfo *pluginv1.SystemInfo
@@ -228,10 +229,10 @@ func NewManager(cfg ManagerConfig, logger *slog.Logger) (*Manager, error) {
 	}
 
 	// Create registries and rate limiter
-	routeRegistry := NewRouteRegistry()
-	capabilityRegistry := NewCapabilityRegistry()
-	providerRegistry := NewProviderRegistry()
-	rateLimiter := NewRouteRateLimiter()
+	routeRegistry := registry.NewRouteRegistry()
+	capabilityRegistry := registry.NewCapabilityRegistry()
+	providerRegistry := registry.NewProviderRegistry()
+	rateLimiter := registry.NewRouteRateLimiter()
 
 	m := &Manager{
 		plugins:             make(map[string]*PluginInstance),
@@ -1251,17 +1252,17 @@ func (m *Manager) GetHTTPProxy() *HTTPProxy {
 }
 
 // GetRouteRegistry returns the route registry.
-func (m *Manager) GetRouteRegistry() *RouteRegistry {
+func (m *Manager) GetRouteRegistry() *registry.RouteRegistry {
 	return m.routeRegistry
 }
 
 // GetCapabilityRegistry returns the capability registry.
-func (m *Manager) GetCapabilityRegistry() *CapabilityRegistry {
+func (m *Manager) GetCapabilityRegistry() *registry.CapabilityRegistry {
 	return m.capabilityRegistry
 }
 
 // GetProviderRegistry returns the provider registry for AI provider plugins.
-func (m *Manager) GetProviderRegistry() *ProviderRegistry {
+func (m *Manager) GetProviderRegistry() *registry.ProviderRegistry {
 	return m.providerRegistry
 }
 

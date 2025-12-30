@@ -14,6 +14,7 @@ import (
 	"github.com/mantonx/viewra/internal/api/middleware"
 	"github.com/mantonx/viewra/internal/api/routes"
 	"github.com/mantonx/viewra/internal/infrastructure/plugins"
+	"github.com/mantonx/viewra/internal/infrastructure/plugins/registry"
 )
 
 // Server represents the HTTP server
@@ -264,7 +265,7 @@ func (s *Server) registerCapabilityAliases(protected *gin.RouterGroup) {
 
 	// Register capability alias routes (excluding semantic_search which has fallback support)
 	// These go on the parent protected group to get stable URLs
-	for capability, aliasPath := range plugins.CapabilityAliases {
+	for capability, aliasPath := range registry.CapabilityAliases {
 		// Skip semantic_search - it's handled by SearchHandler with fallback support
 		if capability == "semantic_search" {
 			continue
