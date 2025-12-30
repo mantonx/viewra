@@ -1,4 +1,4 @@
-package plugins
+package grpc
 
 import (
 	"context"
@@ -8,21 +8,21 @@ import (
 	"github.com/mantonx/viewra/internal/application/enrichment"
 )
 
-// GRPCEnricher wraps a gRPC EnricherClient to implement the application Enricher interface.
+// Enricher wraps a gRPC EnricherClient to implement the application Enricher interface.
 // This allows external plugins (go-plugin processes) to be used as enrichers.
 //
 // Since the Enricher interface now uses proto types directly, this wrapper is minimal -
 // it just stores capabilities and delegates calls to the gRPC client.
-type GRPCEnricher struct {
+type Enricher struct {
 	pluginID string
 	client   pluginv1.EnricherClient
 	caps     enrichment.EnricherCapabilities
 	logger   *slog.Logger
 }
 
-// NewGRPCEnricher creates a new GRPCEnricher wrapping the given client.
-func NewGRPCEnricher(pluginID string, client pluginv1.EnricherClient, logger *slog.Logger) (*GRPCEnricher, error) {
-	e := &GRPCEnricher{
+// NewEnricher creates a new Enricher wrapping the given client.
+func NewEnricher(pluginID string, client pluginv1.EnricherClient, logger *slog.Logger) (*Enricher, error) {
+	e := &Enricher{
 		pluginID: pluginID,
 		client:   client,
 		logger:   logger,
@@ -40,17 +40,17 @@ func NewGRPCEnricher(pluginID string, client pluginv1.EnricherClient, logger *sl
 }
 
 // Stage implements enrichment.Enricher.
-func (e *GRPCEnricher) Stage() string {
+func (e *Enricher) Stage() string {
 	return e.pluginID
 }
 
 // Capabilities implements enrichment.Enricher.
-func (e *GRPCEnricher) Capabilities() enrichment.EnricherCapabilities {
+func (e *Enricher) Capabilities() enrichment.EnricherCapabilities {
 	return e.caps
 }
 
 // Enrich implements enrichment.Enricher.
 // Since we now use proto types directly, this is just a pass-through.
-func (e *GRPCEnricher) Enrich(ctx context.Context, req *pluginv1.EnrichRequest) (*pluginv1.EnrichResponse, error) {
+func (e *Enricher) Enrich(ctx context.Context, req *pluginv1.EnrichRequest) (*pluginv1.EnrichResponse, error) {
 	return e.client.Enrich(ctx, req)
 }

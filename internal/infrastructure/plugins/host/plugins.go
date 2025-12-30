@@ -1,4 +1,5 @@
-package plugins
+// Package host provides gRPC server implementations for host services exposed to plugins.
+package host
 
 import (
 	"context"
@@ -10,9 +11,10 @@ import (
 	"google.golang.org/grpc"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
+	"github.com/mantonx/viewra/internal/infrastructure/plugins/types"
 )
 
-// HostPluginsServer implements the HostPlugins gRPC service.
+// PluginsServer implements the HostPlugins gRPC service.
 // This allows plugins to discover and invoke methods on other plugins that provide
 // specific capabilities (e.g., "embedding", "chat").
 //
@@ -25,7 +27,7 @@ import (
 // Key design: The host acts as a "dumb pipe" that routes requests to providers.
 // Provider plugins dispatch method calls via a generic Invoke pattern. Consumer plugins
 // use typed protos for requests/responses, while the transport uses generic bytes.
-type HostPluginsServer struct {
+type PluginsServer struct {
 	pluginv1.UnimplementedHostPluginsServer
 
 	// mu protects concurrent access to capabilities and preferences
@@ -57,15 +59,15 @@ type CapabilityProvider struct {
 // Used to check plugin status and invoke methods on providers.
 type PluginLookup interface {
 	// GetPlugin returns a running plugin instance by ID.
-	GetPlugin(id string) (*PluginInstance, bool)
+	GetPlugin(id string) (*types.Instance, bool)
 
 	// IsPluginEnabled returns true if the plugin is enabled and healthy.
 	IsPluginEnabled(id string) bool
 }
 
-// NewHostPluginsServer creates a new HostPluginsServer.
-func NewHostPluginsServer(lookup PluginLookup, logger *slog.Logger) *HostPluginsServer {
-	return &HostPluginsServer{
+// NewPluginsServer creates a new PluginsServer.
+func NewPluginsServer(lookup PluginLookup, logger *slog.Logger) *PluginsServer {
+	return &PluginsServer{
 		capabilities: make(map[string][]*CapabilityProvider),
 		preferences:  make(map[string]string),
 		pluginLookup: lookup,
@@ -75,7 +77,7 @@ func NewHostPluginsServer(lookup PluginLookup, logger *slog.Logger) *HostPlugins
 
 // RegisterCapability registers a plugin as providing a capability.
 // Called when a plugin is loaded and declares capabilities in its manifest.
-func (s *HostPluginsServer) RegisterCapability(pluginID, pluginName, capability string) {
+func (s *PluginsServer) RegisterCapability(pluginID, pluginName, capability string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -105,7 +107,7 @@ func (s *HostPluginsServer) RegisterCapability(pluginID, pluginName, capability 
 
 // UnregisterPlugin removes all capabilities for a plugin.
 // Called when a plugin is unloaded.
-func (s *HostPluginsServer) UnregisterPlugin(pluginID string) {
+func (s *PluginsServer) UnregisterPlugin(pluginID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -127,7 +129,7 @@ func (s *HostPluginsServer) UnregisterPlugin(pluginID string) {
 }
 
 // UpdatePluginStatus updates the enabled/configured status for a plugin.
-func (s *HostPluginsServer) UpdatePluginStatus(pluginID string, enabled, configured bool) {
+func (s *PluginsServer) UpdatePluginStatus(pluginID string, enabled, configured bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -146,7 +148,7 @@ func (s *HostPluginsServer) UpdatePluginStatus(pluginID string, enabled, configu
 //  1. preferred_plugin parameter (explicit request)
 //  2. Configured preference (set by configuration plugin like ai-local)
 //  3. First available enabled provider
-func (s *HostPluginsServer) resolveProvider(capability, preferredPlugin string) (*CapabilityProvider, *PluginInstance, error) {
+func (s *PluginsServer) resolveProvider(capability, preferredPlugin string) (*CapabilityProvider, *types.Instance, error) {
 	s.mu.RLock()
 	providers := s.capabilities[capability]
 	configuredPreference := s.preferences[capability]
@@ -201,7 +203,7 @@ func (s *HostPluginsServer) resolveProvider(capability, preferredPlugin string) 
 }
 
 // HasCapability returns true if any enabled plugin provides the capability.
-func (s *HostPluginsServer) HasCapability(capability string) bool {
+func (s *PluginsServer) HasCapability(capability string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -215,7 +217,7 @@ func (s *HostPluginsServer) HasCapability(capability string) bool {
 }
 
 // ListCapabilities returns all available capabilities and their providers.
-func (s *HostPluginsServer) ListCapabilities(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.CapabilityListResponse, error) {
+func (s *PluginsServer) ListCapabilities(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.CapabilityListResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -240,7 +242,7 @@ func (s *HostPluginsServer) ListCapabilities(ctx context.Context, _ *pluginv1.Em
 }
 
 // ListProviders returns all plugins providing a specific capability.
-func (s *HostPluginsServer) ListProviders(ctx context.Context, req *pluginv1.CapabilityRequest) (*pluginv1.ProviderListResponse, error) {
+func (s *PluginsServer) ListProviders(ctx context.Context, req *pluginv1.CapabilityRequest) (*pluginv1.ProviderListResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -261,7 +263,7 @@ func (s *HostPluginsServer) ListProviders(ctx context.Context, req *pluginv1.Cap
 // SetCapabilityPreference sets the preferred plugin for a capability.
 // Used by configuration plugins (e.g., ai-local) to route capabilities to specific providers.
 // The preference is used when InvokeCapability is called without a preferred_plugin.
-func (s *HostPluginsServer) SetCapabilityPreference(ctx context.Context, req *pluginv1.CapabilityPreferenceRequest) (*pluginv1.Empty, error) {
+func (s *PluginsServer) SetCapabilityPreference(ctx context.Context, req *pluginv1.CapabilityPreferenceRequest) (*pluginv1.Empty, error) {
 	if req.Capability == "" {
 		return nil, fmt.Errorf("capability is required")
 	}
@@ -283,7 +285,7 @@ func (s *HostPluginsServer) SetCapabilityPreference(ctx context.Context, req *pl
 
 // ClearCapabilityPreference removes the preference for a capability.
 // After clearing, InvokeCapability falls back to first available provider.
-func (s *HostPluginsServer) ClearCapabilityPreference(ctx context.Context, req *pluginv1.CapabilityPreferenceRequest) (*pluginv1.Empty, error) {
+func (s *PluginsServer) ClearCapabilityPreference(ctx context.Context, req *pluginv1.CapabilityPreferenceRequest) (*pluginv1.Empty, error) {
 	if req.Capability == "" {
 		return nil, fmt.Errorf("capability is required")
 	}
@@ -300,7 +302,7 @@ func (s *HostPluginsServer) ClearCapabilityPreference(ctx context.Context, req *
 }
 
 // GetCapabilityPreferences returns all configured capability preferences.
-func (s *HostPluginsServer) GetCapabilityPreferences(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.CapabilityPreferencesResponse, error) {
+func (s *PluginsServer) GetCapabilityPreferences(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.CapabilityPreferencesResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -316,16 +318,7 @@ func (s *HostPluginsServer) GetCapabilityPreferences(ctx context.Context, _ *plu
 // InvokeCapability forwards a request to a capability provider.
 // The host resolves the capability to an available provider and proxies the request.
 // This is the core of the cross-plugin RPC system.
-//
-// Flow:
-//  1. Consumer plugin marshals typed proto request to bytes
-//  2. Consumer calls InvokeCapability with capability name, method, and payload
-//  3. Host resolves capability to provider plugin (considering preferences)
-//  4. Host calls provider's Invoke method with the same payload
-//  5. Provider dispatches to appropriate handler based on method name
-//  6. Provider returns response bytes (marshaled typed proto)
-//  7. Consumer unmarshals response bytes to typed proto
-func (s *HostPluginsServer) InvokeCapability(ctx context.Context, req *pluginv1.CapabilityInvokeRequest) (*pluginv1.CapabilityInvokeResponse, error) {
+func (s *PluginsServer) InvokeCapability(ctx context.Context, req *pluginv1.CapabilityInvokeRequest) (*pluginv1.CapabilityInvokeResponse, error) {
 	// Resolve provider
 	provider, instance, err := s.resolveProvider(req.Capability, req.PreferredPlugin)
 	if err != nil {
@@ -370,7 +363,7 @@ func (s *HostPluginsServer) InvokeCapability(ctx context.Context, req *pluginv1.
 	if providerResp.Error != nil {
 		return &pluginv1.CapabilityInvokeResponse{
 			Error: &pluginv1.CapabilityError{
-				Code:      s.mapProviderErrorCode(providerResp.Error.Code),
+				Code:      mapProviderErrorCode(providerResp.Error.Code),
 				Message:   providerResp.Error.Message,
 				Retryable: providerResp.Error.Retryable,
 			},
@@ -394,7 +387,7 @@ func (s *HostPluginsServer) InvokeCapability(ctx context.Context, req *pluginv1.
 
 // InvokeCapabilityStream forwards a streaming request to a capability provider.
 // Used for server-streaming methods like ChatStream.
-func (s *HostPluginsServer) InvokeCapabilityStream(req *pluginv1.CapabilityInvokeRequest, stream grpc.ServerStreamingServer[pluginv1.CapabilityInvokeResponse]) error {
+func (s *PluginsServer) InvokeCapabilityStream(req *pluginv1.CapabilityInvokeRequest, stream grpc.ServerStreamingServer[pluginv1.CapabilityInvokeResponse]) error {
 	ctx := stream.Context()
 
 	// Resolve provider
@@ -462,7 +455,7 @@ func (s *HostPluginsServer) InvokeCapabilityStream(req *pluginv1.CapabilityInvok
 		if providerResp.Error != nil {
 			if err := stream.Send(&pluginv1.CapabilityInvokeResponse{
 				Error: &pluginv1.CapabilityError{
-					Code:      s.mapProviderErrorCode(providerResp.Error.Code),
+					Code:      mapProviderErrorCode(providerResp.Error.Code),
 					Message:   providerResp.Error.Message,
 					Retryable: providerResp.Error.Retryable,
 				},
@@ -492,7 +485,7 @@ func (s *HostPluginsServer) InvokeCapabilityStream(req *pluginv1.CapabilityInvok
 
 // DescribeCapability returns metadata about a capability's available methods.
 // Useful for discovering what methods a capability supports.
-func (s *HostPluginsServer) DescribeCapability(ctx context.Context, req *pluginv1.DescribeCapabilityRequest) (*pluginv1.DescribeCapabilityResponse, error) {
+func (s *PluginsServer) DescribeCapability(ctx context.Context, req *pluginv1.DescribeCapabilityRequest) (*pluginv1.DescribeCapabilityResponse, error) {
 	s.mu.RLock()
 	providers := s.capabilities[req.Capability]
 	s.mu.RUnlock()
@@ -556,12 +549,6 @@ func (s *HostPluginsServer) DescribeCapability(ctx context.Context, req *pluginv
 			}
 		}
 
-		// Build list of methods this provider supports
-		var providerMethods []string
-		for _, m := range methodsResp.Methods {
-			providerMethods = append(providerMethods, m.Name)
-		}
-
 		providerInfos = append(providerInfos, &pluginv1.DescribeCapabilityProviderInfo{
 			PluginId:   p.PluginID,
 			PluginName: p.PluginName,
@@ -580,7 +567,7 @@ func (s *HostPluginsServer) DescribeCapability(ctx context.Context, req *pluginv
 }
 
 // mapProviderErrorCode converts a provider error code string to a CapabilityErrorCode.
-func (s *HostPluginsServer) mapProviderErrorCode(code string) pluginv1.CapabilityErrorCode {
+func mapProviderErrorCode(code string) pluginv1.CapabilityErrorCode {
 	switch code {
 	case "METHOD_NOT_FOUND":
 		return pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_METHOD_NOT_FOUND

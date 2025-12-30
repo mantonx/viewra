@@ -191,7 +191,9 @@ func BuildHandlers(
 	var pluginProxy *infraPlugins.HTTPProxy
 	var capabilityRegistry *registry.CapabilityRegistry
 	if svcs.PluginManager != nil {
-		pluginProxy = svcs.PluginManager.GetHTTPProxy()
+		if proxy := svcs.PluginManager.GetHTTPProxy(); proxy != nil {
+			pluginProxy, _ = proxy.(*infraPlugins.HTTPProxy)
+		}
 		capabilityRegistry = svcs.PluginManager.GetCapabilityRegistry()
 	}
 

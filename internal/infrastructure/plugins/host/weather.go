@@ -1,4 +1,4 @@
-package plugins
+package host
 
 import (
 	"context"
@@ -10,17 +10,17 @@ import (
 	"github.com/mantonx/viewra/internal/infrastructure/weather"
 )
 
-// HostWeatherServer implements the HostWeather gRPC service.
-type HostWeatherServer struct {
+// WeatherServer implements the HostWeather gRPC service.
+type WeatherServer struct {
 	pluginv1.UnimplementedHostWeatherServer
 	locationRepo   *location.Repository
 	weatherService *weather.Service
 	logger         *slog.Logger
 }
 
-// NewHostWeatherServer creates a new HostWeatherServer.
-func NewHostWeatherServer(locationRepo *location.Repository, weatherService *weather.Service, logger *slog.Logger) *HostWeatherServer {
-	return &HostWeatherServer{
+// NewWeatherServer creates a new WeatherServer.
+func NewWeatherServer(locationRepo *location.Repository, weatherService *weather.Service, logger *slog.Logger) *WeatherServer {
+	return &WeatherServer{
 		locationRepo:   locationRepo,
 		weatherService: weatherService,
 		logger:         logger,
@@ -28,7 +28,7 @@ func NewHostWeatherServer(locationRepo *location.Repository, weatherService *wea
 }
 
 // GetCurrentWeather returns current weather for a user's location.
-func (s *HostWeatherServer) GetCurrentWeather(ctx context.Context, req *pluginv1.WeatherRequest) (*pluginv1.WeatherResponse, error) {
+func (s *WeatherServer) GetCurrentWeather(ctx context.Context, req *pluginv1.WeatherRequest) (*pluginv1.WeatherResponse, error) {
 	// Parse user ID from string to int64
 	userID, err := strconv.ParseInt(req.UserId, 10, 64)
 	if err != nil {
@@ -69,4 +69,4 @@ func (s *HostWeatherServer) GetCurrentWeather(ctx context.Context, req *pluginv1
 }
 
 // Verify interface implementation
-var _ pluginv1.HostWeatherServer = (*HostWeatherServer)(nil)
+var _ pluginv1.HostWeatherServer = (*WeatherServer)(nil)

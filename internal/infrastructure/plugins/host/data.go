@@ -1,4 +1,4 @@
-package plugins
+package host
 
 import (
 	"context"
@@ -47,24 +47,24 @@ type MediaQuerier interface {
 	GetLibrary(ctx context.Context, id int64) (*LibraryInfo, error)
 }
 
-// HostDataServer implements the HostData gRPC service.
+// DataServer implements the HostData gRPC service.
 // This runs in the host process and provides read-only access to media data.
-type HostDataServer struct {
+type DataServer struct {
 	pluginv1.UnimplementedHostDataServer
 	querier MediaQuerier
 	logger  *slog.Logger
 }
 
-// NewHostDataServer creates a new HostDataServer.
-func NewHostDataServer(querier MediaQuerier, logger *slog.Logger) *HostDataServer {
-	return &HostDataServer{
+// NewDataServer creates a new DataServer.
+func NewDataServer(querier MediaQuerier, logger *slog.Logger) *DataServer {
+	return &DataServer{
 		querier: querier,
 		logger:  logger,
 	}
 }
 
 // GetMedia retrieves a single media item by ID.
-func (s *HostDataServer) GetMedia(ctx context.Context, req *pluginv1.MediaQuery) (*pluginv1.Media, error) {
+func (s *DataServer) GetMedia(ctx context.Context, req *pluginv1.MediaQuery) (*pluginv1.Media, error) {
 	if req.MediaId == 0 {
 		return nil, errors.New("media_id is required")
 	}
@@ -82,7 +82,7 @@ func (s *HostDataServer) GetMedia(ctx context.Context, req *pluginv1.MediaQuery)
 }
 
 // GetMediaByExternalId looks up media by external ID.
-func (s *HostDataServer) GetMediaByExternalId(ctx context.Context, req *pluginv1.ExternalIdQuery) (*pluginv1.Media, error) {
+func (s *DataServer) GetMediaByExternalId(ctx context.Context, req *pluginv1.ExternalIdQuery) (*pluginv1.Media, error) {
 	if req.Provider == "" || req.ExternalId == "" {
 		return nil, errors.New("provider and external_id are required")
 	}
@@ -103,7 +103,7 @@ func (s *HostDataServer) GetMediaByExternalId(ctx context.Context, req *pluginv1
 }
 
 // SearchMedia searches for media by title/year.
-func (s *HostDataServer) SearchMedia(ctx context.Context, req *pluginv1.SearchQuery) (*pluginv1.MediaList, error) {
+func (s *DataServer) SearchMedia(ctx context.Context, req *pluginv1.SearchQuery) (*pluginv1.MediaList, error) {
 	if req.Title == "" {
 		return nil, errors.New("title is required")
 	}
@@ -132,7 +132,7 @@ func (s *HostDataServer) SearchMedia(ctx context.Context, req *pluginv1.SearchQu
 }
 
 // GetLibrary retrieves library information.
-func (s *HostDataServer) GetLibrary(ctx context.Context, req *pluginv1.LibraryId) (*pluginv1.Library, error) {
+func (s *DataServer) GetLibrary(ctx context.Context, req *pluginv1.LibraryId) (*pluginv1.Library, error) {
 	if req.Id == 0 {
 		return nil, errors.New("id is required")
 	}
@@ -155,7 +155,7 @@ func (s *HostDataServer) GetLibrary(ctx context.Context, req *pluginv1.LibraryId
 }
 
 // GetFilePath returns the full file path for a media item.
-func (s *HostDataServer) GetFilePath(ctx context.Context, req *pluginv1.MediaId) (*pluginv1.FilePath, error) {
+func (s *DataServer) GetFilePath(ctx context.Context, req *pluginv1.MediaId) (*pluginv1.FilePath, error) {
 	if req.Id == 0 {
 		return nil, errors.New("id is required")
 	}
@@ -173,7 +173,7 @@ func (s *HostDataServer) GetFilePath(ctx context.Context, req *pluginv1.MediaId)
 }
 
 // GetMediaDetails retrieves full metadata for a media item.
-func (s *HostDataServer) GetMediaDetails(ctx context.Context, req *pluginv1.MediaQuery) (*pluginv1.MediaDetails, error) {
+func (s *DataServer) GetMediaDetails(ctx context.Context, req *pluginv1.MediaQuery) (*pluginv1.MediaDetails, error) {
 	if req.MediaId == 0 {
 		return nil, errors.New("media_id is required")
 	}
@@ -191,7 +191,7 @@ func (s *HostDataServer) GetMediaDetails(ctx context.Context, req *pluginv1.Medi
 }
 
 // ListMediaByLibrary lists all media in a library with pagination.
-func (s *HostDataServer) ListMediaByLibrary(ctx context.Context, req *pluginv1.ListMediaRequest) (*pluginv1.MediaDetailsList, error) {
+func (s *DataServer) ListMediaByLibrary(ctx context.Context, req *pluginv1.ListMediaRequest) (*pluginv1.MediaDetailsList, error) {
 	if req.LibraryId == 0 {
 		return nil, errors.New("library_id is required")
 	}

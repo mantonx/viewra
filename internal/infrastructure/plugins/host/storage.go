@@ -1,4 +1,4 @@
-package plugins
+package host
 
 import (
 	"context"
@@ -16,9 +16,9 @@ import (
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
-// HostStorageServer implements the HostStorage gRPC service.
+// StorageServer implements the HostStorage gRPC service.
 // Each plugin gets an isolated namespace for key-value storage.
-type HostStorageServer struct {
+type StorageServer struct {
 	pluginv1.UnimplementedHostStorageServer
 
 	// baseDir is the base directory for plugin data (e.g., SQLite databases).
@@ -37,8 +37,8 @@ type HostStorageServer struct {
 	logger *slog.Logger
 }
 
-// HostStorageConfig configures the host storage server.
-type HostStorageConfig struct {
+// StorageConfig configures the host storage server.
+type StorageConfig struct {
 	// BaseDir is the base directory for plugin data files.
 	BaseDir string
 
@@ -47,8 +47,8 @@ type HostStorageConfig struct {
 	DefaultQuota int64
 }
 
-// NewHostStorageServer creates a new HostStorageServer.
-func NewHostStorageServer(cfg HostStorageConfig, db *sql.DB, driver string, logger *slog.Logger) (*HostStorageServer, error) {
+// NewStorageServer creates a new StorageServer.
+func NewStorageServer(cfg StorageConfig, db *sql.DB, driver string, logger *slog.Logger) (*StorageServer, error) {
 	if cfg.BaseDir == "" {
 		return nil, errors.New("base directory is required")
 	}
@@ -62,7 +62,7 @@ func NewHostStorageServer(cfg HostStorageConfig, db *sql.DB, driver string, logg
 		defaultQuota = 100 * 1024 * 1024 // 100 MB
 	}
 
-	s := &HostStorageServer{
+	s := &StorageServer{
 		baseDir:      cfg.BaseDir,
 		db:           db,
 		dbType:       driver,
@@ -81,8 +81,8 @@ func NewHostStorageServer(cfg HostStorageConfig, db *sql.DB, driver string, logg
 }
 
 // KVGet retrieves a value from the plugin's key-value store.
-func (s *HostStorageServer) KVGet(ctx context.Context, req *pluginv1.KVKey) (*pluginv1.KVValue, error) {
-	pluginID := getPluginIDFromContext(ctx)
+func (s *StorageServer) KVGet(ctx context.Context, req *pluginv1.KVKey) (*pluginv1.KVValue, error) {
+	pluginID := GetPluginIDFromContext(ctx)
 	s.logger.Debug("KVGet called", "plugin_id", pluginID, "key", req.Key)
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
@@ -131,8 +131,8 @@ func (s *HostStorageServer) KVGet(ctx context.Context, req *pluginv1.KVKey) (*pl
 }
 
 // KVSet stores a value in the plugin's key-value store.
-func (s *HostStorageServer) KVSet(ctx context.Context, req *pluginv1.KVEntry) (*pluginv1.Empty, error) {
-	pluginID := getPluginIDFromContext(ctx)
+func (s *StorageServer) KVSet(ctx context.Context, req *pluginv1.KVEntry) (*pluginv1.Empty, error) {
+	pluginID := GetPluginIDFromContext(ctx)
 	s.logger.Debug("KVSet called", "plugin_id", pluginID, "key", req.Key, "value_size", len(req.Value))
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
@@ -182,8 +182,8 @@ func (s *HostStorageServer) KVSet(ctx context.Context, req *pluginv1.KVEntry) (*
 }
 
 // KVDelete removes a value from the plugin's key-value store.
-func (s *HostStorageServer) KVDelete(ctx context.Context, req *pluginv1.KVKey) (*pluginv1.Empty, error) {
-	pluginID := getPluginIDFromContext(ctx)
+func (s *StorageServer) KVDelete(ctx context.Context, req *pluginv1.KVKey) (*pluginv1.Empty, error) {
+	pluginID := GetPluginIDFromContext(ctx)
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
 	}
@@ -216,8 +216,8 @@ func (s *HostStorageServer) KVDelete(ctx context.Context, req *pluginv1.KVKey) (
 }
 
 // KVList lists keys with an optional prefix.
-func (s *HostStorageServer) KVList(ctx context.Context, req *pluginv1.KVListRequest) (*pluginv1.KVKeyList, error) {
-	pluginID := getPluginIDFromContext(ctx)
+func (s *StorageServer) KVList(ctx context.Context, req *pluginv1.KVListRequest) (*pluginv1.KVKeyList, error) {
+	pluginID := GetPluginIDFromContext(ctx)
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
 	}
@@ -263,8 +263,8 @@ func (s *HostStorageServer) KVList(ctx context.Context, req *pluginv1.KVListRequ
 
 // GetDatabasePath returns the path to the plugin's SQLite database.
 // Plugins can use this for their own local caching needs.
-func (s *HostStorageServer) GetDatabasePath(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.DatabasePath, error) {
-	pluginID := getPluginIDFromContext(ctx)
+func (s *StorageServer) GetDatabasePath(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.DatabasePath, error) {
+	pluginID := GetPluginIDFromContext(ctx)
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
 	}
@@ -280,15 +280,15 @@ func (s *HostStorageServer) GetDatabasePath(ctx context.Context, _ *pluginv1.Emp
 }
 
 // RegisterSchema is a no-op - plugins manage their own database schemas.
-func (s *HostStorageServer) RegisterSchema(ctx context.Context, req *pluginv1.SchemaVersion) (*pluginv1.Empty, error) {
+func (s *StorageServer) RegisterSchema(ctx context.Context, req *pluginv1.SchemaVersion) (*pluginv1.Empty, error) {
 	// Plugins manage their own database schemas.
 	// This is kept for API compatibility but does nothing.
 	return &pluginv1.Empty{}, nil
 }
 
 // GetDatabaseStats returns storage usage statistics for the plugin.
-func (s *HostStorageServer) GetDatabaseStats(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.DatabaseStats, error) {
-	pluginID := getPluginIDFromContext(ctx)
+func (s *StorageServer) GetDatabaseStats(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.DatabaseStats, error) {
+	pluginID := GetPluginIDFromContext(ctx)
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
 	}
@@ -348,7 +348,7 @@ func (s *HostStorageServer) GetDatabaseStats(ctx context.Context, _ *pluginv1.Em
 
 // DeletePluginStorage removes all storage for a plugin.
 // Called when a plugin is uninstalled.
-func (s *HostStorageServer) DeletePluginStorage(ctx context.Context, pluginID string) error {
+func (s *StorageServer) DeletePluginStorage(ctx context.Context, pluginID string) error {
 	// Delete KV entries
 	_, err := s.router.Route(
 		func() (any, error) {
@@ -375,7 +375,7 @@ func (s *HostStorageServer) DeletePluginStorage(ctx context.Context, pluginID st
 
 // CleanupExpiredEntries removes expired KV entries.
 // Should be called periodically (e.g., daily).
-func (s *HostStorageServer) CleanupExpiredEntries(ctx context.Context) error {
+func (s *StorageServer) CleanupExpiredEntries(ctx context.Context) error {
 	_, err := s.router.Route(
 		func() (any, error) {
 			return nil, s.postgres.PluginKVDeleteExpired(ctx)
@@ -401,12 +401,27 @@ func ContextWithPluginID(ctx context.Context, pluginID string) context.Context {
 	return context.WithValue(ctx, pluginIDKey, pluginID)
 }
 
-// getPluginIDFromContext extracts the plugin ID from the context.
-func getPluginIDFromContext(ctx context.Context) string {
+// GetPluginIDFromContext extracts the plugin ID from the context.
+func GetPluginIDFromContext(ctx context.Context) string {
 	if v := ctx.Value(pluginIDKey); v != nil {
 		if s, ok := v.(string); ok {
 			return s
 		}
 	}
 	return ""
+}
+
+// GetDB returns the database connection for advanced operations.
+func (s *StorageServer) GetDB() *sql.DB {
+	return s.db
+}
+
+// GetDBType returns the database type.
+func (s *StorageServer) GetDBType() string {
+	return s.dbType
+}
+
+// GetBaseDir returns the base directory for plugin data.
+func (s *StorageServer) GetBaseDir() string {
+	return s.baseDir
 }

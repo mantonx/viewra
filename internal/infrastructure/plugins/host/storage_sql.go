@@ -1,4 +1,4 @@
-package plugins
+package host
 
 import (
 	"context"
@@ -60,8 +60,8 @@ var (
 )
 
 // ExecuteSQL runs DDL/DML statements on plugin's namespaced tables.
-func (s *HostStorageServer) ExecuteSQL(ctx context.Context, req *pluginv1.SQLRequest) (*pluginv1.SQLExecResult, error) {
-	pluginID := getPluginIDFromContext(ctx)
+func (s *StorageServer) ExecuteSQL(ctx context.Context, req *pluginv1.SQLRequest) (*pluginv1.SQLExecResult, error) {
+	pluginID := GetPluginIDFromContext(ctx)
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
 	}
@@ -110,8 +110,8 @@ func (s *HostStorageServer) ExecuteSQL(ctx context.Context, req *pluginv1.SQLReq
 }
 
 // QuerySQL runs SELECT queries on plugin's namespaced tables.
-func (s *HostStorageServer) QuerySQL(ctx context.Context, req *pluginv1.SQLRequest) (*pluginv1.SQLQueryResult, error) {
-	pluginID := getPluginIDFromContext(ctx)
+func (s *StorageServer) QuerySQL(ctx context.Context, req *pluginv1.SQLRequest) (*pluginv1.SQLQueryResult, error) {
+	pluginID := GetPluginIDFromContext(ctx)
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
 	}
@@ -199,9 +199,9 @@ func (s *HostStorageServer) QuerySQL(ctx context.Context, req *pluginv1.SQLReque
 }
 
 // validateSQL checks for forbidden SQL patterns
-func validateSQL(sql string) error {
+func validateSQL(sqlStr string) error {
 	for _, pattern := range forbiddenPatterns {
-		if pattern.MatchString(sql) {
+		if pattern.MatchString(sqlStr) {
 			return fmt.Errorf("forbidden SQL pattern: %s", pattern.String())
 		}
 	}
@@ -353,10 +353,10 @@ func isValidUTF8(b []byte) bool {
 }
 
 // truncateSQL returns a truncated version of SQL for logging
-func truncateSQL(sql string) string {
+func truncateSQL(sqlStr string) string {
 	const maxLen = 200
-	if len(sql) > maxLen {
-		return sql[:maxLen] + "..."
+	if len(sqlStr) > maxLen {
+		return sqlStr[:maxLen] + "..."
 	}
-	return sql
+	return sqlStr
 }

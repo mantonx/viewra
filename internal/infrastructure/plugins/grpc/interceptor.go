@@ -1,4 +1,7 @@
-package plugins
+// Package grpc provides gRPC plugin implementations for the go-plugin framework.
+// It includes interceptors for logging and the plugin wrapper types that bridge
+// go-plugin's GRPCPlugin interface with ViewRA's proto services.
+package grpc
 
 import (
 	"context"

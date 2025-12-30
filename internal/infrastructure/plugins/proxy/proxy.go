@@ -1,4 +1,7 @@
-package plugins
+// Package proxy provides HTTP proxying for plugin routes.
+// It handles routing HTTP requests to plugin gRPC handlers, including
+// capability-based routing, rate limiting, and streaming support.
+package proxy
 
 import (
 	"context"
@@ -16,11 +19,19 @@ import (
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 	"github.com/mantonx/viewra/internal/infrastructure/plugins/registry"
+	"github.com/mantonx/viewra/internal/infrastructure/plugins/types"
 )
+
+// PluginLookup provides access to plugin instances.
+// This interface allows the proxy to work without depending on the manager package directly.
+type PluginLookup interface {
+	GetPlugin(id string) (*types.Instance, bool)
+	RestartPlugin(ctx context.Context, pluginID string) error
+}
 
 // HTTPProxy handles proxying HTTP requests to plugin gRPC handlers.
 type HTTPProxy struct {
-	manager            *Manager
+	pluginLookup       PluginLookup
 	routeRegistry      *registry.RouteRegistry
 	capabilityRegistry *registry.CapabilityRegistry
 	rateLimiter        *registry.RouteRateLimiter
@@ -29,14 +40,14 @@ type HTTPProxy struct {
 
 // NewHTTPProxy creates a new HTTP proxy for plugin routes.
 func NewHTTPProxy(
-	manager *Manager,
+	pluginLookup PluginLookup,
 	routeRegistry *registry.RouteRegistry,
 	capabilityRegistry *registry.CapabilityRegistry,
 	rateLimiter *registry.RouteRateLimiter,
 	logger *slog.Logger,
 ) *HTTPProxy {
 	return &HTTPProxy{
-		manager:            manager,
+		pluginLookup:       pluginLookup,
 		routeRegistry:      routeRegistry,
 		capabilityRegistry: capabilityRegistry,
 		rateLimiter:        rateLimiter,
@@ -79,7 +90,7 @@ func (p *HTTPProxy) HandleCapabilityRoute(capability string) gin.HandlerFunc {
 // handleRequest does the actual work of proxying an HTTP request to a plugin.
 func (p *HTTPProxy) handleRequest(c *gin.Context, pluginID, path string) {
 	// Get the plugin instance
-	instance, ok := p.manager.GetPlugin(pluginID)
+	instance, ok := p.pluginLookup.GetPlugin(pluginID)
 	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error":     "plugin not found",
@@ -194,7 +205,7 @@ func (p *HTTPProxy) buildRequest(c *gin.Context, path string, pathParams map[str
 }
 
 // handleSimpleRequest handles non-streaming requests.
-func (p *HTTPProxy) handleSimpleRequest(c *gin.Context, instance *PluginInstance, req *pluginv1.PluginHTTPRequest) {
+func (p *HTTPProxy) handleSimpleRequest(c *gin.Context, instance *types.Instance, req *pluginv1.PluginHTTPRequest) {
 	ctx := c.Request.Context()
 
 	p.logger.Info("forwarding request to plugin",
@@ -212,13 +223,13 @@ func (p *HTTPProxy) handleSimpleRequest(c *gin.Context, instance *PluginInstance
 				"error", err)
 
 			// Try to restart the plugin
-			if restartErr := p.manager.RestartPlugin(ctx, instance.ID); restartErr != nil {
+			if restartErr := p.pluginLookup.RestartPlugin(ctx, instance.ID); restartErr != nil {
 				p.logger.Error("failed to restart plugin",
 					"plugin", instance.ID,
 					"error", restartErr)
 			} else {
 				// Get refreshed instance and retry once
-				if newInstance, ok := p.manager.GetPlugin(instance.ID); ok {
+				if newInstance, ok := p.pluginLookup.GetPlugin(instance.ID); ok {
 					resp, err = newInstance.CoreClient.HandleHTTP(ctx, req)
 					if err == nil {
 						// Success after restart - continue to response handling
@@ -263,7 +274,7 @@ handleResponse:
 }
 
 // handleStreamingRequest handles streaming requests using HandleHTTPStream.
-func (p *HTTPProxy) handleStreamingRequest(c *gin.Context, instance *PluginInstance, req *pluginv1.PluginHTTPRequest) {
+func (p *HTTPProxy) handleStreamingRequest(c *gin.Context, instance *types.Instance, req *pluginv1.PluginHTTPRequest) {
 	ctx := c.Request.Context()
 
 	// Open streaming RPC
@@ -405,65 +416,6 @@ func (p *HTTPProxy) receiveStreamingResponse(c *gin.Context, stream pluginv1.Plu
 	}
 }
 
-// getUserIDFromContext extracts the user ID from the gin context.
-func getUserIDFromContext(c *gin.Context) string {
-	if userID, exists := c.Get("user_id"); exists {
-		switch v := userID.(type) {
-		case string:
-			return v
-		case int64:
-			return strconv.FormatInt(v, 10)
-		case int:
-			return strconv.Itoa(v)
-		}
-	}
-	return ""
-}
-
-// formatRateLimit formats the rate limit for the header.
-func formatRateLimit(rpm int32) string {
-	return string(rune('0' + rpm%10)) // Simple formatting, improve as needed
-}
-
-// isConnectionError checks if the error indicates the plugin connection is broken.
-// This happens when the plugin process dies or is restarted.
-func isConnectionError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	// Check for gRPC unavailable status (server not reachable)
-	if s, ok := status.FromError(err); ok {
-		switch s.Code() {
-		case codes.Unavailable, codes.Internal:
-			return true
-		}
-	}
-
-	// Check for connection refused
-	if errors.Is(err, syscall.ECONNREFUSED) {
-		return true
-	}
-
-	// Check error message for common connection errors
-	errStr := err.Error()
-	connectionErrors := []string{
-		"connection refused",
-		"connection reset",
-		"broken pipe",
-		"EOF",
-		"transport is closing",
-		"no connection",
-	}
-	for _, ce := range connectionErrors {
-		if strings.Contains(strings.ToLower(errStr), strings.ToLower(ce)) {
-			return true
-		}
-	}
-
-	return false
-}
-
 // Stop cleans up resources.
 func (p *HTTPProxy) Stop() {
 	if p.rateLimiter != nil {
@@ -507,11 +459,9 @@ func (p *HTTPProxy) RegisterCapabilityRoutes(router *gin.RouterGroup) {
 	}
 }
 
-// InitFromManager initializes route and capability registries from loaded plugins.
+// InitFromPlugins initializes route and capability registries from loaded plugins.
 // Call this after all plugins are loaded.
-func (p *HTTPProxy) InitFromManager(ctx context.Context) error {
-	plugins := p.manager.ListPlugins()
-
+func (p *HTTPProxy) InitFromPlugins(ctx context.Context, plugins []*types.Instance) error {
 	for _, plugin := range plugins {
 		if err := p.registerPluginRoutes(ctx, plugin); err != nil {
 			p.logger.Error("failed to register routes for plugin",
@@ -525,7 +475,7 @@ func (p *HTTPProxy) InitFromManager(ctx context.Context) error {
 }
 
 // registerPluginRoutes fetches and registers routes for a single plugin.
-func (p *HTTPProxy) registerPluginRoutes(ctx context.Context, plugin *PluginInstance) error {
+func (p *HTTPProxy) registerPluginRoutes(ctx context.Context, plugin *types.Instance) error {
 	if plugin.CoreClient == nil {
 		return nil
 	}
@@ -581,4 +531,65 @@ func (p *HTTPProxy) GetRouteRegistry() *registry.RouteRegistry {
 // GetCapabilityRegistry returns the capability registry.
 func (p *HTTPProxy) GetCapabilityRegistry() *registry.CapabilityRegistry {
 	return p.capabilityRegistry
+}
+
+// Helper functions
+
+// getUserIDFromContext extracts the user ID from the gin context.
+func getUserIDFromContext(c *gin.Context) string {
+	if userID, exists := c.Get("user_id"); exists {
+		switch v := userID.(type) {
+		case string:
+			return v
+		case int64:
+			return strconv.FormatInt(v, 10)
+		case int:
+			return strconv.Itoa(v)
+		}
+	}
+	return ""
+}
+
+// formatRateLimit formats the rate limit for the header.
+func formatRateLimit(rpm int32) string {
+	return strconv.Itoa(int(rpm))
+}
+
+// isConnectionError checks if the error indicates the plugin connection is broken.
+// This happens when the plugin process dies or is restarted.
+func isConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Check for gRPC unavailable status (server not reachable)
+	if s, ok := status.FromError(err); ok {
+		switch s.Code() {
+		case codes.Unavailable, codes.Internal:
+			return true
+		}
+	}
+
+	// Check for connection refused
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return true
+	}
+
+	// Check error message for common connection errors
+	errStr := err.Error()
+	connectionErrors := []string{
+		"connection refused",
+		"connection reset",
+		"broken pipe",
+		"EOF",
+		"transport is closing",
+		"no connection",
+	}
+	for _, ce := range connectionErrors {
+		if strings.Contains(strings.ToLower(errStr), strings.ToLower(ce)) {
+			return true
+		}
+	}
+
+	return false
 }

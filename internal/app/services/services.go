@@ -409,18 +409,28 @@ func initPluginManager(
 
 	hostWeatherServer := plugins.NewHostWeatherServer(locationRepo, weatherService, logger.With("component", "host-weather"))
 
+	// Create host data server for media querying
+	var hostDataServer *plugins.HostDataServer
+	if repos.PluginMediaQuerier != nil {
+		hostDataServer = plugins.NewHostDataServer(repos.PluginMediaQuerier, logger.With("component", "host-data"))
+	}
+
 	// Create plugin manager
 	pluginManager, err := plugins.NewManager(plugins.ManagerConfig{
 		PluginDir:         cfg.Plugins.Dir,
 		StorageDir:        cfg.Plugins.StorageDir,
 		HostVersion:       version.Version,
-		MediaQuerier:      repos.PluginMediaQuerier,
 		HostStorageServer: hostStorageServer,
 		HostWeatherServer: hostWeatherServer,
 	}, pluginLogger)
 	if err != nil {
 		logger.Warn("Failed to create plugin manager", "error", err)
 		return nil
+	}
+
+	// Wire host data server for media querying
+	if hostDataServer != nil {
+		pluginManager.SetHostDataServer(hostDataServer)
 	}
 
 	// Wire event bus

@@ -1,4 +1,4 @@
-package plugins
+package host
 
 import (
 	"context"
@@ -17,8 +17,8 @@ import (
 )
 
 // VectorStoreEmbedding stores or updates an embedding for an entity.
-func (s *HostStorageServer) VectorStoreEmbedding(ctx context.Context, req *pluginv1.VectorStoreRequest) (*pluginv1.Empty, error) {
-	pluginID := getPluginIDFromContext(ctx)
+func (s *StorageServer) VectorStoreEmbedding(ctx context.Context, req *pluginv1.VectorStoreRequest) (*pluginv1.Empty, error) {
+	pluginID := GetPluginIDFromContext(ctx)
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
 	}
@@ -45,7 +45,7 @@ func (s *HostStorageServer) VectorStoreEmbedding(ctx context.Context, req *plugi
 	return s.vectorStoreSQLite(ctx, prefix, req, now)
 }
 
-func (s *HostStorageServer) vectorStorePostgres(ctx context.Context, prefix string, req *pluginv1.VectorStoreRequest, now time.Time) (*pluginv1.Empty, error) {
+func (s *StorageServer) vectorStorePostgres(ctx context.Context, prefix string, req *pluginv1.VectorStoreRequest, now time.Time) (*pluginv1.Empty, error) {
 	tableName := "plugin_" + prefix + "_embeddings"
 	vectorStr := vectorToPostgresString(req.Vector)
 
@@ -67,7 +67,7 @@ func (s *HostStorageServer) vectorStorePostgres(ctx context.Context, prefix stri
 	return &pluginv1.Empty{}, nil
 }
 
-func (s *HostStorageServer) vectorStoreSQLite(ctx context.Context, prefix string, req *pluginv1.VectorStoreRequest, now time.Time) (*pluginv1.Empty, error) {
+func (s *StorageServer) vectorStoreSQLite(ctx context.Context, prefix string, req *pluginv1.VectorStoreRequest, now time.Time) (*pluginv1.Empty, error) {
 	tableName := "plugin_" + prefix + "_embeddings"
 	vecTableName := "plugin_" + prefix + "_vec_embeddings"
 	vectorBytes := vectorToBytes(req.Vector)
@@ -140,8 +140,8 @@ func (s *HostStorageServer) vectorStoreSQLite(ctx context.Context, prefix string
 }
 
 // VectorStoreBatch stores multiple embeddings in a single transaction.
-func (s *HostStorageServer) VectorStoreBatch(ctx context.Context, req *pluginv1.VectorStoreBatchRequest) (*pluginv1.Empty, error) {
-	pluginID := getPluginIDFromContext(ctx)
+func (s *StorageServer) VectorStoreBatch(ctx context.Context, req *pluginv1.VectorStoreBatchRequest) (*pluginv1.Empty, error) {
+	pluginID := GetPluginIDFromContext(ctx)
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
 	}
@@ -165,8 +165,8 @@ func (s *HostStorageServer) VectorStoreBatch(ctx context.Context, req *pluginv1.
 }
 
 // VectorSearch performs similarity search.
-func (s *HostStorageServer) VectorSearch(ctx context.Context, req *pluginv1.VectorSearchRequest) (*pluginv1.VectorSearchResponse, error) {
-	pluginID := getPluginIDFromContext(ctx)
+func (s *StorageServer) VectorSearch(ctx context.Context, req *pluginv1.VectorSearchRequest) (*pluginv1.VectorSearchResponse, error) {
+	pluginID := GetPluginIDFromContext(ctx)
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
 	}
@@ -193,7 +193,7 @@ func (s *HostStorageServer) VectorSearch(ctx context.Context, req *pluginv1.Vect
 	return s.vectorSearchSQLite(ctx, prefix, req, limit)
 }
 
-func (s *HostStorageServer) vectorSearchPostgres(ctx context.Context, prefix string, req *pluginv1.VectorSearchRequest, limit int) (*pluginv1.VectorSearchResponse, error) {
+func (s *StorageServer) vectorSearchPostgres(ctx context.Context, prefix string, req *pluginv1.VectorSearchRequest, limit int) (*pluginv1.VectorSearchResponse, error) {
 	tableName := "plugin_" + prefix + "_embeddings"
 	vectorStr := vectorToPostgresString(req.QueryVector)
 
@@ -277,7 +277,7 @@ func (s *HostStorageServer) vectorSearchPostgres(ctx context.Context, prefix str
 	}, nil
 }
 
-func (s *HostStorageServer) vectorSearchSQLite(ctx context.Context, prefix string, req *pluginv1.VectorSearchRequest, limit int) (*pluginv1.VectorSearchResponse, error) {
+func (s *StorageServer) vectorSearchSQLite(ctx context.Context, prefix string, req *pluginv1.VectorSearchRequest, limit int) (*pluginv1.VectorSearchResponse, error) {
 	tableName := "plugin_" + prefix + "_embeddings"
 	vecTableName := "plugin_" + prefix + "_vec_embeddings"
 
@@ -393,7 +393,7 @@ func (s *HostStorageServer) vectorSearchSQLite(ctx context.Context, prefix strin
 	}, nil
 }
 
-func (s *HostStorageServer) vectorSearchSQLiteBruteForce(ctx context.Context, tableName string, req *pluginv1.VectorSearchRequest, limit int) (*pluginv1.VectorSearchResponse, error) {
+func (s *StorageServer) vectorSearchSQLiteBruteForce(ctx context.Context, tableName string, req *pluginv1.VectorSearchRequest, limit int) (*pluginv1.VectorSearchResponse, error) {
 	// Check if table exists
 	var tableExists int
 	s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?`, tableName).Scan(&tableExists)
@@ -474,8 +474,8 @@ func (s *HostStorageServer) vectorSearchSQLiteBruteForce(ctx context.Context, ta
 	}
 
 	results := make([]*pluginv1.VectorSearchResult, 0, end-start)
-	for _, s := range scored[start:end] {
-		results = append(results, s.result)
+	for _, sc := range scored[start:end] {
+		results = append(results, sc.result)
 	}
 
 	return &pluginv1.VectorSearchResponse{
@@ -485,9 +485,8 @@ func (s *HostStorageServer) vectorSearchSQLiteBruteForce(ctx context.Context, ta
 }
 
 // VectorSearchText performs text-based search on embedding text field.
-// This is useful for name/title searches where semantic search may fail.
-func (s *HostStorageServer) VectorSearchText(ctx context.Context, req *pluginv1.VectorTextSearchRequest) (*pluginv1.VectorSearchResponse, error) {
-	pluginID := getPluginIDFromContext(ctx)
+func (s *StorageServer) VectorSearchText(ctx context.Context, req *pluginv1.VectorTextSearchRequest) (*pluginv1.VectorSearchResponse, error) {
+	pluginID := GetPluginIDFromContext(ctx)
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
 	}
@@ -514,7 +513,7 @@ func (s *HostStorageServer) VectorSearchText(ctx context.Context, req *pluginv1.
 	return s.vectorSearchTextSQLite(ctx, prefix, req, limit)
 }
 
-func (s *HostStorageServer) vectorSearchTextPostgres(ctx context.Context, prefix string, req *pluginv1.VectorTextSearchRequest, limit int) (*pluginv1.VectorSearchResponse, error) {
+func (s *StorageServer) vectorSearchTextPostgres(ctx context.Context, prefix string, req *pluginv1.VectorTextSearchRequest, limit int) (*pluginv1.VectorSearchResponse, error) {
 	tableName := "plugin_" + prefix + "_embeddings"
 
 	// Check if table exists
@@ -572,7 +571,7 @@ func (s *HostStorageServer) vectorSearchTextPostgres(ctx context.Context, prefix
 	}, nil
 }
 
-func (s *HostStorageServer) vectorSearchTextSQLite(ctx context.Context, prefix string, req *pluginv1.VectorTextSearchRequest, limit int) (*pluginv1.VectorSearchResponse, error) {
+func (s *StorageServer) vectorSearchTextSQLite(ctx context.Context, prefix string, req *pluginv1.VectorTextSearchRequest, limit int) (*pluginv1.VectorSearchResponse, error) {
 	tableName := "plugin_" + prefix + "_embeddings"
 
 	// Check if table exists
@@ -582,7 +581,7 @@ func (s *HostStorageServer) vectorSearchTextSQLite(ctx context.Context, prefix s
 		return &pluginv1.VectorSearchResponse{Results: nil, TotalCount: 0}, nil
 	}
 
-	// Build query with LIKE for case-insensitive text search (SQLite LIKE is case-insensitive for ASCII)
+	// Build query with LIKE for text search
 	query := fmt.Sprintf(`
 		SELECT entity_type, entity_id, text
 		FROM %s
@@ -619,7 +618,7 @@ func (s *HostStorageServer) vectorSearchTextSQLite(ctx context.Context, prefix s
 		results = append(results, &pluginv1.VectorSearchResult{
 			EntityType: entityType,
 			EntityId:   entityID,
-			Similarity: 1.0, // Text match - give high similarity score
+			Similarity: 1.0,
 			Text:       text.String,
 		})
 	}
@@ -631,8 +630,8 @@ func (s *HostStorageServer) vectorSearchTextSQLite(ctx context.Context, prefix s
 }
 
 // VectorGet retrieves an embedding.
-func (s *HostStorageServer) VectorGet(ctx context.Context, req *pluginv1.VectorQuery) (*pluginv1.VectorGetResponse, error) {
-	pluginID := getPluginIDFromContext(ctx)
+func (s *StorageServer) VectorGet(ctx context.Context, req *pluginv1.VectorQuery) (*pluginv1.VectorGetResponse, error) {
+	pluginID := GetPluginIDFromContext(ctx)
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
 	}
@@ -656,7 +655,6 @@ func (s *HostStorageServer) VectorGet(ctx context.Context, req *pluginv1.VectorQ
 		return &pluginv1.VectorGetResponse{Exists: false}, nil
 	}
 
-	var vectorData interface{}
 	var text, model sql.NullString
 	var dimensions int32
 
@@ -682,6 +680,7 @@ func (s *HostStorageServer) VectorGet(ctx context.Context, req *pluginv1.VectorQ
 
 	// SQLite
 	var vectorBytes []byte
+	var vectorData interface{}
 	err := s.db.QueryRowContext(ctx, fmt.Sprintf(`
 		SELECT vector, text, model, dimensions FROM %s WHERE entity_type = ? AND entity_id = ?
 	`, tableName), req.EntityType, req.EntityId).Scan(&vectorBytes, &text, &model, &vectorData)
@@ -692,7 +691,6 @@ func (s *HostStorageServer) VectorGet(ctx context.Context, req *pluginv1.VectorQ
 		return nil, fmt.Errorf("get embedding: %w", err)
 	}
 
-	// Get dimensions from the actual vector
 	vector := bytesToVector(vectorBytes)
 
 	return &pluginv1.VectorGetResponse{
@@ -705,8 +703,8 @@ func (s *HostStorageServer) VectorGet(ctx context.Context, req *pluginv1.VectorQ
 }
 
 // VectorDelete removes an embedding.
-func (s *HostStorageServer) VectorDelete(ctx context.Context, req *pluginv1.VectorQuery) (*pluginv1.Empty, error) {
-	pluginID := getPluginIDFromContext(ctx)
+func (s *StorageServer) VectorDelete(ctx context.Context, req *pluginv1.VectorQuery) (*pluginv1.Empty, error) {
+	pluginID := GetPluginIDFromContext(ctx)
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
 	}
@@ -739,8 +737,8 @@ func (s *HostStorageServer) VectorDelete(ctx context.Context, req *pluginv1.Vect
 }
 
 // VectorDeleteByType removes all embeddings for an entity type.
-func (s *HostStorageServer) VectorDeleteByType(ctx context.Context, req *pluginv1.VectorTypeQuery) (*pluginv1.VectorDeleteResponse, error) {
-	pluginID := getPluginIDFromContext(ctx)
+func (s *StorageServer) VectorDeleteByType(ctx context.Context, req *pluginv1.VectorTypeQuery) (*pluginv1.VectorDeleteResponse, error) {
+	pluginID := GetPluginIDFromContext(ctx)
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
 	}
@@ -798,8 +796,8 @@ func (s *HostStorageServer) VectorDeleteByType(ctx context.Context, req *pluginv
 }
 
 // VectorCount returns the number of embeddings.
-func (s *HostStorageServer) VectorCount(ctx context.Context, req *pluginv1.VectorTypeQuery) (*pluginv1.VectorCountResponse, error) {
-	pluginID := getPluginIDFromContext(ctx)
+func (s *StorageServer) VectorCount(ctx context.Context, req *pluginv1.VectorTypeQuery) (*pluginv1.VectorCountResponse, error) {
+	pluginID := GetPluginIDFromContext(ctx)
 	if pluginID == "" {
 		return nil, errors.New("plugin ID not found in context")
 	}
@@ -847,8 +845,7 @@ func (s *HostStorageServer) VectorCount(ctx context.Context, req *pluginv1.Vecto
 
 // Helper functions
 
-func (s *HostStorageServer) ensureVectorTablePostgres(ctx context.Context, tableName string, dimensions int) error {
-	// Check if table exists
+func (s *StorageServer) ensureVectorTablePostgres(ctx context.Context, tableName string, dimensions int) error {
 	var exists bool
 	err := s.db.QueryRowContext(ctx, `
 		SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1)
@@ -860,7 +857,6 @@ func (s *HostStorageServer) ensureVectorTablePostgres(ctx context.Context, table
 		return nil
 	}
 
-	// Create table with pgvector
 	_, err = s.db.ExecContext(ctx, fmt.Sprintf(`
 		CREATE TABLE %s (
 			id SERIAL PRIMARY KEY,
@@ -879,7 +875,6 @@ func (s *HostStorageServer) ensureVectorTablePostgres(ctx context.Context, table
 		return fmt.Errorf("create embeddings table: %w", err)
 	}
 
-	// Create HNSW index
 	_, err = s.db.ExecContext(ctx, fmt.Sprintf(`
 		CREATE INDEX %s_vector_idx ON %s USING hnsw (vector vector_cosine_ops)
 		WITH (m = 16, ef_construction = 64)
@@ -891,13 +886,11 @@ func (s *HostStorageServer) ensureVectorTablePostgres(ctx context.Context, table
 	return nil
 }
 
-func (s *HostStorageServer) ensureVectorTableSQLite(ctx context.Context, tableName, vecTableName string, dimensions int) error {
-	// Check if main table exists
+func (s *StorageServer) ensureVectorTableSQLite(ctx context.Context, tableName, vecTableName string, dimensions int) error {
 	var tableExists int
 	s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?`, tableName).Scan(&tableExists)
 
 	if tableExists == 0 {
-		// Create embeddings table
 		_, err := s.db.ExecContext(ctx, fmt.Sprintf(`
 			CREATE TABLE %s (
 				id INTEGER PRIMARY KEY,
@@ -916,16 +909,13 @@ func (s *HostStorageServer) ensureVectorTableSQLite(ctx context.Context, tableNa
 			return fmt.Errorf("create embeddings table: %w", err)
 		}
 
-		// Create indexes
 		s.db.ExecContext(ctx, fmt.Sprintf(`CREATE INDEX %s_entity_idx ON %s(entity_type, entity_id)`, tableName, tableName))
 	}
 
-	// Check if vec0 table exists
 	var vecExists int
 	s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?`, vecTableName).Scan(&vecExists)
 
 	if vecExists == 0 {
-		// Create vec0 virtual table
 		_, err := s.db.ExecContext(ctx, fmt.Sprintf(`
 			CREATE VIRTUAL TABLE %s USING vec0(
 				embedding_id INTEGER PRIMARY KEY,
@@ -935,14 +925,12 @@ func (s *HostStorageServer) ensureVectorTableSQLite(ctx context.Context, tableNa
 		`, vecTableName, dimensions))
 		if err != nil {
 			s.logger.Warn("failed to create vec0 table", "error", err)
-			// Continue without vec0 - will use brute force search
 		}
 	}
 
 	return nil
 }
 
-// vectorToPostgresString converts float32 slice to PostgreSQL vector string format.
 func vectorToPostgresString(v []float32) string {
 	strs := make([]string, len(v))
 	for i, f := range v {
@@ -951,7 +939,6 @@ func vectorToPostgresString(v []float32) string {
 	return "[" + strings.Join(strs, ",") + "]"
 }
 
-// postgresStringToVector converts PostgreSQL vector string to float32 slice.
 func postgresStringToVector(s string) []float32 {
 	s = strings.Trim(s, "[]")
 	if s == "" {
@@ -967,7 +954,6 @@ func postgresStringToVector(s string) []float32 {
 	return v
 }
 
-// vectorToBytes converts float32 slice to bytes.
 func vectorToBytes(v []float32) []byte {
 	buf := make([]byte, len(v)*4)
 	for i, f := range v {
@@ -976,7 +962,6 @@ func vectorToBytes(v []float32) []byte {
 	return buf
 }
 
-// bytesToVector converts bytes to float32 slice.
 func bytesToVector(b []byte) []float32 {
 	if len(b) == 0 {
 		return nil
@@ -988,7 +973,6 @@ func bytesToVector(b []byte) []float32 {
 	return v
 }
 
-// cosineSimilarity computes cosine similarity between two vectors.
 func cosineSimilarity(a, b []float32) float32 {
 	if len(a) != len(b) || len(a) == 0 {
 		return 0
