@@ -1,4 +1,4 @@
-package plugins
+package pool
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 // WarmPool manages plugin lifecycle to optimize startup latency.
 // It keeps frequently-used plugins running and shuts down idle plugins.
 type WarmPool struct {
-	manager *Manager
+	manager Manager
 	logger  *slog.Logger
 
 	// lastAccess tracks when each plugin was last used.
@@ -29,6 +29,21 @@ type WarmPool struct {
 	stopCh chan struct{}
 }
 
+// Manager defines the interface for plugin management operations.
+// This allows the WarmPool to work with the actual plugin manager without circular imports.
+type Manager interface {
+	GetPlugin(id string) (PluginInstance, bool)
+	ListPlugins() []PluginInstance
+	LoadPlugin(ctx context.Context, path string) (PluginInstance, error)
+	UnloadPlugin(ctx context.Context, id string) error
+	DiscoverPlugins() ([]string, error)
+}
+
+// PluginInstance represents a loaded plugin with minimal information needed by the pool.
+type PluginInstance interface {
+	GetID() string
+}
+
 // WarmPoolConfig configures the warm pool behavior.
 type WarmPoolConfig struct {
 	// WarmTimeout is how long a plugin stays warm after last use.
@@ -44,7 +59,7 @@ type WarmPoolConfig struct {
 }
 
 // NewWarmPool creates a new warm pool for managing plugin lifecycle.
-func NewWarmPool(manager *Manager, cfg WarmPoolConfig, logger *slog.Logger) *WarmPool {
+func NewWarmPool(manager Manager, cfg WarmPoolConfig, logger *slog.Logger) *WarmPool {
 	if cfg.WarmTimeout == 0 {
 		cfg.WarmTimeout = 30 * time.Minute
 	}
@@ -175,7 +190,7 @@ func (p *WarmPool) GetWarmPlugins() []string {
 	plugins := p.manager.ListPlugins()
 	ids := make([]string, 0, len(plugins))
 	for _, plugin := range plugins {
-		ids = append(ids, plugin.ID)
+		ids = append(ids, plugin.GetID())
 	}
 	return ids
 }
@@ -190,20 +205,20 @@ func (p *WarmPool) checkIdlePlugins(ctx context.Context) {
 	p.mu.Lock()
 	for _, plugin := range plugins {
 		// Skip keep-warm plugins
-		if p.keepWarm[plugin.ID] {
+		if p.keepWarm[plugin.GetID()] {
 			continue
 		}
 
 		// Check last access time
-		lastAccess, ok := p.lastAccess[plugin.ID]
+		lastAccess, ok := p.lastAccess[plugin.GetID()]
 		if !ok {
 			// Never accessed, use load time (give it warmTimeout to be used)
 			lastAccess = now.Add(-p.warmTimeout / 2)
-			p.lastAccess[plugin.ID] = lastAccess
+			p.lastAccess[plugin.GetID()] = lastAccess
 		}
 
 		if now.Sub(lastAccess) > p.warmTimeout {
-			toUnload = append(toUnload, plugin.ID)
+			toUnload = append(toUnload, plugin.GetID())
 		}
 	}
 	p.mu.Unlock()
@@ -223,7 +238,7 @@ func (p *WarmPool) checkIdlePlugins(ctx context.Context) {
 
 // GetOrLoadEnricher returns an enricher plugin, loading it if necessary.
 // This is the primary method for getting an enricher with warm pool management.
-func (p *WarmPool) GetOrLoadEnricher(ctx context.Context, pluginID string) (*PluginInstance, error) {
+func (p *WarmPool) GetOrLoadEnricher(ctx context.Context, pluginID string) (PluginInstance, error) {
 	// Check if already loaded
 	if instance, ok := p.manager.GetPlugin(pluginID); ok {
 		p.Touch(pluginID)
@@ -290,10 +305,10 @@ func (p *WarmPool) Stats() WarmPoolStats {
 	}
 
 	for _, plugin := range plugins {
-		if p.keepWarm[plugin.ID] {
+		if p.keepWarm[plugin.GetID()] {
 			continue
 		}
-		lastAccess, ok := p.lastAccess[plugin.ID]
+		lastAccess, ok := p.lastAccess[plugin.GetID()]
 		if !ok || now.Sub(lastAccess) > p.warmTimeout/2 {
 			stats.IdleCount++
 		}

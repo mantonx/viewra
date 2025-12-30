@@ -479,6 +479,7 @@ func (p *SemanticSearchPlugin) GetRoutes() []sdk.Route {
 			Methods:     []string{"POST"},
 			AdminOnly:   false,
 			Description: "Perform semantic search across indexed media",
+			AliasPath:   "/api/search",
 		},
 		{
 			Path:        "/similar",

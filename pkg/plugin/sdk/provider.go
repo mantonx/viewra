@@ -409,6 +409,7 @@ func (s *providerCoreServer) GetRoutes(ctx context.Context, _ *pluginv1.Empty) (
 				AdminOnly:   r.AdminOnly,
 				Description: r.Description,
 				Streaming:   r.Streaming,
+				AliasPath:   r.AliasPath,
 			}
 		}
 		return &pluginv1.PluginRoutes{Routes: protoRoutes}, nil

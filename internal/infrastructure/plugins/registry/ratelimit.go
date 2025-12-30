@@ -200,7 +200,11 @@ func GetSharedRateLimiter() *RouteRateLimiter {
 
 // CreateRateLimitMiddleware creates a rate limit middleware from proto config.
 // Uses a shared rate limiter to prevent goroutine leaks.
-func CreateRateLimitMiddleware(limit *pluginv1.PluginRateLimit, routePath string, getUserID func(c *gin.Context) string) gin.HandlerFunc {
+func CreateRateLimitMiddleware(
+	limit *pluginv1.PluginRateLimit,
+	routePath string,
+	getUserID func(c *gin.Context) string,
+) gin.HandlerFunc {
 	if limit == nil || limit.RequestsPerMinute <= 0 {
 		return func(c *gin.Context) {
 			c.Next()

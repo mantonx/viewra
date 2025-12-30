@@ -181,8 +181,8 @@ message PluginRoute {
   // Human-readable description for API docs
   string description = 4;
 
-  // Well-known capability for stable URL aliasing
-  // e.g., "semantic_search" creates /api/search alias
+  // Capability name this route provides (e.g., "semantic_search", "chat")
+  // Other plugins can invoke this capability via the host plugins service.
   string capability = 5;
 
   // If true, use HandleHTTPStream instead of HandleHTTP
@@ -190,6 +190,11 @@ message PluginRoute {
 
   // Optional rate limiting for this route
   PluginRateLimit rate_limit = 7;
+
+  // Stable URL alias for this route (e.g., "/api/search")
+  // If set, the host will create an alias at this path that proxies to this route.
+  // This allows plugins to claim well-known API paths.
+  string alias_path = 8;
 }
 
 message PluginRateLimit {

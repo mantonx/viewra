@@ -473,22 +473,37 @@ func (p *HTTPProxy) Stop() {
 
 // RegisterCapabilityRoutes registers all capability alias routes on the router.
 // Call this after loading plugins to set up stable URLs like /api/search.
-func (p *HTTPProxy) RegisterCapabilityRoutes(router *gin.RouterGroup, authMiddleware gin.HandlerFunc) {
-	for capability, aliasPath := range registry.CapabilityAliases {
+// Routes are registered dynamically based on plugins that declare alias_path in their routes.
+// The router should already have authentication middleware applied.
+func (p *HTTPProxy) RegisterCapabilityRoutes(router *gin.RouterGroup) {
+	for _, route := range p.routeRegistry.GetAllRoutes() {
+		if route.AliasPath == "" {
+			continue
+		}
+
 		// Strip /api prefix since router is already under /api
-		path := strings.TrimPrefix(aliasPath, "/api")
+		path := strings.TrimPrefix(route.AliasPath, "/api")
 		if path == "" {
 			path = "/"
 		}
 
-		// Create a closure to capture the capability
-		cap := capability
+		// Create a closure to capture the route
+		pluginID := route.PluginID
+		pluginPath := route.Path
 		handler := func(c *gin.Context) {
-			p.HandleCapabilityRoute(cap)(c)
+			// Proxy to the plugin's actual route
+			p.handleRequest(c, pluginID, pluginPath)
 		}
 
-		// Register for all methods
-		router.Any(path, authMiddleware, handler)
+		// Register for all HTTP methods
+		router.Any(path, handler)
+		// Also register with wildcard for sub-paths
+		router.Any(path+"/*subpath", handler)
+
+		p.logger.Debug("registered capability alias",
+			"alias_path", route.AliasPath,
+			"plugin_id", pluginID,
+			"plugin_path", pluginPath)
 	}
 }
 

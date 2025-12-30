@@ -4,23 +4,14 @@ import (
 	"sync"
 )
 
-// CapabilityAliases maps well-known capabilities to stable URL paths.
-// These paths are created as aliases to plugin routes when a plugin
-// provides the corresponding capability.
-var CapabilityAliases = map[string]string{
-	"semantic_search": "/api/search",
-	"similar_items":   "/api/similar",
-	"recommendations": "/api/recommendations",
-	"chat":            "/api/chat",
-}
-
 // CapabilityMapping tracks which plugin provides a capability and the plugin's route path.
 type CapabilityMapping struct {
 	PluginID   string // Plugin that provides this capability
 	PluginPath string // Plugin's route path (e.g., "/search")
+	AliasPath  string // Stable URL alias (e.g., "/api/search"), empty if no alias
 }
 
-// CapabilityRegistry tracks which plugin provides each well-known capability.
+// CapabilityRegistry tracks which plugin provides each capability.
 // Only one plugin can provide each capability at a time (first wins).
 type CapabilityRegistry struct {
 	mu       sync.RWMutex
@@ -37,6 +28,12 @@ func NewCapabilityRegistry() *CapabilityRegistry {
 // Register registers a plugin as providing a capability.
 // Returns true if registered, false if capability already provided by another plugin.
 func (r *CapabilityRegistry) Register(pluginID, capability, pluginPath string) bool {
+	return r.RegisterWithAlias(pluginID, capability, pluginPath, "")
+}
+
+// RegisterWithAlias registers a plugin as providing a capability with an optional stable URL alias.
+// Returns true if registered, false if capability already provided by another plugin.
+func (r *CapabilityRegistry) RegisterWithAlias(pluginID, capability, pluginPath, aliasPath string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -48,6 +45,7 @@ func (r *CapabilityRegistry) Register(pluginID, capability, pluginPath string) b
 	r.mappings[capability] = &CapabilityMapping{
 		PluginID:   pluginID,
 		PluginPath: pluginPath,
+		AliasPath:  aliasPath,
 	}
 	return true
 }

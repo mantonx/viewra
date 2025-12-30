@@ -14,7 +14,6 @@ import (
 	"github.com/mantonx/viewra/internal/api/middleware"
 	"github.com/mantonx/viewra/internal/api/routes"
 	"github.com/mantonx/viewra/internal/infrastructure/plugins"
-	"github.com/mantonx/viewra/internal/infrastructure/plugins/registry"
 )
 
 // Server represents the HTTP server
@@ -213,12 +212,16 @@ func (s *Server) setupRoutes() {
 	routes.RegisterPluginRoutes(protected, h.Plugins, h.PluginProxy, h.AuthValidator)
 
 	// Register search route with fallback support
-	// This is handled separately from capability aliases because SearchHandler
-	// provides fallback to text search when no semantic search plugin is available
+	// SearchHandler checks if semantic_search capability is available and proxies to it,
+	// otherwise falls back to basic text search
 	routes.RegisterSearchRoutes(protected, h.Search)
 
-	// Register capability alias routes for other plugins (excluding semantic_search)
-	s.registerCapabilityAliases(protected)
+	// Register dynamic capability alias routes from plugins
+	// Plugins can declare alias_path in their routes (e.g., "/api/chat" for chat capability)
+	// Note: /api/search is handled above by SearchHandler for fallback support
+	if h.PluginProxy != nil {
+		h.PluginProxy.RegisterCapabilityRoutes(protected)
+	}
 
 	// Register image routes (protected via api group)
 	routes.RegisterImageRoutes(s.router, h.Images)
@@ -252,44 +255,4 @@ func (s *Server) Shutdown(ctx context.Context) error {
 // Router returns the Gin router (for testing)
 func (s *Server) Router() *gin.Engine {
 	return s.router
-}
-
-// registerCapabilityAliases sets up capability alias routes for plugins.
-// Note: semantic_search is handled separately by RegisterSearchRoutes which provides fallback.
-func (s *Server) registerCapabilityAliases(protected *gin.RouterGroup) {
-	proxy := s.handlers.PluginProxy
-	if proxy == nil {
-		s.logger.Debug("plugin proxy not configured, skipping capability alias registration")
-		return
-	}
-
-	// Register capability alias routes (excluding semantic_search which has fallback support)
-	// These go on the parent protected group to get stable URLs
-	for capability, aliasPath := range registry.CapabilityAliases {
-		// Skip semantic_search - it's handled by SearchHandler with fallback support
-		if capability == "semantic_search" {
-			continue
-		}
-
-		// Handle both the exact path and with trailing wildcard for sub-paths
-		cap := capability // capture for closure
-
-		// Register the base path
-		basePath := aliasPath[4:] // strip "/api" prefix since we're in protected group
-		if basePath == "" {
-			basePath = "/"
-		}
-
-		handler := func(c *gin.Context) {
-			proxy.HandleCapabilityRoute(cap)(c)
-		}
-
-		// Register for all HTTP methods
-		protected.Any(basePath, handler)
-		protected.Any(basePath+"/*subpath", handler)
-
-		s.logger.Debug("registered capability alias",
-			"capability", capability,
-			"path", aliasPath)
-	}
 }

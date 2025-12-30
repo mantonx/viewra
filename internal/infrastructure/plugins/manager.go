@@ -23,6 +23,8 @@ import (
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 	domainevents "github.com/mantonx/viewra/internal/domain/events"
+	"github.com/mantonx/viewra/internal/infrastructure/plugins/logging"
+	"github.com/mantonx/viewra/internal/infrastructure/plugins/manifest"
 	"github.com/mantonx/viewra/internal/infrastructure/plugins/registry"
 )
 
@@ -60,7 +62,7 @@ type PluginInstance struct {
 	ID string
 
 	// Manifest contains the plugin's static metadata from plugin.yml.
-	Manifest *Manifest
+	Manifest *manifest.Manifest
 
 	// Path is the filesystem path to the plugin binary.
 	Path string
@@ -305,7 +307,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 	pluginDir := filepath.Dir(path)
 
 	// Read manifest first (before starting the binary)
-	manifest, err := LoadManifest(pluginDir)
+	mf, err := manifest.Load(pluginDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load plugin manifest: %w", err)
 	}
@@ -317,9 +319,9 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 	}
 
 	m.logger.Debug("loading plugin",
-		"id", manifest.ID,
-		"name", manifest.Name,
-		"version", manifest.Version,
+		"id", mf.ID,
+		"name", mf.Name,
+		"version", mf.Version,
 		"path", path)
 
 	// Build plugin map with host services
@@ -330,7 +332,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 	}
 
 	// Create a logger for host services with plugin context
-	hostServiceLogger := m.logger.With("plugin", manifest.ID, "component", "host-service")
+	hostServiceLogger := m.logger.With("plugin", mf.ID, "component", "host-service")
 
 	// Add host data service if available
 	if m.hostDataServer != nil {
@@ -344,7 +346,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 	if m.hostStorageServer != nil {
 		pluginMap["host_storage"] = &HostStorageGRPCPlugin{
 			Impl:     m.hostStorageServer,
-			PluginID: manifest.ID,
+			PluginID: mf.ID,
 			Logger:   hostServiceLogger,
 		}
 	}
@@ -371,7 +373,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		Plugins:          pluginMap,
 		Cmd:              exec.Command(path),
 		AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
-		Logger:           newHCLogAdapter(m.logger),
+		Logger:           logging.NewHclogAdapter(m.logger),
 		SyncStdout:       os.Stdout,
 		SyncStderr:       os.Stderr,
 	})
@@ -398,8 +400,8 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 
 	// Create the plugin instance using manifest data
 	instance := &PluginInstance{
-		ID:         manifest.ID,
-		Manifest:   manifest,
+		ID:         mf.ID,
+		Manifest:   mf,
 		Path:       path,
 		BuildTime:  buildTime,
 		Client:     client,
@@ -408,7 +410,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 			Status:        pluginv1.HealthStatus_UNKNOWN,
 			LastHeartbeat: time.Now(),
 		},
-		Categories: parseCategories(manifest.Categories),
+		Categories: parseCategories(mf.Categories),
 	}
 
 	// If it's an enricher, get the enricher client
@@ -416,7 +418,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		enricherRaw, err := rpcClient.Dispense("enricher")
 		if err != nil {
 			m.logger.Warn("plugin declares enricher category but dispense failed",
-				"plugin", manifest.ID, "error", err)
+				"plugin", mf.ID, "error", err)
 		} else if enricherClient, ok := enricherRaw.(pluginv1.EnricherClient); ok {
 			instance.EnricherClient = enricherClient
 		}
@@ -427,19 +429,19 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 		providerRaw, err := rpcClient.Dispense("provider")
 		if err != nil {
 			m.logger.Warn("plugin declares provider category but dispense failed",
-				"plugin", manifest.ID, "error", err)
+				"plugin", mf.ID, "error", err)
 		} else if providerClient, ok := providerRaw.(pluginv1.PluginProviderClient); ok {
 			instance.ProviderClient = providerClient
-			m.logger.Debug("provider client available", "plugin", manifest.ID)
+			m.logger.Debug("provider client available", "plugin", mf.ID)
 		}
 	}
 
 	// Initialize the plugin
 	dataDir := ""
 	if m.storageDir != "" {
-		dataDir = filepath.Join(m.storageDir, manifest.ID)
+		dataDir = filepath.Join(m.storageDir, mf.ID)
 		if err := os.MkdirAll(dataDir, 0755); err != nil {
-			m.logger.Warn("failed to create plugin data directory", "plugin", manifest.ID, "error", err)
+			m.logger.Warn("failed to create plugin data directory", "plugin", mf.ID, "error", err)
 		}
 	}
 
@@ -449,7 +451,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 	if err != nil {
 		if os.IsNotExist(err) {
 			m.logger.Warn("plugin config.yml not found, plugin may not function correctly",
-				"plugin", manifest.ID,
+				"plugin", mf.ID,
 				"expected_path", configPath)
 			configBytes = nil
 		} else {
@@ -457,95 +459,95 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 			return nil, fmt.Errorf("failed to read plugin config: %w", err)
 		}
 	} else {
-		m.logger.Debug("loaded plugin config", "plugin", manifest.ID, "config_path", configPath)
+		m.logger.Debug("loaded plugin config", "plugin", mf.ID, "config_path", configPath)
 	}
 
 	// Dispense host storage to get the broker ID (this starts the server on the broker)
 	var hostStorageBrokerID uint32
 	if m.hostStorageServer != nil {
-		m.logger.Debug("attempting to dispense host_storage", "plugin", manifest.ID)
+		m.logger.Debug("attempting to dispense host_storage", "plugin", mf.ID)
 		storageRaw, err := rpcClient.Dispense("host_storage")
 		if err != nil {
-			m.logger.Warn("failed to dispense host_storage", "plugin", manifest.ID, "error", err)
+			m.logger.Warn("failed to dispense host_storage", "plugin", mf.ID, "error", err)
 		} else if brokerInfo, ok := storageRaw.(*HostStorageBrokerInfo); ok && brokerInfo != nil {
 			hostStorageBrokerID = brokerInfo.BrokerID
 			m.logger.Debug("host storage available for plugin",
-				"plugin", manifest.ID,
+				"plugin", mf.ID,
 				"broker_id", hostStorageBrokerID)
 		} else {
 			m.logger.Warn("host_storage dispense returned unexpected type",
-				"plugin", manifest.ID,
+				"plugin", mf.ID,
 				"got_type", fmt.Sprintf("%T", storageRaw),
 				"is_nil", storageRaw == nil)
 		}
 	} else {
-		m.logger.Debug("host storage server not configured", "plugin", manifest.ID)
+		m.logger.Debug("host storage server not configured", "plugin", mf.ID)
 	}
 
 	// Dispense host data to get the broker ID
 	var hostDataBrokerID uint32
 	if m.hostDataServer != nil {
-		m.logger.Debug("attempting to dispense host_data", "plugin", manifest.ID)
+		m.logger.Debug("attempting to dispense host_data", "plugin", mf.ID)
 		dataRaw, err := rpcClient.Dispense("host_data")
 		if err != nil {
-			m.logger.Warn("failed to dispense host_data", "plugin", manifest.ID, "error", err)
+			m.logger.Warn("failed to dispense host_data", "plugin", mf.ID, "error", err)
 		} else if brokerInfo, ok := dataRaw.(*HostDataBrokerInfo); ok && brokerInfo != nil {
 			hostDataBrokerID = brokerInfo.BrokerID
 			m.logger.Debug("host data available for plugin",
-				"plugin", manifest.ID,
+				"plugin", mf.ID,
 				"broker_id", hostDataBrokerID)
 		} else {
 			m.logger.Warn("host_data dispense returned unexpected type",
-				"plugin", manifest.ID,
+				"plugin", mf.ID,
 				"got_type", fmt.Sprintf("%T", dataRaw),
 				"is_nil", dataRaw == nil)
 		}
 	} else {
-		m.logger.Debug("host data server not configured", "plugin", manifest.ID)
+		m.logger.Debug("host data server not configured", "plugin", mf.ID)
 	}
 
 	// Dispense host weather to get the broker ID
 	var hostWeatherBrokerID uint32
 	if m.hostWeatherServer != nil {
-		m.logger.Debug("attempting to dispense host_weather", "plugin", manifest.ID)
+		m.logger.Debug("attempting to dispense host_weather", "plugin", mf.ID)
 		weatherRaw, err := rpcClient.Dispense("host_weather")
 		if err != nil {
-			m.logger.Warn("failed to dispense host_weather", "plugin", manifest.ID, "error", err)
+			m.logger.Warn("failed to dispense host_weather", "plugin", mf.ID, "error", err)
 		} else if brokerInfo, ok := weatherRaw.(*HostWeatherBrokerInfo); ok && brokerInfo != nil {
 			hostWeatherBrokerID = brokerInfo.BrokerID
 			m.logger.Debug("host weather available for plugin",
-				"plugin", manifest.ID,
+				"plugin", mf.ID,
 				"broker_id", hostWeatherBrokerID)
 		} else {
 			m.logger.Warn("host_weather dispense returned unexpected type",
-				"plugin", manifest.ID,
+				"plugin", mf.ID,
 				"got_type", fmt.Sprintf("%T", weatherRaw),
 				"is_nil", weatherRaw == nil)
 		}
 	} else {
-		m.logger.Debug("host weather server not configured", "plugin", manifest.ID)
+		m.logger.Debug("host weather server not configured", "plugin", mf.ID)
 	}
 
 	// Dispense host plugins to get the broker ID (for capability-based discovery)
 	var hostPluginsBrokerID uint32
 	if m.hostPluginsServer != nil {
-		m.logger.Debug("attempting to dispense host_plugins", "plugin", manifest.ID)
+		m.logger.Debug("attempting to dispense host_plugins", "plugin", mf.ID)
 		pluginsRaw, err := rpcClient.Dispense("host_plugins")
 		if err != nil {
-			m.logger.Warn("failed to dispense host_plugins", "plugin", manifest.ID, "error", err)
+			m.logger.Warn("failed to dispense host_plugins", "plugin", mf.ID, "error", err)
 		} else if brokerInfo, ok := pluginsRaw.(*HostPluginsBrokerInfo); ok && brokerInfo != nil {
 			hostPluginsBrokerID = brokerInfo.BrokerID
 			m.logger.Debug("host plugins available for plugin",
-				"plugin", manifest.ID,
+				"plugin", mf.ID,
 				"broker_id", hostPluginsBrokerID)
 		} else {
 			m.logger.Warn("host_plugins dispense returned unexpected type",
-				"plugin", manifest.ID,
+				"plugin", mf.ID,
 				"got_type", fmt.Sprintf("%T", pluginsRaw),
 				"is_nil", pluginsRaw == nil)
 		}
 	} else {
-		m.logger.Debug("host plugins server not configured", "plugin", manifest.ID)
+		m.logger.Debug("host plugins server not configured", "plugin", mf.ID)
 	}
 
 	initResp, err := coreClient.Initialize(ctx, &pluginv1.InitRequest{
@@ -569,37 +571,37 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 
 	// Register the plugin
 	m.mu.Lock()
-	m.plugins[manifest.ID] = instance
+	m.plugins[mf.ID] = instance
 	m.mu.Unlock()
 
 	// Set initial health status to healthy since Initialize succeeded
 	instance.UpdateHealth(pluginv1.HealthStatus_HEALTHY, "initialized")
 
 	m.logger.Debug("plugin loaded successfully",
-		"id", manifest.ID,
-		"name", manifest.Name,
-		"version", manifest.Version,
-		"categories", manifest.Categories,
+		"id", mf.ID,
+		"name", mf.Name,
+		"version", mf.Version,
+		"categories", mf.Categories,
 	)
 
 	// Register plugin routes
 	if err := m.registerPluginRoutes(ctx, instance); err != nil {
 		m.logger.Warn("failed to register plugin routes",
-			"plugin", manifest.ID,
+			"plugin", mf.ID,
 			"error", err)
 		// Continue loading - plugin is usable but routes won't work
 	}
 
 	// Register provider plugin with provider registry
 	if instance.ProviderClient != nil {
-		caps, err := m.providerRegistry.Register(ctx, manifest.ID, instance.ProviderClient, instance.CoreClient)
+		caps, err := m.providerRegistry.Register(ctx, mf.ID, instance.ProviderClient, instance.CoreClient)
 		if err != nil {
 			m.logger.Warn("failed to register provider plugin",
-				"plugin", manifest.ID,
+				"plugin", mf.ID,
 				"error", err)
 		} else {
 			m.logger.Debug("registered AI provider",
-				"plugin", manifest.ID,
+				"plugin", mf.ID,
 				"provider_id", caps.ProviderId,
 				"supports_chat", caps.SupportsChat,
 				"supports_embeddings", caps.SupportsEmbeddings)
@@ -608,22 +610,22 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 
 	// Register capabilities from manifest with the HostPluginsServer
 	// This enables other plugins to discover and connect to this plugin
-	if m.hostPluginsServer != nil && len(manifest.Provides) > 0 {
-		for _, capability := range manifest.Provides {
-			m.hostPluginsServer.RegisterCapability(manifest.ID, manifest.Name, capability)
+	if m.hostPluginsServer != nil && len(mf.Provides) > 0 {
+		for _, capability := range mf.Provides {
+			m.hostPluginsServer.RegisterCapability(mf.ID, mf.Name, capability)
 		}
 		m.logger.Debug("registered plugin capabilities",
-			"plugin", manifest.ID,
-			"capabilities", manifest.Provides)
+			"plugin", mf.ID,
+			"capabilities", mf.Provides)
 	}
 
 	// Publish plugin.loaded event
 	if m.publisher != nil {
 		m.publisher.Publish(domainevents.NewEvent(domainevents.EventPluginLoaded, "plugin-manager").
-			WithData("plugin_id", manifest.ID).
-			WithData("name", manifest.Name).
-			WithData("version", manifest.Version).
-			WithData("categories", manifest.Categories).
+			WithData("plugin_id", mf.ID).
+			WithData("name", mf.Name).
+			WithData("version", mf.Version).
+			WithData("categories", mf.Categories).
 			WithData("is_restart", false).
 			Build())
 	}
@@ -633,7 +635,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*PluginInstance,
 
 // pluginLoadInfo holds manifest and path info for dependency resolution.
 type pluginLoadInfo struct {
-	manifest *Manifest
+	manifest *manifest.Manifest
 	path     string
 }
 
@@ -650,13 +652,13 @@ func (m *Manager) LoadAllPlugins(ctx context.Context) error {
 	pluginInfos := make(map[string]*pluginLoadInfo)
 	for _, path := range paths {
 		pluginDir := filepath.Dir(path)
-		manifest, err := LoadManifest(pluginDir)
+		mf, err := manifest.Load(pluginDir)
 		if err != nil {
 			m.logger.Error("failed to load plugin manifest", "path", path, "error", err)
 			continue
 		}
-		pluginInfos[manifest.ID] = &pluginLoadInfo{
-			manifest: manifest,
+		pluginInfos[mf.ID] = &pluginLoadInfo{
+			manifest: mf,
 			path:     path,
 		}
 	}

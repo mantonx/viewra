@@ -98,18 +98,31 @@ func TestCapabilityRegistry_ResolveNonExistent(t *testing.T) {
 	}
 }
 
-func TestCapabilityAliases(t *testing.T) {
-	// Verify the well-known capability aliases are defined
-	expectedAliases := map[string]string{
-		"semantic_search": "/api/search",
-		"similar_items":   "/api/similar",
-		"recommendations": "/api/recommendations",
-		"chat":            "/api/chat",
+func TestCapabilityRegistry_RegisterWithAlias(t *testing.T) {
+	registry := NewCapabilityRegistry()
+
+	// Register a capability with an alias
+	ok := registry.RegisterWithAlias("plugin-a", "chat", "/chat", "/api/chat")
+	if !ok {
+		t.Error("registration with alias should succeed")
 	}
 
-	for cap, path := range expectedAliases {
-		if CapabilityAliases[cap] != path {
-			t.Errorf("CapabilityAliases[%s] = %s, want %s", cap, CapabilityAliases[cap], path)
-		}
+	// Verify the alias is stored
+	mapping := registry.Resolve("chat")
+	if mapping == nil {
+		t.Fatal("capability should be resolvable")
+	}
+	if mapping.AliasPath != "/api/chat" {
+		t.Errorf("AliasPath = %s, want /api/chat", mapping.AliasPath)
+	}
+
+	// Register without alias (should have empty alias)
+	registry.RegisterWithAlias("plugin-b", "embedding", "/embed", "")
+	mapping = registry.Resolve("embedding")
+	if mapping == nil {
+		t.Fatal("capability should be resolvable")
+	}
+	if mapping.AliasPath != "" {
+		t.Errorf("AliasPath = %s, want empty string", mapping.AliasPath)
 	}
 }

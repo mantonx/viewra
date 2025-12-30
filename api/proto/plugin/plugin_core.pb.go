@@ -864,13 +864,17 @@ type PluginRoute struct {
 	AdminOnly bool `protobuf:"varint,3,opt,name=admin_only,json=adminOnly,proto3" json:"admin_only,omitempty"`
 	// Human-readable description for API docs
 	Description string `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
-	// Well-known capability for stable URL aliasing
-	// e.g., "semantic_search" creates /api/search alias
+	// Capability name this route provides (e.g., "semantic_search", "chat")
+	// Other plugins can invoke this capability via the host plugins service.
 	Capability string `protobuf:"bytes,5,opt,name=capability,proto3" json:"capability,omitempty"`
 	// If true, use HandleHTTPStream instead of HandleHTTP
 	Streaming bool `protobuf:"varint,6,opt,name=streaming,proto3" json:"streaming,omitempty"`
 	// Optional rate limiting for this route
-	RateLimit     *PluginRateLimit `protobuf:"bytes,7,opt,name=rate_limit,json=rateLimit,proto3" json:"rate_limit,omitempty"`
+	RateLimit *PluginRateLimit `protobuf:"bytes,7,opt,name=rate_limit,json=rateLimit,proto3" json:"rate_limit,omitempty"`
+	// Stable URL alias for this route (e.g., "/api/search")
+	// If set, the host will create an alias at this path that proxies to this route.
+	// This allows plugins to claim well-known API paths.
+	AliasPath     string `protobuf:"bytes,8,opt,name=alias_path,json=aliasPath,proto3" json:"alias_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -952,6 +956,13 @@ func (x *PluginRoute) GetRateLimit() *PluginRateLimit {
 		return x.RateLimit
 	}
 	return nil
+}
+
+func (x *PluginRoute) GetAliasPath() string {
+	if x != nil {
+		return x.AliasPath
+	}
+	return ""
 }
 
 type PluginRateLimit struct {
@@ -1347,7 +1358,7 @@ const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
 	"\ahandled\x18\x01 \x01(\bR\ahandled\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\"E\n" +
 	"\fPluginRoutes\x125\n" +
-	"\x06routes\x18\x01 \x03(\v2\x1d.viewra.plugin.v1.PluginRouteR\x06routes\"\xfc\x01\n" +
+	"\x06routes\x18\x01 \x03(\v2\x1d.viewra.plugin.v1.PluginRouteR\x06routes\"\x9b\x02\n" +
 	"\vPluginRoute\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
 	"\amethods\x18\x02 \x03(\tR\amethods\x12\x1d\n" +
@@ -1359,7 +1370,9 @@ const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
 	"capability\x12\x1c\n" +
 	"\tstreaming\x18\x06 \x01(\bR\tstreaming\x12@\n" +
 	"\n" +
-	"rate_limit\x18\a \x01(\v2!.viewra.plugin.v1.PluginRateLimitR\trateLimit\"\\\n" +
+	"rate_limit\x18\a \x01(\v2!.viewra.plugin.v1.PluginRateLimitR\trateLimit\x12\x1d\n" +
+	"\n" +
+	"alias_path\x18\b \x01(\tR\taliasPath\"\\\n" +
 	"\x0fPluginRateLimit\x12.\n" +
 	"\x13requests_per_minute\x18\x01 \x01(\x05R\x11requestsPerMinute\x12\x19\n" +
 	"\bper_user\x18\x02 \x01(\bR\aperUser\"\xa4\x04\n" +

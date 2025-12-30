@@ -78,9 +78,14 @@ type Route struct {
 	// Description is human-readable text for API docs
 	Description string
 
-	// Capability is a well-known capability for stable URL aliasing
-	// e.g., "semantic_search" creates /api/search alias
+	// Capability is the capability name this route provides (e.g., "semantic_search", "chat")
+	// Other plugins can invoke this capability via the host plugins service.
 	Capability string
+
+	// AliasPath is a stable URL alias for this route (e.g., "/api/search")
+	// If set, the host will create an alias at this path that proxies to this route.
+	// This allows plugins to claim well-known API paths.
+	AliasPath string
 
 	// Streaming indicates this route uses HandleHTTPStream instead of HandleHTTP
 	Streaming bool

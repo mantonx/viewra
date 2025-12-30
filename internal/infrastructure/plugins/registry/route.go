@@ -17,7 +17,8 @@ type RegisteredRoute struct {
 	Methods     []string // HTTP methods
 	AdminOnly   bool
 	Description string
-	Capability  string // For capability aliasing
+	Capability  string // Capability name this route provides (e.g., "semantic_search")
+	AliasPath   string // Stable URL alias (e.g., "/api/search"), empty if no alias
 	Streaming   bool
 	RateLimit   *pluginv1.PluginRateLimit
 
@@ -49,9 +50,8 @@ func (r *RegisteredRoute) Match(path string) (map[string]string, bool) {
 
 // HasMethod returns true if this route handles the given HTTP method.
 func (r *RegisteredRoute) HasMethod(method string) bool {
-	method = strings.ToUpper(method)
 	for _, m := range r.Methods {
-		if strings.ToUpper(m) == method {
+		if strings.EqualFold(m, method) {
 			return true
 		}
 	}
@@ -87,6 +87,7 @@ func (r *RouteRegistry) RegisterRoutes(pluginID string, protoRoutes []*pluginv1.
 			AdminOnly:   pr.AdminOnly,
 			Description: pr.Description,
 			Capability:  pr.Capability,
+			AliasPath:   pr.GetAliasPath(),
 			Streaming:   pr.Streaming,
 			RateLimit:   pr.RateLimit,
 		}
@@ -177,16 +178,17 @@ func compilePathPattern(pattern string) (*regexp.Regexp, []string) {
 		if i > 0 {
 			regexPattern += "/"
 		}
-		if strings.HasPrefix(part, ":") {
+		switch {
+		case strings.HasPrefix(part, ":"):
 			// This is a parameter
 			paramName := strings.TrimPrefix(part, ":")
 			paramNames = append(paramNames, paramName)
 			regexPattern += "([^/]+)"
-		} else if part == "*" {
+		case part == "*":
 			// Wildcard - matches everything
 			regexPattern += "(.*)"
 			paramNames = append(paramNames, "*")
-		} else {
+		default:
 			// Literal path segment
 			regexPattern += regexp.QuoteMeta(part)
 		}
