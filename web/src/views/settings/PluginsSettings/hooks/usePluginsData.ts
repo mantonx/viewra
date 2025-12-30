@@ -22,7 +22,9 @@ export const usePluginsData = () => {
   const disableMutation = usePostApiPluginsIdDisable()
 
   const plugins = useMemo(() => {
-    if (data?.status !== 200) return []
+    if (data?.status !== 200) {
+      return []
+    }
     return data.data.plugins || []
   }, [data])
 

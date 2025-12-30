@@ -22,6 +22,12 @@ func SettingsSchema() *sdk.Schema {
 		Property("chat_model", sdk.String().
 			Title("Chat Model").
 			Description("Model to use for chat completions").
-			Default("claude-sonnet-4-5-20250929")).
+			Default("claude-sonnet-4-5-20250929").
+			EnumStrings("claude-sonnet-4-5-20250929", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229")).
+		// Chat capability section - Anthropic only provides chat
+		Section(sdk.NewSection("chat").
+			Properties("api_key", "chat_model").
+			Actions("test-connection").
+			Capabilities("chat")).
 		Action(sdk.TestAction("test-connection", "/health"))
 }

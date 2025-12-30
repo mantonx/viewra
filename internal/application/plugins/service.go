@@ -488,6 +488,20 @@ func (s *Service) toSummary(row Plugin) PluginSummary {
 			summary.Meta = meta
 		}
 
+		// Check if running plugin has settings schema (even if not cached in DB)
+		if !summary.HasSettings && instance.CoreClient != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			schemaResp, err := instance.CoreClient.GetSettingsSchema(ctx, &pluginv1.Empty{})
+			cancel()
+			if err == nil && schemaResp != nil && len(schemaResp.JsonSchema) > 0 {
+				summary.HasSettings = true
+				// Cache it for next time
+				if cacheErr := s.queries.UpdatePluginSettingsSchema(context.Background(), row.ID, string(schemaResp.JsonSchema)); cacheErr != nil {
+					s.logger.Warn("failed to cache settings schema", "plugin", row.ID, "error", cacheErr)
+				}
+			}
+		}
+
 		// Get capabilities from manifest
 		if instance.Manifest != nil {
 			summary.Capabilities = instance.Manifest.Provides
@@ -619,11 +633,22 @@ func (s *Service) getEnricherCapabilities(instance *infraplugins.PluginInstance)
 	}
 }
 
-// parseCategories splits a comma-separated categories string.
+// parseCategories parses categories from JSON array or comma-separated string.
 func parseCategories(cats string) []string {
 	if cats == "" {
 		return nil
 	}
+
+	// Try parsing as JSON array first
+	cats = strings.TrimSpace(cats)
+	if strings.HasPrefix(cats, "[") {
+		var result []string
+		if err := json.Unmarshal([]byte(cats), &result); err == nil {
+			return result
+		}
+	}
+
+	// Fall back to comma-separated format
 	parts := strings.Split(cats, ",")
 	result := make([]string, 0, len(parts))
 	for _, p := range parts {

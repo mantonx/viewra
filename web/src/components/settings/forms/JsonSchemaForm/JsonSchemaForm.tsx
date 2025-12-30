@@ -5,23 +5,38 @@ import { cn } from '@/lib/utils'
 import { text } from '@/styles/semantic'
 import { Button } from '@/components/ui'
 import { useCallback, useMemo } from 'react'
+// Note: parseDependsOn, shouldShowField, parsePropertyOrder are used in PluginSettingsForm
+// to filter the schema before passing to JsonSchemaForm
 import { TextWidget, PasswordWidget, CheckboxWidget, SelectWidget } from './widgets'
 import { PluginRefField } from './fields'
 import { hasPluginRef } from '@/lib/types/schema-actions'
 
 // Custom field template to style form fields
+// Note: description is a ReactElement (rendered DescriptionField), rawDescription is the string
 const FieldTemplate = (props: {
   id: string
   label?: string
-  help?: string
+  help?: React.ReactNode
+  rawHelp?: string
   required?: boolean
-  description?: string
+  description?: React.ReactElement
+  rawDescription?: string
   errors?: React.ReactNode
   children: React.ReactNode
   hidden?: boolean
-  schema?: { type?: string }
+  schema?: { type?: string; 'x-viewra-plugin-ref'?: unknown }
 }) => {
-  const { id, label, help, required, description, errors, children, hidden, schema } = props
+  const {
+    id,
+    label,
+    rawHelp,
+    required,
+    rawDescription,
+    errors,
+    children,
+    hidden,
+    schema,
+  } = props
 
   if (hidden) {
     return <div className="hidden">{children}</div>
@@ -41,16 +56,21 @@ const FieldTemplate = (props: {
         </label>
       )}
       {children}
-      {description && !skipLabelAndDescription && (
-        <p className={cn('text-xs mt-1.5', text.tertiary)}>{description}</p>
+      {/* Render description as span to avoid block-in-inline issues */}
+      {rawDescription && !skipLabelAndDescription && (
+        <span className={cn('block text-xs mt-1.5', text.tertiary)}>{rawDescription}</span>
       )}
-      {help && <p className={cn('text-xs mt-1', text.secondary)}>{help}</p>}
+      {rawHelp && (
+        <span className={cn('block text-xs mt-1', text.secondary)}>{rawHelp}</span>
+      )}
       {errors && <div className="text-xs text-red-500 mt-1">{errors}</div>}
     </div>
   )
 }
 
 // Custom object field template for nested objects
+// Note: Property ordering and conditional visibility are handled in PluginSettingsForm
+// by dynamically filtering the schema based on formData
 const ObjectFieldTemplate = (props: {
   title: string
   description?: string
@@ -94,8 +114,20 @@ const ObjectFieldTemplate = (props: {
 }
 
 // Custom submit button template
+// Note: RJSF passes submitButtonOptions inside ui:options (from getUiOptions transformation)
 const SubmitButton = (props: { uiSchema?: UiSchema }) => {
-  const submitText = props.uiSchema?.['ui:submitButtonOptions']?.submitText || 'Save'
+  // RJSF wraps the options as { 'ui:options': { submitButtonOptions: ... } }
+  const uiOptions = props.uiSchema?.['ui:options'] as
+    | { submitButtonOptions?: { submitText?: string; norender?: boolean } }
+    | undefined
+  const options = uiOptions?.submitButtonOptions
+
+  // Honor norender option to hide the submit button
+  if (options?.norender) {
+    return null
+  }
+
+  const submitText = options?.submitText || 'Save'
   return (
     <Button type="submit" className="mt-4">
       {submitText}
@@ -127,6 +159,8 @@ export type JsonSchemaFormProps = {
   disabled?: boolean
   className?: string
   hideSubmit?: boolean
+  /** Render as div instead of form - use when embedding inside another form */
+  asDiv?: boolean
 }
 
 export const JsonSchemaForm = ({
@@ -138,6 +172,7 @@ export const JsonSchemaForm = ({
   disabled,
   className,
   hideSubmit = false,
+  asDiv = false,
 }: JsonSchemaFormProps) => {
   const handleSubmit = useCallback(
     ({ formData: data }: { formData?: Record<string, unknown> }) => {
@@ -186,15 +221,15 @@ export const JsonSchemaForm = ({
       })
     }
 
-    return result
-  }, [schema.properties, uiSchema])
-
-  // Hide submit button if requested
-  if (hideSubmit) {
-    mergedUiSchema['ui:submitButtonOptions'] = {
-      norender: true,
+    // Hide submit button if requested
+    if (hideSubmit) {
+      result['ui:submitButtonOptions'] = {
+        norender: true,
+      }
     }
-  }
+
+    return result
+  }, [schema.properties, uiSchema, hideSubmit])
 
   return (
     <div className={cn('json-schema-form', className)}>
@@ -215,6 +250,9 @@ export const JsonSchemaForm = ({
         }}
         // Disable HTML5 validation, use AJV instead
         noHtml5Validate
+        // Render as div instead of form when embedded in another form
+        // This prevents nested <form> errors in React
+        tagName={asDiv ? 'div' : undefined}
       />
     </div>
   )

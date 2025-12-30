@@ -118,6 +118,8 @@ export type ListAction = {
   itemActions?: ItemAction[]
   emptyState?: ActionEmptyState
   showSystemInfo?: boolean
+  /** Conditional visibility - only show when field has value */
+  'x-viewra-depends-on'?: DependsOnConfig
 }
 
 /** Create action - form to create new items (can be streaming) */
@@ -190,6 +192,16 @@ export const parsePluginMeta = (schema: unknown): PluginMeta | null => {
 export const getTabActions = (actions: SchemaAction[]): ListAction[] =>
   actions.filter(isListAction).filter((a) => a.tabTitle)
 
+/** Get actions that should appear as tabs, filtered by dependsOn */
+export const getVisibleTabActions = (
+  actions: SchemaAction[],
+  formData: Record<string, unknown>
+): ListAction[] =>
+  getTabActions(actions).filter((a) => {
+    const dependsOn = a['x-viewra-depends-on']
+    return shouldShowField(dependsOn ?? null, formData)
+  })
+
 /** Get list actions that should appear inline (no tabTitle) */
 export const getInlineListActions = (actions: SchemaAction[]): ListAction[] =>
   actions.filter(isListAction).filter((a) => !a.tabTitle)
@@ -237,7 +249,7 @@ export const parseSchemaSections = (schema: unknown): SchemaSection[] => {
 export const getSectionsForCapability = (
   sections: SchemaSection[],
   capability: Capability
-): SchemaSection[] => sections.filter((s) => s.capabilities.includes(capability))
+): SchemaSection[] => sections.filter((s) => s.capabilities?.includes(capability))
 
 // ============================================================================
 // Plugin Reference Types (x-viewra-plugin-ref)
@@ -277,3 +289,59 @@ export const parsePluginRef = (propertySchema: unknown): PluginRefConfig | null 
 /** Check if a property schema has a plugin reference */
 export const hasPluginRef = (propertySchema: unknown): boolean =>
   parsePluginRef(propertySchema) !== null
+
+// ============================================================================
+// Conditional Visibility (x-viewra-depends-on)
+// ============================================================================
+
+/**
+ * Conditional visibility configuration from x-viewra-depends-on.
+ * Used to show/hide properties or sections based on other field values.
+ */
+export type DependsOnConfig = {
+  /** Field name this depends on */
+  field: string
+  /** Value the field must have for this to be visible */
+  value: unknown
+}
+
+/** Parse x-viewra-depends-on from a property or section schema */
+export const parseDependsOn = (schema: unknown): DependsOnConfig | null => {
+  if (!schema || typeof schema !== 'object') {
+    return null
+  }
+  const s = schema as Record<string, unknown>
+  const dependsOn = s['x-viewra-depends-on']
+  if (!dependsOn || typeof dependsOn !== 'object') {
+    return null
+  }
+  return dependsOn as DependsOnConfig
+}
+
+/** Check if a field should be visible based on its dependsOn config and current form data */
+export const shouldShowField = (
+  dependsOn: DependsOnConfig | null,
+  formData: Record<string, unknown>
+): boolean => {
+  if (!dependsOn) {
+    return true // No dependency = always visible
+  }
+  return formData[dependsOn.field] === dependsOn.value
+}
+
+// ============================================================================
+// Property Ordering (x-viewra-order)
+// ============================================================================
+
+/** Parse x-viewra-order from a JSON Schema */
+export const parsePropertyOrder = (schema: unknown): string[] => {
+  if (!schema || typeof schema !== 'object') {
+    return []
+  }
+  const s = schema as Record<string, unknown>
+  const order = s['x-viewra-order']
+  if (!Array.isArray(order)) {
+    return []
+  }
+  return order as string[]
+}

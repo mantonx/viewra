@@ -17,4 +17,6 @@ export interface PluginSettingsFormProps {
    * If omitted, all properties and actions are rendered.
    */
   capability?: Capability
+  /** Hide the submit button (for embedded forms) */
+  hideSubmit?: boolean
 }

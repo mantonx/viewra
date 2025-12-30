@@ -26,10 +26,22 @@ func SettingsSchema() *sdk.Schema {
 		Property("embedding_model", sdk.String().
 			Title("Embedding Model").
 			Description("Model to use for generating embeddings").
-			Default("text-embedding-3-small")).
+			Default("text-embedding-3-small").
+			EnumStrings("text-embedding-3-small", "text-embedding-3-large", "text-embedding-ada-002")).
 		Property("chat_model", sdk.String().
 			Title("Chat Model").
 			Description("Model to use for chat completions").
-			Default("gpt-4o-mini")).
+			Default("gpt-4o-mini").
+			EnumStrings("gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo")).
+		// Embedding capability section - shown when OpenAI is selected as embedding provider
+		Section(sdk.NewSection("embedding").
+			Properties("api_key", "base_url", "embedding_model").
+			Actions("test-connection").
+			Capabilities("embedding")).
+		// Chat capability section - shown when OpenAI is selected as chat provider
+		Section(sdk.NewSection("chat").
+			Properties("api_key", "base_url", "chat_model").
+			Actions("test-connection").
+			Capabilities("chat")).
 		Action(sdk.TestAction("test-connection", "/health"))
 }

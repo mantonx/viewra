@@ -136,6 +136,12 @@ type PluginMeta struct {
 	// Example: "OpenAI", "Ollama", "TMDB"
 	DisplayName string `json:"displayName"`
 
+	// ProviderName is the name shown in provider selection dropdowns.
+	// If not set, DisplayName is used. Use this when the plugin name
+	// differs from how it should appear as a provider option.
+	// Example: DisplayName="AI Features", ProviderName="Ollama"
+	ProviderName string `json:"providerName,omitempty"`
+
 	// Description is a short description of what the plugin does.
 	// Example: "OpenAI API for embeddings and chat"
 	Description string `json:"description"`
@@ -258,6 +264,12 @@ func (s *Schema) Build() ([]byte, error) {
 	}
 	schema["properties"] = props
 
+	// Output property order for frontend to use
+	// JSON Schema doesn't guarantee object key order, so we need this extension
+	if len(s.propOrder) > 0 {
+		schema["x-viewra-order"] = s.propOrder
+	}
+
 	if len(s.sections) > 0 {
 		sections := make([]any, len(s.sections))
 		for i, sec := range s.sections {
@@ -319,9 +331,22 @@ type Property struct {
 	defaultVal  any
 	enum        []any
 	required    bool
+	minimum     *float64
+	maximum     *float64
+
+	// Conditional visibility
+	dependsOn *DependsOnConfig
 
 	// Plugin reference fields (for PluginRef type)
 	pluginRef *PluginRefConfig
+}
+
+// DependsOnConfig configures conditional visibility for a property or section.
+type DependsOnConfig struct {
+	// Field is the property name this depends on
+	Field string `json:"field"`
+	// Value is the value the field must have for this to be visible
+	Value any `json:"value"`
 }
 
 // PluginRefConfig configures a plugin reference property.
@@ -501,6 +526,37 @@ func (p *Property) Required() *Property {
 	return p
 }
 
+// Min sets the minimum value for number/integer properties.
+//
+// Example:
+//
+//	sdk.Integer().Title("Batch Size").Min(10).Max(200)
+func (p *Property) Min(val float64) *Property {
+	p.minimum = &val
+	return p
+}
+
+// Max sets the maximum value for number/integer properties.
+//
+// Example:
+//
+//	sdk.Number().Title("Similarity").Min(0.0).Max(1.0)
+func (p *Property) Max(val float64) *Property {
+	p.maximum = &val
+	return p
+}
+
+// DependsOn sets conditional visibility - this property only shows when
+// the specified field has the specified value.
+//
+// Example:
+//
+//	sdk.String().Title("API Key").DependsOn("enabled", true)
+func (p *Property) DependsOn(field string, value any) *Property {
+	p.dependsOn = &DependsOnConfig{Field: field, Value: value}
+	return p
+}
+
 func (p *Property) build() map[string]any {
 	prop := map[string]any{
 		"type": string(p.propType),
@@ -520,10 +576,22 @@ func (p *Property) build() map[string]any {
 	if len(p.enum) > 0 {
 		prop["enum"] = p.enum
 	}
+	if p.minimum != nil {
+		prop["minimum"] = *p.minimum
+	}
+	if p.maximum != nil {
+		prop["maximum"] = *p.maximum
+	}
 	if p.pluginRef != nil {
 		prop["x-viewra-plugin-ref"] = map[string]any{
 			"capability":  p.pluginRef.Capability,
 			"settingsKey": p.pluginRef.SettingsKey,
+		}
+	}
+	if p.dependsOn != nil {
+		prop["x-viewra-depends-on"] = map[string]any{
+			"field": p.dependsOn.Field,
+			"value": p.dependsOn.Value,
 		}
 	}
 	return prop
@@ -603,6 +671,7 @@ type ListActionDef struct {
 	display        *ListDisplay
 	itemActions    []ItemAction
 	emptyState     *EmptyState
+	dependsOn      *DependsOnConfig
 }
 
 // ListAction creates a list action builder.
@@ -662,6 +731,19 @@ func (a *ListActionDef) Params(params map[string]string) *ListActionDef {
 //	{"items": [...], "systemInfo": {"ramBytes": 16000000000, "vramBytes": 8000000000, "hasGpu": true}}
 func (a *ListActionDef) ShowSystemInfo() *ListActionDef {
 	a.showSystemInfo = true
+	return a
+}
+
+// DependsOn sets conditional visibility - this action/tab only shows when
+// the specified field has the specified value.
+//
+// Example:
+//
+//	sdk.ListAction("embedding-models", "/models").
+//	    TabTitle("Ollama Embedding Models").
+//	    DependsOn("embedding_provider", "ai-local")
+func (a *ListActionDef) DependsOn(field string, value any) *ListActionDef {
+	a.dependsOn = &DependsOnConfig{Field: field, Value: value}
 	return a
 }
 
@@ -734,6 +816,12 @@ func (a *ListActionDef) build() map[string]any {
 	}
 	if a.emptyState != nil {
 		action["emptyState"] = a.emptyState.build()
+	}
+	if a.dependsOn != nil {
+		action["x-viewra-depends-on"] = map[string]any{
+			"field": a.dependsOn.Field,
+			"value": a.dependsOn.Value,
+		}
 	}
 	return action
 }
@@ -1054,6 +1142,7 @@ type Section struct {
 	properties   []string
 	actions      []string
 	capabilities []string
+	dependsOn    *DependsOnConfig
 }
 
 // NewSection creates a section builder.
@@ -1120,6 +1209,19 @@ func (s *Section) Capabilities(caps ...string) *Section {
 	return s
 }
 
+// DependsOn sets conditional visibility - this section only shows when
+// the specified field has the specified value.
+//
+// Example:
+//
+//	sdk.NewSection("advanced").
+//	    Properties("timeout", "retries").
+//	    DependsOn("enabled", true)
+func (s *Section) DependsOn(field string, value any) *Section {
+	s.dependsOn = &DependsOnConfig{Field: field, Value: value}
+	return s
+}
+
 func (s *Section) build() map[string]any {
 	section := map[string]any{"id": s.id}
 	if s.title != "" {
@@ -1133,6 +1235,12 @@ func (s *Section) build() map[string]any {
 	}
 	if len(s.capabilities) > 0 {
 		section["capabilities"] = s.capabilities
+	}
+	if s.dependsOn != nil {
+		section["x-viewra-depends-on"] = map[string]any{
+			"field": s.dependsOn.Field,
+			"value": s.dependsOn.Value,
+		}
 	}
 	return section
 }

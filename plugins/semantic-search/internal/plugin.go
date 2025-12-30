@@ -117,6 +117,11 @@ func (p *SemanticSearchPlugin) Initialize(ctx context.Context, dataDir string, c
 	return nil
 }
 
+// GetSettingsSchema returns the JSON Schema for plugin settings.
+func (p *SemanticSearchPlugin) GetSettingsSchema() ([]byte, error) {
+	return SettingsSchema().Build()
+}
+
 // Shutdown is called before the plugin is unloaded.
 func (p *SemanticSearchPlugin) Shutdown(ctx context.Context) error {
 	p.Log().Debug("shutting down Semantic Search plugin")

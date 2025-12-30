@@ -22,6 +22,12 @@ func SettingsSchema() *sdk.Schema {
 		Property("embedding_model", sdk.String().
 			Title("Embedding Model").
 			Description("Model to use for generating embeddings").
-			Default("voyage-3-lite")).
+			Default("voyage-3-lite").
+			EnumStrings("voyage-3-lite", "voyage-3", "voyage-3-large", "voyage-code-3")).
+		// Embedding capability section - Voyage AI only provides embeddings
+		Section(sdk.NewSection("embedding").
+			Properties("api_key", "embedding_model").
+			Actions("test-connection").
+			Capabilities("embedding")).
 		Action(sdk.TestAction("test-connection", "/health"))
 }

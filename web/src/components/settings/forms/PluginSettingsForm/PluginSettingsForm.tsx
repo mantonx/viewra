@@ -15,10 +15,14 @@ import {
   parseSchemaSections,
   getSectionsForCapability,
   getTabActions,
+  getVisibleTabActions,
   getInlineListActions,
   findCreateAction,
   findTestAction,
   isCreateAction,
+  parseDependsOn,
+  shouldShowField,
+  parsePropertyOrder,
 } from '@/lib/types/schema-actions'
 import type { SchemaAction, SchemaSection } from '@/lib/types/schema-actions'
 import type { PluginSettingsFormProps } from './PluginSettingsForm.types'
@@ -28,6 +32,7 @@ export const PluginSettingsForm = ({
   onSettingsChange,
   className,
   capability,
+  hideSubmit = false,
 }: PluginSettingsFormProps) => {
   const toast = useToast()
   const [formData, setFormData] = useState<Record<string, unknown>>({})
@@ -68,11 +73,21 @@ export const PluginSettingsForm = ({
 
   // Filter sections by capability if provided
   const activeSections: SchemaSection[] | null = useMemo(() => {
-    // null = render all (no section filtering)
-    if (!capability || allSections.length === 0) {
-      return null
+    if (allSections.length === 0) {
+      return null // No sections defined = show all properties
     }
-    return getSectionsForCapability(allSections, capability)
+
+    if (capability) {
+      // Filter to sections that have this capability
+      return getSectionsForCapability(allSections, capability)
+    }
+
+    // No capability filter = show "main" sections (those without capabilities)
+    // This allows plugins to define what shows in the main settings view
+    const mainSections = allSections.filter(
+      (s) => !s.capabilities || s.capabilities.length === 0
+    )
+    return mainSections.length > 0 ? mainSections : null
   }, [allSections, capability])
 
   // Derive allowed properties and action IDs from active sections
@@ -109,31 +124,61 @@ export const PluginSettingsForm = ({
   }, [activeSections])
 
   // Build filtered schema with only allowed properties
+  // Also filters by dependsOn and sorts by x-viewra-order
   const schema: RJSFSchema | null = useMemo(() => {
     if (!rawSchema) {
       return null
     }
-    if (!allowedProperties || allowedProperties.size === 0) {
-      // No filtering or no properties in sections - return raw schema
-      // But if we have sections with no properties, filter to empty
-      if (activeSections && allowedProperties?.size === 0) {
-        return { ...rawSchema, properties: {} } as RJSFSchema
+
+    // Start with rawSchema properties or empty
+    type SchemaProperties = RJSFSchema['properties']
+    let baseProperties: SchemaProperties = rawSchema.properties || {}
+
+    // Filter by allowed properties (capability-based sections)
+    if (allowedProperties && allowedProperties.size > 0) {
+      const filtered: SchemaProperties = {}
+      for (const prop of allowedProperties) {
+        if (baseProperties[prop]) {
+          filtered[prop] = baseProperties[prop]
+        }
       }
-      return rawSchema
+      baseProperties = filtered
+    } else if (activeSections && allowedProperties?.size === 0) {
+      // Sections exist but no properties in them
+      baseProperties = {}
     }
 
-    if (!rawSchema.properties) {
-      return rawSchema
-    }
-
-    const filteredProperties: Record<string, unknown> = {}
-    for (const prop of allowedProperties) {
-      if (rawSchema.properties[prop]) {
-        filteredProperties[prop] = rawSchema.properties[prop]
+    // Filter by dependsOn (conditional visibility based on formData)
+    const visibleProperties: SchemaProperties = {}
+    for (const [propName, propSchema] of Object.entries(baseProperties)) {
+      if (typeof propSchema !== 'object' || propSchema === null) {
+        visibleProperties[propName] = propSchema
+        continue
+      }
+      const dependsOn = parseDependsOn(propSchema)
+      if (shouldShowField(dependsOn, formData)) {
+        visibleProperties[propName] = propSchema
       }
     }
-    return { ...rawSchema, properties: filteredProperties } as RJSFSchema
-  }, [rawSchema, allowedProperties, activeSections])
+
+    // Sort properties by x-viewra-order
+    const propertyOrder = parsePropertyOrder(rawSchema)
+    if (propertyOrder.length > 0) {
+      const orderMap = new Map(propertyOrder.map((name, index) => [name, index]))
+      const sortedEntries = Object.entries(visibleProperties).sort(([a], [b]) => {
+        const aOrder = orderMap.has(a) ? orderMap.get(a)! : Infinity
+        const bOrder = orderMap.has(b) ? orderMap.get(b)! : Infinity
+        return aOrder - bOrder
+      })
+      const sortedProperties: SchemaProperties = {}
+      for (const [name, value] of sortedEntries) {
+        sortedProperties[name] = value
+      }
+      return { ...rawSchema, properties: sortedProperties } as RJSFSchema
+    }
+
+    return { ...rawSchema, properties: visibleProperties } as RJSFSchema
+  }, [rawSchema, allowedProperties, activeSections, formData])
 
   // Parse all actions from raw schema
   const allActions: SchemaAction[] = useMemo(() => {
@@ -152,7 +197,8 @@ export const PluginSettingsForm = ({
   }, [allActions, allowedActionIds])
 
   // Compute tab actions, inline list actions, and test action from filtered actions
-  const tabActions = useMemo(() => getTabActions(actions), [actions])
+  // Tab actions are filtered by their dependsOn config (e.g., show Ollama tabs only when Ollama is selected)
+  const tabActions = useMemo(() => getVisibleTabActions(actions, formData), [actions, formData])
   const inlineListActions = useMemo(() => getInlineListActions(actions), [actions])
   const testAction = useMemo(() => findTestAction(actions), [actions])
 
@@ -164,6 +210,7 @@ export const PluginSettingsForm = ({
 
   // Determine which tabs to show
   const showSettingsTab = hasProperties
+  // Tab actions are already filtered by their dependsOn config via getVisibleTabActions
   const showActionTabs = tabActions.length > 0
 
   // Build visible tabs
@@ -303,6 +350,8 @@ export const PluginSettingsForm = ({
                   formData={formData}
                   onChange={handleChange}
                   onSubmit={handleSubmit}
+                  hideSubmit={hideSubmit}
+                  asDiv={hideSubmit}
                 />
               )}
 
@@ -367,6 +416,8 @@ export const PluginSettingsForm = ({
               formData={formData}
               onChange={handleChange}
               onSubmit={handleSubmit}
+              hideSubmit={hideSubmit}
+              asDiv={hideSubmit}
             />
           )}
           {/* Inline list actions */}

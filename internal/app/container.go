@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -272,12 +273,9 @@ func loadExternalPlugins(ctx context.Context, svcs *services.Services, repos *re
 			manifest := instance.Manifest
 			categories := "[]"
 			if len(manifest.Categories) > 0 {
-				// Convert to JSON array format
-				categories = `["` + manifest.Categories[0] + `"]`
-				if len(manifest.Categories) > 1 {
-					for _, c := range manifest.Categories[1:] {
-						categories = categories[:len(categories)-1] + `","` + c + `"]`
-					}
+				// Convert to JSON array format using proper marshaling
+				if catBytes, err := json.Marshal(manifest.Categories); err == nil {
+					categories = string(catBytes)
 				}
 			}
 

@@ -11,8 +11,10 @@ homepage: https://github.com/mantonx/viewra
 # Minimum ViewRA version required
 min_host_version: "0.1.0"
 
-# Plugin type - this is an enricher that provides search capabilities
-type: enricher
+# Plugin categories
+categories:
+  - enricher
+  - ai
 
 # What capabilities this plugin provides to other plugins
 # Other plugins can depend on these via their 'requires' field
