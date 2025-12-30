@@ -1,8 +1,10 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Alert, Loading, Tabs, TabPanel } from '@/components/ui'
 import {
   useGetApiPluginsIdSettings,
   usePutApiPluginsIdSettings,
+  getGetApiPluginsIdSettingsQueryKey,
 } from '@/lib/api/generated/plugins/plugins'
 import { useToast } from '@/lib/hooks/useToast'
 import { cn } from '@/lib/utils'
@@ -25,16 +27,18 @@ import {
   parsePropertyOrder,
 } from '@/lib/types/schema-actions'
 import type { SchemaAction, SchemaSection } from '@/lib/types/schema-actions'
-import type { PluginSettingsFormProps } from './PluginSettingsForm.types'
+import type { PluginSettingsFormProps, PluginSettingsFormHandle } from './PluginSettingsForm.types'
 
-export const PluginSettingsForm = ({
+export const PluginSettingsForm = forwardRef<PluginSettingsFormHandle, PluginSettingsFormProps>(({
   pluginId,
   onSettingsChange,
   className,
   capability,
   hideSubmit = false,
-}: PluginSettingsFormProps) => {
+  onSaveComplete,
+}, ref) => {
   const toast = useToast()
+  const queryClient = useQueryClient()
   const [formData, setFormData] = useState<Record<string, unknown>>({})
   const [initialData, setInitialData] = useState<Record<string, unknown>>({})
   const [activeTab, setActiveTab] = useState('settings')
@@ -259,11 +263,15 @@ export const PluginSettingsForm = ({
     setFormData(data)
   }, [])
 
+  // Auto-save debounce ref
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // Use generated mutation hook for updating settings
   const updateSettingsMutation = usePutApiPluginsIdSettings()
 
-  const handleSubmit = useCallback(
-    async (data: Record<string, unknown>) => {
+  // Core save function - returns true on success, false on failure
+  const saveSettings = useCallback(
+    async (data: Record<string, unknown>, showToast = true): Promise<boolean> => {
       try {
         // Note: The generated types show values as number[] due to a swagger gen issue,
         // but the actual API expects an object. We cast here for type safety.
@@ -273,19 +281,64 @@ export const PluginSettingsForm = ({
         })
 
         if (result.status !== 200 || !result.data.success) {
-          toast.error('Failed to save settings')
-          return
+          if (showToast) toast.error('Failed to save settings')
+          return false
         }
 
-        toast.success('Settings saved')
+        // Invalidate the settings query so reopening the modal shows fresh data
+        await queryClient.invalidateQueries({
+          queryKey: getGetApiPluginsIdSettingsQueryKey(pluginId),
+        })
+
+        if (showToast) toast.success('Settings saved')
         setInitialData(data)
+        onSaveComplete?.()
+        return true
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to save settings'
-        toast.error(message)
+        if (showToast) {
+          const message = err instanceof Error ? err.message : 'Failed to save settings'
+          toast.error(message)
+        }
+        return false
       }
     },
-    [pluginId, updateSettingsMutation, toast]
+    [pluginId, updateSettingsMutation, toast, queryClient, onSaveComplete]
   )
+
+  const handleSubmit = useCallback(
+    async (data: Record<string, unknown>) => {
+      await saveSettings(data, true)
+    },
+    [saveSettings]
+  )
+
+  // Expose save function via ref for parent forms to trigger
+  useImperativeHandle(ref, () => ({
+    save: () => saveSettings(formData, false),
+  }), [saveSettings, formData])
+
+  // Auto-save for embedded forms (hideSubmit=true)
+  // Debounces saves to avoid excessive API calls while typing
+  useEffect(() => {
+    if (!hideSubmit) return // Only auto-save for embedded forms
+    if (JSON.stringify(formData) === JSON.stringify(initialData)) return // No changes
+
+    // Clear existing timer
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current)
+    }
+
+    // Debounce save by 500ms
+    autoSaveTimerRef.current = setTimeout(() => {
+      saveSettings(formData, false)
+    }, 500)
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current)
+      }
+    }
+  }, [hideSubmit, formData, initialData, saveSettings])
 
   const handleShowCreate = useCallback(
     (actionId: string) => {
@@ -442,4 +495,6 @@ export const PluginSettingsForm = ({
         ))}
     </div>
   )
-}
+})
+
+PluginSettingsForm.displayName = 'PluginSettingsForm'

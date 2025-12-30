@@ -19,4 +19,12 @@ export interface PluginSettingsFormProps {
   capability?: Capability
   /** Hide the submit button (for embedded forms) */
   hideSubmit?: boolean
+  /** Called when form is submitted successfully (for embedded forms to notify parent) */
+  onSaveComplete?: () => void
+}
+
+/** Imperative handle for PluginSettingsForm */
+export interface PluginSettingsFormHandle {
+  /** Trigger a save of the current form data */
+  save: () => Promise<boolean>
 }
