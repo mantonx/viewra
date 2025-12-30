@@ -9,15 +9,22 @@ import type { GithubComMantonxViewraInternalApplicationPluginsPluginSummaryMeta 
 
 export interface GithubComMantonxViewraInternalApplicationPluginsPluginSummary {
   author?: string
+  /** Capabilities this plugin provides (e.g., "semantic_search", "embedding", "chat") */
+  capabilities?: string[]
   categories?: string[]
   description?: string
   enabled?: boolean
+  /** Settings availability */
+  has_settings?: boolean
   /** "healthy", "degraded", "unhealthy", "unknown" */
   health?: string
   id?: string
   is_builtin?: boolean
   /** x-viewra-meta from settings schema */
   meta?: GithubComMantonxViewraInternalApplicationPluginsPluginSummaryMeta
+  /** Dependencies this plugin requires but are not currently available
+Used to show warnings in the UI about missing capabilities */
+  missing_dependencies?: string[]
   name?: string
   /** Provider ID if this is a provider plugin (e.g., "ollama") */
   provider_id?: string

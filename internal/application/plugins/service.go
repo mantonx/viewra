@@ -472,6 +472,7 @@ func (s *Service) toSummary(row Plugin) PluginSummary {
 		Enabled:     row.Enabled,
 		IsBuiltin:   row.IsBuiltin,
 		Health:      "unknown",
+		HasSettings: row.SettingsSchema != "" && row.SettingsSchema != "{}",
 	}
 
 	if row.HealthStatus != "" {
@@ -486,6 +487,29 @@ func (s *Service) toSummary(row Plugin) PluginSummary {
 		if meta := s.getPluginMeta(instance); meta != nil {
 			summary.Meta = meta
 		}
+
+		// Get capabilities from manifest
+		if instance.Manifest != nil {
+			summary.Capabilities = instance.Manifest.Provides
+		}
+
+		// Check for missing dependencies from manifest
+		if instance.Manifest != nil && len(instance.Manifest.Requires) > 0 {
+			summary.MissingDependencies = s.checkMissingDependencies(instance.Manifest.Requires)
+		}
+	}
+
+	// Get capabilities from capability registry (for route-based capabilities)
+	if capRegistry := s.manager.GetCapabilityRegistry(); capRegistry != nil {
+		routeCaps := capRegistry.GetCapabilitiesForPlugin(row.ID)
+		if len(routeCaps) > 0 {
+			// Merge with manifest capabilities, avoiding duplicates
+			for _, cap := range routeCaps {
+				if !contains(summary.Capabilities, cap) {
+					summary.Capabilities = append(summary.Capabilities, cap)
+				}
+			}
+		}
 	}
 
 	// Get provider ID if this is a provider plugin
@@ -494,6 +518,33 @@ func (s *Service) toSummary(row Plugin) PluginSummary {
 	}
 
 	return summary
+}
+
+// checkMissingDependencies returns which required capabilities are not currently available.
+func (s *Service) checkMissingDependencies(requires []string) []string {
+	hostPluginsServer := s.manager.GetHostPluginsServer()
+	if hostPluginsServer == nil {
+		// If no capability broker, all dependencies are missing
+		return requires
+	}
+
+	var missing []string
+	for _, req := range requires {
+		if !hostPluginsServer.HasCapability(req) {
+			missing = append(missing, req)
+		}
+	}
+	return missing
+}
+
+// contains checks if a string slice contains a value.
+func contains(slice []string, val string) bool {
+	for _, s := range slice {
+		if s == val {
+			return true
+		}
+	}
+	return false
 }
 
 // getPluginMeta extracts x-viewra-meta from a plugin's settings schema.

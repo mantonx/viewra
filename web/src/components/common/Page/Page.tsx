@@ -14,7 +14,7 @@ export interface SettingsPageHeaderProps {
 }
 
 export interface SettingsPageCardProps {
-  title?: string
+  title?: ReactNode
   description?: string
   children: ReactNode
   className?: string

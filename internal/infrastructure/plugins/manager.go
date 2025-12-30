@@ -1264,3 +1264,8 @@ func (m *Manager) GetCapabilityRegistry() *CapabilityRegistry {
 func (m *Manager) GetProviderRegistry() *ProviderRegistry {
 	return m.providerRegistry
 }
+
+// GetHostPluginsServer returns the host plugins server for capability-based plugin discovery.
+func (m *Manager) GetHostPluginsServer() *HostPluginsServer {
+	return m.hostPluginsServer
+}

@@ -252,6 +252,20 @@ func (s *HostPluginsServer) requestServiceExposure(ctx context.Context, p *Capab
 	}, nil
 }
 
+// HasCapability returns true if any enabled plugin provides the capability.
+func (s *HostPluginsServer) HasCapability(capability string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	providers := s.capabilities[capability]
+	for _, p := range providers {
+		if p.Enabled {
+			return true
+		}
+	}
+	return false
+}
+
 // ListCapabilities returns all available capabilities and their providers.
 func (s *HostPluginsServer) ListCapabilities(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.CapabilityListResponse, error) {
 	s.mu.RLock()

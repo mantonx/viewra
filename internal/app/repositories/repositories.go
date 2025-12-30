@@ -18,6 +18,7 @@ import (
 	progressRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/progress"
 	scanJobRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/scanjob"
 	scanStateRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/scanstate"
+	searchRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/search"
 	settingsRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/settings"
 	studiosRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/studios"
 	transcodeRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/transcode"
@@ -63,6 +64,9 @@ type Repositories struct {
 
 	// Keywords (location-based and thematic tags)
 	Keywords *keywordsRepo.Repository
+
+	// Search repository (for fallback search)
+	Search *searchRepo.Repository
 
 	// Plugin repositories
 	Plugin             *pluginRepo.Repository
@@ -122,6 +126,9 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	// Create keywords repository
 	keywordsRepository := keywordsRepo.NewRepository(baseRepo)
 
+	// Create search repository
+	searchRepository := searchRepo.NewRepository(baseRepo)
+
 	// Create plugin repositories
 	pluginRepository := pluginRepo.NewRepository(db, driver)
 	pluginMediaQuerier := plugins.NewDBMediaQuerier(db, driver)
@@ -158,6 +165,7 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 		People:                   peopleRepository,
 		Studios:                  studiosRepository,
 		Keywords:                 keywordsRepository,
+		Search:                   searchRepository,
 		Plugin:                   pluginRepository,
 		PluginMediaQuerier:       pluginMediaQuerier,
 		TranscodeAnalytics:       transcodeAnalyticsRepository,

@@ -1,0 +1,1 @@
+export { usePluginsData } from './usePluginsData'

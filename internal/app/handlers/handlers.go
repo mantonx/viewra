@@ -188,8 +188,16 @@ func BuildHandlers(
 
 	// Get the plugin HTTP proxy if plugin manager is available
 	var pluginProxy *infraPlugins.HTTPProxy
+	var capabilityRegistry *infraPlugins.CapabilityRegistry
 	if svcs.PluginManager != nil {
 		pluginProxy = svcs.PluginManager.GetHTTPProxy()
+		capabilityRegistry = svcs.PluginManager.GetCapabilityRegistry()
+	}
+
+	// Create search handler with fallback to text search
+	var searchHandler *handlers.SearchHandler
+	if svcs.Search != nil {
+		searchHandler = handlers.NewSearchHandler(capabilityRegistry, pluginProxy, svcs.Search)
 	}
 
 	// System handler (requires lifecycle manager)
@@ -224,6 +232,7 @@ func BuildHandlers(
 		Plugins:          pluginHandler,
 		System:           systemHandler,
 		PluginProxy:      pluginProxy,
+		Search:           searchHandler,
 		AuthValidator:    authService,
 	}
 }

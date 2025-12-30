@@ -15,6 +15,8 @@ export interface GithubComMantonxViewraInternalApplicationPluginsPluginDetail {
   categories?: string[]
   description?: string
   enabled?: boolean
+  /** Settings availability */
+  has_settings?: boolean
   /** "healthy", "degraded", "unhealthy", "unknown" */
   health?: string
   health_message?: string
@@ -26,6 +28,9 @@ export interface GithubComMantonxViewraInternalApplicationPluginsPluginDetail {
   license?: string
   /** x-viewra-meta from settings schema */
   meta?: GithubComMantonxViewraInternalApplicationPluginsPluginDetailMeta
+  /** Dependencies this plugin requires but are not currently available
+Used to show warnings in the UI about missing capabilities */
+  missing_dependencies?: string[]
   name?: string
   /** Provider ID if this is a provider plugin (e.g., "ollama") */
   provider_id?: string

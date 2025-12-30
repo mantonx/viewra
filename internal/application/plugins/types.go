@@ -19,6 +19,16 @@ type PluginSummary struct {
 	Health      string         `json:"health"`                // "healthy", "degraded", "unhealthy", "unknown"
 	ProviderID  string         `json:"provider_id,omitempty"` // Provider ID if this is a provider plugin (e.g., "ollama")
 	Meta        map[string]any `json:"meta,omitempty"`        // x-viewra-meta from settings schema
+
+	// Settings availability
+	HasSettings bool `json:"has_settings"` // Whether this plugin has configurable settings
+
+	// Capabilities this plugin provides (e.g., "semantic_search", "embedding", "chat")
+	Capabilities []string `json:"capabilities,omitempty"`
+
+	// Dependencies this plugin requires but are not currently available
+	// Used to show warnings in the UI about missing capabilities
+	MissingDependencies []string `json:"missing_dependencies,omitempty"`
 }
 
 // PluginDetail contains full plugin information.

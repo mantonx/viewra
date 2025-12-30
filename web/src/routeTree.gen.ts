@@ -21,6 +21,7 @@ import { Route as LayoutSettingsUsersRouteImport } from './routes/_layout/settin
 import { Route as LayoutSettingsSystemRouteImport } from './routes/_layout/settings.system'
 import { Route as LayoutSettingsSchedulerRouteImport } from './routes/_layout/settings.scheduler'
 import { Route as LayoutSettingsPreferencesRouteImport } from './routes/_layout/settings.preferences'
+import { Route as LayoutSettingsPluginsRouteImport } from './routes/_layout/settings.plugins'
 import { Route as LayoutSettingsDisplayRouteImport } from './routes/_layout/settings.display'
 import { Route as LayoutSettingsAccountRouteImport } from './routes/_layout/settings.account'
 import { Route as LayoutTvShowIdIndexRouteImport } from './routes/_layout/tv.$showId.index'
@@ -88,6 +89,11 @@ const LayoutSettingsPreferencesRoute =
     path: '/settings/preferences',
     getParentRoute: () => LayoutRoute,
   } as any)
+const LayoutSettingsPluginsRoute = LayoutSettingsPluginsRouteImport.update({
+  id: '/settings/plugins',
+  path: '/settings/plugins',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutSettingsDisplayRoute = LayoutSettingsDisplayRouteImport.update({
   id: '/settings/display',
   path: '/settings/display',
@@ -129,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/': typeof LayoutIndexRoute
   '/settings/account': typeof LayoutSettingsAccountRoute
   '/settings/display': typeof LayoutSettingsDisplayRoute
+  '/settings/plugins': typeof LayoutSettingsPluginsRoute
   '/settings/preferences': typeof LayoutSettingsPreferencesRoute
   '/settings/scheduler': typeof LayoutSettingsSchedulerRoute
   '/settings/system': typeof LayoutSettingsSystemRoute
@@ -148,6 +155,7 @@ export interface FileRoutesByTo {
   '/': typeof LayoutIndexRoute
   '/settings/account': typeof LayoutSettingsAccountRoute
   '/settings/display': typeof LayoutSettingsDisplayRoute
+  '/settings/plugins': typeof LayoutSettingsPluginsRoute
   '/settings/preferences': typeof LayoutSettingsPreferencesRoute
   '/settings/scheduler': typeof LayoutSettingsSchedulerRoute
   '/settings/system': typeof LayoutSettingsSystemRoute
@@ -169,6 +177,7 @@ export interface FileRoutesById {
   '/_layout/': typeof LayoutIndexRoute
   '/_layout/settings/account': typeof LayoutSettingsAccountRoute
   '/_layout/settings/display': typeof LayoutSettingsDisplayRoute
+  '/_layout/settings/plugins': typeof LayoutSettingsPluginsRoute
   '/_layout/settings/preferences': typeof LayoutSettingsPreferencesRoute
   '/_layout/settings/scheduler': typeof LayoutSettingsSchedulerRoute
   '/_layout/settings/system': typeof LayoutSettingsSystemRoute
@@ -190,6 +199,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings/account'
     | '/settings/display'
+    | '/settings/plugins'
     | '/settings/preferences'
     | '/settings/scheduler'
     | '/settings/system'
@@ -209,6 +219,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings/account'
     | '/settings/display'
+    | '/settings/plugins'
     | '/settings/preferences'
     | '/settings/scheduler'
     | '/settings/system'
@@ -229,6 +240,7 @@ export interface FileRouteTypes {
     | '/_layout/'
     | '/_layout/settings/account'
     | '/_layout/settings/display'
+    | '/_layout/settings/plugins'
     | '/_layout/settings/preferences'
     | '/_layout/settings/scheduler'
     | '/_layout/settings/system'
@@ -334,6 +346,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutSettingsPreferencesRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/settings/plugins': {
+      id: '/_layout/settings/plugins'
+      path: '/settings/plugins'
+      fullPath: '/settings/plugins'
+      preLoaderRoute: typeof LayoutSettingsPluginsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/settings/display': {
       id: '/_layout/settings/display'
       path: '/settings/display'
@@ -384,6 +403,7 @@ interface LayoutRouteChildren {
   LayoutIndexRoute: typeof LayoutIndexRoute
   LayoutSettingsAccountRoute: typeof LayoutSettingsAccountRoute
   LayoutSettingsDisplayRoute: typeof LayoutSettingsDisplayRoute
+  LayoutSettingsPluginsRoute: typeof LayoutSettingsPluginsRoute
   LayoutSettingsPreferencesRoute: typeof LayoutSettingsPreferencesRoute
   LayoutSettingsSchedulerRoute: typeof LayoutSettingsSchedulerRoute
   LayoutSettingsSystemRoute: typeof LayoutSettingsSystemRoute
@@ -402,6 +422,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutIndexRoute: LayoutIndexRoute,
   LayoutSettingsAccountRoute: LayoutSettingsAccountRoute,
   LayoutSettingsDisplayRoute: LayoutSettingsDisplayRoute,
+  LayoutSettingsPluginsRoute: LayoutSettingsPluginsRoute,
   LayoutSettingsPreferencesRoute: LayoutSettingsPreferencesRoute,
   LayoutSettingsSchedulerRoute: LayoutSettingsSchedulerRoute,
   LayoutSettingsSystemRoute: LayoutSettingsSystemRoute,

@@ -15,6 +15,7 @@ import (
 	"github.com/mantonx/viewra/internal/application/enrichment/builtin"
 	"github.com/mantonx/viewra/internal/application/enrichment/pipeline"
 	"github.com/mantonx/viewra/internal/application/library/monitor"
+	appSearch "github.com/mantonx/viewra/internal/application/search"
 	"github.com/mantonx/viewra/internal/application/settings"
 	"github.com/mantonx/viewra/internal/application/transcode"
 	domaintranscode "github.com/mantonx/viewra/internal/domain/transcode"
@@ -94,6 +95,9 @@ type Services struct {
 
 	// File system monitoring service
 	FileMonitor *monitor.Service
+
+	// Search service for fallback text search when no semantic search plugin is available
+	Search *appSearch.Service
 }
 
 // BuildServices creates and initializes all infrastructure services.
@@ -158,6 +162,9 @@ func BuildServices(
 	// Initialize file monitor service
 	fileMonitor := monitor.NewService(repos.Library, repos.Media, pipelineManager, eventBus, logger.With("component", "file-monitor"))
 
+	// Initialize search service for fallback text search
+	searchService := appSearch.NewService(repos.Search, logger.With("component", "search"))
+
 	return &Services{
 		ImageCache:        imageCacheService,
 		ImageTransformer:  imageTransformer,
@@ -180,6 +187,7 @@ func BuildServices(
 		LocationRepo:      locationRepo,
 		WeatherService:    weatherService,
 		FileMonitor:       fileMonitor,
+		Search:            searchService,
 	}, nil
 }
 

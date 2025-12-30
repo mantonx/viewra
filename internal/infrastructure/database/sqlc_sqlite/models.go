@@ -587,17 +587,6 @@ type SystemSetting struct {
 	UpdatedBy   sql.NullString `json:"updated_by"`
 }
 
-type TaskExecution struct {
-	ID         int64          `json:"id"`
-	TaskID     string         `json:"task_id"`
-	StartedAt  time.Time      `json:"started_at"`
-	EndedAt    time.Time      `json:"ended_at"`
-	DurationMs int64          `json:"duration_ms"`
-	Success    bool           `json:"success"`
-	Error      sql.NullString `json:"error"`
-	CreatedAt  time.Time      `json:"created_at"`
-}
-
 type TranscodeAnalytic struct {
 	SessionID       string         `json:"session_id"`
 	MediaID         int64          `json:"media_id"`

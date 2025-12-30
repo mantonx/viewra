@@ -1,5 +1,6 @@
 export { AccountSettings } from './AccountSettings'
 export { DisplaySettings } from './DisplaySettings'
+export { PluginsSettings } from './PluginsSettings'
 export { PreferencesSettings } from './PreferencesSettings'
 export { SchedulerSettings } from './SchedulerSettings'
 export { SystemSettings } from './SystemSettings'

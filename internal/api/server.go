@@ -100,6 +100,9 @@ type Handlers struct {
 	// This replaces the hardcoded AISearchHandler.
 	PluginProxy *plugins.HTTPProxy
 
+	// Search handles /api/search with fallback to text search when no plugin provides semantic search.
+	Search *handlers.SearchHandler
+
 	// AuthValidator is used by routes to set up auth middleware
 	AuthValidator middleware.AuthValidator
 
@@ -208,7 +211,12 @@ func (s *Server) setupRoutes() {
 	// This also registers plugin custom routes via the HTTP proxy
 	routes.RegisterPluginRoutes(protected, h.Plugins, h.PluginProxy, h.AuthValidator)
 
-	// Register capability alias routes (e.g., /api/search -> ai-search plugin)
+	// Register search route with fallback support
+	// This is handled separately from capability aliases because SearchHandler
+	// provides fallback to text search when no semantic search plugin is available
+	routes.RegisterSearchRoutes(protected, h.Search)
+
+	// Register capability alias routes for other plugins (excluding semantic_search)
 	s.registerCapabilityAliases(protected)
 
 	// Register image routes (protected via api group)
@@ -246,7 +254,7 @@ func (s *Server) Router() *gin.Engine {
 }
 
 // registerCapabilityAliases sets up capability alias routes for plugins.
-// For example, /api/search is aliased to the semantic_search capability.
+// Note: semantic_search is handled separately by RegisterSearchRoutes which provides fallback.
 func (s *Server) registerCapabilityAliases(protected *gin.RouterGroup) {
 	proxy := s.handlers.PluginProxy
 	if proxy == nil {
@@ -254,11 +262,15 @@ func (s *Server) registerCapabilityAliases(protected *gin.RouterGroup) {
 		return
 	}
 
-	// Register capability alias routes (e.g., /api/search -> ai-search plugin)
+	// Register capability alias routes (excluding semantic_search which has fallback support)
 	// These go on the parent protected group to get stable URLs
 	for capability, aliasPath := range plugins.CapabilityAliases {
+		// Skip semantic_search - it's handled by SearchHandler with fallback support
+		if capability == "semantic_search" {
+			continue
+		}
+
 		// Handle both the exact path and with trailing wildcard for sub-paths
-		// e.g., /api/search and /api/search/suggestions
 		cap := capability // capture for closure
 
 		// Register the base path
