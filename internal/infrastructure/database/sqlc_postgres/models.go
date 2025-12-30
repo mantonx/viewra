@@ -37,17 +37,6 @@ type Credit struct {
 	CreatedAt     sql.NullTime   `json:"created_at"`
 }
 
-type Embedding struct {
-	ID         int32          `json:"id"`
-	EntityType string         `json:"entity_type"`
-	EntityID   int32          `json:"entity_id"`
-	Vector     interface{}    `json:"vector"`
-	Text       sql.NullString `json:"text"`
-	Dimensions int32          `json:"dimensions"`
-	CreatedAt  sql.NullTime   `json:"created_at"`
-	UpdatedAt  sql.NullTime   `json:"updated_at"`
-}
-
 type EnrichmentPipeline struct {
 	ID         int32                 `json:"id"`
 	MediaType  string                `json:"media_type"`
@@ -231,15 +220,6 @@ type Medium struct {
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
 	IsExtra           bool            `json:"is_extra"`
 	AudioCodec        sql.NullString  `json:"audio_codec"`
-}
-
-type MoodTag struct {
-	ID         int32           `json:"id"`
-	EntityType string          `json:"entity_type"`
-	EntityID   int32           `json:"entity_id"`
-	Tag        string          `json:"tag"`
-	Confidence sql.NullFloat64 `json:"confidence"`
-	CreatedAt  sql.NullTime    `json:"created_at"`
 }
 
 type Movie struct {

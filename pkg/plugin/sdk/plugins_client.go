@@ -1,8 +1,8 @@
-// PluginsClient provides access to other plugins via the capability broker.
+// PluginsClient provides access to other plugins via the host-proxied capability invoke.
 //
-// This allows plugins to discover and connect to other plugins that provide
-// specific capabilities like "embedding", "chat", or custom plugin-defined
-// capabilities.
+// This allows plugins to invoke methods on other plugins that provide specific
+// capabilities like "embedding", "chat", or custom plugin-defined capabilities.
+// The host acts as a proxy, routing requests to the appropriate provider.
 //
 // # Usage
 //
@@ -10,8 +10,8 @@
 //
 //	plugins := hostServices.Plugins
 //	if plugins.IsAvailable(ctx, "embedding") {
-//	    conn, err := plugins.GetConnection(ctx, "embedding")
-//	    // Use conn to call the embedding provider
+//	    respBytes, meta, err := plugins.Invoke(ctx, "embedding", "GenerateEmbedding", req)
+//	    // Unmarshal respBytes to get the typed response
 //	}
 //
 // # Capabilities
@@ -28,77 +28,196 @@ package sdk
 import (
 	"context"
 	"fmt"
+	"io"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 )
 
 // PluginsClient provides capability-based access to other plugins.
 type PluginsClient struct {
 	client pluginv1.HostPluginsClient
-	broker GRPCBroker
 }
 
-// GRPCBroker is the interface for the go-plugin broker that establishes
-// plugin-to-plugin connections.
-type GRPCBroker interface {
-	// Dial creates a gRPC connection to a broker ID returned by the host.
-	Dial(id uint32) (*grpc.ClientConn, error)
-}
-
-// NewPluginsClient creates a new plugins client for capability discovery.
-func NewPluginsClient(conn *grpc.ClientConn, broker GRPCBroker) *PluginsClient {
+// NewPluginsClient creates a new plugins client for capability discovery and invocation.
+func NewPluginsClient(conn *grpc.ClientConn) *PluginsClient {
 	return &PluginsClient{
 		client: pluginv1.NewHostPluginsClient(conn),
-		broker: broker,
 	}
 }
 
-// GetConnection returns a gRPC connection to a plugin providing the capability.
-// The host resolves the capability to an available, enabled plugin.
+// Invoke calls a method on a capability provider and returns the response payload.
+// The caller is responsible for marshaling the request and unmarshaling the response.
 //
 // Example:
 //
-//	conn, err := plugins.GetConnection(ctx, "embedding")
+//	req := &pluginv1.ProviderEmbeddingRequest{Text: "hello"}
+//	respBytes, meta, err := plugins.Invoke(ctx, "embedding", "GenerateEmbedding", req)
 //	if err != nil {
 //	    return err
 //	}
-//	defer conn.Close()
-//	embeddingClient := embedpb.NewEmbeddingServiceClient(conn)
-func (c *PluginsClient) GetConnection(ctx context.Context, capability string) (*grpc.ClientConn, error) {
-	return c.GetConnectionPreferred(ctx, capability, "")
+//	var resp pluginv1.ProviderEmbeddingResponse
+//	proto.Unmarshal(respBytes, &resp)
+func (c *PluginsClient) Invoke(ctx context.Context, capability, method string, req proto.Message, opts ...InvokeOption) ([]byte, *InvokeMetadata, error) {
+	options := &invokeOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	payload, err := proto.Marshal(req)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	resp, err := c.client.InvokeCapability(ctx, &pluginv1.CapabilityInvokeRequest{
+		Capability:      capability,
+		Method:          method,
+		RequestPayload:  payload,
+		PreferredPlugin: options.preferredPlugin,
+		ApiVersion:      options.apiVersion,
+		Metadata:        options.metadata,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("invoke failed: %w", err)
+	}
+
+	if resp.Error != nil {
+		return nil, nil, &CapabilityError{
+			Code:      resp.Error.Code,
+			Message:   resp.Error.Message,
+			Details:   resp.Error.Details,
+			Retryable: resp.Error.Retryable,
+		}
+	}
+
+	meta := &InvokeMetadata{
+		ProviderPlugin: resp.ProviderPlugin,
+		LatencyMs:      resp.LatencyMs,
+		Metadata:       resp.Metadata,
+	}
+
+	return resp.ResponsePayload, meta, nil
 }
 
-// GetConnectionPreferred returns a connection to a specific plugin providing the capability.
-// If preferredPlugin is empty or unavailable, falls back to any available provider.
+// InvokeStream calls a streaming method on a capability provider.
+// Returns a channel that receives response chunks until closed.
 //
 // Example:
 //
-//	// Prefer ollama for embeddings, fall back to openai if unavailable
-//	conn, err := plugins.GetConnectionPreferred(ctx, "embedding", "provider-ollama")
-func (c *PluginsClient) GetConnectionPreferred(ctx context.Context, capability, preferredPlugin string) (*grpc.ClientConn, error) {
-	resp, err := c.client.GetCapabilityProvider(ctx, &pluginv1.CapabilityRequest{
+//	req := &pluginv1.ProviderChatRequest{...}
+//	chunks, err := plugins.InvokeStream(ctx, "chat", "ChatStream", req)
+//	if err != nil {
+//	    return err
+//	}
+//	for chunk := range chunks {
+//	    if chunk.Error != nil {
+//	        return chunk.Error
+//	    }
+//	    var resp pluginv1.ProviderChatStreamChunk
+//	    proto.Unmarshal(chunk.Payload, &resp)
+//	    // Process chunk
+//	}
+func (c *PluginsClient) InvokeStream(ctx context.Context, capability, method string, req proto.Message, opts ...InvokeOption) (<-chan *StreamChunk, error) {
+	options := &invokeOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	payload, err := proto.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	stream, err := c.client.InvokeCapabilityStream(ctx, &pluginv1.CapabilityInvokeRequest{
 		Capability:      capability,
-		PreferredPlugin: preferredPlugin,
+		Method:          method,
+		RequestPayload:  payload,
+		PreferredPlugin: options.preferredPlugin,
+		ApiVersion:      options.apiVersion,
+		Metadata:        options.metadata,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get capability provider: %w", err)
+		return nil, fmt.Errorf("invoke stream failed: %w", err)
 	}
 
-	if !resp.Available {
-		if resp.Error != "" {
-			return nil, fmt.Errorf("capability %q not available: %s", capability, resp.Error)
+	ch := make(chan *StreamChunk)
+	go func() {
+		defer close(ch)
+		for {
+			resp, err := stream.Recv()
+			if err == io.EOF {
+				return
+			}
+			if err != nil {
+				ch <- &StreamChunk{Error: err}
+				return
+			}
+			if resp.Error != nil {
+				ch <- &StreamChunk{Error: &CapabilityError{
+					Code:      resp.Error.Code,
+					Message:   resp.Error.Message,
+					Details:   resp.Error.Details,
+					Retryable: resp.Error.Retryable,
+				}}
+				return
+			}
+			ch <- &StreamChunk{
+				Payload:        resp.ResponsePayload,
+				ProviderPlugin: resp.ProviderPlugin,
+				Metadata:       resp.Metadata,
+			}
 		}
-		return nil, fmt.Errorf("capability %q not available: no provider found", capability)
-	}
+	}()
 
-	// Use the broker to establish a connection to the provider plugin
-	conn, err := c.broker.Dial(resp.BrokerId)
+	return ch, nil
+}
+
+// Describe returns metadata about a capability's available methods.
+//
+// Example:
+//
+//	desc, err := plugins.Describe(ctx, "embedding")
+//	for _, method := range desc.Methods {
+//	    fmt.Printf("Method: %s (streaming: %v)\n", method.Name, method.IsStreaming)
+//	}
+func (c *PluginsClient) Describe(ctx context.Context, capability string) (*CapabilityDescription, error) {
+	resp, err := c.client.DescribeCapability(ctx, &pluginv1.DescribeCapabilityRequest{
+		Capability: capability,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to provider %q: %w", resp.PluginId, err)
+		return nil, fmt.Errorf("failed to describe capability: %w", err)
 	}
 
-	return conn, nil
+	methods := make([]CapabilityMethod, len(resp.Methods))
+	for i, m := range resp.Methods {
+		methods[i] = CapabilityMethod{
+			Name:         m.Name,
+			Description:  m.Description,
+			IsStreaming:  m.IsStreaming,
+			RequestType:  m.RequestType,
+			ResponseType: m.ResponseType,
+		}
+	}
+
+	providers := make([]PluginProvider, len(resp.Providers))
+	for i, p := range resp.Providers {
+		providers[i] = PluginProvider{
+			ID:          p.PluginId,
+			Name:        p.PluginName,
+			Enabled:     p.Enabled,
+			Configured:  p.Configured,
+			IsPreferred: p.IsPreferred,
+		}
+	}
+
+	return &CapabilityDescription{
+		Capability:        resp.Capability,
+		APIVersion:        resp.ApiVersion,
+		SupportedVersions: resp.SupportedVersions,
+		Methods:           methods,
+		Providers:         providers,
+	}, nil
 }
 
 // IsAvailable checks if any plugin provides the specified capability.
@@ -184,23 +303,9 @@ func (c *PluginsClient) ListCapabilities(ctx context.Context) ([]Capability, err
 	return caps, nil
 }
 
-// PluginProvider describes a plugin that provides a capability.
-type PluginProvider struct {
-	ID         string // Plugin ID (e.g., "provider-ollama")
-	Name       string // Human-readable name (e.g., "Ollama Provider")
-	Enabled    bool   // Whether the plugin is enabled
-	Configured bool   // Whether the plugin is properly configured
-}
-
-// Capability describes an available capability and its providers.
-type Capability struct {
-	Name      string           // Capability name (e.g., "embedding")
-	Providers []PluginProvider // Plugins providing this capability
-}
-
 // SetCapabilityPreference sets the preferred plugin for a capability.
 // Used by configuration plugins (e.g., ai-local) to route capabilities to specific providers.
-// When other plugins request this capability, the preferred plugin will be used.
+// When other plugins invoke this capability, the preferred plugin will be used.
 //
 // Example:
 //
@@ -218,7 +323,7 @@ func (c *PluginsClient) SetCapabilityPreference(ctx context.Context, capability,
 }
 
 // ClearCapabilityPreference removes the preference for a capability.
-// After clearing, GetConnection falls back to the first available provider.
+// After clearing, Invoke falls back to the first available provider.
 //
 // Example:
 //
@@ -248,4 +353,90 @@ func (c *PluginsClient) GetCapabilityPreferences(ctx context.Context) (map[strin
 		return nil, fmt.Errorf("failed to get capability preferences: %w", err)
 	}
 	return resp.Preferences, nil
+}
+
+// --- Types ---
+
+// InvokeOption configures an Invoke call.
+type InvokeOption func(*invokeOptions)
+
+type invokeOptions struct {
+	preferredPlugin string
+	apiVersion      string
+	metadata        map[string]string
+}
+
+// WithPreferredPlugin sets the preferred provider plugin for this invoke.
+func WithPreferredPlugin(pluginID string) InvokeOption {
+	return func(o *invokeOptions) { o.preferredPlugin = pluginID }
+}
+
+// WithAPIVersion sets the API version for this invoke.
+func WithAPIVersion(version string) InvokeOption {
+	return func(o *invokeOptions) { o.apiVersion = version }
+}
+
+// WithMetadata sets request metadata for this invoke.
+func WithMetadata(meta map[string]string) InvokeOption {
+	return func(o *invokeOptions) { o.metadata = meta }
+}
+
+// InvokeMetadata contains metadata about an invoke call.
+type InvokeMetadata struct {
+	ProviderPlugin string            // Which plugin handled the request
+	LatencyMs      int64             // How long the provider took
+	Metadata       map[string]string // Response metadata from provider
+}
+
+// StreamChunk represents a chunk from a streaming response.
+type StreamChunk struct {
+	Payload        []byte            // Serialized response proto
+	ProviderPlugin string            // Which plugin is streaming
+	Metadata       map[string]string // Chunk metadata
+	Error          error             // Error if chunk failed
+}
+
+// CapabilityError represents a structured error from a capability call.
+type CapabilityError struct {
+	Code      pluginv1.CapabilityErrorCode
+	Message   string
+	Details   string
+	Retryable bool
+}
+
+func (e *CapabilityError) Error() string {
+	return fmt.Sprintf("%s: %s", e.Code, e.Message)
+}
+
+// CapabilityDescription describes a capability and its available methods.
+type CapabilityDescription struct {
+	Capability        string
+	APIVersion        string
+	SupportedVersions []string
+	Methods           []CapabilityMethod
+	Providers         []PluginProvider
+}
+
+// CapabilityMethod describes a method available on a capability.
+type CapabilityMethod struct {
+	Name         string
+	Description  string
+	IsStreaming  bool
+	RequestType  string
+	ResponseType string
+}
+
+// PluginProvider describes a plugin that provides a capability.
+type PluginProvider struct {
+	ID          string // Plugin ID (e.g., "provider-ollama")
+	Name        string // Human-readable name (e.g., "Ollama Provider")
+	Enabled     bool   // Whether the plugin is enabled
+	Configured  bool   // Whether the plugin is properly configured
+	IsPreferred bool   // Whether this is the preferred provider
+}
+
+// Capability describes an available capability and its providers.
+type Capability struct {
+	Name      string           // Capability name (e.g., "embedding")
+	Providers []PluginProvider // Plugins providing this capability
 }

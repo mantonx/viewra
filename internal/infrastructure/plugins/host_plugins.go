@@ -3,21 +3,28 @@ package plugins
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"sync"
+
+	"google.golang.org/grpc"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 )
 
 // HostPluginsServer implements the HostPlugins gRPC service.
-// This allows plugins to discover and connect to other plugins that provide
+// This allows plugins to discover and invoke methods on other plugins that provide
 // specific capabilities (e.g., "embedding", "chat").
 //
 // The capability broker enables a plugin architecture where:
 //   - Provider plugins declare capabilities they provide (e.g., ai-local provides "embedding", "chat")
-//   - Consumer plugins can request connections to capability providers
-//   - The host manages capability resolution and plugin-to-plugin connections
+//   - Consumer plugins can invoke methods on capability providers via the host
+//   - The host manages capability resolution and proxies requests to providers
 //   - Configuration plugins can set preferences to route capabilities to specific providers
+//
+// Key design: The host acts as a "dumb pipe" that routes requests to providers.
+// Provider plugins dispatch method calls via a generic Invoke pattern. Consumer plugins
+// use typed protos for requests/responses, while the transport uses generic bytes.
 type HostPluginsServer struct {
 	pluginv1.UnimplementedHostPluginsServer
 
@@ -31,7 +38,7 @@ type HostPluginsServer struct {
 	// Set by configuration plugins (e.g., ai-local) to route capabilities
 	preferences map[string]string
 
-	// pluginLookup provides access to plugin instances for broker connection
+	// pluginLookup provides access to plugin instances for invoking methods
 	pluginLookup PluginLookup
 
 	// logger for debugging capability resolution
@@ -44,11 +51,10 @@ type CapabilityProvider struct {
 	PluginName string // Human-readable name
 	Enabled    bool   // Whether the plugin is currently enabled
 	Configured bool   // Whether the plugin is properly configured
-	BrokerID   uint32 // gRPC broker ID for plugin-to-plugin connection (0 if not available)
 }
 
 // PluginLookup provides access to running plugin instances.
-// Used to check plugin status and get broker connections.
+// Used to check plugin status and invoke methods on providers.
 type PluginLookup interface {
 	// GetPlugin returns a running plugin instance by ID.
 	GetPlugin(id string) (*PluginInstance, bool)
@@ -135,121 +141,63 @@ func (s *HostPluginsServer) UpdatePluginStatus(pluginID string, enabled, configu
 	}
 }
 
-// GetCapabilityProvider returns connection info for a plugin providing the capability.
-// This is the core of the capability broker - it finds a provider plugin and asks it
-// to expose its service, returning the broker ID so the consumer can connect.
-//
+// resolveProvider finds the best available provider for a capability.
 // Resolution order:
 //  1. preferred_plugin parameter (explicit request)
 //  2. Configured preference (set by configuration plugin like ai-local)
 //  3. First available enabled provider
-func (s *HostPluginsServer) GetCapabilityProvider(ctx context.Context, req *pluginv1.CapabilityRequest) (*pluginv1.CapabilityProviderResponse, error) {
+func (s *HostPluginsServer) resolveProvider(capability, preferredPlugin string) (*CapabilityProvider, *PluginInstance, error) {
 	s.mu.RLock()
-	providers := s.capabilities[req.Capability]
-	preferredPluginID := s.preferences[req.Capability]
+	providers := s.capabilities[capability]
+	configuredPreference := s.preferences[capability]
 	s.mu.RUnlock()
 
 	if len(providers) == 0 {
-		return &pluginv1.CapabilityProviderResponse{
-			Available: false,
-			Error:     "no provider found for capability: " + req.Capability,
-		}, nil
+		return nil, nil, fmt.Errorf("no provider found for capability: %s", capability)
 	}
 
 	// 1. If preferred plugin is specified in request, try it first
-	if req.PreferredPlugin != "" {
+	if preferredPlugin != "" {
 		for _, p := range providers {
-			if p.PluginID == req.PreferredPlugin && p.Enabled && p.Configured {
-				return s.requestServiceExposure(ctx, p, req.Capability, "")
+			if p.PluginID == preferredPlugin && p.Enabled && p.Configured {
+				instance, ok := s.pluginLookup.GetPlugin(p.PluginID)
+				if ok && instance.ProviderClient != nil {
+					return p, instance, nil
+				}
 			}
 		}
-		// Preferred plugin not available, fall through
+		// Fall through if preferred plugin not available
 	}
 
 	// 2. Check configured preference (set by configuration plugin like ai-local)
-	if preferredPluginID != "" {
+	if configuredPreference != "" {
 		for _, p := range providers {
-			if p.PluginID == preferredPluginID && p.Enabled && p.Configured {
-				s.logger.Debug("using configured preference",
-					"capability", req.Capability,
-					"preferred_plugin", preferredPluginID)
-				return s.requestServiceExposure(ctx, p, req.Capability, "")
+			if p.PluginID == configuredPreference && p.Enabled && p.Configured {
+				instance, ok := s.pluginLookup.GetPlugin(p.PluginID)
+				if ok && instance.ProviderClient != nil {
+					s.logger.Debug("using configured preference",
+						"capability", capability,
+						"preferred_plugin", configuredPreference)
+					return p, instance, nil
+				}
 			}
 		}
-		// Configured preference not available, fall through
 		s.logger.Debug("configured preference not available, falling back",
-			"capability", req.Capability,
-			"preferred_plugin", preferredPluginID)
+			"capability", capability,
+			"preferred_plugin", configuredPreference)
 	}
 
 	// 3. Find the first enabled and configured provider
 	for _, p := range providers {
 		if p.Enabled && p.Configured {
-			return s.requestServiceExposure(ctx, p, req.Capability, "")
+			instance, ok := s.pluginLookup.GetPlugin(p.PluginID)
+			if ok && instance.ProviderClient != nil {
+				return p, instance, nil
+			}
 		}
 	}
 
-	// No enabled provider found
-	return &pluginv1.CapabilityProviderResponse{
-		Available: false,
-		Error:     "no enabled provider for capability: " + req.Capability,
-	}, nil
-}
-
-// requestServiceExposure asks a provider plugin to expose its service for the given capability.
-// It calls the provider's ExposeService RPC to get a broker ID that consumers can dial.
-func (s *HostPluginsServer) requestServiceExposure(ctx context.Context, p *CapabilityProvider, capability, requestingPluginID string) (*pluginv1.CapabilityProviderResponse, error) {
-	// Get the plugin instance to access its CoreClient
-	instance, ok := s.pluginLookup.GetPlugin(p.PluginID)
-	if !ok {
-		return &pluginv1.CapabilityProviderResponse{
-			Available: false,
-			Error:     "provider plugin not found: " + p.PluginID,
-		}, nil
-	}
-
-	if instance.CoreClient == nil {
-		return &pluginv1.CapabilityProviderResponse{
-			Available: false,
-			Error:     "provider plugin has no core client: " + p.PluginID,
-		}, nil
-	}
-
-	// Ask the provider to expose its service
-	resp, err := instance.CoreClient.ExposeService(ctx, &pluginv1.ExposeServiceRequest{
-		Capability:         capability,
-		RequestingPluginId: requestingPluginID,
-	})
-	if err != nil {
-		s.logger.Error("failed to request service exposure",
-			"provider", p.PluginID,
-			"capability", capability,
-			"error", err)
-		return &pluginv1.CapabilityProviderResponse{
-			Available: false,
-			Error:     "failed to expose service: " + err.Error(),
-		}, nil
-	}
-
-	if !resp.Success {
-		return &pluginv1.CapabilityProviderResponse{
-			Available: false,
-			Error:     resp.Error,
-		}, nil
-	}
-
-	s.logger.Debug("service exposed successfully",
-		"provider", p.PluginID,
-		"capability", capability,
-		"broker_id", resp.BrokerId,
-		"service_name", resp.ServiceName)
-
-	return &pluginv1.CapabilityProviderResponse{
-		Available:  true,
-		BrokerId:   resp.BrokerId,
-		PluginId:   p.PluginID,
-		PluginName: p.PluginName,
-	}, nil
+	return nil, nil, fmt.Errorf("no enabled provider with ProviderClient for capability: %s", capability)
 }
 
 // HasCapability returns true if any enabled plugin provides the capability.
@@ -312,7 +260,7 @@ func (s *HostPluginsServer) ListProviders(ctx context.Context, req *pluginv1.Cap
 
 // SetCapabilityPreference sets the preferred plugin for a capability.
 // Used by configuration plugins (e.g., ai-local) to route capabilities to specific providers.
-// The preference is used when GetCapabilityProvider is called without a preferred_plugin.
+// The preference is used when InvokeCapability is called without a preferred_plugin.
 func (s *HostPluginsServer) SetCapabilityPreference(ctx context.Context, req *pluginv1.CapabilityPreferenceRequest) (*pluginv1.Empty, error) {
 	if req.Capability == "" {
 		return nil, fmt.Errorf("capability is required")
@@ -334,7 +282,7 @@ func (s *HostPluginsServer) SetCapabilityPreference(ctx context.Context, req *pl
 }
 
 // ClearCapabilityPreference removes the preference for a capability.
-// After clearing, GetCapabilityProvider falls back to first available provider.
+// After clearing, InvokeCapability falls back to first available provider.
 func (s *HostPluginsServer) ClearCapabilityPreference(ctx context.Context, req *pluginv1.CapabilityPreferenceRequest) (*pluginv1.Empty, error) {
 	if req.Capability == "" {
 		return nil, fmt.Errorf("capability is required")
@@ -363,4 +311,290 @@ func (s *HostPluginsServer) GetCapabilityPreferences(ctx context.Context, _ *plu
 	}
 
 	return &pluginv1.CapabilityPreferencesResponse{Preferences: prefs}, nil
+}
+
+// InvokeCapability forwards a request to a capability provider.
+// The host resolves the capability to an available provider and proxies the request.
+// This is the core of the cross-plugin RPC system.
+//
+// Flow:
+//  1. Consumer plugin marshals typed proto request to bytes
+//  2. Consumer calls InvokeCapability with capability name, method, and payload
+//  3. Host resolves capability to provider plugin (considering preferences)
+//  4. Host calls provider's Invoke method with the same payload
+//  5. Provider dispatches to appropriate handler based on method name
+//  6. Provider returns response bytes (marshaled typed proto)
+//  7. Consumer unmarshals response bytes to typed proto
+func (s *HostPluginsServer) InvokeCapability(ctx context.Context, req *pluginv1.CapabilityInvokeRequest) (*pluginv1.CapabilityInvokeResponse, error) {
+	// Resolve provider
+	provider, instance, err := s.resolveProvider(req.Capability, req.PreferredPlugin)
+	if err != nil {
+		return &pluginv1.CapabilityInvokeResponse{
+			Error: &pluginv1.CapabilityError{
+				Code:    pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_NOT_FOUND,
+				Message: err.Error(),
+			},
+		}, nil
+	}
+
+	s.logger.Debug("invoking capability",
+		"capability", req.Capability,
+		"method", req.Method,
+		"provider", provider.PluginID)
+
+	// Forward request to provider
+	providerReq := &pluginv1.ProviderInvokeRequest{
+		Method:     req.Method,
+		Payload:    req.RequestPayload,
+		ApiVersion: req.ApiVersion,
+		Metadata:   req.Metadata,
+	}
+
+	providerResp, err := instance.ProviderClient.Invoke(ctx, providerReq)
+	if err != nil {
+		s.logger.Error("provider invoke failed",
+			"capability", req.Capability,
+			"method", req.Method,
+			"provider", provider.PluginID,
+			"error", err)
+		return &pluginv1.CapabilityInvokeResponse{
+			Error: &pluginv1.CapabilityError{
+				Code:      pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_PROVIDER_ERROR,
+				Message:   err.Error(),
+				Retryable: true,
+			},
+		}, nil
+	}
+
+	// Convert provider error to capability error if present
+	if providerResp.Error != nil {
+		return &pluginv1.CapabilityInvokeResponse{
+			Error: &pluginv1.CapabilityError{
+				Code:      s.mapProviderErrorCode(providerResp.Error.Code),
+				Message:   providerResp.Error.Message,
+				Retryable: providerResp.Error.Retryable,
+			},
+		}, nil
+	}
+
+	// Add provider info to metadata
+	metadata := providerResp.Metadata
+	if metadata == nil {
+		metadata = make(map[string]string)
+	}
+	metadata["provider_plugin_id"] = provider.PluginID
+	metadata["provider_plugin_name"] = provider.PluginName
+
+	return &pluginv1.CapabilityInvokeResponse{
+		ResponsePayload: providerResp.Payload,
+		Metadata:        metadata,
+		ProviderPlugin:  provider.PluginID,
+	}, nil
+}
+
+// InvokeCapabilityStream forwards a streaming request to a capability provider.
+// Used for server-streaming methods like ChatStream.
+func (s *HostPluginsServer) InvokeCapabilityStream(req *pluginv1.CapabilityInvokeRequest, stream grpc.ServerStreamingServer[pluginv1.CapabilityInvokeResponse]) error {
+	ctx := stream.Context()
+
+	// Resolve provider
+	provider, instance, err := s.resolveProvider(req.Capability, req.PreferredPlugin)
+	if err != nil {
+		return stream.Send(&pluginv1.CapabilityInvokeResponse{
+			Error: &pluginv1.CapabilityError{
+				Code:    pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_NOT_FOUND,
+				Message: err.Error(),
+			},
+		})
+	}
+
+	s.logger.Debug("invoking capability stream",
+		"capability", req.Capability,
+		"method", req.Method,
+		"provider", provider.PluginID)
+
+	// Forward request to provider's streaming method
+	providerReq := &pluginv1.ProviderInvokeRequest{
+		Method:     req.Method,
+		Payload:    req.RequestPayload,
+		ApiVersion: req.ApiVersion,
+		Metadata:   req.Metadata,
+	}
+
+	providerStream, err := instance.ProviderClient.InvokeStream(ctx, providerReq)
+	if err != nil {
+		s.logger.Error("provider invoke stream failed",
+			"capability", req.Capability,
+			"method", req.Method,
+			"provider", provider.PluginID,
+			"error", err)
+		return stream.Send(&pluginv1.CapabilityInvokeResponse{
+			Error: &pluginv1.CapabilityError{
+				Code:      pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_PROVIDER_ERROR,
+				Message:   err.Error(),
+				Retryable: true,
+			},
+		})
+	}
+
+	// Forward all chunks from provider to consumer
+	for {
+		providerResp, err := providerStream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			s.logger.Error("provider stream recv failed",
+				"capability", req.Capability,
+				"method", req.Method,
+				"provider", provider.PluginID,
+				"error", err)
+			return stream.Send(&pluginv1.CapabilityInvokeResponse{
+				Error: &pluginv1.CapabilityError{
+					Code:      pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_PROVIDER_ERROR,
+					Message:   err.Error(),
+					Retryable: true,
+				},
+			})
+		}
+
+		// Convert provider error to capability error if present
+		if providerResp.Error != nil {
+			if err := stream.Send(&pluginv1.CapabilityInvokeResponse{
+				Error: &pluginv1.CapabilityError{
+					Code:      s.mapProviderErrorCode(providerResp.Error.Code),
+					Message:   providerResp.Error.Message,
+					Retryable: providerResp.Error.Retryable,
+				},
+			}); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// Add provider info to metadata
+		metadata := providerResp.Metadata
+		if metadata == nil {
+			metadata = make(map[string]string)
+		}
+		metadata["provider_plugin_id"] = provider.PluginID
+		metadata["provider_plugin_name"] = provider.PluginName
+
+		if err := stream.Send(&pluginv1.CapabilityInvokeResponse{
+			ResponsePayload: providerResp.Payload,
+			Metadata:        metadata,
+			ProviderPlugin:  provider.PluginID,
+		}); err != nil {
+			return err
+		}
+	}
+}
+
+// DescribeCapability returns metadata about a capability's available methods.
+// Useful for discovering what methods a capability supports.
+func (s *HostPluginsServer) DescribeCapability(ctx context.Context, req *pluginv1.DescribeCapabilityRequest) (*pluginv1.DescribeCapabilityResponse, error) {
+	s.mu.RLock()
+	providers := s.capabilities[req.Capability]
+	s.mu.RUnlock()
+
+	if len(providers) == 0 {
+		return nil, fmt.Errorf("no provider found for capability: %s", req.Capability)
+	}
+
+	// Build provider info list
+	var providerInfos []*pluginv1.DescribeCapabilityProviderInfo
+	var methods []*pluginv1.CapabilityMethodInfo
+	var apiVersion string
+	var supportedVersions []string
+
+	for _, p := range providers {
+		if !p.Enabled || !p.Configured {
+			providerInfos = append(providerInfos, &pluginv1.DescribeCapabilityProviderInfo{
+				PluginId:   p.PluginID,
+				PluginName: p.PluginName,
+				Enabled:    false,
+			})
+			continue
+		}
+
+		instance, ok := s.pluginLookup.GetPlugin(p.PluginID)
+		if !ok || instance.ProviderClient == nil {
+			providerInfos = append(providerInfos, &pluginv1.DescribeCapabilityProviderInfo{
+				PluginId:   p.PluginID,
+				PluginName: p.PluginName,
+				Enabled:    false,
+			})
+			continue
+		}
+
+		// Get methods from provider
+		methodsResp, err := instance.ProviderClient.DescribeMethods(ctx, &pluginv1.Empty{})
+		if err != nil {
+			s.logger.Warn("failed to get provider methods",
+				"provider", p.PluginID,
+				"error", err)
+			providerInfos = append(providerInfos, &pluginv1.DescribeCapabilityProviderInfo{
+				PluginId:   p.PluginID,
+				PluginName: p.PluginName,
+				Enabled:    false,
+			})
+			continue
+		}
+
+		// Use first available provider's methods as canonical
+		if len(methods) == 0 && methodsResp != nil {
+			apiVersion = methodsResp.ApiVersion
+			supportedVersions = methodsResp.SupportedVersions
+			for _, m := range methodsResp.Methods {
+				methods = append(methods, &pluginv1.CapabilityMethodInfo{
+					Name:         m.Name,
+					Description:  m.Description,
+					IsStreaming:  m.IsStreaming,
+					RequestType:  m.RequestType,
+					ResponseType: m.ResponseType,
+				})
+			}
+		}
+
+		// Build list of methods this provider supports
+		var providerMethods []string
+		for _, m := range methodsResp.Methods {
+			providerMethods = append(providerMethods, m.Name)
+		}
+
+		providerInfos = append(providerInfos, &pluginv1.DescribeCapabilityProviderInfo{
+			PluginId:   p.PluginID,
+			PluginName: p.PluginName,
+			Enabled:    true,
+			Configured: true,
+		})
+	}
+
+	return &pluginv1.DescribeCapabilityResponse{
+		Capability:        req.Capability,
+		ApiVersion:        apiVersion,
+		SupportedVersions: supportedVersions,
+		Methods:           methods,
+		Providers:         providerInfos,
+	}, nil
+}
+
+// mapProviderErrorCode converts a provider error code string to a CapabilityErrorCode.
+func (s *HostPluginsServer) mapProviderErrorCode(code string) pluginv1.CapabilityErrorCode {
+	switch code {
+	case "METHOD_NOT_FOUND":
+		return pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_METHOD_NOT_FOUND
+	case "INVALID_REQUEST":
+		return pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_INVALID_REQUEST
+	case "PROVIDER_ERROR":
+		return pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_PROVIDER_ERROR
+	case "TIMEOUT":
+		return pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_TIMEOUT
+	case "RATE_LIMITED":
+		return pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_RATE_LIMITED
+	case "NOT_CONFIGURED":
+		return pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_NOT_CONFIGURED
+	default:
+		return pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_PROVIDER_ERROR
+	}
 }

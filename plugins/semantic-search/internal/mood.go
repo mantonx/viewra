@@ -10,16 +10,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 	"github.com/mantonx/viewra/pkg/plugin/sdk"
 )
 
 // MoodTagService generates mood/vibe tags for media using LLM.
-// Uses the chat provider via capability broker.
+// Uses sdk.AIClient to invoke chat methods on a provider.
 type MoodTagService struct {
-	plugins *sdk.PluginsClient // For getting chat capability
-	data    *sdk.DataClient
-	logger  *slog.Logger
+	ai     *sdk.AIClient
+	data   *sdk.DataClient
+	logger *slog.Logger
 
 	// Generation state
 	mu           sync.RWMutex
@@ -48,16 +47,15 @@ type MoodTags struct {
 }
 
 // NewMoodTagService creates a new mood tag service.
-// Uses capability broker to connect to chat providers.
 func NewMoodTagService(
 	plugins *sdk.PluginsClient,
 	data *sdk.DataClient,
 	logger *slog.Logger,
 ) *MoodTagService {
 	return &MoodTagService{
-		plugins: plugins,
-		data:    data,
-		logger:  logger,
+		ai:     sdk.NewAIClient(plugins),
+		data:   data,
+		logger: logger,
 	}
 }
 
@@ -66,8 +64,8 @@ func (s *MoodTagService) GenerateForMedia(
 	ctx context.Context,
 	details *sdk.MediaDetails,
 ) ([]string, error) {
-	if s.plugins == nil {
-		return nil, fmt.Errorf("plugins client not available")
+	if s.ai == nil {
+		return nil, fmt.Errorf("AI client not available")
 	}
 
 	prompt := s.buildPrompt(details)
@@ -81,31 +79,17 @@ func (s *MoodTagService) GenerateForMedia(
 		"prompt_length", len(prompt),
 	)
 
-	// Get connection to chat capability provider
-	conn, err := s.plugins.GetConnection(ctx, "chat")
-	if err != nil {
-		return nil, fmt.Errorf("get chat provider: %w", err)
-	}
-	defer conn.Close()
-
-	// Create provider client and call Chat
-	providerClient := pluginv1.NewPluginProviderClient(conn)
-	resp, err := providerClient.Chat(ctx, &pluginv1.ProviderChatRequest{
-		Messages: []*pluginv1.ProviderChatMessage{
-			{
-				Role:    "system",
-				Content: moodTagSystemPrompt,
-			},
-			{
-				Role:    "user",
-				Content: prompt,
-			},
+	// Use AIClient for chat
+	resp, err := s.ai.Chat(ctx, sdk.ChatRequest{
+		Messages: []sdk.ChatMessage{
+			{Role: "system", Content: moodTagSystemPrompt},
+			{Role: "user", Content: prompt},
 		},
 		Temperature: 0.3, // Low temperature for consistent results
 		MaxTokens:   100, // Tags should be short
 	})
 	if err != nil {
-		return nil, fmt.Errorf("chat completion: %w", err)
+		return nil, fmt.Errorf("chat: %w", err)
 	}
 
 	tags := s.parseTags(resp.Content)

@@ -30,6 +30,7 @@
 //	    }
 //	    if req.HostPluginsBrokerId > 0 {
 //	        conn, _ := broker.Dial(req.HostPluginsBrokerId)
+//	        // PluginsClient provides capability invocation via host-proxied generic invoke
 //	        p.plugins = sdk.NewPluginsClient(conn)
 //	    }
 //	    return &pluginv1.InitResponse{Success: true}, nil
@@ -101,20 +102,6 @@ func (c *DataClient) ListMediaByLibrary(ctx context.Context, libraryID int64, li
 		Total:   int(resp.Total),
 		HasMore: resp.HasMore,
 	}, nil
-}
-
-// SetMoodTags stores mood tags for a media item.
-func (c *DataClient) SetMoodTags(ctx context.Context, mediaID int64, mediaType string, tags []MoodTag) error {
-	protoTags := make([]*pluginv1.MoodTag, len(tags))
-	for i, t := range tags {
-		protoTags[i] = &pluginv1.MoodTag{Tag: t.Tag, Confidence: t.Confidence}
-	}
-	_, err := c.client.SetMoodTags(ctx, &pluginv1.SetMoodTagsRequest{
-		MediaId:   mediaID,
-		MediaType: mediaType,
-		Tags:      protoTags,
-	})
-	return err
 }
 
 // GetLibrary retrieves library information by ID.

@@ -19,6 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	PluginProvider_Invoke_FullMethodName                 = "/viewra.plugin.v1.PluginProvider/Invoke"
+	PluginProvider_InvokeStream_FullMethodName           = "/viewra.plugin.v1.PluginProvider/InvokeStream"
+	PluginProvider_DescribeMethods_FullMethodName        = "/viewra.plugin.v1.PluginProvider/DescribeMethods"
 	PluginProvider_GetCapabilities_FullMethodName        = "/viewra.plugin.v1.PluginProvider/GetCapabilities"
 	PluginProvider_ListModels_FullMethodName             = "/viewra.plugin.v1.PluginProvider/ListModels"
 	PluginProvider_GenerateEmbedding_FullMethodName      = "/viewra.plugin.v1.PluginProvider/GenerateEmbedding"
@@ -33,8 +36,19 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // PluginProvider is implemented by AI provider plugins (ollama, openai, etc.).
-// Consumer plugins connect directly to providers via the capability broker.
+// The host proxies capability requests to providers via the generic Invoke methods.
+// Typed methods are kept for direct use and backwards compatibility.
 type PluginProviderClient interface {
+	// Invoke dispatches a method call based on method name.
+	// The provider deserializes the payload, calls the typed implementation,
+	// and returns the serialized response.
+	Invoke(ctx context.Context, in *ProviderInvokeRequest, opts ...grpc.CallOption) (*ProviderInvokeResponse, error)
+	// InvokeStream handles streaming method calls.
+	// Used for methods like ChatStream.
+	InvokeStream(ctx context.Context, in *ProviderInvokeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ProviderInvokeResponse], error)
+	// DescribeMethods returns metadata about available methods.
+	// Used by the host to populate DescribeCapability responses.
+	DescribeMethods(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*ProviderMethodsResponse, error)
 	// GetCapabilities returns what this provider supports.
 	GetCapabilities(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*ProviderCapabilities, error)
 	// ListModels returns available models for this provider.
@@ -57,6 +71,45 @@ type pluginProviderClient struct {
 
 func NewPluginProviderClient(cc grpc.ClientConnInterface) PluginProviderClient {
 	return &pluginProviderClient{cc}
+}
+
+func (c *pluginProviderClient) Invoke(ctx context.Context, in *ProviderInvokeRequest, opts ...grpc.CallOption) (*ProviderInvokeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProviderInvokeResponse)
+	err := c.cc.Invoke(ctx, PluginProvider_Invoke_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *pluginProviderClient) InvokeStream(ctx context.Context, in *ProviderInvokeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ProviderInvokeResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &PluginProvider_ServiceDesc.Streams[0], PluginProvider_InvokeStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ProviderInvokeRequest, ProviderInvokeResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PluginProvider_InvokeStreamClient = grpc.ServerStreamingClient[ProviderInvokeResponse]
+
+func (c *pluginProviderClient) DescribeMethods(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*ProviderMethodsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProviderMethodsResponse)
+	err := c.cc.Invoke(ctx, PluginProvider_DescribeMethods_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *pluginProviderClient) GetCapabilities(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*ProviderCapabilities, error) {
@@ -111,7 +164,7 @@ func (c *pluginProviderClient) Chat(ctx context.Context, in *ProviderChatRequest
 
 func (c *pluginProviderClient) ChatStream(ctx context.Context, in *ProviderChatRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ProviderChatStreamChunk], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &PluginProvider_ServiceDesc.Streams[0], PluginProvider_ChatStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &PluginProvider_ServiceDesc.Streams[1], PluginProvider_ChatStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -143,8 +196,19 @@ func (c *pluginProviderClient) HealthCheck(ctx context.Context, in *Empty, opts 
 // for forward compatibility.
 //
 // PluginProvider is implemented by AI provider plugins (ollama, openai, etc.).
-// Consumer plugins connect directly to providers via the capability broker.
+// The host proxies capability requests to providers via the generic Invoke methods.
+// Typed methods are kept for direct use and backwards compatibility.
 type PluginProviderServer interface {
+	// Invoke dispatches a method call based on method name.
+	// The provider deserializes the payload, calls the typed implementation,
+	// and returns the serialized response.
+	Invoke(context.Context, *ProviderInvokeRequest) (*ProviderInvokeResponse, error)
+	// InvokeStream handles streaming method calls.
+	// Used for methods like ChatStream.
+	InvokeStream(*ProviderInvokeRequest, grpc.ServerStreamingServer[ProviderInvokeResponse]) error
+	// DescribeMethods returns metadata about available methods.
+	// Used by the host to populate DescribeCapability responses.
+	DescribeMethods(context.Context, *Empty) (*ProviderMethodsResponse, error)
 	// GetCapabilities returns what this provider supports.
 	GetCapabilities(context.Context, *Empty) (*ProviderCapabilities, error)
 	// ListModels returns available models for this provider.
@@ -169,6 +233,15 @@ type PluginProviderServer interface {
 // pointer dereference when methods are called.
 type UnimplementedPluginProviderServer struct{}
 
+func (UnimplementedPluginProviderServer) Invoke(context.Context, *ProviderInvokeRequest) (*ProviderInvokeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Invoke not implemented")
+}
+func (UnimplementedPluginProviderServer) InvokeStream(*ProviderInvokeRequest, grpc.ServerStreamingServer[ProviderInvokeResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method InvokeStream not implemented")
+}
+func (UnimplementedPluginProviderServer) DescribeMethods(context.Context, *Empty) (*ProviderMethodsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DescribeMethods not implemented")
+}
 func (UnimplementedPluginProviderServer) GetCapabilities(context.Context, *Empty) (*ProviderCapabilities, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetCapabilities not implemented")
 }
@@ -209,6 +282,53 @@ func RegisterPluginProviderServer(s grpc.ServiceRegistrar, srv PluginProviderSer
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&PluginProvider_ServiceDesc, srv)
+}
+
+func _PluginProvider_Invoke_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ProviderInvokeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PluginProviderServer).Invoke(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PluginProvider_Invoke_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PluginProviderServer).Invoke(ctx, req.(*ProviderInvokeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PluginProvider_InvokeStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ProviderInvokeRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(PluginProviderServer).InvokeStream(m, &grpc.GenericServerStream[ProviderInvokeRequest, ProviderInvokeResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PluginProvider_InvokeStreamServer = grpc.ServerStreamingServer[ProviderInvokeResponse]
+
+func _PluginProvider_DescribeMethods_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PluginProviderServer).DescribeMethods(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PluginProvider_DescribeMethods_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PluginProviderServer).DescribeMethods(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _PluginProvider_GetCapabilities_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -338,6 +458,14 @@ var PluginProvider_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*PluginProviderServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "Invoke",
+			Handler:    _PluginProvider_Invoke_Handler,
+		},
+		{
+			MethodName: "DescribeMethods",
+			Handler:    _PluginProvider_DescribeMethods_Handler,
+		},
+		{
 			MethodName: "GetCapabilities",
 			Handler:    _PluginProvider_GetCapabilities_Handler,
 		},
@@ -363,6 +491,11 @@ var PluginProvider_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "InvokeStream",
+			Handler:       _PluginProvider_InvokeStream_Handler,
+			ServerStreams: true,
+		},
 		{
 			StreamName:    "ChatStream",
 			Handler:       _PluginProvider_ChatStream_Handler,

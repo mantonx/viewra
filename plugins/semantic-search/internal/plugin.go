@@ -21,7 +21,9 @@ type SemanticSearchPlugin struct {
 
 	// Host service clients (set during Initialize via HostServices)
 	plugins *sdk.PluginsClient // For capability broker (embedding provider)
-	vector  *sdk.VectorClient  // For vector storage
+	storage *sdk.StorageClient // For SQL and vector storage
+	vector  *sdk.VectorClient  // For vector storage (convenience)
+	sql     *sdk.SQLClient     // For SQL storage (mood tags, etc.)
 	data    *sdk.DataClient    // For media data access
 	weather *sdk.WeatherClient // For weather/location context
 
@@ -100,10 +102,17 @@ func (p *SemanticSearchPlugin) Initialize(ctx context.Context, dataDir string, c
 	if services != nil {
 		p.plugins = services.Plugins
 		if services.Storage != nil {
+			p.storage = services.Storage
 			p.vector = services.Storage.Vector()
+			p.sql = services.Storage.SQL()
 		}
 		p.data = services.Data
 		p.weather = services.Weather
+	}
+
+	// Run database migrations for mood tags table
+	if err := p.runMigrations(ctx); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	// Initialize services
@@ -114,6 +123,38 @@ func (p *SemanticSearchPlugin) Initialize(ctx context.Context, dataDir string, c
 		"mood_tags_enabled", p.config.MoodTags.Enabled,
 	)
 
+	return nil
+}
+
+// runMigrations runs database migrations for plugin-owned tables.
+func (p *SemanticSearchPlugin) runMigrations(ctx context.Context) error {
+	if p.sql == nil {
+		p.Log().Warn("SQL client not available, skipping migrations")
+		return nil
+	}
+
+	migrations := []sdk.Migration{
+		{
+			Version: 1,
+			SQL: `CREATE TABLE IF NOT EXISTS mood_tags (
+				id INTEGER PRIMARY KEY,
+				entity_type TEXT NOT NULL,
+				entity_id INTEGER NOT NULL,
+				tag TEXT NOT NULL,
+				confidence REAL DEFAULT 1.0,
+				created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+				UNIQUE(entity_type, entity_id, tag)
+			);
+			CREATE INDEX IF NOT EXISTS idx_mood_tags_entity ON mood_tags(entity_type, entity_id);
+			CREATE INDEX IF NOT EXISTS idx_mood_tags_tag ON mood_tags(tag)`,
+		},
+	}
+
+	if err := p.sql.Migrate(ctx, migrations); err != nil {
+		return fmt.Errorf("migrate mood_tags: %w", err)
+	}
+
+	p.Log().Debug("database migrations completed")
 	return nil
 }
 
@@ -801,6 +842,7 @@ func (p *SemanticSearchPlugin) handleMoodTagsGenerate(ctx context.Context, req *
 	embeddingService := p.embeddingService
 	vectorClient := p.vector
 	dataClient := p.data
+	sqlClient := p.sql
 	logger := p.Log()
 	p.mu.RUnlock()
 
@@ -839,15 +881,21 @@ func (p *SemanticSearchPlugin) handleMoodTagsGenerate(ctx context.Context, req *
 				return nil
 			}
 
-			sdkTags := make([]sdk.MoodTag, len(tags))
-			for i, tag := range tags {
-				sdkTags[i] = sdk.MoodTag{
-					Tag:        tag,
-					Confidence: 1.0,
+			// Store mood tags in plugin-owned table
+			if sqlClient != nil {
+				ctx := context.Background()
+				// Delete existing tags for this entity
+				_, _, _ = sqlClient.Exec(ctx, `DELETE FROM mood_tags WHERE entity_type = ? AND entity_id = ?`,
+					string(entityType), entityID)
+				// Insert new tags
+				for _, tag := range tags {
+					_, _, err := sqlClient.Exec(ctx,
+						`INSERT INTO mood_tags (entity_type, entity_id, tag, confidence) VALUES (?, ?, ?, ?)`,
+						string(entityType), entityID, tag, 1.0)
+					if err != nil {
+						logger.Warn("failed to persist mood tag", "entity_id", entityID, "tag", tag, "error", err)
+					}
 				}
-			}
-			if err := dataClient.SetMoodTags(context.Background(), entityID, string(entityType), sdkTags); err != nil {
-				logger.Warn("failed to persist mood tags", "entity_id", entityID, "error", err)
 			}
 
 			details, err := dataClient.GetMediaDetails(context.Background(), entityID, string(entityType))

@@ -30,15 +30,6 @@ service HostData {
 
   // GetFilePath returns the full file path for a media item.
   rpc GetFilePath(MediaId) returns (FilePath);
-
-  // GetMoodTags retrieves mood tags for a media item.
-  rpc GetMoodTags(MediaQuery) returns (MoodTagList);
-
-  // SetMoodTags stores mood tags for a media item (replaces existing).
-  rpc SetMoodTags(SetMoodTagsRequest) returns (Empty);
-
-  // DeleteMoodTags removes all mood tags for a media item.
-  rpc DeleteMoodTags(MediaQuery) returns (Empty);
 }
 
 // HostStorage provides plugin-scoped storage.
@@ -145,11 +136,6 @@ service HostWeather {
 // Plugins use this to discover and connect to other plugins that provide
 // specific capabilities (e.g., "embedding", "chat").
 service HostPlugins {
-  // GetCapabilityProvider returns connection info for a plugin providing the capability.
-  // The host resolves the capability to an available, enabled plugin.
-  // Resolution order: 1) preferred_plugin param, 2) capability preference, 3) first available
-  rpc GetCapabilityProvider(CapabilityRequest) returns (CapabilityProviderResponse);
-
   // ListCapabilities returns all available capabilities and their providers.
   rpc ListCapabilities(Empty) returns (CapabilityListResponse);
 
@@ -158,15 +144,32 @@ service HostPlugins {
 
   // SetCapabilityPreference sets the preferred plugin for a capability.
   // Used by configuration plugins (e.g., ai-local) to route capabilities.
-  // The preference is used when GetCapabilityProvider is called without a preferred_plugin.
+  // The preference is used when InvokeCapability is called without a preferred_plugin.
   rpc SetCapabilityPreference(CapabilityPreferenceRequest) returns (Empty);
 
   // ClearCapabilityPreference removes the preference for a capability.
-  // After clearing, GetCapabilityProvider falls back to first available provider.
+  // After clearing, InvokeCapability falls back to first available provider.
   rpc ClearCapabilityPreference(CapabilityPreferenceRequest) returns (Empty);
 
   // GetCapabilityPreferences returns all configured capability preferences.
   rpc GetCapabilityPreferences(Empty) returns (CapabilityPreferencesResponse);
+
+  // --- Generic Capability Invocation ---
+  // These methods proxy requests to provider plugins via a generic invoke pattern.
+  // The host routes based on capability preferences, and providers dispatch by method name.
+
+  // InvokeCapability forwards a request to a capability provider.
+  // The host resolves the capability to an available provider and proxies the request.
+  // Consumers use typed protos for requests/responses; the transport is generic bytes.
+  rpc InvokeCapability(CapabilityInvokeRequest) returns (CapabilityInvokeResponse);
+
+  // InvokeCapabilityStream forwards a streaming request to a capability provider.
+  // Used for server-streaming methods like ChatStream.
+  rpc InvokeCapabilityStream(CapabilityInvokeRequest) returns (stream CapabilityInvokeResponse);
+
+  // DescribeCapability returns metadata about a capability's available methods.
+  // Useful for discovering what methods a capability supports.
+  rpc DescribeCapability(DescribeCapabilityRequest) returns (DescribeCapabilityResponse);
 }
 
 // HostData messages
@@ -498,23 +501,6 @@ message ExtractedImage {
   int32 height = 4;
 }
 
-// Mood tag messages
-
-message MoodTag {
-  string tag = 1;
-  float confidence = 2;  // 0.0 - 1.0
-}
-
-message MoodTagList {
-  repeated MoodTag tags = 1;
-}
-
-message SetMoodTagsRequest {
-  int64 media_id = 1;
-  repeated MoodTag tags = 2;
-  string media_type = 3;  // "movie", "tv_show", "tv_episode", "music_artist", "music_album", "music_track"
-}
-
 // HostWeather messages
 
 message WeatherRequest {
@@ -539,14 +525,6 @@ message WeatherResponse {
 message CapabilityRequest {
   string capability = 1;          // Capability name, e.g., "embedding", "chat"
   string preferred_plugin = 2;    // Optional: specific plugin ID to prefer
-}
-
-message CapabilityProviderResponse {
-  bool available = 1;             // True if a provider is available
-  uint32 broker_id = 2;           // gRPC broker ID for plugin-to-plugin connection
-  string plugin_id = 3;           // ID of the plugin providing the capability
-  string plugin_name = 4;         // Human-readable name of the provider
-  string error = 5;               // Error message if not available
 }
 
 message CapabilityListResponse {
@@ -578,4 +556,78 @@ message CapabilityPreferenceRequest {
 // CapabilityPreferencesResponse returns all configured preferences.
 message CapabilityPreferencesResponse {
   map<string, string> preferences = 1;  // capability -> plugin_id
+}
+
+// --- Generic Capability Invocation Messages ---
+
+// CapabilityInvokeRequest is sent to invoke a method on a capability provider.
+message CapabilityInvokeRequest {
+  string capability = 1;           // e.g., "embedding", "chat"
+  string method = 2;               // e.g., "GenerateEmbedding", "Chat"
+  bytes request_payload = 3;       // Serialized protobuf request message
+  string preferred_plugin = 4;     // Optional: prefer specific provider
+  string api_version = 5;          // Optional: capability API version (e.g., "v1")
+  map<string, string> metadata = 6; // Optional: request metadata (tracing, etc.)
+}
+
+// CapabilityInvokeResponse is returned from a capability invocation.
+message CapabilityInvokeResponse {
+  bytes response_payload = 1;      // Serialized protobuf response message
+  CapabilityError error = 2;       // Structured error (null if success)
+  string provider_plugin = 3;      // Which plugin handled the request
+  int64 latency_ms = 4;            // How long the provider took
+  map<string, string> metadata = 5; // Response metadata from provider
+}
+
+// CapabilityError represents a structured error from a capability call.
+message CapabilityError {
+  CapabilityErrorCode code = 1;
+  string message = 2;
+  string details = 3;              // Additional context (JSON or text)
+  bool retryable = 4;              // Whether consumer should retry
+}
+
+// CapabilityErrorCode enumerates error types for capability invocations.
+enum CapabilityErrorCode {
+  CAPABILITY_ERROR_UNSPECIFIED = 0;
+  CAPABILITY_ERROR_NOT_FOUND = 1;        // Capability not available
+  CAPABILITY_ERROR_METHOD_NOT_FOUND = 2; // Method not supported
+  CAPABILITY_ERROR_INVALID_REQUEST = 3;  // Malformed request payload
+  CAPABILITY_ERROR_PROVIDER_ERROR = 4;   // Provider returned an error
+  CAPABILITY_ERROR_TIMEOUT = 5;          // Provider timed out
+  CAPABILITY_ERROR_RATE_LIMITED = 6;     // Too many requests
+  CAPABILITY_ERROR_NOT_CONFIGURED = 7;   // Provider not configured
+  CAPABILITY_ERROR_VERSION_MISMATCH = 8; // API version incompatible
+}
+
+// DescribeCapabilityRequest asks for metadata about a capability.
+message DescribeCapabilityRequest {
+  string capability = 1;
+}
+
+// DescribeCapabilityResponse contains metadata about a capability.
+message DescribeCapabilityResponse {
+  string capability = 1;
+  string api_version = 2;                    // Current API version
+  repeated string supported_versions = 3;    // All supported versions
+  repeated CapabilityMethodInfo methods = 4;
+  repeated DescribeCapabilityProviderInfo providers = 5; // Available providers
+}
+
+// CapabilityMethodInfo describes a method available on a capability.
+message CapabilityMethodInfo {
+  string name = 1;                    // e.g., "GenerateEmbedding"
+  string description = 2;
+  bool is_streaming = 3;              // Server-streaming method
+  string request_type = 4;            // Proto message type name
+  string response_type = 5;           // Proto message type name
+}
+
+// DescribeCapabilityProviderInfo describes a provider for a capability in DescribeCapability responses.
+message DescribeCapabilityProviderInfo {
+  string plugin_id = 1;
+  string plugin_name = 2;
+  bool enabled = 3;
+  bool configured = 4;
+  bool is_preferred = 5;              // Currently the preferred provider
 }

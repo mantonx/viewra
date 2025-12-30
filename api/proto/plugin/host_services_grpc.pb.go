@@ -26,9 +26,6 @@ const (
 	HostData_ListMediaByLibrary_FullMethodName   = "/viewra.plugin.v1.HostData/ListMediaByLibrary"
 	HostData_GetLibrary_FullMethodName           = "/viewra.plugin.v1.HostData/GetLibrary"
 	HostData_GetFilePath_FullMethodName          = "/viewra.plugin.v1.HostData/GetFilePath"
-	HostData_GetMoodTags_FullMethodName          = "/viewra.plugin.v1.HostData/GetMoodTags"
-	HostData_SetMoodTags_FullMethodName          = "/viewra.plugin.v1.HostData/SetMoodTags"
-	HostData_DeleteMoodTags_FullMethodName       = "/viewra.plugin.v1.HostData/DeleteMoodTags"
 )
 
 // HostDataClient is the client API for HostData service.
@@ -53,12 +50,6 @@ type HostDataClient interface {
 	GetLibrary(ctx context.Context, in *LibraryId, opts ...grpc.CallOption) (*Library, error)
 	// GetFilePath returns the full file path for a media item.
 	GetFilePath(ctx context.Context, in *MediaId, opts ...grpc.CallOption) (*FilePath, error)
-	// GetMoodTags retrieves mood tags for a media item.
-	GetMoodTags(ctx context.Context, in *MediaQuery, opts ...grpc.CallOption) (*MoodTagList, error)
-	// SetMoodTags stores mood tags for a media item (replaces existing).
-	SetMoodTags(ctx context.Context, in *SetMoodTagsRequest, opts ...grpc.CallOption) (*Empty, error)
-	// DeleteMoodTags removes all mood tags for a media item.
-	DeleteMoodTags(ctx context.Context, in *MediaQuery, opts ...grpc.CallOption) (*Empty, error)
 }
 
 type hostDataClient struct {
@@ -139,36 +130,6 @@ func (c *hostDataClient) GetFilePath(ctx context.Context, in *MediaId, opts ...g
 	return out, nil
 }
 
-func (c *hostDataClient) GetMoodTags(ctx context.Context, in *MediaQuery, opts ...grpc.CallOption) (*MoodTagList, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(MoodTagList)
-	err := c.cc.Invoke(ctx, HostData_GetMoodTags_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *hostDataClient) SetMoodTags(ctx context.Context, in *SetMoodTagsRequest, opts ...grpc.CallOption) (*Empty, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Empty)
-	err := c.cc.Invoke(ctx, HostData_SetMoodTags_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *hostDataClient) DeleteMoodTags(ctx context.Context, in *MediaQuery, opts ...grpc.CallOption) (*Empty, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Empty)
-	err := c.cc.Invoke(ctx, HostData_DeleteMoodTags_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // HostDataServer is the server API for HostData service.
 // All implementations must embed UnimplementedHostDataServer
 // for forward compatibility.
@@ -191,12 +152,6 @@ type HostDataServer interface {
 	GetLibrary(context.Context, *LibraryId) (*Library, error)
 	// GetFilePath returns the full file path for a media item.
 	GetFilePath(context.Context, *MediaId) (*FilePath, error)
-	// GetMoodTags retrieves mood tags for a media item.
-	GetMoodTags(context.Context, *MediaQuery) (*MoodTagList, error)
-	// SetMoodTags stores mood tags for a media item (replaces existing).
-	SetMoodTags(context.Context, *SetMoodTagsRequest) (*Empty, error)
-	// DeleteMoodTags removes all mood tags for a media item.
-	DeleteMoodTags(context.Context, *MediaQuery) (*Empty, error)
 	mustEmbedUnimplementedHostDataServer()
 }
 
@@ -227,15 +182,6 @@ func (UnimplementedHostDataServer) GetLibrary(context.Context, *LibraryId) (*Lib
 }
 func (UnimplementedHostDataServer) GetFilePath(context.Context, *MediaId) (*FilePath, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetFilePath not implemented")
-}
-func (UnimplementedHostDataServer) GetMoodTags(context.Context, *MediaQuery) (*MoodTagList, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetMoodTags not implemented")
-}
-func (UnimplementedHostDataServer) SetMoodTags(context.Context, *SetMoodTagsRequest) (*Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SetMoodTags not implemented")
-}
-func (UnimplementedHostDataServer) DeleteMoodTags(context.Context, *MediaQuery) (*Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteMoodTags not implemented")
 }
 func (UnimplementedHostDataServer) mustEmbedUnimplementedHostDataServer() {}
 func (UnimplementedHostDataServer) testEmbeddedByValue()                  {}
@@ -384,60 +330,6 @@ func _HostData_GetFilePath_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
-func _HostData_GetMoodTags_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MediaQuery)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(HostDataServer).GetMoodTags(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: HostData_GetMoodTags_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(HostDataServer).GetMoodTags(ctx, req.(*MediaQuery))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _HostData_SetMoodTags_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SetMoodTagsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(HostDataServer).SetMoodTags(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: HostData_SetMoodTags_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(HostDataServer).SetMoodTags(ctx, req.(*SetMoodTagsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _HostData_DeleteMoodTags_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MediaQuery)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(HostDataServer).DeleteMoodTags(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: HostData_DeleteMoodTags_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(HostDataServer).DeleteMoodTags(ctx, req.(*MediaQuery))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // HostData_ServiceDesc is the grpc.ServiceDesc for HostData service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -472,18 +364,6 @@ var HostData_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetFilePath",
 			Handler:    _HostData_GetFilePath_Handler,
-		},
-		{
-			MethodName: "GetMoodTags",
-			Handler:    _HostData_GetMoodTags_Handler,
-		},
-		{
-			MethodName: "SetMoodTags",
-			Handler:    _HostData_SetMoodTags_Handler,
-		},
-		{
-			MethodName: "DeleteMoodTags",
-			Handler:    _HostData_DeleteMoodTags_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -1749,12 +1629,14 @@ var HostWeather_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	HostPlugins_GetCapabilityProvider_FullMethodName     = "/viewra.plugin.v1.HostPlugins/GetCapabilityProvider"
 	HostPlugins_ListCapabilities_FullMethodName          = "/viewra.plugin.v1.HostPlugins/ListCapabilities"
 	HostPlugins_ListProviders_FullMethodName             = "/viewra.plugin.v1.HostPlugins/ListProviders"
 	HostPlugins_SetCapabilityPreference_FullMethodName   = "/viewra.plugin.v1.HostPlugins/SetCapabilityPreference"
 	HostPlugins_ClearCapabilityPreference_FullMethodName = "/viewra.plugin.v1.HostPlugins/ClearCapabilityPreference"
 	HostPlugins_GetCapabilityPreferences_FullMethodName  = "/viewra.plugin.v1.HostPlugins/GetCapabilityPreferences"
+	HostPlugins_InvokeCapability_FullMethodName          = "/viewra.plugin.v1.HostPlugins/InvokeCapability"
+	HostPlugins_InvokeCapabilityStream_FullMethodName    = "/viewra.plugin.v1.HostPlugins/InvokeCapabilityStream"
+	HostPlugins_DescribeCapability_FullMethodName        = "/viewra.plugin.v1.HostPlugins/DescribeCapability"
 )
 
 // HostPluginsClient is the client API for HostPlugins service.
@@ -1765,23 +1647,29 @@ const (
 // Plugins use this to discover and connect to other plugins that provide
 // specific capabilities (e.g., "embedding", "chat").
 type HostPluginsClient interface {
-	// GetCapabilityProvider returns connection info for a plugin providing the capability.
-	// The host resolves the capability to an available, enabled plugin.
-	// Resolution order: 1) preferred_plugin param, 2) capability preference, 3) first available
-	GetCapabilityProvider(ctx context.Context, in *CapabilityRequest, opts ...grpc.CallOption) (*CapabilityProviderResponse, error)
 	// ListCapabilities returns all available capabilities and their providers.
 	ListCapabilities(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*CapabilityListResponse, error)
 	// ListProviders returns all plugins providing a specific capability.
 	ListProviders(ctx context.Context, in *CapabilityRequest, opts ...grpc.CallOption) (*ProviderListResponse, error)
 	// SetCapabilityPreference sets the preferred plugin for a capability.
 	// Used by configuration plugins (e.g., ai-local) to route capabilities.
-	// The preference is used when GetCapabilityProvider is called without a preferred_plugin.
+	// The preference is used when InvokeCapability is called without a preferred_plugin.
 	SetCapabilityPreference(ctx context.Context, in *CapabilityPreferenceRequest, opts ...grpc.CallOption) (*Empty, error)
 	// ClearCapabilityPreference removes the preference for a capability.
-	// After clearing, GetCapabilityProvider falls back to first available provider.
+	// After clearing, InvokeCapability falls back to first available provider.
 	ClearCapabilityPreference(ctx context.Context, in *CapabilityPreferenceRequest, opts ...grpc.CallOption) (*Empty, error)
 	// GetCapabilityPreferences returns all configured capability preferences.
 	GetCapabilityPreferences(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*CapabilityPreferencesResponse, error)
+	// InvokeCapability forwards a request to a capability provider.
+	// The host resolves the capability to an available provider and proxies the request.
+	// Consumers use typed protos for requests/responses; the transport is generic bytes.
+	InvokeCapability(ctx context.Context, in *CapabilityInvokeRequest, opts ...grpc.CallOption) (*CapabilityInvokeResponse, error)
+	// InvokeCapabilityStream forwards a streaming request to a capability provider.
+	// Used for server-streaming methods like ChatStream.
+	InvokeCapabilityStream(ctx context.Context, in *CapabilityInvokeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[CapabilityInvokeResponse], error)
+	// DescribeCapability returns metadata about a capability's available methods.
+	// Useful for discovering what methods a capability supports.
+	DescribeCapability(ctx context.Context, in *DescribeCapabilityRequest, opts ...grpc.CallOption) (*DescribeCapabilityResponse, error)
 }
 
 type hostPluginsClient struct {
@@ -1790,16 +1678,6 @@ type hostPluginsClient struct {
 
 func NewHostPluginsClient(cc grpc.ClientConnInterface) HostPluginsClient {
 	return &hostPluginsClient{cc}
-}
-
-func (c *hostPluginsClient) GetCapabilityProvider(ctx context.Context, in *CapabilityRequest, opts ...grpc.CallOption) (*CapabilityProviderResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CapabilityProviderResponse)
-	err := c.cc.Invoke(ctx, HostPlugins_GetCapabilityProvider_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *hostPluginsClient) ListCapabilities(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*CapabilityListResponse, error) {
@@ -1852,6 +1730,45 @@ func (c *hostPluginsClient) GetCapabilityPreferences(ctx context.Context, in *Em
 	return out, nil
 }
 
+func (c *hostPluginsClient) InvokeCapability(ctx context.Context, in *CapabilityInvokeRequest, opts ...grpc.CallOption) (*CapabilityInvokeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CapabilityInvokeResponse)
+	err := c.cc.Invoke(ctx, HostPlugins_InvokeCapability_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostPluginsClient) InvokeCapabilityStream(ctx context.Context, in *CapabilityInvokeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[CapabilityInvokeResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &HostPlugins_ServiceDesc.Streams[0], HostPlugins_InvokeCapabilityStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[CapabilityInvokeRequest, CapabilityInvokeResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type HostPlugins_InvokeCapabilityStreamClient = grpc.ServerStreamingClient[CapabilityInvokeResponse]
+
+func (c *hostPluginsClient) DescribeCapability(ctx context.Context, in *DescribeCapabilityRequest, opts ...grpc.CallOption) (*DescribeCapabilityResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DescribeCapabilityResponse)
+	err := c.cc.Invoke(ctx, HostPlugins_DescribeCapability_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HostPluginsServer is the server API for HostPlugins service.
 // All implementations must embed UnimplementedHostPluginsServer
 // for forward compatibility.
@@ -1860,23 +1777,29 @@ func (c *hostPluginsClient) GetCapabilityPreferences(ctx context.Context, in *Em
 // Plugins use this to discover and connect to other plugins that provide
 // specific capabilities (e.g., "embedding", "chat").
 type HostPluginsServer interface {
-	// GetCapabilityProvider returns connection info for a plugin providing the capability.
-	// The host resolves the capability to an available, enabled plugin.
-	// Resolution order: 1) preferred_plugin param, 2) capability preference, 3) first available
-	GetCapabilityProvider(context.Context, *CapabilityRequest) (*CapabilityProviderResponse, error)
 	// ListCapabilities returns all available capabilities and their providers.
 	ListCapabilities(context.Context, *Empty) (*CapabilityListResponse, error)
 	// ListProviders returns all plugins providing a specific capability.
 	ListProviders(context.Context, *CapabilityRequest) (*ProviderListResponse, error)
 	// SetCapabilityPreference sets the preferred plugin for a capability.
 	// Used by configuration plugins (e.g., ai-local) to route capabilities.
-	// The preference is used when GetCapabilityProvider is called without a preferred_plugin.
+	// The preference is used when InvokeCapability is called without a preferred_plugin.
 	SetCapabilityPreference(context.Context, *CapabilityPreferenceRequest) (*Empty, error)
 	// ClearCapabilityPreference removes the preference for a capability.
-	// After clearing, GetCapabilityProvider falls back to first available provider.
+	// After clearing, InvokeCapability falls back to first available provider.
 	ClearCapabilityPreference(context.Context, *CapabilityPreferenceRequest) (*Empty, error)
 	// GetCapabilityPreferences returns all configured capability preferences.
 	GetCapabilityPreferences(context.Context, *Empty) (*CapabilityPreferencesResponse, error)
+	// InvokeCapability forwards a request to a capability provider.
+	// The host resolves the capability to an available provider and proxies the request.
+	// Consumers use typed protos for requests/responses; the transport is generic bytes.
+	InvokeCapability(context.Context, *CapabilityInvokeRequest) (*CapabilityInvokeResponse, error)
+	// InvokeCapabilityStream forwards a streaming request to a capability provider.
+	// Used for server-streaming methods like ChatStream.
+	InvokeCapabilityStream(*CapabilityInvokeRequest, grpc.ServerStreamingServer[CapabilityInvokeResponse]) error
+	// DescribeCapability returns metadata about a capability's available methods.
+	// Useful for discovering what methods a capability supports.
+	DescribeCapability(context.Context, *DescribeCapabilityRequest) (*DescribeCapabilityResponse, error)
 	mustEmbedUnimplementedHostPluginsServer()
 }
 
@@ -1887,9 +1810,6 @@ type HostPluginsServer interface {
 // pointer dereference when methods are called.
 type UnimplementedHostPluginsServer struct{}
 
-func (UnimplementedHostPluginsServer) GetCapabilityProvider(context.Context, *CapabilityRequest) (*CapabilityProviderResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetCapabilityProvider not implemented")
-}
 func (UnimplementedHostPluginsServer) ListCapabilities(context.Context, *Empty) (*CapabilityListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListCapabilities not implemented")
 }
@@ -1904,6 +1824,15 @@ func (UnimplementedHostPluginsServer) ClearCapabilityPreference(context.Context,
 }
 func (UnimplementedHostPluginsServer) GetCapabilityPreferences(context.Context, *Empty) (*CapabilityPreferencesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetCapabilityPreferences not implemented")
+}
+func (UnimplementedHostPluginsServer) InvokeCapability(context.Context, *CapabilityInvokeRequest) (*CapabilityInvokeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InvokeCapability not implemented")
+}
+func (UnimplementedHostPluginsServer) InvokeCapabilityStream(*CapabilityInvokeRequest, grpc.ServerStreamingServer[CapabilityInvokeResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method InvokeCapabilityStream not implemented")
+}
+func (UnimplementedHostPluginsServer) DescribeCapability(context.Context, *DescribeCapabilityRequest) (*DescribeCapabilityResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DescribeCapability not implemented")
 }
 func (UnimplementedHostPluginsServer) mustEmbedUnimplementedHostPluginsServer() {}
 func (UnimplementedHostPluginsServer) testEmbeddedByValue()                     {}
@@ -1924,24 +1853,6 @@ func RegisterHostPluginsServer(s grpc.ServiceRegistrar, srv HostPluginsServer) {
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&HostPlugins_ServiceDesc, srv)
-}
-
-func _HostPlugins_GetCapabilityProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CapabilityRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(HostPluginsServer).GetCapabilityProvider(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: HostPlugins_GetCapabilityProvider_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(HostPluginsServer).GetCapabilityProvider(ctx, req.(*CapabilityRequest))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _HostPlugins_ListCapabilities_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -2034,6 +1945,53 @@ func _HostPlugins_GetCapabilityPreferences_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HostPlugins_InvokeCapability_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CapabilityInvokeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostPluginsServer).InvokeCapability(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostPlugins_InvokeCapability_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostPluginsServer).InvokeCapability(ctx, req.(*CapabilityInvokeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostPlugins_InvokeCapabilityStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(CapabilityInvokeRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(HostPluginsServer).InvokeCapabilityStream(m, &grpc.GenericServerStream[CapabilityInvokeRequest, CapabilityInvokeResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type HostPlugins_InvokeCapabilityStreamServer = grpc.ServerStreamingServer[CapabilityInvokeResponse]
+
+func _HostPlugins_DescribeCapability_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DescribeCapabilityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostPluginsServer).DescribeCapability(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostPlugins_DescribeCapability_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostPluginsServer).DescribeCapability(ctx, req.(*DescribeCapabilityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // HostPlugins_ServiceDesc is the grpc.ServiceDesc for HostPlugins service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2041,10 +1999,6 @@ var HostPlugins_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "viewra.plugin.v1.HostPlugins",
 	HandlerType: (*HostPluginsServer)(nil),
 	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "GetCapabilityProvider",
-			Handler:    _HostPlugins_GetCapabilityProvider_Handler,
-		},
 		{
 			MethodName: "ListCapabilities",
 			Handler:    _HostPlugins_ListCapabilities_Handler,
@@ -2065,7 +2019,21 @@ var HostPlugins_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetCapabilityPreferences",
 			Handler:    _HostPlugins_GetCapabilityPreferences_Handler,
 		},
+		{
+			MethodName: "InvokeCapability",
+			Handler:    _HostPlugins_InvokeCapability_Handler,
+		},
+		{
+			MethodName: "DescribeCapability",
+			Handler:    _HostPlugins_DescribeCapability_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "InvokeCapabilityStream",
+			Handler:       _HostPlugins_InvokeCapabilityStream_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "api/proto/plugin/host_services.proto",
 }

@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"strings"
 
-	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 	"github.com/mantonx/viewra/pkg/plugin/sdk"
 )
 
@@ -31,24 +30,25 @@ Examples:
 
 // QueryRewriter uses an LLM to rewrite search queries for better semantic matching.
 type QueryRewriter struct {
-	plugins *sdk.PluginsClient
+	ai      *sdk.AIClient
 	logger  *slog.Logger
 	enabled bool
 }
 
 // NewQueryRewriter creates a new query rewriter.
 func NewQueryRewriter(plugins *sdk.PluginsClient, logger *slog.Logger) *QueryRewriter {
+	ai := sdk.NewAIClient(plugins)
 	return &QueryRewriter{
-		plugins: plugins,
+		ai:      ai,
 		logger:  logger,
-		enabled: plugins != nil,
+		enabled: ai != nil,
 	}
 }
 
 // Rewrite rewrites a query using the LLM to better match user intent.
 // Returns the original query if rewriting fails or is disabled.
 func (r *QueryRewriter) Rewrite(ctx context.Context, query string) string {
-	if !r.enabled || r.plugins == nil {
+	if !r.enabled || r.ai == nil {
 		return query
 	}
 
@@ -57,32 +57,17 @@ func (r *QueryRewriter) Rewrite(ctx context.Context, query string) string {
 		return query
 	}
 
-	// Get connection to chat capability provider
-	conn, err := r.plugins.GetConnection(ctx, "chat")
-	if err != nil {
-		r.logger.Debug("query rewrite failed - no chat provider", "error", err)
-		return query
-	}
-	defer conn.Close()
-
-	// Create provider client and call Chat
-	providerClient := pluginv1.NewPluginProviderClient(conn)
-	resp, err := providerClient.Chat(ctx, &pluginv1.ProviderChatRequest{
-		Messages: []*pluginv1.ProviderChatMessage{
-			{
-				Role:    "system",
-				Content: queryRewriteSystemPrompt,
-			},
-			{
-				Role:    "user",
-				Content: query,
-			},
+	// Use AIClient for chat
+	resp, err := r.ai.Chat(ctx, sdk.ChatRequest{
+		Messages: []sdk.ChatMessage{
+			{Role: "system", Content: queryRewriteSystemPrompt},
+			{Role: "user", Content: query},
 		},
 		Temperature: 0.3,
 		MaxTokens:   50,
 	})
 	if err != nil {
-		r.logger.Debug("query rewrite failed, using original", "error", err)
+		r.logger.Debug("query rewrite failed", "error", err)
 		return query
 	}
 

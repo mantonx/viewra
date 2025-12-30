@@ -5,75 +5,38 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"sync"
 
-	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 	"github.com/mantonx/viewra/pkg/plugin/sdk"
 )
 
-// EmbeddingService handles embedding generation via capability broker.
-// Uses the "embedding" capability to connect to a provider plugin (ollama, openai, etc.)
+// EmbeddingService handles embedding generation via the AI capability.
+// Uses sdk.AIClient to invoke embedding methods on a provider plugin.
 type EmbeddingService struct {
-	plugins          *sdk.PluginsClient
+	ai               *sdk.AIClient
 	targetDimensions int
 	logger           *slog.Logger
-
-	// Cache the provider connection (lazy initialized)
-	mu       sync.Mutex
-	provider pluginv1.PluginProviderClient
 }
 
 // NewEmbeddingService creates a new embedding service.
-// Uses the capability broker to connect to an embedding provider.
 func NewEmbeddingService(plugins *sdk.PluginsClient, logger *slog.Logger) *EmbeddingService {
 	return &EmbeddingService{
-		plugins:          plugins,
+		ai:               sdk.NewAIClient(plugins),
 		targetDimensions: 768, // Standard dimension for most embedding models
 		logger:           logger,
 	}
 }
 
-// getProvider returns a cached or new provider client.
-func (s *EmbeddingService) getProvider(ctx context.Context) (pluginv1.PluginProviderClient, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Return cached provider if available
-	if s.provider != nil {
-		return s.provider, nil
-	}
-
-	// Get connection via capability broker
-	if s.plugins == nil {
-		return nil, fmt.Errorf("plugins client not available")
-	}
-
-	conn, err := s.plugins.GetConnection(ctx, "embedding")
-	if err != nil {
-		return nil, fmt.Errorf("get embedding provider: %w", err)
-	}
-
-	// Create and cache the provider client
-	s.provider = pluginv1.NewPluginProviderClient(conn)
-	s.logger.Debug("connected to embedding provider")
-	return s.provider, nil
-}
-
 // EmbedSingle generates an embedding for a single text.
 func (s *EmbeddingService) EmbedSingle(ctx context.Context, text string) ([]float32, error) {
-	provider, err := s.getProvider(ctx)
-	if err != nil {
-		return nil, err
+	if s.ai == nil {
+		return nil, fmt.Errorf("AI client not available")
 	}
 
-	resp, err := provider.GenerateEmbedding(ctx, &pluginv1.ProviderEmbeddingRequest{
-		Text: text,
-	})
+	embedding, err := s.ai.GenerateEmbedding(ctx, text)
 	if err != nil {
 		return nil, fmt.Errorf("generate embedding: %w", err)
 	}
 
-	embedding := resp.Embedding
 	if len(embedding) != s.targetDimensions {
 		embedding = s.normalizeEmbedding(embedding, s.targetDimensions)
 	}
@@ -83,21 +46,17 @@ func (s *EmbeddingService) EmbedSingle(ctx context.Context, text string) ([]floa
 
 // EmbedBatch generates embeddings for multiple texts.
 func (s *EmbeddingService) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
-	provider, err := s.getProvider(ctx)
-	if err != nil {
-		return nil, err
+	if s.ai == nil {
+		return nil, fmt.Errorf("AI client not available")
 	}
 
-	resp, err := provider.GenerateEmbeddingBatch(ctx, &pluginv1.ProviderEmbeddingBatchRequest{
-		Texts: texts,
-	})
+	embeddings, err := s.ai.GenerateEmbeddingBatch(ctx, texts)
 	if err != nil {
 		return nil, fmt.Errorf("generate embeddings: %w", err)
 	}
 
-	results := make([][]float32, len(resp.Embeddings))
-	for i, emb := range resp.Embeddings {
-		embedding := emb.Embedding
+	results := make([][]float32, len(embeddings))
+	for i, embedding := range embeddings {
 		if len(embedding) != s.targetDimensions {
 			embedding = s.normalizeEmbedding(embedding, s.targetDimensions)
 		}

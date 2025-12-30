@@ -360,6 +360,49 @@ func (s *Service) configurePluginFromSettings(ctx context.Context, id, settingsJ
 	return nil
 }
 
+// ApplyStoredSettings applies stored settings to all running plugins.
+// This should be called after plugins are loaded to restore their configuration.
+func (s *Service) ApplyStoredSettings(ctx context.Context) error {
+	plugins := s.manager.GetAllPlugins()
+	if len(plugins) == 0 {
+		return nil
+	}
+
+	s.logger.Info("applying stored settings to plugins", "count", len(plugins))
+
+	var lastErr error
+	applied := 0
+	for _, instance := range plugins {
+		// Get stored settings from database
+		row, err := s.queries.GetPlugin(ctx, instance.ID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				continue // No stored settings
+			}
+			s.logger.Warn("failed to get stored settings", "plugin", instance.ID, "error", err)
+			lastErr = err
+			continue
+		}
+
+		// Skip if no settings stored
+		if row.Settings == "" || row.Settings == "{}" {
+			continue
+		}
+
+		// Apply settings to the plugin
+		if err := s.configurePluginFromSettings(ctx, instance.ID, row.Settings, row.SettingsSchema); err != nil {
+			s.logger.Warn("failed to apply stored settings", "plugin", instance.ID, "error", err)
+			lastErr = err
+			continue
+		}
+
+		applied++
+	}
+
+	s.logger.Info("finished applying stored settings", "applied", applied, "total", len(plugins))
+	return lastErr
+}
+
 // GetHealth returns detailed health information for a plugin.
 func (s *Service) GetHealth(ctx context.Context, id string) (*PluginHealthDetail, error) {
 	row, err := s.queries.GetPlugin(ctx, id)

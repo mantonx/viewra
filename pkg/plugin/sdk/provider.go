@@ -33,12 +33,14 @@ package sdk
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 )
@@ -324,7 +326,7 @@ func (s *providerCoreServer) Initialize(ctx context.Context, req *pluginv1.InitR
 			if err != nil {
 				logger.Error("failed to dial host plugins service", "error", err)
 			} else {
-				pluginsClient := NewPluginsClient(conn, s.broker)
+				pluginsClient := NewPluginsClient(conn)
 				aware.SetPluginsClient(pluginsClient)
 				logger.Debug("connected to host plugins service")
 			}
@@ -483,67 +485,6 @@ func (s *providerCoreServer) HandleHTTPStream(stream pluginv1.PluginCore_HandleH
 	return stream.Send(&pluginv1.PluginHTTPChunk{
 		Type: pluginv1.PluginHTTPChunk_RESPONSE_END,
 	})
-}
-
-// ExposeService exposes the provider's gRPC service for other plugins to connect.
-// Called by the host when another plugin requests this provider's capability.
-func (s *providerCoreServer) ExposeService(ctx context.Context, req *pluginv1.ExposeServiceRequest) (*pluginv1.ExposeServiceResponse, error) {
-	if s.broker == nil {
-		return &pluginv1.ExposeServiceResponse{
-			Success: false,
-			Error:   "broker not available",
-		}, nil
-	}
-
-	// Check if we provide the requested capability
-	caps := s.impl.GetProviderCapabilities()
-	canProvide := false
-
-	switch req.Capability {
-	case "embedding":
-		canProvide = caps.SupportsEmbedding
-	case "chat":
-		canProvide = caps.SupportsChat
-	case "provider":
-		// Generic provider capability - always supported
-		canProvide = true
-	default:
-		// Check for provider-specific capability like "provider:ollama"
-		if req.Capability == "provider:"+caps.ProviderID {
-			canProvide = true
-		}
-	}
-
-	if !canProvide {
-		return &pluginv1.ExposeServiceResponse{
-			Success: false,
-			Error:   "capability not provided: " + req.Capability,
-		}, nil
-	}
-
-	// Get a unique broker ID and start the PluginProvider service
-	brokerID := s.broker.NextId()
-
-	go s.broker.AcceptAndServe(brokerID, func(opts []grpc.ServerOption) *grpc.Server {
-		srv := grpc.NewServer(opts...)
-		// Register the PluginProvider service
-		pluginv1.RegisterPluginProviderServer(srv, &providerServiceServer{
-			impl: s.impl,
-			base: s.base,
-		})
-		return srv
-	})
-
-	s.base.Log().Debug("exposed provider service",
-		"capability", req.Capability,
-		"broker_id", brokerID,
-		"requesting_plugin", req.RequestingPluginId)
-
-	return &pluginv1.ExposeServiceResponse{
-		Success:     true,
-		BrokerId:    brokerID,
-		ServiceName: "viewra.plugin.v1.PluginProvider",
-	}, nil
 }
 
 // providerServiceServer implements PluginProviderServer for AI capabilities.
@@ -722,6 +663,323 @@ func (s *providerServiceServer) HealthCheck(ctx context.Context, _ *pluginv1.Emp
 		LatencyMs: health.Latency.Milliseconds(),
 		Error:     health.Error,
 	}, nil
+}
+
+// --- Generic Invoke Methods ---
+
+// Invoke dispatches a method call based on method name.
+// This is the main entry point for host-proxied capability requests.
+func (s *providerServiceServer) Invoke(ctx context.Context, req *pluginv1.ProviderInvokeRequest) (*pluginv1.ProviderInvokeResponse, error) {
+	switch req.Method {
+	case "GenerateEmbedding":
+		return s.invokeGenerateEmbedding(ctx, req)
+	case "GenerateEmbeddingBatch":
+		return s.invokeGenerateEmbeddingBatch(ctx, req)
+	case "Chat":
+		return s.invokeChat(ctx, req)
+	case "GetCapabilities":
+		return s.invokeGetCapabilities(ctx, req)
+	case "ListModels":
+		return s.invokeListModels(ctx, req)
+	case "HealthCheck":
+		return s.invokeHealthCheck(ctx, req)
+	default:
+		return &pluginv1.ProviderInvokeResponse{
+			Error: &pluginv1.ProviderError{
+				Code:    "METHOD_NOT_FOUND",
+				Message: fmt.Sprintf("method %q not supported", req.Method),
+			},
+		}, nil
+	}
+}
+
+func (s *providerServiceServer) invokeGenerateEmbedding(ctx context.Context, req *pluginv1.ProviderInvokeRequest) (*pluginv1.ProviderInvokeResponse, error) {
+	var embReq pluginv1.ProviderEmbeddingRequest
+	if err := proto.Unmarshal(req.Payload, &embReq); err != nil {
+		return &pluginv1.ProviderInvokeResponse{
+			Error: &pluginv1.ProviderError{
+				Code:    "INVALID_REQUEST",
+				Message: "failed to unmarshal request: " + err.Error(),
+			},
+		}, nil
+	}
+
+	resp, err := s.GenerateEmbedding(ctx, &embReq)
+	if err != nil {
+		return &pluginv1.ProviderInvokeResponse{
+			Error: &pluginv1.ProviderError{
+				Code:      "PROVIDER_ERROR",
+				Message:   err.Error(),
+				Retryable: isRetryableError(err),
+			},
+		}, nil
+	}
+
+	respBytes, _ := proto.Marshal(resp)
+	return &pluginv1.ProviderInvokeResponse{
+		Payload: respBytes,
+		Metadata: map[string]string{
+			"tokens_used": fmt.Sprint(resp.TokensUsed),
+			"dimensions":  fmt.Sprint(resp.Dimensions),
+		},
+	}, nil
+}
+
+func (s *providerServiceServer) invokeGenerateEmbeddingBatch(ctx context.Context, req *pluginv1.ProviderInvokeRequest) (*pluginv1.ProviderInvokeResponse, error) {
+	var embReq pluginv1.ProviderEmbeddingBatchRequest
+	if err := proto.Unmarshal(req.Payload, &embReq); err != nil {
+		return &pluginv1.ProviderInvokeResponse{
+			Error: &pluginv1.ProviderError{
+				Code:    "INVALID_REQUEST",
+				Message: "failed to unmarshal request: " + err.Error(),
+			},
+		}, nil
+	}
+
+	resp, err := s.GenerateEmbeddingBatch(ctx, &embReq)
+	if err != nil {
+		return &pluginv1.ProviderInvokeResponse{
+			Error: &pluginv1.ProviderError{
+				Code:      "PROVIDER_ERROR",
+				Message:   err.Error(),
+				Retryable: isRetryableError(err),
+			},
+		}, nil
+	}
+
+	respBytes, _ := proto.Marshal(resp)
+	return &pluginv1.ProviderInvokeResponse{
+		Payload: respBytes,
+		Metadata: map[string]string{
+			"total_tokens": fmt.Sprint(resp.TotalTokens),
+			"count":        fmt.Sprint(len(resp.Embeddings)),
+		},
+	}, nil
+}
+
+func (s *providerServiceServer) invokeChat(ctx context.Context, req *pluginv1.ProviderInvokeRequest) (*pluginv1.ProviderInvokeResponse, error) {
+	var chatReq pluginv1.ProviderChatRequest
+	if err := proto.Unmarshal(req.Payload, &chatReq); err != nil {
+		return &pluginv1.ProviderInvokeResponse{
+			Error: &pluginv1.ProviderError{
+				Code:    "INVALID_REQUEST",
+				Message: "failed to unmarshal request: " + err.Error(),
+			},
+		}, nil
+	}
+
+	resp, err := s.Chat(ctx, &chatReq)
+	if err != nil {
+		return &pluginv1.ProviderInvokeResponse{
+			Error: &pluginv1.ProviderError{
+				Code:      "PROVIDER_ERROR",
+				Message:   err.Error(),
+				Retryable: isRetryableError(err),
+			},
+		}, nil
+	}
+
+	respBytes, _ := proto.Marshal(resp)
+	return &pluginv1.ProviderInvokeResponse{
+		Payload: respBytes,
+		Metadata: map[string]string{
+			"prompt_tokens":     fmt.Sprint(resp.PromptTokens),
+			"completion_tokens": fmt.Sprint(resp.CompletionTokens),
+			"finish_reason":     resp.FinishReason,
+		},
+	}, nil
+}
+
+func (s *providerServiceServer) invokeGetCapabilities(ctx context.Context, req *pluginv1.ProviderInvokeRequest) (*pluginv1.ProviderInvokeResponse, error) {
+	resp, err := s.GetCapabilities(ctx, &pluginv1.Empty{})
+	if err != nil {
+		return &pluginv1.ProviderInvokeResponse{
+			Error: &pluginv1.ProviderError{
+				Code:    "PROVIDER_ERROR",
+				Message: err.Error(),
+			},
+		}, nil
+	}
+
+	respBytes, _ := proto.Marshal(resp)
+	return &pluginv1.ProviderInvokeResponse{Payload: respBytes}, nil
+}
+
+func (s *providerServiceServer) invokeListModels(ctx context.Context, req *pluginv1.ProviderInvokeRequest) (*pluginv1.ProviderInvokeResponse, error) {
+	resp, err := s.ListModels(ctx, &pluginv1.Empty{})
+	if err != nil {
+		return &pluginv1.ProviderInvokeResponse{
+			Error: &pluginv1.ProviderError{
+				Code:    "PROVIDER_ERROR",
+				Message: err.Error(),
+			},
+		}, nil
+	}
+
+	respBytes, _ := proto.Marshal(resp)
+	return &pluginv1.ProviderInvokeResponse{Payload: respBytes}, nil
+}
+
+func (s *providerServiceServer) invokeHealthCheck(ctx context.Context, req *pluginv1.ProviderInvokeRequest) (*pluginv1.ProviderInvokeResponse, error) {
+	resp, err := s.HealthCheck(ctx, &pluginv1.Empty{})
+	if err != nil {
+		return &pluginv1.ProviderInvokeResponse{
+			Error: &pluginv1.ProviderError{
+				Code:    "PROVIDER_ERROR",
+				Message: err.Error(),
+			},
+		}, nil
+	}
+
+	respBytes, _ := proto.Marshal(resp)
+	return &pluginv1.ProviderInvokeResponse{Payload: respBytes}, nil
+}
+
+// InvokeStream handles streaming method calls.
+func (s *providerServiceServer) InvokeStream(req *pluginv1.ProviderInvokeRequest, stream pluginv1.PluginProvider_InvokeStreamServer) error {
+	switch req.Method {
+	case "ChatStream":
+		return s.invokeChatStream(req, stream)
+	default:
+		// Send error response for unsupported method
+		return stream.Send(&pluginv1.ProviderInvokeResponse{
+			Error: &pluginv1.ProviderError{
+				Code:    "METHOD_NOT_FOUND",
+				Message: fmt.Sprintf("streaming method %q not supported", req.Method),
+			},
+		})
+	}
+}
+
+func (s *providerServiceServer) invokeChatStream(req *pluginv1.ProviderInvokeRequest, stream pluginv1.PluginProvider_InvokeStreamServer) error {
+	var chatReq pluginv1.ProviderChatRequest
+	if err := proto.Unmarshal(req.Payload, &chatReq); err != nil {
+		return stream.Send(&pluginv1.ProviderInvokeResponse{
+			Error: &pluginv1.ProviderError{
+				Code:    "INVALID_REQUEST",
+				Message: "failed to unmarshal request: " + err.Error(),
+			},
+		})
+	}
+
+	// Convert proto request to SDK request
+	sdkReq := &ChatRequest{
+		Model:       chatReq.Model,
+		Temperature: chatReq.Temperature,
+		MaxTokens:   int(chatReq.MaxTokens),
+	}
+	for _, m := range chatReq.Messages {
+		sdkReq.Messages = append(sdkReq.Messages, ChatMessage{
+			Role:    m.Role,
+			Content: m.Content,
+		})
+	}
+
+	// Create channel for chunks
+	chunks := make(chan ChatChunk, 10)
+	errCh := make(chan error, 1)
+
+	go func() {
+		defer close(chunks)
+		errCh <- s.impl.ChatStream(stream.Context(), sdkReq, chunks)
+	}()
+
+	for chunk := range chunks {
+		chunkProto := &pluginv1.ProviderChatStreamChunk{
+			Content:      chunk.Content,
+			Done:         chunk.Done,
+			FinishReason: chunk.FinishReason,
+		}
+		chunkBytes, _ := proto.Marshal(chunkProto)
+		if err := stream.Send(&pluginv1.ProviderInvokeResponse{
+			Payload: chunkBytes,
+		}); err != nil {
+			return err
+		}
+	}
+
+	if err := <-errCh; err != nil {
+		s.base.RecordError()
+		return stream.Send(&pluginv1.ProviderInvokeResponse{
+			Error: &pluginv1.ProviderError{
+				Code:      "PROVIDER_ERROR",
+				Message:   err.Error(),
+				Retryable: isRetryableError(err),
+			},
+		})
+	}
+
+	return nil
+}
+
+// DescribeMethods returns metadata about available methods.
+func (s *providerServiceServer) DescribeMethods(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.ProviderMethodsResponse, error) {
+	caps := s.impl.GetProviderCapabilities()
+
+	methods := []*pluginv1.ProviderMethodInfo{
+		{
+			Name:         "GetCapabilities",
+			Description:  "Returns provider capabilities",
+			RequestType:  "viewra.plugin.v1.Empty",
+			ResponseType: "viewra.plugin.v1.ProviderCapabilities",
+		},
+		{
+			Name:         "ListModels",
+			Description:  "Lists available models",
+			RequestType:  "viewra.plugin.v1.Empty",
+			ResponseType: "viewra.plugin.v1.ProviderModelList",
+		},
+		{
+			Name:         "HealthCheck",
+			Description:  "Checks provider health",
+			RequestType:  "viewra.plugin.v1.Empty",
+			ResponseType: "viewra.plugin.v1.ProviderHealthStatus",
+		},
+	}
+
+	if caps.SupportsEmbedding {
+		methods = append(methods, &pluginv1.ProviderMethodInfo{
+			Name:         "GenerateEmbedding",
+			Description:  "Generates embedding for a single text",
+			RequestType:  "viewra.plugin.v1.ProviderEmbeddingRequest",
+			ResponseType: "viewra.plugin.v1.ProviderEmbeddingResponse",
+		}, &pluginv1.ProviderMethodInfo{
+			Name:         "GenerateEmbeddingBatch",
+			Description:  "Generates embeddings for multiple texts",
+			RequestType:  "viewra.plugin.v1.ProviderEmbeddingBatchRequest",
+			ResponseType: "viewra.plugin.v1.ProviderEmbeddingBatchResponse",
+		})
+	}
+
+	if caps.SupportsChat {
+		methods = append(methods, &pluginv1.ProviderMethodInfo{
+			Name:         "Chat",
+			Description:  "Sends chat completion request",
+			RequestType:  "viewra.plugin.v1.ProviderChatRequest",
+			ResponseType: "viewra.plugin.v1.ProviderChatResponse",
+		})
+		if caps.SupportsStreaming {
+			methods = append(methods, &pluginv1.ProviderMethodInfo{
+				Name:         "ChatStream",
+				Description:  "Sends streaming chat completion request",
+				IsStreaming:  true,
+				RequestType:  "viewra.plugin.v1.ProviderChatRequest",
+				ResponseType: "viewra.plugin.v1.ProviderChatStreamChunk",
+			})
+		}
+	}
+
+	return &pluginv1.ProviderMethodsResponse{
+		ApiVersion:        "v1",
+		SupportedVersions: []string{"v1"},
+		Methods:           methods,
+	}, nil
+}
+
+// isRetryableError determines if an error should be retried.
+func isRetryableError(err error) bool {
+	// TODO: Implement based on error types (timeout, rate limit, etc.)
+	return false
 }
 
 // --- Helper functions ---

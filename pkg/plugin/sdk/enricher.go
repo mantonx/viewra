@@ -326,7 +326,7 @@ func (s *enricherGRPCServer) connectHostServices(req *pluginv1.InitRequest) {
 		if err != nil {
 			logger.Error("failed to dial host plugins", "error", err)
 		} else {
-			s.services.Plugins = NewPluginsClient(conn, s.broker)
+			s.services.Plugins = NewPluginsClient(conn)
 			logger.Debug("connected to host plugins service")
 		}
 	}

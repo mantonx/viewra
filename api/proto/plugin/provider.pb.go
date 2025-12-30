@@ -894,6 +894,343 @@ func (x *ProviderHealthStatus) GetError() string {
 	return ""
 }
 
+// ProviderInvokeRequest is sent to invoke a method on a provider.
+type ProviderInvokeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Method        string                 `protobuf:"bytes,1,opt,name=method,proto3" json:"method,omitempty"`                                                                               // Method to invoke, e.g., "GenerateEmbedding"
+	Payload       []byte                 `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`                                                                             // Serialized request proto
+	ApiVersion    string                 `protobuf:"bytes,3,opt,name=api_version,json=apiVersion,proto3" json:"api_version,omitempty"`                                                     // API version requested
+	Metadata      map[string]string      `protobuf:"bytes,4,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Request metadata
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProviderInvokeRequest) Reset() {
+	*x = ProviderInvokeRequest{}
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProviderInvokeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProviderInvokeRequest) ProtoMessage() {}
+
+func (x *ProviderInvokeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProviderInvokeRequest.ProtoReflect.Descriptor instead.
+func (*ProviderInvokeRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_provider_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ProviderInvokeRequest) GetMethod() string {
+	if x != nil {
+		return x.Method
+	}
+	return ""
+}
+
+func (x *ProviderInvokeRequest) GetPayload() []byte {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *ProviderInvokeRequest) GetApiVersion() string {
+	if x != nil {
+		return x.ApiVersion
+	}
+	return ""
+}
+
+func (x *ProviderInvokeRequest) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+// ProviderInvokeResponse is returned from a provider method invocation.
+type ProviderInvokeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Payload       []byte                 `protobuf:"bytes,1,opt,name=payload,proto3" json:"payload,omitempty"`                                                                             // Serialized response proto
+	Error         *ProviderError         `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`                                                                                 // Null if success
+	Metadata      map[string]string      `protobuf:"bytes,3,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Response metadata, e.g., {"tokens_used": "150"}
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProviderInvokeResponse) Reset() {
+	*x = ProviderInvokeResponse{}
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProviderInvokeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProviderInvokeResponse) ProtoMessage() {}
+
+func (x *ProviderInvokeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProviderInvokeResponse.ProtoReflect.Descriptor instead.
+func (*ProviderInvokeResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_provider_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ProviderInvokeResponse) GetPayload() []byte {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *ProviderInvokeResponse) GetError() *ProviderError {
+	if x != nil {
+		return x.Error
+	}
+	return nil
+}
+
+func (x *ProviderInvokeResponse) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+// ProviderError represents an error from a provider.
+type ProviderError struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"` // Provider-specific error code
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Details       string                 `protobuf:"bytes,3,opt,name=details,proto3" json:"details,omitempty"`      // Additional context
+	Retryable     bool                   `protobuf:"varint,4,opt,name=retryable,proto3" json:"retryable,omitempty"` // Whether the caller should retry
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProviderError) Reset() {
+	*x = ProviderError{}
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProviderError) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProviderError) ProtoMessage() {}
+
+func (x *ProviderError) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProviderError.ProtoReflect.Descriptor instead.
+func (*ProviderError) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_provider_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ProviderError) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *ProviderError) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *ProviderError) GetDetails() string {
+	if x != nil {
+		return x.Details
+	}
+	return ""
+}
+
+func (x *ProviderError) GetRetryable() bool {
+	if x != nil {
+		return x.Retryable
+	}
+	return false
+}
+
+// ProviderMethodsResponse describes available methods on a provider.
+type ProviderMethodsResponse struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	ApiVersion        string                 `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3" json:"api_version,omitempty"`
+	SupportedVersions []string               `protobuf:"bytes,2,rep,name=supported_versions,json=supportedVersions,proto3" json:"supported_versions,omitempty"`
+	Methods           []*ProviderMethodInfo  `protobuf:"bytes,3,rep,name=methods,proto3" json:"methods,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ProviderMethodsResponse) Reset() {
+	*x = ProviderMethodsResponse{}
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProviderMethodsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProviderMethodsResponse) ProtoMessage() {}
+
+func (x *ProviderMethodsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProviderMethodsResponse.ProtoReflect.Descriptor instead.
+func (*ProviderMethodsResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_provider_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ProviderMethodsResponse) GetApiVersion() string {
+	if x != nil {
+		return x.ApiVersion
+	}
+	return ""
+}
+
+func (x *ProviderMethodsResponse) GetSupportedVersions() []string {
+	if x != nil {
+		return x.SupportedVersions
+	}
+	return nil
+}
+
+func (x *ProviderMethodsResponse) GetMethods() []*ProviderMethodInfo {
+	if x != nil {
+		return x.Methods
+	}
+	return nil
+}
+
+// ProviderMethodInfo describes a single method on a provider.
+type ProviderMethodInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"` // e.g., "GenerateEmbedding"
+	Description   string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	IsStreaming   bool                   `protobuf:"varint,3,opt,name=is_streaming,json=isStreaming,proto3" json:"is_streaming,omitempty"`   // Server-streaming method
+	RequestType   string                 `protobuf:"bytes,4,opt,name=request_type,json=requestType,proto3" json:"request_type,omitempty"`    // e.g., "viewra.plugin.v1.ProviderEmbeddingRequest"
+	ResponseType  string                 `protobuf:"bytes,5,opt,name=response_type,json=responseType,proto3" json:"response_type,omitempty"` // e.g., "viewra.plugin.v1.ProviderEmbeddingResponse"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProviderMethodInfo) Reset() {
+	*x = ProviderMethodInfo{}
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProviderMethodInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProviderMethodInfo) ProtoMessage() {}
+
+func (x *ProviderMethodInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_provider_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProviderMethodInfo.ProtoReflect.Descriptor instead.
+func (*ProviderMethodInfo) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_provider_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ProviderMethodInfo) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ProviderMethodInfo) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *ProviderMethodInfo) GetIsStreaming() bool {
+	if x != nil {
+		return x.IsStreaming
+	}
+	return false
+}
+
+func (x *ProviderMethodInfo) GetRequestType() string {
+	if x != nil {
+		return x.RequestType
+	}
+	return ""
+}
+
+func (x *ProviderMethodInfo) GetResponseType() string {
+	if x != nil {
+		return x.ResponseType
+	}
+	return ""
+}
+
 var File_api_proto_plugin_provider_proto protoreflect.FileDescriptor
 
 const file_api_proto_plugin_provider_proto_rawDesc = "" +
@@ -971,8 +1308,43 @@ const file_api_proto_plugin_provider_proto_rawDesc = "" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x1d\n" +
 	"\n" +
 	"latency_ms\x18\x03 \x01(\x03R\tlatencyMs\x12\x14\n" +
-	"\x05error\x18\x04 \x01(\tR\x05error2\xa4\x05\n" +
-	"\x0ePluginProvider\x12R\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\"\xfa\x01\n" +
+	"\x15ProviderInvokeRequest\x12\x16\n" +
+	"\x06method\x18\x01 \x01(\tR\x06method\x12\x18\n" +
+	"\apayload\x18\x02 \x01(\fR\apayload\x12\x1f\n" +
+	"\vapi_version\x18\x03 \x01(\tR\n" +
+	"apiVersion\x12Q\n" +
+	"\bmetadata\x18\x04 \x03(\v25.viewra.plugin.v1.ProviderInvokeRequest.MetadataEntryR\bmetadata\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xfa\x01\n" +
+	"\x16ProviderInvokeResponse\x12\x18\n" +
+	"\apayload\x18\x01 \x01(\fR\apayload\x125\n" +
+	"\x05error\x18\x02 \x01(\v2\x1f.viewra.plugin.v1.ProviderErrorR\x05error\x12R\n" +
+	"\bmetadata\x18\x03 \x03(\v26.viewra.plugin.v1.ProviderInvokeResponse.MetadataEntryR\bmetadata\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"u\n" +
+	"\rProviderError\x12\x12\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12\x18\n" +
+	"\adetails\x18\x03 \x01(\tR\adetails\x12\x1c\n" +
+	"\tretryable\x18\x04 \x01(\bR\tretryable\"\xa9\x01\n" +
+	"\x17ProviderMethodsResponse\x12\x1f\n" +
+	"\vapi_version\x18\x01 \x01(\tR\n" +
+	"apiVersion\x12-\n" +
+	"\x12supported_versions\x18\x02 \x03(\tR\x11supportedVersions\x12>\n" +
+	"\amethods\x18\x03 \x03(\v2$.viewra.plugin.v1.ProviderMethodInfoR\amethods\"\xb5\x01\n" +
+	"\x12ProviderMethodInfo\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12!\n" +
+	"\fis_streaming\x18\x03 \x01(\bR\visStreaming\x12!\n" +
+	"\frequest_type\x18\x04 \x01(\tR\vrequestType\x12#\n" +
+	"\rresponse_type\x18\x05 \x01(\tR\fresponseType2\xbd\a\n" +
+	"\x0ePluginProvider\x12[\n" +
+	"\x06Invoke\x12'.viewra.plugin.v1.ProviderInvokeRequest\x1a(.viewra.plugin.v1.ProviderInvokeResponse\x12c\n" +
+	"\fInvokeStream\x12'.viewra.plugin.v1.ProviderInvokeRequest\x1a(.viewra.plugin.v1.ProviderInvokeResponse0\x01\x12U\n" +
+	"\x0fDescribeMethods\x12\x17.viewra.plugin.v1.Empty\x1a).viewra.plugin.v1.ProviderMethodsResponse\x12R\n" +
 	"\x0fGetCapabilities\x12\x17.viewra.plugin.v1.Empty\x1a&.viewra.plugin.v1.ProviderCapabilities\x12J\n" +
 	"\n" +
 	"ListModels\x12\x17.viewra.plugin.v1.Empty\x1a#.viewra.plugin.v1.ProviderModelList\x12l\n" +
@@ -995,7 +1367,7 @@ func file_api_proto_plugin_provider_proto_rawDescGZIP() []byte {
 	return file_api_proto_plugin_provider_proto_rawDescData
 }
 
-var file_api_proto_plugin_provider_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_api_proto_plugin_provider_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_api_proto_plugin_provider_proto_goTypes = []any{
 	(*ProviderCapabilities)(nil),           // 0: viewra.plugin.v1.ProviderCapabilities
 	(*ProviderModelList)(nil),              // 1: viewra.plugin.v1.ProviderModelList
@@ -1010,31 +1382,48 @@ var file_api_proto_plugin_provider_proto_goTypes = []any{
 	(*ProviderChatResponse)(nil),           // 10: viewra.plugin.v1.ProviderChatResponse
 	(*ProviderChatStreamChunk)(nil),        // 11: viewra.plugin.v1.ProviderChatStreamChunk
 	(*ProviderHealthStatus)(nil),           // 12: viewra.plugin.v1.ProviderHealthStatus
-	(*Empty)(nil),                          // 13: viewra.plugin.v1.Empty
+	(*ProviderInvokeRequest)(nil),          // 13: viewra.plugin.v1.ProviderInvokeRequest
+	(*ProviderInvokeResponse)(nil),         // 14: viewra.plugin.v1.ProviderInvokeResponse
+	(*ProviderError)(nil),                  // 15: viewra.plugin.v1.ProviderError
+	(*ProviderMethodsResponse)(nil),        // 16: viewra.plugin.v1.ProviderMethodsResponse
+	(*ProviderMethodInfo)(nil),             // 17: viewra.plugin.v1.ProviderMethodInfo
+	nil,                                    // 18: viewra.plugin.v1.ProviderInvokeRequest.MetadataEntry
+	nil,                                    // 19: viewra.plugin.v1.ProviderInvokeResponse.MetadataEntry
+	(*Empty)(nil),                          // 20: viewra.plugin.v1.Empty
 }
 var file_api_proto_plugin_provider_proto_depIdxs = []int32{
 	2,  // 0: viewra.plugin.v1.ProviderModelList.models:type_name -> viewra.plugin.v1.ProviderModel
 	7,  // 1: viewra.plugin.v1.ProviderEmbeddingBatchResponse.embeddings:type_name -> viewra.plugin.v1.ProviderEmbeddingResult
 	8,  // 2: viewra.plugin.v1.ProviderChatRequest.messages:type_name -> viewra.plugin.v1.ProviderChatMessage
-	13, // 3: viewra.plugin.v1.PluginProvider.GetCapabilities:input_type -> viewra.plugin.v1.Empty
-	13, // 4: viewra.plugin.v1.PluginProvider.ListModels:input_type -> viewra.plugin.v1.Empty
-	3,  // 5: viewra.plugin.v1.PluginProvider.GenerateEmbedding:input_type -> viewra.plugin.v1.ProviderEmbeddingRequest
-	5,  // 6: viewra.plugin.v1.PluginProvider.GenerateEmbeddingBatch:input_type -> viewra.plugin.v1.ProviderEmbeddingBatchRequest
-	9,  // 7: viewra.plugin.v1.PluginProvider.Chat:input_type -> viewra.plugin.v1.ProviderChatRequest
-	9,  // 8: viewra.plugin.v1.PluginProvider.ChatStream:input_type -> viewra.plugin.v1.ProviderChatRequest
-	13, // 9: viewra.plugin.v1.PluginProvider.HealthCheck:input_type -> viewra.plugin.v1.Empty
-	0,  // 10: viewra.plugin.v1.PluginProvider.GetCapabilities:output_type -> viewra.plugin.v1.ProviderCapabilities
-	1,  // 11: viewra.plugin.v1.PluginProvider.ListModels:output_type -> viewra.plugin.v1.ProviderModelList
-	4,  // 12: viewra.plugin.v1.PluginProvider.GenerateEmbedding:output_type -> viewra.plugin.v1.ProviderEmbeddingResponse
-	6,  // 13: viewra.plugin.v1.PluginProvider.GenerateEmbeddingBatch:output_type -> viewra.plugin.v1.ProviderEmbeddingBatchResponse
-	10, // 14: viewra.plugin.v1.PluginProvider.Chat:output_type -> viewra.plugin.v1.ProviderChatResponse
-	11, // 15: viewra.plugin.v1.PluginProvider.ChatStream:output_type -> viewra.plugin.v1.ProviderChatStreamChunk
-	12, // 16: viewra.plugin.v1.PluginProvider.HealthCheck:output_type -> viewra.plugin.v1.ProviderHealthStatus
-	10, // [10:17] is the sub-list for method output_type
-	3,  // [3:10] is the sub-list for method input_type
-	3,  // [3:3] is the sub-list for extension type_name
-	3,  // [3:3] is the sub-list for extension extendee
-	0,  // [0:3] is the sub-list for field type_name
+	18, // 3: viewra.plugin.v1.ProviderInvokeRequest.metadata:type_name -> viewra.plugin.v1.ProviderInvokeRequest.MetadataEntry
+	15, // 4: viewra.plugin.v1.ProviderInvokeResponse.error:type_name -> viewra.plugin.v1.ProviderError
+	19, // 5: viewra.plugin.v1.ProviderInvokeResponse.metadata:type_name -> viewra.plugin.v1.ProviderInvokeResponse.MetadataEntry
+	17, // 6: viewra.plugin.v1.ProviderMethodsResponse.methods:type_name -> viewra.plugin.v1.ProviderMethodInfo
+	13, // 7: viewra.plugin.v1.PluginProvider.Invoke:input_type -> viewra.plugin.v1.ProviderInvokeRequest
+	13, // 8: viewra.plugin.v1.PluginProvider.InvokeStream:input_type -> viewra.plugin.v1.ProviderInvokeRequest
+	20, // 9: viewra.plugin.v1.PluginProvider.DescribeMethods:input_type -> viewra.plugin.v1.Empty
+	20, // 10: viewra.plugin.v1.PluginProvider.GetCapabilities:input_type -> viewra.plugin.v1.Empty
+	20, // 11: viewra.plugin.v1.PluginProvider.ListModels:input_type -> viewra.plugin.v1.Empty
+	3,  // 12: viewra.plugin.v1.PluginProvider.GenerateEmbedding:input_type -> viewra.plugin.v1.ProviderEmbeddingRequest
+	5,  // 13: viewra.plugin.v1.PluginProvider.GenerateEmbeddingBatch:input_type -> viewra.plugin.v1.ProviderEmbeddingBatchRequest
+	9,  // 14: viewra.plugin.v1.PluginProvider.Chat:input_type -> viewra.plugin.v1.ProviderChatRequest
+	9,  // 15: viewra.plugin.v1.PluginProvider.ChatStream:input_type -> viewra.plugin.v1.ProviderChatRequest
+	20, // 16: viewra.plugin.v1.PluginProvider.HealthCheck:input_type -> viewra.plugin.v1.Empty
+	14, // 17: viewra.plugin.v1.PluginProvider.Invoke:output_type -> viewra.plugin.v1.ProviderInvokeResponse
+	14, // 18: viewra.plugin.v1.PluginProvider.InvokeStream:output_type -> viewra.plugin.v1.ProviderInvokeResponse
+	16, // 19: viewra.plugin.v1.PluginProvider.DescribeMethods:output_type -> viewra.plugin.v1.ProviderMethodsResponse
+	0,  // 20: viewra.plugin.v1.PluginProvider.GetCapabilities:output_type -> viewra.plugin.v1.ProviderCapabilities
+	1,  // 21: viewra.plugin.v1.PluginProvider.ListModels:output_type -> viewra.plugin.v1.ProviderModelList
+	4,  // 22: viewra.plugin.v1.PluginProvider.GenerateEmbedding:output_type -> viewra.plugin.v1.ProviderEmbeddingResponse
+	6,  // 23: viewra.plugin.v1.PluginProvider.GenerateEmbeddingBatch:output_type -> viewra.plugin.v1.ProviderEmbeddingBatchResponse
+	10, // 24: viewra.plugin.v1.PluginProvider.Chat:output_type -> viewra.plugin.v1.ProviderChatResponse
+	11, // 25: viewra.plugin.v1.PluginProvider.ChatStream:output_type -> viewra.plugin.v1.ProviderChatStreamChunk
+	12, // 26: viewra.plugin.v1.PluginProvider.HealthCheck:output_type -> viewra.plugin.v1.ProviderHealthStatus
+	17, // [17:27] is the sub-list for method output_type
+	7,  // [7:17] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_plugin_provider_proto_init() }
@@ -1049,7 +1438,7 @@ func file_api_proto_plugin_provider_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_plugin_provider_proto_rawDesc), len(file_api_proto_plugin_provider_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -36,21 +36,6 @@ type MediaQuerier interface {
 
 	// GetLibrary returns library information by ID.
 	GetLibrary(ctx context.Context, id int64) (*LibraryInfo, error)
-
-	// GetMoodTags returns mood tags for an entity.
-	GetMoodTags(ctx context.Context, entityType string, entityID int64) ([]*MoodTagInfo, error)
-
-	// SetMoodTags stores mood tags for an entity (replaces existing).
-	SetMoodTags(ctx context.Context, entityType string, entityID int64, tags []*MoodTagInfo) error
-
-	// DeleteMoodTags removes all mood tags for an entity.
-	DeleteMoodTags(ctx context.Context, entityType string, entityID int64) error
-}
-
-// MoodTagInfo represents a mood tag for a media item.
-type MoodTagInfo struct {
-	Tag        string
-	Confidence float32
 }
 
 // LibraryInfo represents library information exposed to plugins.
@@ -308,85 +293,6 @@ func (s *HostDataServer) ListMediaByLibrary(ctx context.Context, req *pluginv1.L
 		Total:   int32(total),
 		HasMore: offset+len(items) < total,
 	}, nil
-}
-
-// GetMoodTags retrieves mood tags for a media item.
-func (s *HostDataServer) GetMoodTags(ctx context.Context, req *pluginv1.MediaQuery) (*pluginv1.MoodTagList, error) {
-	if req.MediaId == 0 {
-		return nil, errors.New("media_id is required")
-	}
-
-	// Default to "movie" for backward compatibility
-	entityType := req.GetMediaType()
-	if entityType == "" {
-		entityType = "movie"
-	}
-
-	tags, err := s.querier.GetMoodTags(ctx, entityType, req.MediaId)
-	if err != nil {
-		s.logger.Error("failed to get mood tags", "entity_type", entityType, "entity_id", req.MediaId, "error", err)
-		return nil, err
-	}
-
-	protoTags := make([]*pluginv1.MoodTag, len(tags))
-	for i, t := range tags {
-		protoTags[i] = &pluginv1.MoodTag{
-			Tag:        t.Tag,
-			Confidence: t.Confidence,
-		}
-	}
-
-	return &pluginv1.MoodTagList{Tags: protoTags}, nil
-}
-
-// SetMoodTags stores mood tags for a media item (replaces existing).
-func (s *HostDataServer) SetMoodTags(ctx context.Context, req *pluginv1.SetMoodTagsRequest) (*pluginv1.Empty, error) {
-	if req.MediaId == 0 {
-		return nil, errors.New("media_id is required")
-	}
-
-	// Default to "movie" for backward compatibility
-	entityType := req.GetMediaType()
-	if entityType == "" {
-		entityType = "movie"
-	}
-
-	tags := make([]*MoodTagInfo, len(req.Tags))
-	for i, t := range req.Tags {
-		tags[i] = &MoodTagInfo{
-			Tag:        t.Tag,
-			Confidence: t.Confidence,
-		}
-	}
-
-	if err := s.querier.SetMoodTags(ctx, entityType, req.MediaId, tags); err != nil {
-		s.logger.Error("failed to set mood tags", "entity_type", entityType, "entity_id", req.MediaId, "error", err)
-		return nil, err
-	}
-
-	s.logger.Debug("set mood tags", "entity_type", entityType, "entity_id", req.MediaId, "count", len(tags))
-	return &pluginv1.Empty{}, nil
-}
-
-// DeleteMoodTags removes all mood tags for a media item.
-func (s *HostDataServer) DeleteMoodTags(ctx context.Context, req *pluginv1.MediaQuery) (*pluginv1.Empty, error) {
-	if req.MediaId == 0 {
-		return nil, errors.New("media_id is required")
-	}
-
-	// Default to "movie" for backward compatibility
-	entityType := req.GetMediaType()
-	if entityType == "" {
-		entityType = "movie"
-	}
-
-	if err := s.querier.DeleteMoodTags(ctx, entityType, req.MediaId); err != nil {
-		s.logger.Error("failed to delete mood tags", "entity_type", entityType, "entity_id", req.MediaId, "error", err)
-		return nil, err
-	}
-
-	s.logger.Debug("deleted mood tags", "entity_type", entityType, "entity_id", req.MediaId)
-	return &pluginv1.Empty{}, nil
 }
 
 func mediaDetailsToProto(d *MediaDetailsInfo) *pluginv1.MediaDetails {

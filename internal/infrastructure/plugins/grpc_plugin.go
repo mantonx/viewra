@@ -184,6 +184,60 @@ func (w *hostStorageContextWrapper) GetDatabaseStats(ctx context.Context, req *p
 	return w.impl.GetDatabaseStats(ctx, req)
 }
 
+// SQL storage wrapper methods
+
+func (w *hostStorageContextWrapper) ExecuteSQL(ctx context.Context, req *pluginv1.SQLRequest) (*pluginv1.SQLExecResult, error) {
+	ctx = ContextWithPluginID(ctx, w.pluginID)
+	return w.impl.ExecuteSQL(ctx, req)
+}
+
+func (w *hostStorageContextWrapper) QuerySQL(ctx context.Context, req *pluginv1.SQLRequest) (*pluginv1.SQLQueryResult, error) {
+	ctx = ContextWithPluginID(ctx, w.pluginID)
+	return w.impl.QuerySQL(ctx, req)
+}
+
+// Vector storage wrapper methods
+
+func (w *hostStorageContextWrapper) VectorStoreEmbedding(ctx context.Context, req *pluginv1.VectorStoreRequest) (*pluginv1.Empty, error) {
+	ctx = ContextWithPluginID(ctx, w.pluginID)
+	return w.impl.VectorStoreEmbedding(ctx, req)
+}
+
+func (w *hostStorageContextWrapper) VectorStoreBatch(ctx context.Context, req *pluginv1.VectorStoreBatchRequest) (*pluginv1.Empty, error) {
+	ctx = ContextWithPluginID(ctx, w.pluginID)
+	return w.impl.VectorStoreBatch(ctx, req)
+}
+
+func (w *hostStorageContextWrapper) VectorSearch(ctx context.Context, req *pluginv1.VectorSearchRequest) (*pluginv1.VectorSearchResponse, error) {
+	ctx = ContextWithPluginID(ctx, w.pluginID)
+	return w.impl.VectorSearch(ctx, req)
+}
+
+func (w *hostStorageContextWrapper) VectorSearchText(ctx context.Context, req *pluginv1.VectorTextSearchRequest) (*pluginv1.VectorSearchResponse, error) {
+	ctx = ContextWithPluginID(ctx, w.pluginID)
+	return w.impl.VectorSearchText(ctx, req)
+}
+
+func (w *hostStorageContextWrapper) VectorGet(ctx context.Context, req *pluginv1.VectorQuery) (*pluginv1.VectorGetResponse, error) {
+	ctx = ContextWithPluginID(ctx, w.pluginID)
+	return w.impl.VectorGet(ctx, req)
+}
+
+func (w *hostStorageContextWrapper) VectorDelete(ctx context.Context, req *pluginv1.VectorQuery) (*pluginv1.Empty, error) {
+	ctx = ContextWithPluginID(ctx, w.pluginID)
+	return w.impl.VectorDelete(ctx, req)
+}
+
+func (w *hostStorageContextWrapper) VectorDeleteByType(ctx context.Context, req *pluginv1.VectorTypeQuery) (*pluginv1.VectorDeleteResponse, error) {
+	ctx = ContextWithPluginID(ctx, w.pluginID)
+	return w.impl.VectorDeleteByType(ctx, req)
+}
+
+func (w *hostStorageContextWrapper) VectorCount(ctx context.Context, req *pluginv1.VectorTypeQuery) (*pluginv1.VectorCountResponse, error) {
+	ctx = ContextWithPluginID(ctx, w.pluginID)
+	return w.impl.VectorCount(ctx, req)
+}
+
 // PluginProviderGRPCPlugin is the go-plugin implementation for the PluginProvider service.
 // This allows the host to call the plugin's AI provider methods (chat, embeddings, etc.).
 // Provider plugins (e.g., provider-ollama, provider-openai) implement this service.

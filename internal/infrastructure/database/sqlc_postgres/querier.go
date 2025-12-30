@@ -131,9 +131,6 @@ type Querier interface {
 	DeleteMetadataSource(ctx context.Context, arg DeleteMetadataSourceParams) error
 	DeleteMetadataSourcesByMedia(ctx context.Context, mediaID int32) error
 	DeleteMetadataSourcesByPlugin(ctx context.Context, pluginID string) error
-	DeleteMoodTagsByEntity(ctx context.Context, arg DeleteMoodTagsByEntityParams) error
-	// Deprecated: Use DeleteMoodTagsByEntity instead. Kept for backward compatibility.
-	DeleteMoodTagsByMediaID(ctx context.Context, entityID int32) error
 	DeleteMovie(ctx context.Context, mediaID int32) error
 	DeleteMusicTrack(ctx context.Context, mediaID int32) error
 	DeleteOldPlaybackSessions(ctx context.Context, startTime int64) error
@@ -275,9 +272,6 @@ type Querier interface {
 	GetMetadataSource(ctx context.Context, arg GetMetadataSourceParams) (MediaMetadataSource, error)
 	GetMetadataSourcesByField(ctx context.Context, arg GetMetadataSourcesByFieldParams) ([]MediaMetadataSource, error)
 	GetMetadataSourcesByMedia(ctx context.Context, mediaID int32) ([]MediaMetadataSource, error)
-	GetMoodTagsByEntity(ctx context.Context, arg GetMoodTagsByEntityParams) ([]GetMoodTagsByEntityRow, error)
-	// Deprecated: Use GetMoodTagsByEntity instead. Kept for backward compatibility.
-	GetMoodTagsByMediaID(ctx context.Context, entityID int32) ([]GetMoodTagsByMediaIDRow, error)
 	GetMovieByMediaID(ctx context.Context, mediaID int32) (GetMovieByMediaIDRow, error)
 	GetMusicTrackByMediaID(ctx context.Context, mediaID int32) (GetMusicTrackByMediaIDRow, error)
 	GetNextPipelinePosition(ctx context.Context, mediaType string) (int32, error)
@@ -377,7 +371,6 @@ type Querier interface {
 	// Audio and subtitle track queries for multi-language support
 	InsertAudioTrack(ctx context.Context, arg InsertAudioTrackParams) (InsertAudioTrackRow, error)
 	InsertKeyword(ctx context.Context, arg InsertKeywordParams) error
-	InsertMoodTag(ctx context.Context, arg InsertMoodTagParams) error
 	InsertSubtitleTrack(ctx context.Context, arg InsertSubtitleTrackParams) (InsertSubtitleTrackRow, error)
 	LibraryExistsByID(ctx context.Context, id int32) (bool, error)
 	LibraryExistsByPath(ctx context.Context, path string) (bool, error)

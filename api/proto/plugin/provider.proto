@@ -7,8 +7,26 @@ option go_package = "github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1";
 import "api/proto/plugin/common.proto";
 
 // PluginProvider is implemented by AI provider plugins (ollama, openai, etc.).
-// Consumer plugins connect directly to providers via the capability broker.
+// The host proxies capability requests to providers via the generic Invoke methods.
+// Typed methods are kept for direct use and backwards compatibility.
 service PluginProvider {
+  // --- Generic Invocation (Used by Host Proxy) ---
+
+  // Invoke dispatches a method call based on method name.
+  // The provider deserializes the payload, calls the typed implementation,
+  // and returns the serialized response.
+  rpc Invoke(ProviderInvokeRequest) returns (ProviderInvokeResponse);
+
+  // InvokeStream handles streaming method calls.
+  // Used for methods like ChatStream.
+  rpc InvokeStream(ProviderInvokeRequest) returns (stream ProviderInvokeResponse);
+
+  // DescribeMethods returns metadata about available methods.
+  // Used by the host to populate DescribeCapability responses.
+  rpc DescribeMethods(Empty) returns (ProviderMethodsResponse);
+
+  // --- Typed Methods (Direct Use) ---
+
   // GetCapabilities returns what this provider supports.
   rpc GetCapabilities(Empty) returns (ProviderCapabilities);
 
@@ -130,4 +148,45 @@ message ProviderHealthStatus {
   string message = 2;
   int64 latency_ms = 3;
   string error = 4;
+}
+
+// --- Generic Invocation Messages ---
+
+// ProviderInvokeRequest is sent to invoke a method on a provider.
+message ProviderInvokeRequest {
+  string method = 1;              // Method to invoke, e.g., "GenerateEmbedding"
+  bytes payload = 2;              // Serialized request proto
+  string api_version = 3;         // API version requested
+  map<string, string> metadata = 4; // Request metadata
+}
+
+// ProviderInvokeResponse is returned from a provider method invocation.
+message ProviderInvokeResponse {
+  bytes payload = 1;              // Serialized response proto
+  ProviderError error = 2;        // Null if success
+  map<string, string> metadata = 3; // Response metadata, e.g., {"tokens_used": "150"}
+}
+
+// ProviderError represents an error from a provider.
+message ProviderError {
+  string code = 1;                // Provider-specific error code
+  string message = 2;
+  string details = 3;             // Additional context
+  bool retryable = 4;             // Whether the caller should retry
+}
+
+// ProviderMethodsResponse describes available methods on a provider.
+message ProviderMethodsResponse {
+  string api_version = 1;
+  repeated string supported_versions = 2;
+  repeated ProviderMethodInfo methods = 3;
+}
+
+// ProviderMethodInfo describes a single method on a provider.
+message ProviderMethodInfo {
+  string name = 1;                // e.g., "GenerateEmbedding"
+  string description = 2;
+  bool is_streaming = 3;          // Server-streaming method
+  string request_type = 4;        // e.g., "viewra.plugin.v1.ProviderEmbeddingRequest"
+  string response_type = 5;       // e.g., "viewra.plugin.v1.ProviderEmbeddingResponse"
 }

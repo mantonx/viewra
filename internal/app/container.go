@@ -267,6 +267,20 @@ func loadExternalPlugins(ctx context.Context, svcs *services.Services, repos *re
 		return
 	}
 
+	// Apply stored settings to all loaded plugins
+	// This restores user configuration after restart
+	if repos.Plugin != nil {
+		pluginService := appplugins.NewService(
+			repos.Plugin,
+			pm,
+			nil, // EventBus not needed for ApplyStoredSettings
+			logger.With("service", "plugins-init"),
+		)
+		if err := pluginService.ApplyStoredSettings(ctx); err != nil {
+			logger.Warn("Some plugin settings failed to apply", "error", err)
+		}
+	}
+
 	// Persist ALL plugins to database (including provider plugins)
 	if repos.Plugin != nil {
 		for _, instance := range pm.GetAllPlugins() {

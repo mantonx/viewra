@@ -484,14 +484,8 @@ func (q *DBMediaQuerier) GetMediaDetails(ctx context.Context, id int64, mediaTyp
 		return nil, err
 	}
 
-	// Fetch and attach mood tags
-	moodTags, _ := q.GetMoodTags(ctx, mediaType, id)
-	if len(moodTags) > 0 {
-		details.MoodTags = make([]string, len(moodTags))
-		for i, t := range moodTags {
-			details.MoodTags[i] = t.Tag
-		}
-	}
+	// Note: MoodTags are now managed by the semantic-search plugin
+	// and stored in plugin-owned tables. The plugin adds them to search results.
 
 	return details, nil
 }
@@ -1436,103 +1430,6 @@ func parseCastString(s string) []CastMemberInfo {
 		}
 	}
 	return cast
-}
-
-// GetMoodTags retrieves mood tags for an entity.
-func (q *DBMediaQuerier) GetMoodTags(ctx context.Context, entityType string, entityID int64) ([]*MoodTagInfo, error) {
-	if q.router.IsPostgresDB() {
-		rows, err := q.postgres.GetMoodTagsByEntity(ctx, sqlc_postgres.GetMoodTagsByEntityParams{
-			EntityType: entityType,
-			EntityID:   int32(entityID),
-		})
-		if err != nil {
-			return nil, err
-		}
-		tags := make([]*MoodTagInfo, len(rows))
-		for i, row := range rows {
-			confidence := float32(1.0)
-			if row.Confidence.Valid {
-				confidence = float32(row.Confidence.Float64)
-			}
-			tags[i] = &MoodTagInfo{
-				Tag:        row.Tag,
-				Confidence: confidence,
-			}
-		}
-		return tags, nil
-	}
-
-	rows, err := q.sqlite.GetMoodTagsByEntity(ctx, sqlc_sqlite.GetMoodTagsByEntityParams{
-		EntityType: entityType,
-		EntityID:   entityID,
-	})
-	if err != nil {
-		return nil, err
-	}
-	tags := make([]*MoodTagInfo, len(rows))
-	for i, row := range rows {
-		confidence := float32(1.0)
-		if row.Confidence.Valid {
-			confidence = float32(row.Confidence.Float64)
-		}
-		tags[i] = &MoodTagInfo{
-			Tag:        row.Tag,
-			Confidence: confidence,
-		}
-	}
-	return tags, nil
-}
-
-// SetMoodTags stores mood tags for an entity (replaces existing).
-func (q *DBMediaQuerier) SetMoodTags(ctx context.Context, entityType string, entityID int64, tags []*MoodTagInfo) error {
-	// Delete existing tags first
-	if err := q.DeleteMoodTags(ctx, entityType, entityID); err != nil {
-		return err
-	}
-
-	// Insert new tags
-	for _, tag := range tags {
-		if q.router.IsPostgresDB() {
-			err := q.postgres.InsertMoodTag(ctx, sqlc_postgres.InsertMoodTagParams{
-				EntityType: entityType,
-				EntityID:   int32(entityID),
-				Tag:        tag.Tag,
-				Confidence: sql.NullFloat64{Float64: float64(tag.Confidence), Valid: true},
-			})
-			if err != nil {
-				return err
-			}
-		} else {
-			err := q.sqlite.InsertMoodTag(ctx, sqlc_sqlite.InsertMoodTagParams{
-				EntityType: entityType,
-				EntityID:   entityID,
-				Tag:        tag.Tag,
-				Confidence: sql.NullFloat64{Float64: float64(tag.Confidence), Valid: true},
-			})
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// DeleteMoodTags removes all mood tags for an entity.
-func (q *DBMediaQuerier) DeleteMoodTags(ctx context.Context, entityType string, entityID int64) error {
-	return q.router.RouteVoid(
-		func() error {
-			return q.postgres.DeleteMoodTagsByEntity(ctx, sqlc_postgres.DeleteMoodTagsByEntityParams{
-				EntityType: entityType,
-				EntityID:   int32(entityID),
-			})
-		},
-		func() error {
-			return q.sqlite.DeleteMoodTagsByEntity(ctx, sqlc_sqlite.DeleteMoodTagsByEntityParams{
-				EntityType: entityType,
-				EntityID:   entityID,
-			})
-		},
-	)
 }
 
 // getCreditsForEntity fetches credits from the credits table with proper billing order.

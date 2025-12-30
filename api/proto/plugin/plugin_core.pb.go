@@ -1284,137 +1284,6 @@ func (x *PluginHTTPChunk) GetError() string {
 	return ""
 }
 
-// ExposeServiceRequest is sent by the host when another plugin wants to
-// connect to a capability this plugin provides.
-type ExposeServiceRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The capability being requested, e.g., "embedding", "chat", "provider"
-	Capability string `protobuf:"bytes,1,opt,name=capability,proto3" json:"capability,omitempty"`
-	// ID of the plugin requesting the connection (for logging/auditing)
-	RequestingPluginId string `protobuf:"bytes,2,opt,name=requesting_plugin_id,json=requestingPluginId,proto3" json:"requesting_plugin_id,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
-}
-
-func (x *ExposeServiceRequest) Reset() {
-	*x = ExposeServiceRequest{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[16]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ExposeServiceRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ExposeServiceRequest) ProtoMessage() {}
-
-func (x *ExposeServiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[16]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ExposeServiceRequest.ProtoReflect.Descriptor instead.
-func (*ExposeServiceRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{16}
-}
-
-func (x *ExposeServiceRequest) GetCapability() string {
-	if x != nil {
-		return x.Capability
-	}
-	return ""
-}
-
-func (x *ExposeServiceRequest) GetRequestingPluginId() string {
-	if x != nil {
-		return x.RequestingPluginId
-	}
-	return ""
-}
-
-// ExposeServiceResponse contains the broker ID for the exposed service.
-type ExposeServiceResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Whether the service was successfully exposed
-	Success bool `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	// Broker ID that the requesting plugin can dial to connect
-	// This is a gRPC connection that implements the capability's service interface
-	BrokerId uint32 `protobuf:"varint,2,opt,name=broker_id,json=brokerId,proto3" json:"broker_id,omitempty"`
-	// Error message if success is false
-	Error string `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
-	// The gRPC service name exposed on this broker ID
-	// e.g., "viewra.plugin.v1.PluginProvider" for AI providers
-	ServiceName   string `protobuf:"bytes,4,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ExposeServiceResponse) Reset() {
-	*x = ExposeServiceResponse{}
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[17]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ExposeServiceResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ExposeServiceResponse) ProtoMessage() {}
-
-func (x *ExposeServiceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_plugin_core_proto_msgTypes[17]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ExposeServiceResponse.ProtoReflect.Descriptor instead.
-func (*ExposeServiceResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_plugin_core_proto_rawDescGZIP(), []int{17}
-}
-
-func (x *ExposeServiceResponse) GetSuccess() bool {
-	if x != nil {
-		return x.Success
-	}
-	return false
-}
-
-func (x *ExposeServiceResponse) GetBrokerId() uint32 {
-	if x != nil {
-		return x.BrokerId
-	}
-	return 0
-}
-
-func (x *ExposeServiceResponse) GetError() string {
-	if x != nil {
-		return x.Error
-	}
-	return ""
-}
-
-func (x *ExposeServiceResponse) GetServiceName() string {
-	if x != nil {
-		return x.ServiceName
-	}
-	return ""
-}
-
 var File_api_proto_plugin_plugin_core_proto protoreflect.FileDescriptor
 
 const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
@@ -1541,17 +1410,7 @@ const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
 	"\vREQUEST_END\x10\x02\x12\x12\n" +
 	"\x0eRESPONSE_START\x10\x03\x12\x11\n" +
 	"\rRESPONSE_BODY\x10\x04\x12\x10\n" +
-	"\fRESPONSE_END\x10\x05\"h\n" +
-	"\x14ExposeServiceRequest\x12\x1e\n" +
-	"\n" +
-	"capability\x18\x01 \x01(\tR\n" +
-	"capability\x120\n" +
-	"\x14requesting_plugin_id\x18\x02 \x01(\tR\x12requestingPluginId\"\x87\x01\n" +
-	"\x15ExposeServiceResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1b\n" +
-	"\tbroker_id\x18\x02 \x01(\rR\bbrokerId\x12\x14\n" +
-	"\x05error\x18\x03 \x01(\tR\x05error\x12!\n" +
-	"\fservice_name\x18\x04 \x01(\tR\vserviceName2\xf4\x06\n" +
+	"\fRESPONSE_END\x10\x052\x92\x06\n" +
 	"\n" +
 	"PluginCore\x12K\n" +
 	"\n" +
@@ -1565,8 +1424,7 @@ const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
 	"\tGetRoutes\x12\x17.viewra.plugin.v1.Empty\x1a\x1e.viewra.plugin.v1.PluginRoutes\x12W\n" +
 	"\n" +
 	"HandleHTTP\x12#.viewra.plugin.v1.PluginHTTPRequest\x1a$.viewra.plugin.v1.PluginHTTPResponse\x12\\\n" +
-	"\x10HandleHTTPStream\x12!.viewra.plugin.v1.PluginHTTPChunk\x1a!.viewra.plugin.v1.PluginHTTPChunk(\x010\x01\x12`\n" +
-	"\rExposeService\x12&.viewra.plugin.v1.ExposeServiceRequest\x1a'.viewra.plugin.v1.ExposeServiceResponseB8Z6github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1b\x06proto3"
+	"\x10HandleHTTPStream\x12!.viewra.plugin.v1.PluginHTTPChunk\x1a!.viewra.plugin.v1.PluginHTTPChunk(\x010\x01B8Z6github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1b\x06proto3"
 
 var (
 	file_api_proto_plugin_plugin_core_proto_rawDescOnce sync.Once
@@ -1581,71 +1439,67 @@ func file_api_proto_plugin_plugin_core_proto_rawDescGZIP() []byte {
 }
 
 var file_api_proto_plugin_plugin_core_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_api_proto_plugin_plugin_core_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_api_proto_plugin_plugin_core_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_api_proto_plugin_plugin_core_proto_goTypes = []any{
-	(HealthStatus_Status)(0),      // 0: viewra.plugin.v1.HealthStatus.Status
-	(PluginHTTPChunk_Type)(0),     // 1: viewra.plugin.v1.PluginHTTPChunk.Type
-	(*InitRequest)(nil),           // 2: viewra.plugin.v1.InitRequest
-	(*SystemInfo)(nil),            // 3: viewra.plugin.v1.SystemInfo
-	(*InitResponse)(nil),          // 4: viewra.plugin.v1.InitResponse
-	(*HealthStatus)(nil),          // 5: viewra.plugin.v1.HealthStatus
-	(*SettingsSchema)(nil),        // 6: viewra.plugin.v1.SettingsSchema
-	(*Settings)(nil),              // 7: viewra.plugin.v1.Settings
-	(*ConfigureResponse)(nil),     // 8: viewra.plugin.v1.ConfigureResponse
-	(*EventSubscriptions)(nil),    // 9: viewra.plugin.v1.EventSubscriptions
-	(*Event)(nil),                 // 10: viewra.plugin.v1.Event
-	(*EventResponse)(nil),         // 11: viewra.plugin.v1.EventResponse
-	(*PluginRoutes)(nil),          // 12: viewra.plugin.v1.PluginRoutes
-	(*PluginRoute)(nil),           // 13: viewra.plugin.v1.PluginRoute
-	(*PluginRateLimit)(nil),       // 14: viewra.plugin.v1.PluginRateLimit
-	(*PluginHTTPRequest)(nil),     // 15: viewra.plugin.v1.PluginHTTPRequest
-	(*PluginHTTPResponse)(nil),    // 16: viewra.plugin.v1.PluginHTTPResponse
-	(*PluginHTTPChunk)(nil),       // 17: viewra.plugin.v1.PluginHTTPChunk
-	(*ExposeServiceRequest)(nil),  // 18: viewra.plugin.v1.ExposeServiceRequest
-	(*ExposeServiceResponse)(nil), // 19: viewra.plugin.v1.ExposeServiceResponse
-	nil,                           // 20: viewra.plugin.v1.PluginHTTPRequest.HeadersEntry
-	nil,                           // 21: viewra.plugin.v1.PluginHTTPRequest.QueryEntry
-	nil,                           // 22: viewra.plugin.v1.PluginHTTPRequest.PathParamsEntry
-	nil,                           // 23: viewra.plugin.v1.PluginHTTPResponse.HeadersEntry
-	nil,                           // 24: viewra.plugin.v1.PluginHTTPChunk.HeadersEntry
-	(*Empty)(nil),                 // 25: viewra.plugin.v1.Empty
+	(HealthStatus_Status)(0),   // 0: viewra.plugin.v1.HealthStatus.Status
+	(PluginHTTPChunk_Type)(0),  // 1: viewra.plugin.v1.PluginHTTPChunk.Type
+	(*InitRequest)(nil),        // 2: viewra.plugin.v1.InitRequest
+	(*SystemInfo)(nil),         // 3: viewra.plugin.v1.SystemInfo
+	(*InitResponse)(nil),       // 4: viewra.plugin.v1.InitResponse
+	(*HealthStatus)(nil),       // 5: viewra.plugin.v1.HealthStatus
+	(*SettingsSchema)(nil),     // 6: viewra.plugin.v1.SettingsSchema
+	(*Settings)(nil),           // 7: viewra.plugin.v1.Settings
+	(*ConfigureResponse)(nil),  // 8: viewra.plugin.v1.ConfigureResponse
+	(*EventSubscriptions)(nil), // 9: viewra.plugin.v1.EventSubscriptions
+	(*Event)(nil),              // 10: viewra.plugin.v1.Event
+	(*EventResponse)(nil),      // 11: viewra.plugin.v1.EventResponse
+	(*PluginRoutes)(nil),       // 12: viewra.plugin.v1.PluginRoutes
+	(*PluginRoute)(nil),        // 13: viewra.plugin.v1.PluginRoute
+	(*PluginRateLimit)(nil),    // 14: viewra.plugin.v1.PluginRateLimit
+	(*PluginHTTPRequest)(nil),  // 15: viewra.plugin.v1.PluginHTTPRequest
+	(*PluginHTTPResponse)(nil), // 16: viewra.plugin.v1.PluginHTTPResponse
+	(*PluginHTTPChunk)(nil),    // 17: viewra.plugin.v1.PluginHTTPChunk
+	nil,                        // 18: viewra.plugin.v1.PluginHTTPRequest.HeadersEntry
+	nil,                        // 19: viewra.plugin.v1.PluginHTTPRequest.QueryEntry
+	nil,                        // 20: viewra.plugin.v1.PluginHTTPRequest.PathParamsEntry
+	nil,                        // 21: viewra.plugin.v1.PluginHTTPResponse.HeadersEntry
+	nil,                        // 22: viewra.plugin.v1.PluginHTTPChunk.HeadersEntry
+	(*Empty)(nil),              // 23: viewra.plugin.v1.Empty
 }
 var file_api_proto_plugin_plugin_core_proto_depIdxs = []int32{
 	3,  // 0: viewra.plugin.v1.InitRequest.system_info:type_name -> viewra.plugin.v1.SystemInfo
 	0,  // 1: viewra.plugin.v1.HealthStatus.status:type_name -> viewra.plugin.v1.HealthStatus.Status
 	13, // 2: viewra.plugin.v1.PluginRoutes.routes:type_name -> viewra.plugin.v1.PluginRoute
 	14, // 3: viewra.plugin.v1.PluginRoute.rate_limit:type_name -> viewra.plugin.v1.PluginRateLimit
-	20, // 4: viewra.plugin.v1.PluginHTTPRequest.headers:type_name -> viewra.plugin.v1.PluginHTTPRequest.HeadersEntry
-	21, // 5: viewra.plugin.v1.PluginHTTPRequest.query:type_name -> viewra.plugin.v1.PluginHTTPRequest.QueryEntry
-	22, // 6: viewra.plugin.v1.PluginHTTPRequest.path_params:type_name -> viewra.plugin.v1.PluginHTTPRequest.PathParamsEntry
-	23, // 7: viewra.plugin.v1.PluginHTTPResponse.headers:type_name -> viewra.plugin.v1.PluginHTTPResponse.HeadersEntry
+	18, // 4: viewra.plugin.v1.PluginHTTPRequest.headers:type_name -> viewra.plugin.v1.PluginHTTPRequest.HeadersEntry
+	19, // 5: viewra.plugin.v1.PluginHTTPRequest.query:type_name -> viewra.plugin.v1.PluginHTTPRequest.QueryEntry
+	20, // 6: viewra.plugin.v1.PluginHTTPRequest.path_params:type_name -> viewra.plugin.v1.PluginHTTPRequest.PathParamsEntry
+	21, // 7: viewra.plugin.v1.PluginHTTPResponse.headers:type_name -> viewra.plugin.v1.PluginHTTPResponse.HeadersEntry
 	1,  // 8: viewra.plugin.v1.PluginHTTPChunk.type:type_name -> viewra.plugin.v1.PluginHTTPChunk.Type
 	15, // 9: viewra.plugin.v1.PluginHTTPChunk.request:type_name -> viewra.plugin.v1.PluginHTTPRequest
-	24, // 10: viewra.plugin.v1.PluginHTTPChunk.headers:type_name -> viewra.plugin.v1.PluginHTTPChunk.HeadersEntry
+	22, // 10: viewra.plugin.v1.PluginHTTPChunk.headers:type_name -> viewra.plugin.v1.PluginHTTPChunk.HeadersEntry
 	2,  // 11: viewra.plugin.v1.PluginCore.Initialize:input_type -> viewra.plugin.v1.InitRequest
-	25, // 12: viewra.plugin.v1.PluginCore.Shutdown:input_type -> viewra.plugin.v1.Empty
-	25, // 13: viewra.plugin.v1.PluginCore.HealthCheck:input_type -> viewra.plugin.v1.Empty
-	25, // 14: viewra.plugin.v1.PluginCore.GetSettingsSchema:input_type -> viewra.plugin.v1.Empty
+	23, // 12: viewra.plugin.v1.PluginCore.Shutdown:input_type -> viewra.plugin.v1.Empty
+	23, // 13: viewra.plugin.v1.PluginCore.HealthCheck:input_type -> viewra.plugin.v1.Empty
+	23, // 14: viewra.plugin.v1.PluginCore.GetSettingsSchema:input_type -> viewra.plugin.v1.Empty
 	7,  // 15: viewra.plugin.v1.PluginCore.Configure:input_type -> viewra.plugin.v1.Settings
-	25, // 16: viewra.plugin.v1.PluginCore.GetSubscriptions:input_type -> viewra.plugin.v1.Empty
+	23, // 16: viewra.plugin.v1.PluginCore.GetSubscriptions:input_type -> viewra.plugin.v1.Empty
 	10, // 17: viewra.plugin.v1.PluginCore.OnEvent:input_type -> viewra.plugin.v1.Event
-	25, // 18: viewra.plugin.v1.PluginCore.GetRoutes:input_type -> viewra.plugin.v1.Empty
+	23, // 18: viewra.plugin.v1.PluginCore.GetRoutes:input_type -> viewra.plugin.v1.Empty
 	15, // 19: viewra.plugin.v1.PluginCore.HandleHTTP:input_type -> viewra.plugin.v1.PluginHTTPRequest
 	17, // 20: viewra.plugin.v1.PluginCore.HandleHTTPStream:input_type -> viewra.plugin.v1.PluginHTTPChunk
-	18, // 21: viewra.plugin.v1.PluginCore.ExposeService:input_type -> viewra.plugin.v1.ExposeServiceRequest
-	4,  // 22: viewra.plugin.v1.PluginCore.Initialize:output_type -> viewra.plugin.v1.InitResponse
-	25, // 23: viewra.plugin.v1.PluginCore.Shutdown:output_type -> viewra.plugin.v1.Empty
-	5,  // 24: viewra.plugin.v1.PluginCore.HealthCheck:output_type -> viewra.plugin.v1.HealthStatus
-	6,  // 25: viewra.plugin.v1.PluginCore.GetSettingsSchema:output_type -> viewra.plugin.v1.SettingsSchema
-	8,  // 26: viewra.plugin.v1.PluginCore.Configure:output_type -> viewra.plugin.v1.ConfigureResponse
-	9,  // 27: viewra.plugin.v1.PluginCore.GetSubscriptions:output_type -> viewra.plugin.v1.EventSubscriptions
-	11, // 28: viewra.plugin.v1.PluginCore.OnEvent:output_type -> viewra.plugin.v1.EventResponse
-	12, // 29: viewra.plugin.v1.PluginCore.GetRoutes:output_type -> viewra.plugin.v1.PluginRoutes
-	16, // 30: viewra.plugin.v1.PluginCore.HandleHTTP:output_type -> viewra.plugin.v1.PluginHTTPResponse
-	17, // 31: viewra.plugin.v1.PluginCore.HandleHTTPStream:output_type -> viewra.plugin.v1.PluginHTTPChunk
-	19, // 32: viewra.plugin.v1.PluginCore.ExposeService:output_type -> viewra.plugin.v1.ExposeServiceResponse
-	22, // [22:33] is the sub-list for method output_type
-	11, // [11:22] is the sub-list for method input_type
+	4,  // 21: viewra.plugin.v1.PluginCore.Initialize:output_type -> viewra.plugin.v1.InitResponse
+	23, // 22: viewra.plugin.v1.PluginCore.Shutdown:output_type -> viewra.plugin.v1.Empty
+	5,  // 23: viewra.plugin.v1.PluginCore.HealthCheck:output_type -> viewra.plugin.v1.HealthStatus
+	6,  // 24: viewra.plugin.v1.PluginCore.GetSettingsSchema:output_type -> viewra.plugin.v1.SettingsSchema
+	8,  // 25: viewra.plugin.v1.PluginCore.Configure:output_type -> viewra.plugin.v1.ConfigureResponse
+	9,  // 26: viewra.plugin.v1.PluginCore.GetSubscriptions:output_type -> viewra.plugin.v1.EventSubscriptions
+	11, // 27: viewra.plugin.v1.PluginCore.OnEvent:output_type -> viewra.plugin.v1.EventResponse
+	12, // 28: viewra.plugin.v1.PluginCore.GetRoutes:output_type -> viewra.plugin.v1.PluginRoutes
+	16, // 29: viewra.plugin.v1.PluginCore.HandleHTTP:output_type -> viewra.plugin.v1.PluginHTTPResponse
+	17, // 30: viewra.plugin.v1.PluginCore.HandleHTTPStream:output_type -> viewra.plugin.v1.PluginHTTPChunk
+	21, // [21:31] is the sub-list for method output_type
+	11, // [11:21] is the sub-list for method input_type
 	11, // [11:11] is the sub-list for extension type_name
 	11, // [11:11] is the sub-list for extension extendee
 	0,  // [0:11] is the sub-list for field type_name
@@ -1663,7 +1517,7 @@ func file_api_proto_plugin_plugin_core_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_plugin_plugin_core_proto_rawDesc), len(file_api_proto_plugin_plugin_core_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   23,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
