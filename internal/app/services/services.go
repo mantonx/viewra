@@ -362,15 +362,26 @@ func initEnrichmentPipeline(
 	// Create and register enrichers
 	enricherRegistry := enrichment.NewRegistry()
 	imageExtractor := infraimages.NewExtractor()
-	builtinEnrichers := []enrichment.Enricher{
-		builtin.NewNFOEnricher(),
-		builtin.NewLocalImagesEnricher(imageExtractor, logger),
+
+	// Register builtin enrichers with their pipeline positions.
+	// These run BEFORE external plugins (position 0 = nfo, position 1 = local-images).
+	// External plugins will be added at position 2+ when they register.
+	builtinEnrichers := []struct {
+		enricher enrichment.Enricher
+		position int
+	}{
+		{builtin.NewNFOEnricher(), 0},
+		{builtin.NewLocalImagesEnricher(imageExtractor, logger), 1},
 	}
-	for _, e := range builtinEnrichers {
-		if err := enricherRegistry.RegisterBuiltin(e); err != nil {
-			logger.Warn("Failed to register builtin enricher", "stage", e.Stage(), "error", err)
+
+	ctx := context.Background()
+	for _, be := range builtinEnrichers {
+		if err := enricherRegistry.RegisterBuiltin(be.enricher); err != nil {
+			logger.Warn("Failed to register builtin enricher", "stage", be.enricher.Stage(), "error", err)
 		}
-		pipelineManager.RegisterEnricher(e)
+		if err := pipelineManager.RegisterBuiltinEnricher(ctx, be.enricher, be.position); err != nil {
+			logger.Warn("Failed to register builtin pipeline stage", "stage", be.enricher.Stage(), "error", err)
+		}
 	}
 
 	return pipelineManager, enqueueBuffer, enricherRegistry

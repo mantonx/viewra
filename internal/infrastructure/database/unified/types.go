@@ -242,6 +242,7 @@ type (
 	SetPluginUserMetadataParams = sqlc_sqlite.SetPluginUserMetadataParams
 	SetScanStateErrorParams = sqlc_sqlite.SetScanStateErrorParams
 	SetScanStateWarningParams = sqlc_sqlite.SetScanStateWarningParams
+	ShiftPipelinePositionsParams = sqlc_sqlite.ShiftPipelinePositionsParams
 	TryAcquireSchedulerLockParams = sqlc_sqlite.TryAcquireSchedulerLockParams
 	UpdateAlbumParams = sqlc_sqlite.UpdateAlbumParams
 	UpdateArtistParams = sqlc_sqlite.UpdateArtistParams

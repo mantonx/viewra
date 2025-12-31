@@ -124,3 +124,12 @@ func (r *PipelineRepository) GetByID(ctx context.Context, stageID int64) (*enric
 	}
 	return convertPipelineStage(row), nil
 }
+
+// ShiftPositions shifts all stages at or above the target position up by 1.
+// Used when inserting builtin enrichers at specific positions.
+func (r *PipelineRepository) ShiftPositions(ctx context.Context, mediaType enrichment.MediaType, fromPosition int) error {
+	return r.Q().ShiftPipelinePositions(ctx, unified.ShiftPipelinePositionsParams{
+		MediaType: string(mediaType),
+		Position:  int64(fromPosition),
+	})
+}

@@ -66,3 +66,9 @@ RETURNING *;
 SELECT * FROM libraries
 WHERE monitoring_enabled = 1
 ORDER BY name;
+
+-- name: UpdateLibraryLastScannedAt :exec
+UPDATE libraries
+SET last_scanned_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;

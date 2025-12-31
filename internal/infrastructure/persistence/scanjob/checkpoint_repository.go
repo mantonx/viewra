@@ -54,16 +54,17 @@ func (r *CheckpointRepo) CreateBatch(ctx context.Context, checkpoints []*scanner
 
 	if common.IsPostgres(r.DBType()) {
 		// PostgreSQL uses $1, $2, $3, ... for placeholders
+		// Type casts are needed for nullable columns to handle NULL values
 		for i, cp := range checkpoints {
 			if i > 0 {
 				placeholders += ", "
 			}
-			base := i * 6
-			placeholders += fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, CURRENT_TIMESTAMP)",
+			base := i * 5
+			placeholders += fmt.Sprintf("($%d, $%d, $%d, $%d::bigint, $%d::text, CURRENT_TIMESTAMP)",
 				base+1, base+2, base+3, base+4, base+5)
 
 			args = append(args,
-				int32(cp.ScanJobID),
+				cp.ScanJobID,
 				cp.FilePath,
 				string(cp.Status),
 				common.NullInt64(cp.FileSize),

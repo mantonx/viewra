@@ -19,7 +19,8 @@ CREATE TABLE libraries (
     preferred_subtitle_lang TEXT DEFAULT 'eng',
     auto_enable_subtitles TEXT DEFAULT 'foreign_only' CHECK(auto_enable_subtitles IN ('always', 'foreign_only', 'never')),
     monitoring_enabled INTEGER NOT NULL DEFAULT 1,
-    monitoring_config TEXT
+    monitoring_config TEXT,
+    last_scanned_at TIMESTAMPTZ
 );
 
 CREATE INDEX idx_libraries_type ON libraries(type);
@@ -407,6 +408,8 @@ CREATE INDEX idx_media_images_source ON media_images(source_type);
 CREATE INDEX idx_media_images_hash ON media_images(file_hash) WHERE file_hash IS NOT NULL;
 CREATE UNIQUE INDEX idx_media_images_unique ON media_images(media_id, image_type, priority) WHERE media_id IS NOT NULL;
 CREATE UNIQUE INDEX idx_media_images_entity_unique ON media_images(media_type, entity_id, image_type, priority) WHERE media_id IS NULL;
+-- Required for ON CONFLICT in CreateImage query
+CREATE UNIQUE INDEX idx_media_images_upsert ON media_images(media_type, entity_id, image_type, file_path, COALESCE(file_hash, ''));
 
 -- ============================================================================
 -- Audio & Subtitle Tracks
@@ -843,7 +846,8 @@ CREATE TABLE enrichment_queue (
     locked_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    library_id INTEGER
+    library_id INTEGER,
+    UNIQUE(media_id, media_type, stage)
 );
 
 CREATE INDEX idx_enrichment_queue_claim ON enrichment_queue(stage, status, priority DESC, created_at) WHERE status = 'pending';

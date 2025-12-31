@@ -510,7 +510,7 @@ func (q *Queries) ListMediaByType(ctx context.Context, arg ListMediaByTypeParams
 }
 
 const mediaExistsInLibrary = `-- name: MediaExistsInLibrary :one
-SELECT (COUNT(*) > 0)::bigint as exists FROM media
+SELECT COUNT(*) FROM media
 WHERE library_id = $1 AND file_path = $2
 `
 
@@ -521,9 +521,9 @@ type MediaExistsInLibraryParams struct {
 
 func (q *Queries) MediaExistsInLibrary(ctx context.Context, arg MediaExistsInLibraryParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, mediaExistsInLibrary, arg.LibraryID, arg.FilePath)
-	var exists int64
-	err := row.Scan(&exists)
-	return exists, err
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const updateMedia = `-- name: UpdateMedia :one

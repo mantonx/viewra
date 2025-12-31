@@ -3184,6 +3184,13 @@ func (q *Querier) SetScanStateWarning(ctx context.Context, arg sqlc_sqlite.SetSc
 	return q.sqlite.SetScanStateWarning(ctx, arg)
 }
 
+func (q *Querier) ShiftPipelinePositions(ctx context.Context, arg sqlc_sqlite.ShiftPipelinePositionsParams) error {
+	if q.isPostgres {
+		return q.postgres.ShiftPipelinePositions(ctx, sqlc_postgres.ShiftPipelinePositionsParams(arg))
+	}
+	return q.sqlite.ShiftPipelinePositions(ctx, arg)
+}
+
 func (q *Querier) SkipEnrichmentJob(ctx context.Context, id int64) error {
 	if q.isPostgres {
 		return q.postgres.SkipEnrichmentJob(ctx, id)
@@ -3225,6 +3232,13 @@ func (q *Querier) UpdateLibrary(ctx context.Context, arg sqlc_sqlite.UpdateLibra
 		return castValue[sqlc_postgres.Library, sqlc_sqlite.Library](r0), err
 	}
 	return q.sqlite.UpdateLibrary(ctx, arg)
+}
+
+func (q *Querier) UpdateLibraryLastScannedAt(ctx context.Context, id int64) error {
+	if q.isPostgres {
+		return q.postgres.UpdateLibraryLastScannedAt(ctx, id)
+	}
+	return q.sqlite.UpdateLibraryLastScannedAt(ctx, id)
 }
 
 func (q *Querier) UpdateLibraryMonitoring(ctx context.Context, arg sqlc_sqlite.UpdateLibraryMonitoringParams) (sqlc_sqlite.Library, error) {

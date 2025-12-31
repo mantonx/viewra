@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { getGetApiLibrariesQueryOptions } from '@/lib/api'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
+import { Library } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { LibraryCard, LibraryForm } from '@/components/library'
 import { StageStatus } from '@/components/enrichment/StageStatus'
@@ -51,7 +52,7 @@ const Libraries = () => {
       <SettingsPage.Card title="Your Libraries">
         {libraryList.length === 0 ? (
           <EmptyState
-            icon="library"
+            icon={Library}
             title="No libraries yet"
             description='Click the "+ Add Library" button to get started.'
           />

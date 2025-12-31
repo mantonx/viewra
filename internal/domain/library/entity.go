@@ -18,6 +18,10 @@ type Library struct {
 	// Filesystem monitoring configuration
 	MonitoringEnabled bool              // Whether real-time file monitoring is enabled
 	MonitoringConfig  *MonitoringConfig // Optional configuration overrides
+
+	// LastScannedAt is when a scan last completed successfully for this library.
+	// Nil means the library has never been scanned.
+	LastScannedAt *time.Time
 }
 
 // MonitoringConfig contains per-library monitoring settings.

@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
+import { Music as MusicIcon } from 'lucide-react'
 import { ArtistCard, ArtistListItem } from '@/components/music'
 import { MediaBrowsePage, VirtualMediaGrid } from '@/components/common'
 import { useLibraryFilter, useInfiniteArtists, flattenArtists, BatchImagesProvider, useDebounce } from '@/lib/hooks'
@@ -99,7 +100,7 @@ const Music = () => {
         title="Music"
         description="Browse your music collection by artist."
         searchPlaceholder="Search artists..."
-        emptyIcon="🎤"
+        emptyIcon={MusicIcon}
         emptyTitle="No artists found"
         emptyDescription="Add a library with music and scan it to see your artists here."
         data={allArtists}

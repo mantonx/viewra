@@ -109,7 +109,7 @@ FROM playback_sessions p
 LEFT JOIN transcode_analytics t ON p.session_id = t.session_id
 WHERE p.media_id = $1
 ORDER BY p.start_time DESC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type GetCorrelatedAnalyticsParams struct {
@@ -199,7 +199,7 @@ SELECT
 FROM playback_sessions p
 LEFT JOIN transcode_analytics t ON p.session_id = t.session_id
 ORDER BY p.start_time DESC
-LIMIT $2::bigint OFFSET $1::bigint
+LIMIT $1::bigint OFFSET $2::bigint
 `
 
 type GetCorrelatedAnalyticsAllParams struct {
@@ -381,7 +381,7 @@ const listTranscodeAnalyticsByMediaID = `-- name: ListTranscodeAnalyticsByMediaI
 SELECT session_id, media_id, quality_profile, strategy, hw_accel, ffmpeg_start_ms, first_frame_ms, first_segment_ms, manifest_ready_ms, status, error_reason, total_duration_ms, segments_created, created_at, completed_at, strategy_reason, strategy_display FROM transcode_analytics
 WHERE media_id = $1
 ORDER BY created_at DESC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListTranscodeAnalyticsByMediaIDParams struct {

@@ -1,15 +1,15 @@
+import type { InternalApiHandlersAdminStatusEvent } from '@/lib/api/generated/models'
+import { useSSE, type SSEConnectionState } from '@/lib/hooks/useSSE'
 import {
   createContext,
-  useContext,
-  useState,
-  useEffect,
   useCallback,
+  useContext,
+  useEffect,
   useRef,
+  useState,
   type ReactNode,
 } from 'react'
 import { flushSync } from 'react-dom'
-import { useSSE, type SSEConnectionState } from '@/lib/hooks/useSSE'
-import type { InternalApiHandlersAdminStatusEvent } from '@/lib/api/generated/models'
 
 type ServerStatus = 'online' | 'offline' | 'restarting'
 
@@ -32,21 +32,24 @@ interface ServerStatusProviderProps {
 }
 
 const ServerStatusProvider = ({ children }: ServerStatusProviderProps) => {
-  const [internalStatus, setInternalStatus] = useState<'online' | 'restarting'>('online')
+  const [_internalStatus, setInternalStatus] = useState<'online' | 'restarting'>('online')
   const [offlineSince, setOfflineSince] = useState<Date | null>(null)
   const isRestartingRef = useRef(false)
   const hasDisconnectedRef = useRef(false) // Track if server actually went down
 
-  const handleStateChange = useCallback((state: SSEConnectionState) => {
-    if (state === 'disconnected' || state === 'error' || state === 'connecting') {
-      // SSE disconnected - mark that server went down
-      hasDisconnectedRef.current = true
-      // If we didn't trigger a restart, this is an unexpected disconnect
-      if (!isRestartingRef.current && !offlineSince) {
-        setOfflineSince(new Date())
+  const handleStateChange = useCallback(
+    (state: SSEConnectionState) => {
+      if (state === 'disconnected' || state === 'error' || state === 'connecting') {
+        // SSE disconnected - mark that server went down
+        hasDisconnectedRef.current = true
+        // If we didn't trigger a restart, this is an unexpected disconnect
+        if (!isRestartingRef.current && !offlineSince) {
+          setOfflineSince(new Date())
+        }
       }
-    }
-  }, [offlineSince])
+    },
+    [offlineSince]
+  )
 
   const { connectionState, lastEvent } = useSSE<InternalApiHandlersAdminStatusEvent>(
     '/api/admin/status/stream',
@@ -114,9 +117,7 @@ const ServerStatusProvider = ({ children }: ServerStatusProviderProps) => {
     pendingSettings: lastEvent?.pending_settings ?? [],
   }
 
-  return (
-    <ServerStatusContext.Provider value={value}>{children}</ServerStatusContext.Provider>
-  )
+  return <ServerStatusContext.Provider value={value}>{children}</ServerStatusContext.Provider>
 }
 
 const useServerStatus = (): ServerStatusContextValue => {

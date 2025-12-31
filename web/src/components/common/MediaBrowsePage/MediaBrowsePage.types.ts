@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import type { LucideIcon } from 'lucide-react'
 import type { LibraryType } from '@/lib/hooks'
 import type { FilterState, YearRange } from '../AdvancedFilters'
 import type { ViewMode } from '../ViewToggle'
@@ -9,7 +10,7 @@ export interface MediaBrowsePageProps<T extends { id: number; title?: string; na
   title: string
   description: string
   searchPlaceholder: string
-  emptyIcon: string
+  emptyIcon: LucideIcon
   emptyTitle: string
   emptyDescription: string
 

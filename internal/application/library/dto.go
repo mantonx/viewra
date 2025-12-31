@@ -37,6 +37,7 @@ type LibraryResponse struct {
 	UpdatedAt         time.Time                 `json:"updated_at"`
 	MonitoringEnabled bool                      `json:"monitoring_enabled"`
 	MonitoringConfig  *library.MonitoringConfig `json:"monitoring_config,omitempty"`
+	LastScannedAt     *time.Time                `json:"last_scanned_at,omitempty"`
 }
 
 // ListLibrariesResponse represents a list of libraries
@@ -86,6 +87,7 @@ func ToLibraryResponse(lib *library.Library) LibraryResponse {
 		UpdatedAt:         lib.UpdatedAt,
 		MonitoringEnabled: lib.MonitoringEnabled,
 		MonitoringConfig:  lib.MonitoringConfig,
+		LastScannedAt:     lib.LastScannedAt,
 	}
 }
 

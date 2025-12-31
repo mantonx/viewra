@@ -299,7 +299,7 @@ LEFT JOIN music_tracks mt ON a.id = mt.artist_id
 WHERE a.library_id = $1
 GROUP BY a.id, a.library_id, a.name, a.sort_name, a.musicbrainz_artist_id, a.bio, a.country, a.formed_year, a.genre, a.image_path
 ORDER BY COALESCE(a.sort_name, a.name) ASC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type GetArtistsWithCountsByLibraryPaginatedParams struct {
@@ -380,7 +380,7 @@ LEFT JOIN music_tracks mt ON a.id = mt.artist_id
 WHERE a.library_id = $1
 GROUP BY a.id, a.library_id, a.name, a.sort_name, a.musicbrainz_artist_id, a.bio, a.country, a.formed_year, a.genre, a.image_path
 ORDER BY COALESCE(a.sort_name, a.name) DESC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type GetArtistsWithCountsByLibraryPaginatedDescParams struct {
@@ -489,7 +489,7 @@ SELECT id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, for
 WHERE library_id = $1
   AND (name ILIKE $2 OR sort_name ILIKE $3)
 ORDER BY sort_name, name
-LIMIT $5::bigint OFFSET $4::bigint
+LIMIT $4::bigint OFFSET $5::bigint
 `
 
 type SearchArtistsByNameParams struct {
@@ -565,7 +565,7 @@ WHERE a.library_id = $1
   AND (a.name ILIKE $2 OR a.sort_name ILIKE $3)
 GROUP BY a.id, a.library_id, a.name, a.sort_name, a.musicbrainz_artist_id, a.bio, a.country, a.formed_year, a.genre, a.image_path
 ORDER BY COALESCE(a.sort_name, a.name) ASC
-LIMIT $5::bigint OFFSET $4::bigint
+LIMIT $4::bigint OFFSET $5::bigint
 `
 
 type SearchArtistsWithCountsByNamePaginatedParams struct {

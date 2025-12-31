@@ -57,7 +57,7 @@ func (m *Manager) GetThroughputTracker() *ThroughputTracker {
 	return m.throughputTracker
 }
 
-// RegisterEnricher registers an enricher for a stage.
+// RegisterEnricher registers an enricher for a stage (in-memory only).
 // Must be called before Start().
 func (m *Manager) RegisterEnricher(enricher appenrich.Enricher) {
 	m.mu.Lock()
@@ -65,8 +65,79 @@ func (m *Manager) RegisterEnricher(enricher appenrich.Enricher) {
 	m.enrichers[enricher.Stage()] = enricher
 }
 
+// RegisterBuiltinEnricher registers a built-in enricher and ensures pipeline
+// configuration exists for it. Builtin enrichers run before external plugins
+// and are inserted at the beginning of the pipeline (position 0, 1, ...).
+// If a stage already exists at the target position, existing stages are shifted up.
+// This is called during application startup for local enrichers like NFO and local-images.
+func (m *Manager) RegisterBuiltinEnricher(ctx context.Context, enricher appenrich.Enricher, position int) error {
+	// First register the enricher in memory
+	m.RegisterEnricher(enricher)
+
+	stage := enricher.Stage()
+	caps := enricher.Capabilities()
+
+	// For each supported media type, ensure a pipeline stage exists
+	for _, mt := range caps.MediaTypes {
+		mediaType := enrichment.MediaType(mt)
+
+		// Check if stage already exists
+		existing, err := m.deps.PipelineRepo.GetStageByName(ctx, mediaType, stage)
+		if err != nil {
+			m.deps.Logger.Warn("failed to check for existing builtin pipeline stage",
+				"stage", stage,
+				"media_type", mt,
+				"error", err)
+			continue
+		}
+
+		if existing != nil {
+			m.deps.Logger.Debug("builtin pipeline stage already exists",
+				"stage", stage,
+				"media_type", mt,
+				"enabled", existing.Enabled)
+			continue
+		}
+
+		// Shift existing stages at this position up to make room
+		if err := m.deps.PipelineRepo.ShiftPositions(ctx, mediaType, position); err != nil {
+			m.deps.Logger.Warn("failed to shift pipeline positions",
+				"stage", stage,
+				"media_type", mt,
+				"position", position,
+				"error", err)
+			continue
+		}
+
+		// Create new stage at the specified position (enabled by default)
+		newStage := &enrichment.PipelineStage{
+			MediaType: mediaType,
+			PluginID:  stage,
+			StageName: stage,
+			Position:  position,
+			Enabled:   true,
+		}
+
+		if _, err := m.deps.PipelineRepo.Create(ctx, newStage); err != nil {
+			m.deps.Logger.Warn("failed to create builtin pipeline stage",
+				"stage", stage,
+				"media_type", mt,
+				"position", position,
+				"error", err)
+			continue
+		}
+
+		m.deps.Logger.Info("registered builtin pipeline stage",
+			"stage", stage,
+			"media_type", mt,
+			"position", position)
+	}
+
+	return nil
+}
+
 // RegisterExternalEnricher registers an external plugin enricher and ensures
-// pipeline configuration exists for it (disabled by default).
+// pipeline configuration exists for it (enabled by default).
 // This is called when external plugins are loaded.
 func (m *Manager) RegisterExternalEnricher(ctx context.Context, enricher appenrich.Enricher) error {
 	// First register the enricher

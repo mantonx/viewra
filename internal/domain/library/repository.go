@@ -38,4 +38,7 @@ type Repository interface {
 	// Monitoring methods
 	UpdateMonitoring(ctx context.Context, id int64, enabled bool, config *MonitoringConfig) error
 	ListMonitored(ctx context.Context) ([]*Library, error)
+
+	// Scan tracking
+	UpdateLastScannedAt(ctx context.Context, id int64) error
 }

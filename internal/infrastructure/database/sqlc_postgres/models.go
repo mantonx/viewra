@@ -76,6 +76,7 @@ type Library struct {
 	AutoEnableSubtitles   sql.NullString `json:"auto_enable_subtitles"`
 	MonitoringEnabled     int64          `json:"monitoring_enabled"`
 	MonitoringConfig      sql.NullString `json:"monitoring_config"`
+	LastScannedAt         sql.NullTime   `json:"last_scanned_at"`
 }
 
 type MediaAudioTrack struct {

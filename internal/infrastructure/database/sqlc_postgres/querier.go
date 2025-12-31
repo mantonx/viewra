@@ -497,6 +497,9 @@ type Querier interface {
 	SetPluginUserMetadata(ctx context.Context, arg SetPluginUserMetadataParams) error
 	SetScanStateError(ctx context.Context, arg SetScanStateErrorParams) error
 	SetScanStateWarning(ctx context.Context, arg SetScanStateWarningParams) error
+	// Shift all stages at or above target position up by 1 to make room for a new stage.
+	// Used when inserting builtin enrichers at specific positions.
+	ShiftPipelinePositions(ctx context.Context, arg ShiftPipelinePositionsParams) error
 	SkipEnrichmentJob(ctx context.Context, id int64) error
 	// Scheduler Locks Queries
 	TryAcquireSchedulerLock(ctx context.Context, arg TryAcquireSchedulerLockParams) error
@@ -504,6 +507,7 @@ type Querier interface {
 	UpdateArtist(ctx context.Context, arg UpdateArtistParams) error
 	UpdateImage(ctx context.Context, arg UpdateImageParams) error
 	UpdateLibrary(ctx context.Context, arg UpdateLibraryParams) (Library, error)
+	UpdateLibraryLastScannedAt(ctx context.Context, id int64) error
 	UpdateLibraryMonitoring(ctx context.Context, arg UpdateLibraryMonitoringParams) (Library, error)
 	UpdateMedia(ctx context.Context, arg UpdateMediaParams) (Medium, error)
 	UpdateMovie(ctx context.Context, arg UpdateMovieParams) error

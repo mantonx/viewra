@@ -37,7 +37,7 @@ const createLibrary = `-- name: CreateLibrary :one
 
 INSERT INTO libraries (name, path, type, created_at, updated_at)
 VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-RETURNING id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config
+RETURNING id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config, last_scanned_at
 `
 
 type CreateLibraryParams struct {
@@ -62,6 +62,7 @@ func (q *Queries) CreateLibrary(ctx context.Context, arg CreateLibraryParams) (L
 		&i.AutoEnableSubtitles,
 		&i.MonitoringEnabled,
 		&i.MonitoringConfig,
+		&i.LastScannedAt,
 	)
 	return i, err
 }
@@ -77,7 +78,7 @@ func (q *Queries) DeleteLibrary(ctx context.Context, id int64) error {
 }
 
 const getLibraryByID = `-- name: GetLibraryByID :one
-SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config FROM libraries
+SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config, last_scanned_at FROM libraries
 WHERE id = $1
 LIMIT 1
 `
@@ -97,12 +98,13 @@ func (q *Queries) GetLibraryByID(ctx context.Context, id int64) (Library, error)
 		&i.AutoEnableSubtitles,
 		&i.MonitoringEnabled,
 		&i.MonitoringConfig,
+		&i.LastScannedAt,
 	)
 	return i, err
 }
 
 const getLibraryByPath = `-- name: GetLibraryByPath :one
-SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config FROM libraries
+SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config, last_scanned_at FROM libraries
 WHERE path = $1
 LIMIT 1
 `
@@ -122,38 +124,39 @@ func (q *Queries) GetLibraryByPath(ctx context.Context, path string) (Library, e
 		&i.AutoEnableSubtitles,
 		&i.MonitoringEnabled,
 		&i.MonitoringConfig,
+		&i.LastScannedAt,
 	)
 	return i, err
 }
 
 const libraryExistsByID = `-- name: LibraryExistsByID :one
-SELECT (COUNT(*) > 0)::bigint as exists
+SELECT COUNT(*)
 FROM libraries
 WHERE id = $1
 `
 
 func (q *Queries) LibraryExistsByID(ctx context.Context, id int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, libraryExistsByID, id)
-	var exists int64
-	err := row.Scan(&exists)
-	return exists, err
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const libraryExistsByPath = `-- name: LibraryExistsByPath :one
-SELECT (COUNT(*) > 0)::bigint as exists
+SELECT COUNT(*)
 FROM libraries
 WHERE path = $1
 `
 
 func (q *Queries) LibraryExistsByPath(ctx context.Context, path string) (int64, error) {
 	row := q.db.QueryRowContext(ctx, libraryExistsByPath, path)
-	var exists int64
-	err := row.Scan(&exists)
-	return exists, err
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const listLibraries = `-- name: ListLibraries :many
-SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config FROM libraries
+SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config, last_scanned_at FROM libraries
 ORDER BY name
 `
 
@@ -178,6 +181,7 @@ func (q *Queries) ListLibraries(ctx context.Context) ([]Library, error) {
 			&i.AutoEnableSubtitles,
 			&i.MonitoringEnabled,
 			&i.MonitoringConfig,
+			&i.LastScannedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -193,7 +197,7 @@ func (q *Queries) ListLibraries(ctx context.Context) ([]Library, error) {
 }
 
 const listLibrariesByType = `-- name: ListLibrariesByType :many
-SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config FROM libraries
+SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config, last_scanned_at FROM libraries
 WHERE type = $1
 ORDER BY name
 `
@@ -219,6 +223,7 @@ func (q *Queries) ListLibrariesByType(ctx context.Context, type_ string) ([]Libr
 			&i.AutoEnableSubtitles,
 			&i.MonitoringEnabled,
 			&i.MonitoringConfig,
+			&i.LastScannedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -234,7 +239,7 @@ func (q *Queries) ListLibrariesByType(ctx context.Context, type_ string) ([]Libr
 }
 
 const listMonitoredLibraries = `-- name: ListMonitoredLibraries :many
-SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config FROM libraries
+SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config, last_scanned_at FROM libraries
 WHERE monitoring_enabled = 1
 ORDER BY name
 `
@@ -260,6 +265,7 @@ func (q *Queries) ListMonitoredLibraries(ctx context.Context) ([]Library, error)
 			&i.AutoEnableSubtitles,
 			&i.MonitoringEnabled,
 			&i.MonitoringConfig,
+			&i.LastScannedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -281,7 +287,7 @@ SET name = $1,
     type = $3,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $4
-RETURNING id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config
+RETURNING id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config, last_scanned_at
 `
 
 type UpdateLibraryParams struct {
@@ -311,8 +317,21 @@ func (q *Queries) UpdateLibrary(ctx context.Context, arg UpdateLibraryParams) (L
 		&i.AutoEnableSubtitles,
 		&i.MonitoringEnabled,
 		&i.MonitoringConfig,
+		&i.LastScannedAt,
 	)
 	return i, err
+}
+
+const updateLibraryLastScannedAt = `-- name: UpdateLibraryLastScannedAt :exec
+UPDATE libraries
+SET last_scanned_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+`
+
+func (q *Queries) UpdateLibraryLastScannedAt(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, updateLibraryLastScannedAt, id)
+	return err
 }
 
 const updateLibraryMonitoring = `-- name: UpdateLibraryMonitoring :one
@@ -321,7 +340,7 @@ SET monitoring_enabled = $1,
     monitoring_config = $2,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $3
-RETURNING id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config
+RETURNING id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config, last_scanned_at
 `
 
 type UpdateLibraryMonitoringParams struct {
@@ -345,6 +364,7 @@ func (q *Queries) UpdateLibraryMonitoring(ctx context.Context, arg UpdateLibrary
 		&i.AutoEnableSubtitles,
 		&i.MonitoringEnabled,
 		&i.MonitoringConfig,
+		&i.LastScannedAt,
 	)
 	return i, err
 }

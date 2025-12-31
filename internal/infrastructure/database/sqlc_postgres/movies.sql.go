@@ -305,7 +305,7 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
   AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListMovieIDsByLibraryPaginatedParams struct {
@@ -345,7 +345,7 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
   AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) DESC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListMovieIDsByLibraryPaginatedDescParams struct {
@@ -803,7 +803,7 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
   AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListMoviesByLibraryPaginatedParams struct {
@@ -999,7 +999,7 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
   AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) DESC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListMoviesByLibraryPaginatedDescParams struct {
@@ -1585,7 +1585,7 @@ WHERE med.library_id = $1
   AND med.is_extra = 0
   AND (med.title ILIKE $2 OR m.original_title ILIKE $3)
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
-LIMIT $5::bigint OFFSET $4::bigint
+LIMIT $4::bigint OFFSET $5::bigint
 `
 
 type SearchMoviesByTitlePaginatedParams struct {

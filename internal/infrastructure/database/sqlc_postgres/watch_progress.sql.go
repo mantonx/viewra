@@ -220,7 +220,7 @@ WHERE user_id = $1
   AND watched = 0
   AND position > 0
 ORDER BY last_watched DESC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListInProgressByUserIDParams struct {
@@ -270,7 +270,7 @@ const listWatchProgressByUserID = `-- name: ListWatchProgressByUserID :many
 SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at, selected_quality, selected_audio_track, selected_subtitle_track FROM watch_progress
 WHERE user_id = $1
 ORDER BY last_watched DESC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListWatchProgressByUserIDParams struct {
@@ -321,7 +321,7 @@ SELECT id, media_id, user_id, position, duration, watched, last_watched, created
 WHERE user_id = $1
   AND watched = 1
 ORDER BY last_watched DESC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListWatchedByUserIDParams struct {

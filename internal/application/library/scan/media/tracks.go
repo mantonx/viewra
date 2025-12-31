@@ -3,7 +3,6 @@ package media
 import (
 	"context"
 	"path/filepath"
-	"strings"
 
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/domain/scanner"
@@ -70,7 +69,7 @@ func PersistMediaTracks(ctx context.Context, deps *Deps, mediaID int64, result *
 		}
 		if err := deps.MediaRepos.Media.InsertSubtitleTrack(ctx, subtitleTrack); err != nil {
 			// Ignore duplicate errors (can happen with concurrent scans due to partial unique indexes)
-			if !strings.Contains(err.Error(), "UNIQUE constraint") {
+			if !IsConstraintError(err) {
 				deps.Logger.Warn("Failed to insert subtitle track",
 					"media_id", mediaID,
 					"stream_index", t.StreamIndex,
@@ -139,7 +138,7 @@ func DiscoverExternalSubtitles(ctx context.Context, deps *Deps, mediaID int64, v
 
 		if err := deps.MediaRepos.Media.InsertSubtitleTrack(ctx, subtitleTrack); err != nil {
 			// Ignore duplicate errors (can happen with concurrent scans due to partial unique indexes)
-			if !strings.Contains(err.Error(), "UNIQUE constraint") {
+			if !IsConstraintError(err) {
 				deps.Logger.Warn("Failed to insert external subtitle track",
 					"media_id", mediaID,
 					"subtitle_path", relPath,

@@ -360,7 +360,7 @@ JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 GROUP BY mt.album, mt.album_artist, mt.year
 ORDER BY mt.album_artist ASC, mt.album ASC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListAlbumsByLibraryPaginatedParams struct {
@@ -419,7 +419,7 @@ JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 GROUP BY mt.album, mt.album_artist, mt.year
 ORDER BY mt.album_artist DESC, mt.album DESC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListAlbumsByLibraryPaginatedDescParams struct {
@@ -473,7 +473,7 @@ JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 GROUP BY mt.artist
 ORDER BY COALESCE(mt.sort_artist, mt.artist) ASC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListArtistIDsByLibraryPaginatedParams struct {
@@ -513,7 +513,7 @@ JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 GROUP BY mt.artist
 ORDER BY COALESCE(mt.sort_artist, mt.artist) DESC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListArtistIDsByLibraryPaginatedDescParams struct {
@@ -1550,7 +1550,7 @@ FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 ORDER BY COALESCE(mt.sort_title, med.title) ASC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListMusicTracksByLibraryPaginatedParams struct {
@@ -1747,7 +1747,7 @@ FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 ORDER BY COALESCE(mt.sort_title, med.title) DESC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListMusicTracksByLibraryPaginatedDescParams struct {

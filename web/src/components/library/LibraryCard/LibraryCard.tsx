@@ -189,7 +189,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                 <span className="text-xs px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400">
                   {library.type}
                 </span>
-                {library.monitoring_enabled && (
+                {library.monitoring_enabled && library.last_scanned_at && (
                   <span
                     className="flex items-center gap-1.5 text-xs px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
                     title="Filesystem monitoring active - changes are detected automatically"

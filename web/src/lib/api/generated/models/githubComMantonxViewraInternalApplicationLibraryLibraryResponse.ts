@@ -10,6 +10,7 @@ import type { GithubComMantonxViewraInternalDomainLibraryMonitoringConfig } from
 export interface GithubComMantonxViewraInternalApplicationLibraryLibraryResponse {
   created_at?: string
   id?: number
+  last_scanned_at?: string
   monitoring_config?: GithubComMantonxViewraInternalDomainLibraryMonitoringConfig
   monitoring_enabled?: boolean
   name?: string

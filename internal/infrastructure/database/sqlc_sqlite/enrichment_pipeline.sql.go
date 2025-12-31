@@ -320,6 +320,24 @@ func (q *Queries) GetPipelineStageByPlugin(ctx context.Context, arg GetPipelineS
 	return i, err
 }
 
+const shiftPipelinePositions = `-- name: ShiftPipelinePositions :exec
+UPDATE enrichment_pipelines
+SET position = position + 1, updated_at = datetime('now')
+WHERE media_type = ? AND position >= ?
+`
+
+type ShiftPipelinePositionsParams struct {
+	MediaType string `json:"media_type"`
+	Position  int64  `json:"position"`
+}
+
+// Shift all stages at or above target position up by 1 to make room for a new stage.
+// Used when inserting builtin enrichers at specific positions.
+func (q *Queries) ShiftPipelinePositions(ctx context.Context, arg ShiftPipelinePositionsParams) error {
+	_, err := q.db.ExecContext(ctx, shiftPipelinePositions, arg.MediaType, arg.Position)
+	return err
+}
+
 const updatePipelineStage = `-- name: UpdatePipelineStage :exec
 UPDATE enrichment_pipelines
 SET

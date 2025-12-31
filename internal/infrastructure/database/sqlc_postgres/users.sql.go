@@ -211,7 +211,7 @@ func (q *Queries) GetUserLocation(ctx context.Context, id int64) (GetUserLocatio
 const listUsers = `-- name: ListUsers :many
 SELECT id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, location_latitude, location_longitude, location_timezone, location_enabled, location_name FROM users
 ORDER BY username
-LIMIT $2::bigint OFFSET $1::bigint
+LIMIT $1::bigint OFFSET $2::bigint
 `
 
 type ListUsersParams struct {

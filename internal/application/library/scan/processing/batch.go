@@ -303,6 +303,15 @@ func CompleteScan(ctx context.Context, deps *Deps, pctx *CheckpointContext, disc
 		deps.Logger.Error("failed to mark scan job as complete", "job_id", pctx.JobID, "error", err)
 	}
 
+	// Update library's last_scanned_at timestamp on successful completion
+	if job.Status == scanner.ScanStatusCompleted {
+		if err := deps.MediaRepos.Library.UpdateLastScannedAt(ctx, pctx.Lib.ID); err != nil {
+			deps.Logger.Error("failed to update library last_scanned_at",
+				"library_id", pctx.Lib.ID,
+				"error", err)
+		}
+	}
+
 	if stats.FailedFiles == 0 && stats.CompletedFiles == stats.TotalFiles && cleanupFn != nil {
 		cleanupFn()
 	}

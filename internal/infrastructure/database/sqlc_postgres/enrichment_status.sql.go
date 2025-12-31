@@ -133,7 +133,7 @@ const getEnrichmentStatusByStage = `-- name: GetEnrichmentStatusByStage :many
 SELECT media_type, media_id, stage, status, plugin_id, completed_at, error_message, metadata_json FROM enrichment_status
 WHERE stage = $1 AND status = $2
 ORDER BY media_type, media_id
-LIMIT $4::bigint OFFSET $3::bigint
+LIMIT $3::bigint OFFSET $4::bigint
 `
 
 type GetEnrichmentStatusByStageParams struct {

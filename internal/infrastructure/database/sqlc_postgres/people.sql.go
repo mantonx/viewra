@@ -821,7 +821,7 @@ func (q *Queries) GetWritersForEntity(ctx context.Context, arg GetWritersForEnti
 const listPeople = `-- name: ListPeople :many
 SELECT id, name, sort_name, photo_path, photo_url, imdb_id, tmdb_id, created_at, updated_at FROM people
 ORDER BY sort_name, name
-LIMIT $2::bigint OFFSET $1::bigint
+LIMIT $1::bigint OFFSET $2::bigint
 `
 
 type ListPeopleParams struct {

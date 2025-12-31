@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useState, useMemo } from 'react'
+import { Tv } from 'lucide-react'
 import { TVShowCard, TVShowListItem } from '@/components/tv'
 import { MediaBrowsePage, VirtualMediaGrid } from '@/components/common'
 import { useLibraryFilter, useInfiniteTVShows, flattenTVShows, BatchImagesProvider, useDebounce } from '@/lib/hooks'
@@ -211,7 +212,7 @@ const TVShows = () => {
         title="TV Shows"
         description="Browse your TV show collection."
         searchPlaceholder="Search TV shows..."
-        emptyIcon="📺"
+        emptyIcon={Tv}
         emptyTitle="No TV shows found"
         emptyDescription="Add a library with TV shows and scan it to see your shows here."
         data={allShows}

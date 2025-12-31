@@ -256,6 +256,10 @@ type PipelineRepository interface {
 	// Enable/Disable toggles a stage.
 	Enable(ctx context.Context, stageID int64) error
 	Disable(ctx context.Context, stageID int64) error
+
+	// ShiftPositions shifts all stages at or above the target position up by 1.
+	// Used when inserting builtin enrichers at specific positions.
+	ShiftPositions(ctx context.Context, mediaType MediaType, fromPosition int) error
 }
 
 // ExternalIDRepository defines operations for external IDs.

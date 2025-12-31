@@ -47,6 +47,7 @@ func libraryToDomain(lib unified.Library) *library.Library {
 		UpdatedAt:         common.ParseNullTime(lib.UpdatedAt),
 		MonitoringEnabled: lib.MonitoringEnabled != 0,
 		MonitoringConfig:  parseMonitoringConfig(lib.MonitoringConfig),
+		LastScannedAt:     common.ParseNullTimePtr(lib.LastScannedAt),
 	}
 }
 
@@ -216,6 +217,12 @@ func (r *Repository) ExistsWithTx(ctx context.Context, tx domaincommon.Transacti
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// UpdateLastScannedAt updates the last_scanned_at timestamp for a library.
+// This is called when a scan completes successfully.
+func (r *Repository) UpdateLastScannedAt(ctx context.Context, id int64) error {
+	return r.Q().UpdateLibraryLastScannedAt(ctx, id)
 }
 
 // mapSlice converts a slice of one type to another using the provided mapper function.

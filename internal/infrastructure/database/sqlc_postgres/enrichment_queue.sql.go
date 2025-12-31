@@ -472,7 +472,7 @@ LEFT JOIN music_artists mart ON eq.media_type = 'music_artist' AND eq.media_id =
 WHERE eq.library_id = $1
   AND eq.status = 'failed'
 ORDER BY eq.updated_at DESC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type GetLibraryEnrichmentFailuresParams struct {

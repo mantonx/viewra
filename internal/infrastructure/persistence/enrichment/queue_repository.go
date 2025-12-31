@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/enrichment"
@@ -202,24 +203,20 @@ func (r *QueueRepository) BoostPriority(ctx context.Context, mediaID int64, medi
 	return rowsAffected > 0, nil
 }
 
-// EnqueueBatch adds multiple jobs to the queue in a single transaction.
+// EnqueueBatch adds multiple jobs to the queue.
 // This is much faster than individual Enqueue calls for bulk operations.
-// Jobs that fail to enqueue are skipped (logged), and the operation continues.
+// Jobs that fail to enqueue are skipped, and the operation continues.
+// Note: We don't use a transaction here because PostgreSQL aborts the entire
+// transaction on any error, even with ON CONFLICT. Each insert is independent.
 func (r *QueueRepository) EnqueueBatch(ctx context.Context, jobs []*enrichment.QueueJob) (int, error) {
 	if len(jobs) == 0 {
 		return 0, nil
 	}
 
-	tx, err := r.DB().BeginTx(ctx, nil)
-	if err != nil {
-		return 0, fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	q := r.QWithTx(tx)
 	var successCount int
+	var firstErr error
 	for _, job := range jobs {
-		_, err := q.EnqueueEnrichmentJob(ctx, unified.EnqueueEnrichmentJobParams{
+		_, err := r.Q().EnqueueEnrichmentJob(ctx, unified.EnqueueEnrichmentJobParams{
 			MediaID:     job.MediaID,
 			LibraryID:   sql.NullInt64{Int64: job.LibraryID, Valid: job.LibraryID > 0},
 			MediaType:   string(job.MediaType),
@@ -229,12 +226,17 @@ func (r *QueueRepository) EnqueueBatch(ctx context.Context, jobs []*enrichment.Q
 		})
 		if err == nil {
 			successCount++
+		} else {
+			// Log the first error for debugging - helps diagnose issues like missing constraints
+			if firstErr == nil {
+				firstErr = err
+				slog.Warn("enrichment enqueue failed (first error of batch)",
+					"media_id", job.MediaID,
+					"media_type", job.MediaType,
+					"stage", job.Stage,
+					"error", err)
+			}
 		}
-		// Skip failed inserts - don't abort the whole batch
-	}
-
-	if err := tx.Commit(); err != nil {
-		return 0, fmt.Errorf("commit transaction: %w", err)
 	}
 
 	return successCount, nil

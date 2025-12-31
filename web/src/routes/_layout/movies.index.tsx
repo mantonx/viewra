@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef, useMemo, useState, useCallback } from 'react'
+import { Film } from 'lucide-react'
 import { MovieCard } from '@/components/movies'
 import { MovieListItem } from '@/components/movies'
 import { VideoPlayerContainer } from '@/components/media'
@@ -405,7 +406,7 @@ const Movies = () => {
         title="Movies"
         description="Browse your movie collection."
         searchPlaceholder="Search movies..."
-        emptyIcon="🎬"
+        emptyIcon={Film}
         emptyTitle="No movies found"
         emptyDescription="Add a library with movies and scan it to see your movies here."
         data={allMovies}

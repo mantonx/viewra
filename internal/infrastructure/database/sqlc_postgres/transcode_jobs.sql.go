@@ -486,15 +486,15 @@ func (q *Queries) ListTranscodeJobsByStatus(ctx context.Context, status string) 
 
 const updateTranscodeJob = `-- name: UpdateTranscodeJob :exec
 UPDATE transcode_jobs
-SET status = $2,
-    progress = $3,
-    error = $4,
-    started_at = $5,
-    completed_at = $6,
-    file_path = $7,
-    file_size_bytes = $8,
-    start_position = $9
-WHERE id = $1
+SET status = $1,
+    progress = $2,
+    error = $3,
+    started_at = $4,
+    completed_at = $5,
+    file_path = $6,
+    file_size_bytes = $7,
+    start_position = $8
+WHERE id = $9
 `
 
 type UpdateTranscodeJobParams struct {
@@ -526,9 +526,9 @@ func (q *Queries) UpdateTranscodeJob(ctx context.Context, arg UpdateTranscodeJob
 
 const updateTranscodeJobAccess = `-- name: UpdateTranscodeJobAccess :exec
 UPDATE transcode_jobs
-SET last_accessed_at = $2,
+SET last_accessed_at = $1,
     access_count = access_count + 1
-WHERE id = $1
+WHERE id = $2
 `
 
 type UpdateTranscodeJobAccessParams struct {
@@ -543,9 +543,9 @@ func (q *Queries) UpdateTranscodeJobAccess(ctx context.Context, arg UpdateTransc
 
 const updateTranscodeJobAccessByMediaAndQuality = `-- name: UpdateTranscodeJobAccessByMediaAndQuality :exec
 UPDATE transcode_jobs
-SET last_accessed_at = $3,
+SET last_accessed_at = $1,
     access_count = access_count + 1
-WHERE media_id = $1 AND quality = $2
+WHERE media_id = $2 AND quality = $3
 `
 
 type UpdateTranscodeJobAccessByMediaAndQualityParams struct {

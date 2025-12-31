@@ -949,7 +949,7 @@ WHERE s.library_id = $1
   AND (med.is_extra = 0 OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) ASC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type GetTVShowsWithCountsByLibraryPaginatedParams struct {
@@ -1031,7 +1031,7 @@ WHERE s.library_id = $1
   AND (med.is_extra = 0 OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) DESC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type GetTVShowsWithCountsByLibraryPaginatedDescParams struct {
@@ -1695,7 +1695,7 @@ SELECT id
 FROM tv_shows
 WHERE library_id = $1
 ORDER BY COALESCE(NULLIF(sort_title, ''), title) ASC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListTVShowIDsByLibraryPaginatedParams struct {
@@ -1733,7 +1733,7 @@ SELECT id
 FROM tv_shows
 WHERE library_id = $1
 ORDER BY COALESCE(NULLIF(sort_title, ''), title) DESC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListTVShowIDsByLibraryPaginatedDescParams struct {
@@ -1825,7 +1825,7 @@ const listTVShowsByLibraryPaginated = `-- name: ListTVShowsByLibraryPaginated :m
 SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
 WHERE library_id = $1
 ORDER BY COALESCE(NULLIF(sort_title, ''), title) ASC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListTVShowsByLibraryPaginatedParams struct {
@@ -1888,7 +1888,7 @@ const listTVShowsByLibraryPaginatedDesc = `-- name: ListTVShowsByLibraryPaginate
 SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
 WHERE library_id = $1
 ORDER BY COALESCE(NULLIF(sort_title, ''), title) DESC
-LIMIT $3::bigint OFFSET $2::bigint
+LIMIT $2::bigint OFFSET $3::bigint
 `
 
 type ListTVShowsByLibraryPaginatedDescParams struct {
@@ -2204,7 +2204,7 @@ SELECT id, library_id, title, original_title, sort_title, year, first_air_date, 
 WHERE library_id = $1
   AND (title ILIKE $2 OR original_title ILIKE $3)
 ORDER BY COALESCE(NULLIF(sort_title, ''), title)
-LIMIT $5::bigint OFFSET $4::bigint
+LIMIT $4::bigint OFFSET $5::bigint
 `
 
 type SearchTVShowsByTitlePaginatedParams struct {
@@ -2350,7 +2350,7 @@ WHERE s.library_id = $1
   AND (med.is_extra = 0 OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) ASC
-LIMIT $5::bigint OFFSET $4::bigint
+LIMIT $4::bigint OFFSET $5::bigint
 `
 
 type SearchTVShowsWithCountsByTitlePaginatedParams struct {

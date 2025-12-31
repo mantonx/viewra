@@ -85,3 +85,10 @@ SELECT * FROM enrichment_pipelines
 WHERE media_type = ? AND enabled = 1 AND position > ?
 ORDER BY position ASC
 LIMIT 1;
+
+-- name: ShiftPipelinePositions :exec
+-- Shift all stages at or above target position up by 1 to make room for a new stage.
+-- Used when inserting builtin enrichers at specific positions.
+UPDATE enrichment_pipelines
+SET position = position + 1, updated_at = datetime('now')
+WHERE media_type = ? AND position >= ?;

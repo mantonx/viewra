@@ -38,12 +38,12 @@ DELETE FROM libraries
 WHERE id = $1;
 
 -- name: LibraryExistsByPath :one
-SELECT (COUNT(*) > 0)::bigint as exists
+SELECT COUNT(*)
 FROM libraries
 WHERE path = $1;
 
 -- name: LibraryExistsByID :one
-SELECT (COUNT(*) > 0)::bigint as exists
+SELECT COUNT(*)
 FROM libraries
 WHERE id = $1;
 
@@ -66,3 +66,9 @@ RETURNING *;
 SELECT * FROM libraries
 WHERE monitoring_enabled = 1
 ORDER BY name;
+
+-- name: UpdateLibraryLastScannedAt :exec
+UPDATE libraries
+SET last_scanned_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1;
