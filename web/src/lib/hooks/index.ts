@@ -69,3 +69,12 @@ export type { EnrichmentFailure } from './useEnrichmentFailures'
 export { useFormReset } from './useFormReset'
 export { useSettingsForm } from './useSettingsForm'
 export type { SettingsCategoryConfig, UseSettingsFormOptions } from './useSettingsForm'
+export {
+  useHomeSections,
+  useSuggestions,
+  useSearchProviderInfo,
+  useSearchHeroData,
+  getHomeQueryOptions,
+  getSuggestionsQueryOptions,
+  getSearchProviderInfoQueryOptions,
+} from './useWidgets'
