@@ -102,6 +102,15 @@ type Manager struct {
 	// providerRegistry tracks provider plugins.
 	providerRegistry *registry.ProviderRegistry
 
+	// widgetRegistry tracks widgets registered by plugins.
+	widgetRegistry *registry.WidgetRegistry
+
+	// searchProviderRegistry tracks search provider plugins.
+	searchProviderRegistry *registry.SearchProviderRegistry
+
+	// trendingProviderRegistry tracks trending provider plugins.
+	trendingProviderRegistry *registry.TrendingProviderRegistry
+
 	// systemInfo contains host system resource information to pass to plugins.
 	systemInfo *pluginv1.SystemInfo
 
@@ -164,22 +173,28 @@ func NewManager(cfg ManagerConfig, logger *slog.Logger) (*Manager, error) {
 	routeRegistry := registry.NewRouteRegistry()
 	capabilityRegistry := registry.NewCapabilityRegistry()
 	providerRegistry := registry.NewProviderRegistry()
+	widgetRegistry := registry.NewWidgetRegistry()
+	searchProviderRegistry := registry.NewSearchProviderRegistry()
+	trendingProviderRegistry := registry.NewTrendingProviderRegistry()
 	rateLimiter := registry.NewRouteRateLimiter()
 
 	m := &Manager{
-		plugins:             make(map[string]*types.Instance),
-		pluginDir:           cfg.PluginDir,
-		storageDir:          cfg.StorageDir,
-		logger:              logger,
-		hostVersion:         cfg.HostVersion,
-		healthCheckInterval: cfg.HealthCheckInterval,
-		maxRestarts:         cfg.MaxRestarts,
-		hostStorageServer:   cfg.HostStorageServer,
-		hostWeatherServer:   cfg.HostWeatherServer,
-		routeRegistry:       routeRegistry,
-		capabilityRegistry:  capabilityRegistry,
-		providerRegistry:    providerRegistry,
-		rateLimiter:         rateLimiter,
+		plugins:                  make(map[string]*types.Instance),
+		pluginDir:                cfg.PluginDir,
+		storageDir:               cfg.StorageDir,
+		logger:                   logger,
+		hostVersion:              cfg.HostVersion,
+		healthCheckInterval:      cfg.HealthCheckInterval,
+		maxRestarts:              cfg.MaxRestarts,
+		hostStorageServer:        cfg.HostStorageServer,
+		hostWeatherServer:        cfg.HostWeatherServer,
+		routeRegistry:            routeRegistry,
+		capabilityRegistry:       capabilityRegistry,
+		providerRegistry:         providerRegistry,
+		widgetRegistry:           widgetRegistry,
+		searchProviderRegistry:   searchProviderRegistry,
+		trendingProviderRegistry: trendingProviderRegistry,
+		rateLimiter:              rateLimiter,
 	}
 
 	return m, nil
@@ -415,6 +430,21 @@ func (m *Manager) GetCapabilityRegistry() *registry.CapabilityRegistry {
 // GetProviderRegistry returns the provider registry for provider plugins.
 func (m *Manager) GetProviderRegistry() *registry.ProviderRegistry {
 	return m.providerRegistry
+}
+
+// GetWidgetRegistry returns the widget registry for home screen widgets.
+func (m *Manager) GetWidgetRegistry() *registry.WidgetRegistry {
+	return m.widgetRegistry
+}
+
+// GetSearchProviderRegistry returns the search provider registry.
+func (m *Manager) GetSearchProviderRegistry() *registry.SearchProviderRegistry {
+	return m.searchProviderRegistry
+}
+
+// GetTrendingProviderRegistry returns the trending provider registry.
+func (m *Manager) GetTrendingProviderRegistry() *registry.TrendingProviderRegistry {
+	return m.trendingProviderRegistry
 }
 
 // GetHostPluginsServer returns the host plugins server for capability-based plugin discovery.

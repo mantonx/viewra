@@ -96,6 +96,12 @@ type Handlers struct {
 	Plugins          *handlers.PluginHandler
 	System           *handlers.SystemHandler
 
+	// Home screen handler
+	Home *handlers.HomeHandler
+
+	// Trending data handler
+	Trending *handlers.TrendingHandler
+
 	// PluginProxy proxies HTTP requests to plugin-defined routes.
 	PluginProxy *plugins.HTTPProxy
 
@@ -216,6 +222,12 @@ func (s *Server) setupRoutes() {
 	// SearchHandler checks if semantic_search capability is available and proxies to it,
 	// otherwise falls back to basic text search
 	routes.RegisterSearchRoutes(protected, h.Search)
+
+	// Register home screen routes (protected)
+	routes.RegisterHomeRoutes(protected, h.Home)
+
+	// Register trending routes (protected)
+	routes.RegisterTrendingRoutes(protected, h.Trending)
 
 	// Register dynamic capability alias routes from plugins
 	// Plugins can declare alias_path in their routes (e.g., "/api/chat" for chat capability)

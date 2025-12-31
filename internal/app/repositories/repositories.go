@@ -7,6 +7,7 @@ import (
 	analyticsRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/analytics"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 	enrichmentRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/enrichment"
+	homeRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/home"
 	imageRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/image"
 	keywordsRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/keywords"
 	libraryRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/library"
@@ -75,6 +76,9 @@ type Repositories struct {
 
 	// Transcode analytics repository
 	TranscodeAnalytics *transcodeAnalyticsRepo.Repository
+
+	// Home screen preferences
+	HomePreferences *homeRepo.PreferencesRepository
 }
 
 // BuildRepositories creates and wires all repository instances using the provided database connection.
@@ -140,6 +144,9 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	// Create playback preferences repository
 	playbackPreferencesRepository := database.NewPlaybackPreferencesRepository(db)
 
+	// Create home preferences repository
+	homePreferencesRepository := homeRepo.NewPreferencesRepository(db, driver)
+
 	return &Repositories{
 		Library:                  libraryRepository,
 		Media:                    mediaRepository,
@@ -170,5 +177,6 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 		Plugin:                   pluginRepository,
 		PluginMediaQuerier:       pluginMediaQuerier,
 		TranscodeAnalytics:       transcodeAnalyticsRepository,
+		HomePreferences:          homePreferencesRepository,
 	}
 }

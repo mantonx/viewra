@@ -14,10 +14,12 @@ import (
 	"github.com/mantonx/viewra/internal/application/enrichment"
 	"github.com/mantonx/viewra/internal/application/enrichment/builtin"
 	"github.com/mantonx/viewra/internal/application/enrichment/pipeline"
+	appHome "github.com/mantonx/viewra/internal/application/home"
 	"github.com/mantonx/viewra/internal/application/library/monitor"
 	appSearch "github.com/mantonx/viewra/internal/application/search"
 	"github.com/mantonx/viewra/internal/application/settings"
 	"github.com/mantonx/viewra/internal/application/transcode"
+	appTrending "github.com/mantonx/viewra/internal/application/trending"
 	domaintranscode "github.com/mantonx/viewra/internal/domain/transcode"
 
 	"github.com/mantonx/viewra/internal/infrastructure/auth"
@@ -98,6 +100,12 @@ type Services struct {
 
 	// Search service for fallback text search when no semantic search plugin is available
 	Search *appSearch.Service
+
+	// Home screen service for aggregating widgets
+	Home *appHome.Service
+
+	// Trending service for trending media data
+	Trending *appTrending.Service
 }
 
 // BuildServices creates and initializes all infrastructure services.
@@ -475,6 +483,16 @@ func initPluginManager(
 			"cpu_cores", cfg.SystemProfile.CPU.NumPhysical,
 			"has_gpu", cfg.SystemProfile.GPU.Available)
 	}
+
+	// Create and set HTTP proxy for plugin routes
+	httpProxy := plugins.NewHTTPProxy(
+		pluginManager,
+		pluginManager.GetRouteRegistry(),
+		pluginManager.GetCapabilityRegistry(),
+		pluginManager.GetRateLimiter(),
+		logger.With("component", "http-proxy"),
+	)
+	pluginManager.SetHTTPProxy(httpProxy)
 
 	return pluginManager
 }

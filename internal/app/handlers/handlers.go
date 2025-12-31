@@ -12,8 +12,10 @@ import (
 	"github.com/mantonx/viewra/internal/app/services"
 	"github.com/mantonx/viewra/internal/app/usecases"
 	appauth "github.com/mantonx/viewra/internal/application/auth"
+	appHome "github.com/mantonx/viewra/internal/application/home"
 	appplugins "github.com/mantonx/viewra/internal/application/plugins"
 	appscheduler "github.com/mantonx/viewra/internal/application/scheduler"
+	appTrending "github.com/mantonx/viewra/internal/application/trending"
 	infraPlugins "github.com/mantonx/viewra/internal/infrastructure/plugins"
 	"github.com/mantonx/viewra/internal/infrastructure/plugins/registry"
 	"github.com/mantonx/viewra/internal/infrastructure/streaming"
@@ -214,6 +216,34 @@ func BuildHandlers(
 		searchHandler = handlers.NewSearchHandler(capabilityRegistry, pluginProxy, svcs.Search)
 	}
 
+	// Create home handler with widget aggregation
+	var homeHandler *handlers.HomeHandler
+	if svcs.PluginManager != nil && infra.Repos.HomePreferences != nil {
+		homeService := appHome.NewService(
+			svcs.PluginManager.GetWidgetRegistry(),
+			svcs.PluginManager.GetSearchProviderRegistry(),
+			svcs.PluginManager.GetTrendingProviderRegistry(),
+			capabilityRegistry,
+			infra.Repos.HomePreferences,
+			nil, // WidgetDataFetcher - TODO: wire plugin proxy
+			nil, // ContinueWatchingService - TODO: wire progress service
+			logger.With("service", "home"),
+		)
+		homeHandler = handlers.NewHomeHandler(homeService)
+	}
+
+	// Create trending handler
+	var trendingHandler *handlers.TrendingHandler
+	if svcs.PluginManager != nil {
+		trendingService := appTrending.NewService(
+			svcs.PluginManager.GetTrendingProviderRegistry(),
+			nil, // TrendingDataFetcher - TODO: wire plugin proxy
+			nil, // MediaMatcher - TODO: wire external ID lookup
+			logger.With("service", "trending"),
+		)
+		trendingHandler = handlers.NewTrendingHandler(trendingService)
+	}
+
 	// System handler (requires lifecycle manager)
 	var systemHandler *handlers.SystemHandler
 	if infra.LifecycleMgr != nil {
@@ -252,6 +282,8 @@ func BuildHandlers(
 		Enrichment:       enrichmentHandler,
 		Plugins:          pluginHandler,
 		System:           systemHandler,
+		Home:             homeHandler,
+		Trending:         trendingHandler,
 		PluginProxy:      pluginProxy,
 		Search:           searchHandler,
 		AuthValidator:    authService,

@@ -170,8 +170,9 @@ export interface SearchProviderInfo {
 }
 
 /**
- * Suggestions response
+ * Suggestions response from semantic-search plugin
+ * Note: The API returns 'Suggestions' (capital S) from Go struct
  */
 export interface SuggestionsResponse {
-  suggestions: Suggestion[]
+  Suggestions: Suggestion[]
 }

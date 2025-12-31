@@ -35,10 +35,11 @@ const fetchHomeSections = async (clientType: string = 'web'): Promise<HomeRespon
 
 /**
  * Fetch search suggestions from the semantic-search plugin
+ * Note: Plugin custom routes use /api/plugin/:plugin_id/* (singular)
  */
 const fetchSuggestions = async (limit: number = 6): Promise<SuggestionsResponse> => {
   const response = await customInstance<{ data: SuggestionsResponse }>({
-    url: buildUrl('/api/plugins/semantic-search/suggestions', { limit }),
+    url: buildUrl('/api/plugin/semantic-search/suggestions', { limit }),
     method: 'GET',
   })
   return response.data
@@ -46,10 +47,11 @@ const fetchSuggestions = async (limit: number = 6): Promise<SuggestionsResponse>
 
 /**
  * Fetch search provider info
+ * Note: Plugin custom routes use /api/plugin/:plugin_id/* (singular)
  */
 const fetchSearchProviderInfo = async (): Promise<SearchProviderInfo> => {
   const response = await customInstance<{ data: SearchProviderInfo }>({
-    url: '/api/plugins/semantic-search/search/info',
+    url: '/api/plugin/semantic-search/search/info',
     method: 'GET',
   })
   return response.data
@@ -125,7 +127,7 @@ export const useSearchHeroData = () => {
 
   const searchHeroData = {
     placeholder: 'Search your library...',
-    suggestions: suggestions?.suggestions ?? [],
+    suggestions: suggestions?.Suggestions ?? [],
     search_url: '/api/search',
   }
 
