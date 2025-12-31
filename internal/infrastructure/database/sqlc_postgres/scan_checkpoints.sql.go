@@ -111,12 +111,12 @@ const getPendingScanCheckpoints = `-- name: GetPendingScanCheckpoints :many
 SELECT id, scan_job_id, file_path, status, file_size, file_hash, error_message, error_category, processed_at, created_at, retry_count FROM scan_checkpoints
 WHERE scan_job_id = $1 AND status = 'pending'
 ORDER BY id ASC
-LIMIT $2
+LIMIT $2::bigint
 `
 
 type GetPendingScanCheckpointsParams struct {
 	ScanJobID int64 `json:"scan_job_id"`
-	Limit     int32 `json:"limit"`
+	Limit     int64 `json:"limit"`
 }
 
 func (q *Queries) GetPendingScanCheckpoints(ctx context.Context, arg GetPendingScanCheckpointsParams) ([]ScanCheckpoint, error) {
@@ -311,12 +311,12 @@ ORDER BY
         WHEN status = 'warning' THEN 2
     END,
     processed_at DESC
-LIMIT $2
+LIMIT $2::bigint
 `
 
 type ListFailedScanCheckpointsParams struct {
 	ScanJobID int64 `json:"scan_job_id"`
-	Limit     int32 `json:"limit"`
+	Limit     int64 `json:"limit"`
 }
 
 func (q *Queries) ListFailedScanCheckpoints(ctx context.Context, arg ListFailedScanCheckpointsParams) ([]ScanCheckpoint, error) {

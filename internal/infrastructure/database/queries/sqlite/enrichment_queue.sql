@@ -94,11 +94,11 @@ WHERE id = ?;
 -- name: GetEnrichmentQueueStats :one
 SELECT
     stage,
-    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count,
-    SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing_count,
-    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_count,
-    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count,
-    SUM(CASE WHEN status = 'skipped' THEN 1 ELSE 0 END) as skipped_count,
+    CAST(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS INTEGER) as pending_count,
+    CAST(SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS INTEGER) as processing_count,
+    CAST(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS INTEGER) as completed_count,
+    CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_count,
+    CAST(SUM(CASE WHEN status = 'skipped' THEN 1 ELSE 0 END) AS INTEGER) as skipped_count,
     COUNT(*) as total_count
 FROM enrichment_queue
 WHERE stage = ?
@@ -182,8 +182,8 @@ LIMIT 1;
 -- Used to boost priority after enrichment discovers actual release date.
 -- Only upgrades priority (higher values), never downgrades - preserves "added recently" boost.
 UPDATE enrichment_queue
-SET priority = ?, updated_at = datetime('now')
-WHERE media_id = ? AND media_type = ? AND status IN ('pending', 'processing') AND priority < ?;
+SET priority = sqlc.arg(priority), updated_at = datetime('now')
+WHERE media_id = sqlc.arg(media_id) AND media_type = sqlc.arg(media_type) AND status IN ('pending', 'processing') AND priority < sqlc.arg(priority);
 
 -- name: BoostPriority :execrows
 -- Boosts priority for pending/processing jobs and returns the number of affected rows.

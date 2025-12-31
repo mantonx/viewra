@@ -30,7 +30,7 @@ LIMIT 1;
 SELECT * FROM scan_jobs
 WHERE library_id = $1
 ORDER BY created_at DESC
-LIMIT $2;
+LIMIT sqlc.arg('limit')::bigint;
 
 -- name: ListRunningScanJobs :many
 SELECT * FROM scan_jobs

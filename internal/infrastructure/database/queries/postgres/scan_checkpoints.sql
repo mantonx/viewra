@@ -31,7 +31,7 @@ WHERE scan_job_id = $1 AND file_path = $2;
 SELECT * FROM scan_checkpoints
 WHERE scan_job_id = $1 AND status = 'pending'
 ORDER BY id ASC
-LIMIT $2;
+LIMIT sqlc.arg('limit')::bigint;
 
 -- name: UpdateScanCheckpointStatus :exec
 UPDATE scan_checkpoints
@@ -76,7 +76,7 @@ ORDER BY
         WHEN status = 'warning' THEN 2
     END,
     processed_at DESC
-LIMIT $2;
+LIMIT sqlc.arg('limit')::bigint;
 
 -- name: ResetFailedScanCheckpoints :exec
 UPDATE scan_checkpoints

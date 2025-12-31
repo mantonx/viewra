@@ -6,144 +6,166 @@ import (
 
 	domainCommon "github.com/mantonx/viewra/internal/domain/common"
 	"github.com/mantonx/viewra/internal/domain/media"
-	sqlc_postgres "github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // ========================================
-// Generic TV Episode Mapper
+// TV Episode Converters
 // ========================================
 
-// mapEpisodeToDomain converts any TV episode query row to domain TVEpisode
-// Handles both SQLite and PostgreSQL row types using reflection-based field getters
-func mapEpisodeToDomain(row interface{}) *media.TVEpisode {
+// episodeRowToDomain converts a GetTVEpisodeByMediaIDRow to domain TVEpisode
+func episodeRowToDomain(row unified.GetTVEpisodeByMediaIDRow) *media.TVEpisode {
 	return &media.TVEpisode{
 		Media: media.Media{
-			ID:              common.IntFieldGetter(row, "MediaID_2"),
-			LibraryID:       common.IntFieldGetter(row, "LibraryID"),
-			Title:           common.StringFieldGetter(row, "Title"),
-			Type:            common.StringFieldGetter(row, "Type"),
-			FilePath:        common.StringFieldGetter(row, "FilePath"),
-			FileSize:        common.ParseNullInt64(common.NullIntFieldGetter(row, "FileSize")),
-			Duration:        int(common.Float64FieldGetter(row, "Duration")),
-			IsExtra:         common.BoolFieldGetter(row, "IsExtra"),
-			Width:           int(common.ParseNullInt64(common.NullIntFieldGetter(row, "Width"))),
-			Height:          int(common.ParseNullInt64(common.NullIntFieldGetter(row, "Height"))),
-			VideoCodec:      common.ParseNullString(common.NullStringFieldGetter(row, "Codec")),
-			AudioCodec:      common.ParseNullString(common.NullStringFieldGetter(row, "AudioCodec")),
-			Bitrate:         common.ParseNullInt64(common.NullIntFieldGetter(row, "BitRate")),
-			FrameRate:       common.Float64FieldGetter(row, "FrameRate"),
-			ContainerFormat: common.ParseNullString(common.NullStringFieldGetter(row, "ContainerFormat")),
-			CreatedAt:       common.ParseNullTime(common.TimeFieldGetter(row, "CreatedAt")),
-			UpdatedAt:       common.ParseNullTime(common.TimeFieldGetter(row, "UpdatedAt")),
+			ID:              row.MediaID_2,
+			LibraryID:       row.LibraryID,
+			Title:           row.Title,
+			Type:            row.Type,
+			FilePath:        row.FilePath,
+			FileSize:        common.ParseNullInt64(row.FileSize),
+			Duration:        int(common.ParseNullFloat64(row.Duration)),
+			IsExtra:         row.IsExtra != 0,
+			Width:           int(common.ParseNullInt64(row.Width)),
+			Height:          int(common.ParseNullInt64(row.Height)),
+			VideoCodec:      common.ParseNullString(row.Codec),
+			AudioCodec:      common.ParseNullString(row.AudioCodec),
+			Bitrate:         common.ParseNullInt64(row.BitRate),
+			FrameRate:       common.ParseNullFloat64(row.FrameRate),
+			ContainerFormat: common.ParseNullString(row.ContainerFormat),
+			CreatedAt:       common.ParseNullTime(row.CreatedAt),
+			UpdatedAt:       common.ParseNullTime(row.UpdatedAt),
 		},
-		ShowID:       common.IntFieldGetter(row, "ShowID"),
+		ShowID:       row.ShowID,
 		ShowTitle:    "", // Will be populated from show lookup if needed
-		SeasonID:     common.IntFieldGetter(row, "SeasonID"),
-		Season:       int(common.IntFieldGetter(row, "SeasonNumber")),
-		Episode:      int(common.IntFieldGetter(row, "EpisodeNumber")),
-		EpisodeTitle: common.ParseNullString(common.NullStringFieldGetter(row, "EpisodeTitle")),
-		TVDbID:       int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TvdbID"))),
-		TMDbID:       common.ParseNullInt64(common.NullIntFieldGetter(row, "TmdbID")),
-		IMDbID:       common.ParseNullString(common.NullStringFieldGetter(row, "ImdbID")),
-		AirDate:      common.FormatNullDate(common.TimeFieldGetter(row, "AirDate")),
-		Description:  common.ParseNullString(common.NullStringFieldGetter(row, "Plot")),
+		SeasonID:     row.SeasonID,
+		Season:       int(row.SeasonNumber),
+		Episode:      int(row.EpisodeNumber),
+		EpisodeTitle: common.ParseNullString(row.EpisodeTitle),
+		TVDbID:       int(common.ParseNullInt64(row.TvdbID)),
+		TMDbID:       common.ParseNullInt64(row.TmdbID),
+		IMDbID:       common.ParseNullString(row.ImdbID),
+		AirDate:      common.FormatNullDate(row.AirDate),
+		Description:  common.ParseNullString(row.Plot),
 
 		// Alternative ordering
-		AbsoluteNumber: int(common.ParseNullInt64(common.NullIntFieldGetter(row, "AbsoluteNumber"))),
-		DvdSeason:      int(common.ParseNullInt64(common.NullIntFieldGetter(row, "DvdSeason"))),
-		DvdEpisode:     int(common.ParseNullInt64(common.NullIntFieldGetter(row, "DvdEpisode"))),
+		AbsoluteNumber: int(common.ParseNullInt64(row.AbsoluteNumber)),
+		DvdSeason:      int(common.ParseNullInt64(row.DvdSeason)),
+		DvdEpisode:     int(common.ParseNullInt64(row.DvdEpisode)),
 
 		// Additional metadata
-		OriginalTitle:  common.ParseNullString(common.NullStringFieldGetter(row, "OriginalTitle")),
-		ContentRating:  common.ParseNullString(common.NullStringFieldGetter(row, "ContentRating")),
-		MaturityRating: int(common.ParseNullInt64(common.NullIntFieldGetter(row, "MaturityRating"))),
+		OriginalTitle:  common.ParseNullString(row.OriginalTitle),
+		ContentRating:  common.ParseNullString(row.ContentRating),
+		MaturityRating: int(common.ParseNullInt64(row.MaturityRating)),
 
-		RuntimeMinutes: int(common.ParseNullInt64(common.NullIntFieldGetter(row, "RuntimeMinutes"))),
-		Rating:         float32(common.Float64FieldGetter(row, "Rating")),
-		RatingVotes:    int(common.ParseNullInt64(common.NullIntFieldGetter(row, "RatingVotes"))),
+		RuntimeMinutes: int(common.ParseNullInt64(row.RuntimeMinutes)),
+		Rating:         float32(common.ParseNullFloat64(row.Rating)),
+		RatingVotes:    int(common.ParseNullInt64(row.RatingVotes)),
 	}
 }
 
-// ========================================
-// Generic TV Show Mapper
-// ========================================
+// listEpisodeRowToDomain converts a ListTVEpisodesByLibraryRow to domain TVEpisode
+func listEpisodeRowToDomain(row unified.ListTVEpisodesByLibraryRow) *media.TVEpisode {
+	return &media.TVEpisode{
+		Media: media.Media{
+			ID:              row.MediaID_2,
+			LibraryID:       row.LibraryID,
+			Title:           row.Title,
+			Type:            row.Type,
+			FilePath:        row.FilePath,
+			FileSize:        common.ParseNullInt64(row.FileSize),
+			Duration:        int(common.ParseNullFloat64(row.Duration)),
+			IsExtra:         row.IsExtra != 0,
+			Width:           int(common.ParseNullInt64(row.Width)),
+			Height:          int(common.ParseNullInt64(row.Height)),
+			VideoCodec:      common.ParseNullString(row.Codec),
+			AudioCodec:      common.ParseNullString(row.AudioCodec),
+			Bitrate:         common.ParseNullInt64(row.BitRate),
+			FrameRate:       common.ParseNullFloat64(row.FrameRate),
+			ContainerFormat: common.ParseNullString(row.ContainerFormat),
+			CreatedAt:       common.ParseNullTime(row.CreatedAt),
+			UpdatedAt:       common.ParseNullTime(row.UpdatedAt),
+		},
+		ShowID:       row.ShowID,
+		ShowTitle:    "", // Will be populated from show lookup if needed
+		SeasonID:     row.SeasonID,
+		Season:       int(row.SeasonNumber),
+		Episode:      int(row.EpisodeNumber),
+		EpisodeTitle: common.ParseNullString(row.EpisodeTitle),
+		TVDbID:       int(common.ParseNullInt64(row.TvdbID)),
+		TMDbID:       common.ParseNullInt64(row.TmdbID),
+		IMDbID:       common.ParseNullString(row.ImdbID),
+		AirDate:      common.FormatNullDate(row.AirDate),
+		Description:  common.ParseNullString(row.Plot),
 
-// mapShowToDomain converts any TV show row to domain TVShow
-// Handles both SQLite and PostgreSQL row types using reflection-based field getters
-func mapShowToDomain(row interface{}) media.TVShow {
-	return media.TVShow{
-		ID:               common.IntFieldGetter(row, "ID"),
-		LibraryID:        common.IntFieldGetter(row, "LibraryID"),
-		Title:            common.StringFieldGetter(row, "Title"),
-		OriginalTitle:    common.ParseNullString(common.NullStringFieldGetter(row, "OriginalTitle")),
-		SortTitle:        common.ParseNullString(common.NullStringFieldGetter(row, "SortTitle")),
-		Year:             int(common.ParseNullInt64(common.NullIntFieldGetter(row, "Year"))),
-		FirstAirDate:     common.FormatNullDate(common.TimeFieldGetter(row, "FirstAirDate")),
-		LastAirDate:      common.FormatNullDate(common.TimeFieldGetter(row, "LastAirDate")),
-		Genre:            parseGenres(common.ParseNullString(common.NullStringFieldGetter(row, "Genre"))),
-		Plot:             common.ParseNullString(common.NullStringFieldGetter(row, "Plot")),
-		Status:           common.ParseNullString(common.NullStringFieldGetter(row, "Status")),
-		ContentRating:    common.ParseNullString(common.NullStringFieldGetter(row, "ContentRating")),
-		Network:          common.ParseNullString(common.NullStringFieldGetter(row, "Network")),
-		OriginalLanguage: common.ParseNullString(common.NullStringFieldGetter(row, "OriginalLanguage")),
-		CountryOfOrigin:  common.ParseNullString(common.NullStringFieldGetter(row, "CountryOfOrigin")),
-		IMDbID:           common.ParseNullString(common.NullStringFieldGetter(row, "ImdbID")),
-		TMDbID:           int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TmdbID"))),
-		TVDbID:           int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TvdbID"))),
-		Directory:        common.ParseNullString(common.NullStringFieldGetter(row, "Directory")),
-		Tagline:          common.ParseNullString(common.NullStringFieldGetter(row, "Tagline")),
-		Rating:           float32(common.Float64FieldGetter(row, "Rating")),
-		RatingVotes:      int(common.ParseNullInt64(common.NullIntFieldGetter(row, "RatingVotes"))),
+		// Alternative ordering
+		AbsoluteNumber: int(common.ParseNullInt64(row.AbsoluteNumber)),
+		DvdSeason:      int(common.ParseNullInt64(row.DvdSeason)),
+		DvdEpisode:     int(common.ParseNullInt64(row.DvdEpisode)),
+
+		// Additional metadata
+		OriginalTitle:  common.ParseNullString(row.OriginalTitle),
+		ContentRating:  common.ParseNullString(row.ContentRating),
+		MaturityRating: int(common.ParseNullInt64(row.MaturityRating)),
+
+		RuntimeMinutes: int(common.ParseNullInt64(row.RuntimeMinutes)),
+		Rating:         float32(common.ParseNullFloat64(row.Rating)),
+		RatingVotes:    int(common.ParseNullInt64(row.RatingVotes)),
 	}
 }
 
-// ========================================
-// Generic TV Season Mapper
-// ========================================
+// searchEpisodeRowToDomain converts a SearchTVEpisodesByTitleRow to domain TVEpisode
+func searchEpisodeRowToDomain(row unified.SearchTVEpisodesByTitleRow) *media.TVEpisode {
+	return &media.TVEpisode{
+		Media: media.Media{
+			ID:              row.MediaID_2,
+			LibraryID:       row.LibraryID,
+			Title:           row.Title,
+			Type:            row.Type,
+			FilePath:        row.FilePath,
+			FileSize:        common.ParseNullInt64(row.FileSize),
+			Duration:        int(common.ParseNullFloat64(row.Duration)),
+			IsExtra:         row.IsExtra != 0,
+			Width:           int(common.ParseNullInt64(row.Width)),
+			Height:          int(common.ParseNullInt64(row.Height)),
+			VideoCodec:      common.ParseNullString(row.Codec),
+			AudioCodec:      common.ParseNullString(row.AudioCodec),
+			Bitrate:         common.ParseNullInt64(row.BitRate),
+			FrameRate:       common.ParseNullFloat64(row.FrameRate),
+			ContainerFormat: common.ParseNullString(row.ContainerFormat),
+			CreatedAt:       common.ParseNullTime(row.CreatedAt),
+			UpdatedAt:       common.ParseNullTime(row.UpdatedAt),
+		},
+		ShowID:       row.ShowID,
+		ShowTitle:    "", // Will be populated from show lookup if needed
+		SeasonID:     row.SeasonID,
+		Season:       int(row.SeasonNumber),
+		Episode:      int(row.EpisodeNumber),
+		EpisodeTitle: common.ParseNullString(row.EpisodeTitle),
+		TVDbID:       int(common.ParseNullInt64(row.TvdbID)),
+		TMDbID:       common.ParseNullInt64(row.TmdbID),
+		IMDbID:       common.ParseNullString(row.ImdbID),
+		AirDate:      common.FormatNullDate(row.AirDate),
+		Description:  common.ParseNullString(row.Plot),
 
-// mapSeasonToDomain converts any TV season row to domain TVSeason
-// Handles both SQLite and PostgreSQL row types using reflection-based field getters
-func mapSeasonToDomain(row interface{}) media.TVSeason {
-	return media.TVSeason{
-		ID:           common.IntFieldGetter(row, "ID"),
-		ShowID:       common.IntFieldGetter(row, "ShowID"),
-		SeasonNumber: common.IntFieldGetter(row, "SeasonNumber"),
-		EpisodeCount: int(common.ParseNullInt64(common.NullIntFieldGetter(row, "EpisodeCount"))),
+		// Alternative ordering
+		AbsoluteNumber: int(common.ParseNullInt64(row.AbsoluteNumber)),
+		DvdSeason:      int(common.ParseNullInt64(row.DvdSeason)),
+		DvdEpisode:     int(common.ParseNullInt64(row.DvdEpisode)),
+
+		// Additional metadata
+		OriginalTitle:  common.ParseNullString(row.OriginalTitle),
+		ContentRating:  common.ParseNullString(row.ContentRating),
+		MaturityRating: int(common.ParseNullInt64(row.MaturityRating)),
+
+		RuntimeMinutes: int(common.ParseNullInt64(row.RuntimeMinutes)),
+		Rating:         float32(common.ParseNullFloat64(row.Rating)),
+		RatingVotes:    int(common.ParseNullInt64(row.RatingVotes)),
 	}
 }
 
-// TVShow represents a simplified TV show record for internal repository use
-type TVShow struct {
-	ID        int64
-	LibraryID int64
-	Title     string
-}
-
-// TVSeason represents a simplified TV season record for internal repository use
-type TVSeason struct {
-	ID           int64
-	ShowID       int64
-	SeasonNumber int64
-	EpisodeCount int
-}
-
-// sqliteEpisodeToDomain converts a SQLite TV episode query row to a domain TVEpisode entity
-func sqliteEpisodeToDomain(row sqlc_sqlite.GetTVEpisodeByMediaIDRow) *media.TVEpisode {
-	return mapEpisodeToDomain(row)
-}
-
-// episodeRowLike is a constraint interface that describes the common fields
-// present in all TV episode query row types
-type episodeRowLike interface {
-	sqlc_sqlite.ListTVEpisodesByLibraryRow |
-		sqlc_sqlite.ListTVEpisodesByShowRow |
-		sqlc_sqlite.SearchTVEpisodesByTitleRow
-}
-
-// buildSQLiteCreateEpisodeParams builds CreateTVEpisodeParams for SQLite from a domain TVEpisode entity
-func buildSQLiteCreateEpisodeParams(e *media.TVEpisode, showID, seasonID int64) sqlc_sqlite.CreateTVEpisodeParams {
+// buildCreateEpisodeParams builds CreateTVEpisodeParams from a domain TVEpisode entity
+func buildCreateEpisodeParams(e *media.TVEpisode, showID, seasonID int64) unified.CreateTVEpisodeParams {
 	var airDate sql.NullTime
 	if e.AirDate != "" {
 		// Parse the air date if it's provided
@@ -151,7 +173,7 @@ func buildSQLiteCreateEpisodeParams(e *media.TVEpisode, showID, seasonID int64) 
 		airDate = sql.NullTime{Valid: false}
 	}
 
-	return sqlc_sqlite.CreateTVEpisodeParams{
+	return unified.CreateTVEpisodeParams{
 		MediaID:        e.Media.ID,
 		ShowID:         showID,
 		SeasonID:       seasonID,
@@ -175,94 +197,10 @@ func buildSQLiteCreateEpisodeParams(e *media.TVEpisode, showID, seasonID int64) 
 	}
 }
 
-// buildSQLiteUpdateEpisodeParams builds UpdateTVEpisodeParams for SQLite from a domain TVEpisode entity
-func buildSQLiteUpdateEpisodeParams(e *media.TVEpisode, showID, seasonID int64) sqlc_sqlite.UpdateTVEpisodeParams {
-	params := buildSQLiteCreateEpisodeParams(e, showID, seasonID)
-	return sqlc_sqlite.UpdateTVEpisodeParams{
-		ShowID:         params.ShowID,
-		SeasonID:       params.SeasonID,
-		SeasonNumber:   params.SeasonNumber,
-		EpisodeNumber:  params.EpisodeNumber,
-		AbsoluteNumber: params.AbsoluteNumber,
-		DvdSeason:      params.DvdSeason,
-		DvdEpisode:     params.DvdEpisode,
-		EpisodeTitle:   params.EpisodeTitle,
-		OriginalTitle:  params.OriginalTitle,
-		AirDate:        params.AirDate,
-		Plot:           params.Plot,
-		ContentRating:  params.ContentRating,
-		MaturityRating: params.MaturityRating,
-		ImdbID:         params.ImdbID,
-		TmdbID:         params.TmdbID,
-		TvdbID:         params.TvdbID,
-		Rating:         params.Rating,
-		RatingVotes:    params.RatingVotes,
-		RuntimeMinutes: params.RuntimeMinutes,
-		MediaID:        e.Media.ID,
-	}
-}
-
-// ========================================
-// PostgreSQL Mappers
-// ========================================
-
-// postgresEpisodeToDomain converts a PostgreSQL GetTVEpisodeByMediaIDRow to domain TVEpisode
-func postgresEpisodeToDomain(row sqlc_postgres.GetTVEpisodeByMediaIDRow) *media.TVEpisode {
-	return mapEpisodeToDomain(row)
-}
-
-// postgresEpisodeRow is a generic interface for all PostgreSQL TV episode query row types
-type postgresEpisodeRow interface {
-	sqlc_postgres.ListTVEpisodesByLibraryRow |
-		sqlc_postgres.ListTVEpisodesByShowRow |
-		sqlc_postgres.SearchTVEpisodesByTitleRow
-}
-
-// postgresEpisodeRowToDomain converts any PostgreSQL episode row type to domain TVEpisode
-func postgresEpisodeRowToDomain[T postgresEpisodeRow](row T) *media.TVEpisode {
-	return mapEpisodeToDomain(row)
-}
-
-// sqliteGenericEpisodeRowToDomain converts any SQLite episode row type to domain TVEpisode
-func sqliteGenericEpisodeRowToDomain[T episodeRowLike](row T) *media.TVEpisode {
-	return mapEpisodeToDomain(row)
-}
-
-// buildPostgresCreateEpisodeParams builds CreateTVEpisodeParams for PostgreSQL from a domain TVEpisode entity
-func buildPostgresCreateEpisodeParams(e *media.TVEpisode, showID, seasonID int64) sqlc_postgres.CreateTVEpisodeParams {
-	var airDate sql.NullTime
-	if e.AirDate != "" {
-		airDate = sql.NullTime{Valid: false}
-	}
-
-	return sqlc_postgres.CreateTVEpisodeParams{
-		MediaID:        e.Media.ID,
-		ShowID:         showID,
-		SeasonID:       seasonID,
-		SeasonNumber:   int64(e.Season),
-		EpisodeNumber:  int64(e.Episode),
-		AbsoluteNumber: common.NullInt64(int64(e.AbsoluteNumber)),
-		DvdSeason:      common.NullInt64(int64(e.DvdSeason)),
-		DvdEpisode:     common.NullInt64(int64(e.DvdEpisode)),
-		EpisodeTitle:   common.NullString(e.EpisodeTitle),
-		OriginalTitle:  common.NullString(e.OriginalTitle),
-		AirDate:        airDate,
-		Plot:           common.NullString(e.Description),
-		ContentRating:  common.NullString(e.ContentRating),
-		MaturityRating: common.NullInt64(int64(e.MaturityRating)),
-		ImdbID:         common.NullString(e.IMDbID),
-		TmdbID:         common.NullInt64(e.TMDbID),
-		TvdbID:         common.NullInt64(int64(e.TVDbID)),
-		Rating:         common.NullFloat64FromFloat32(e.Rating),
-		RatingVotes:    common.NullInt64(int64(e.RatingVotes)),
-		RuntimeMinutes: common.NullInt64(int64(e.RuntimeMinutes)),
-	}
-}
-
-// buildPostgresUpdateEpisodeParams builds UpdateTVEpisodeParams for PostgreSQL from a domain TVEpisode entity
-func buildPostgresUpdateEpisodeParams(e *media.TVEpisode, showID, seasonID int64) sqlc_postgres.UpdateTVEpisodeParams {
-	params := buildPostgresCreateEpisodeParams(e, showID, seasonID)
-	return sqlc_postgres.UpdateTVEpisodeParams{
+// buildUpdateEpisodeParams builds UpdateTVEpisodeParams from a domain TVEpisode entity
+func buildUpdateEpisodeParams(e *media.TVEpisode, showID, seasonID int64) unified.UpdateTVEpisodeParams {
+	params := buildCreateEpisodeParams(e, showID, seasonID)
+	return unified.UpdateTVEpisodeParams{
 		ShowID:         params.ShowID,
 		SeasonID:       params.SeasonID,
 		SeasonNumber:   params.SeasonNumber,
@@ -290,20 +228,38 @@ func buildPostgresUpdateEpisodeParams(e *media.TVEpisode, showID, seasonID int64
 // TV Show Converters
 // ========================================
 
-// postgresShowToDomain converts a PostgreSQL TvShow row to domain TVShow
-func postgresShowToDomain(row sqlc_postgres.TvShow) media.TVShow {
-	return mapShowToDomain(row)
+// showToDomain converts a TvShow row to domain TVShow
+func showToDomain(row unified.TvShow) media.TVShow {
+	return media.TVShow{
+		ID:               row.ID,
+		LibraryID:        row.LibraryID,
+		Title:            row.Title,
+		OriginalTitle:    common.ParseNullString(row.OriginalTitle),
+		SortTitle:        common.ParseNullString(row.SortTitle),
+		Year:             int(common.ParseNullInt64(row.Year)),
+		FirstAirDate:     common.FormatNullDate(row.FirstAirDate),
+		LastAirDate:      common.FormatNullDate(row.LastAirDate),
+		Genre:            parseGenres(common.ParseNullString(row.Genre)),
+		Plot:             common.ParseNullString(row.Plot),
+		Status:           common.ParseNullString(row.Status),
+		ContentRating:    common.ParseNullString(row.ContentRating),
+		Network:          common.ParseNullString(row.Network),
+		OriginalLanguage: common.ParseNullString(row.OriginalLanguage),
+		CountryOfOrigin:  common.ParseNullString(row.CountryOfOrigin),
+		IMDbID:           common.ParseNullString(row.ImdbID),
+		TMDbID:           int(common.ParseNullInt64(row.TmdbID)),
+		TVDbID:           int(common.ParseNullInt64(row.TvdbID)),
+		Directory:        common.ParseNullString(row.Directory),
+		Tagline:          common.ParseNullString(row.Tagline),
+		Rating:           float32(common.ParseNullFloat64(row.Rating)),
+		RatingVotes:      int(common.ParseNullInt64(row.RatingVotes)),
+	}
 }
 
-// sqliteShowToDomain converts a SQLite TvShow row to domain TVShow
-func sqliteShowToDomain(row sqlc_sqlite.TvShow) media.TVShow {
-	return mapShowToDomain(row)
-}
-
-// buildPostgresCreateTVShowParams builds CreateTVShowParams for PostgreSQL
-func buildPostgresCreateTVShowParams(libraryID int64, title, directory string) sqlc_postgres.CreateTVShowParams {
+// buildCreateTVShowParams builds CreateTVShowParams
+func buildCreateTVShowParams(libraryID int64, title, directory string) unified.CreateTVShowParams {
 	sortTitle := domainCommon.NormalizeSortTitle(title)
-	return sqlc_postgres.CreateTVShowParams{
+	return unified.CreateTVShowParams{
 		LibraryID:        libraryID,
 		Title:            title,
 		OriginalTitle:    sql.NullString{Valid: false},
@@ -329,41 +285,12 @@ func buildPostgresCreateTVShowParams(libraryID int64, title, directory string) s
 	}
 }
 
-// buildSQLiteCreateTVShowParams builds CreateTVShowParams for SQLite
-func buildSQLiteCreateTVShowParams(libraryID int64, title, directory string) sqlc_sqlite.CreateTVShowParams {
-	sortTitle := domainCommon.NormalizeSortTitle(title)
-	return sqlc_sqlite.CreateTVShowParams{
-		LibraryID:        libraryID,
-		Title:            title,
-		OriginalTitle:    sql.NullString{Valid: false},
-		SortTitle:        sql.NullString{String: sortTitle, Valid: true},
-		Year:             sql.NullInt64{Valid: false},
-		FirstAirDate:     sql.NullTime{Valid: false},
-		LastAirDate:      sql.NullTime{Valid: false},
-		Genre:            sql.NullString{Valid: false},
-		Plot:             sql.NullString{Valid: false},
-		Status:           sql.NullString{Valid: false},
-		ContentRating:    sql.NullString{Valid: false},
-		MaturityRating:   sql.NullInt64{Valid: false},
-		Network:          sql.NullString{Valid: false},
-		OriginalLanguage: sql.NullString{Valid: false},
-		CountryOfOrigin:  sql.NullString{Valid: false},
-		ImdbID:           sql.NullString{Valid: false},
-		TmdbID:           sql.NullInt64{Valid: false},
-		TvdbID:           sql.NullInt64{Valid: false},
-		Directory:        sql.NullString{String: directory, Valid: directory != ""},
-		Rating:           sql.NullFloat64{Valid: false},
-		RatingVotes:      sql.NullInt64{Valid: false},
-		Tagline:          sql.NullString{Valid: false},
-	}
-}
-
-// buildPostgresUpsertTVShowParams builds UpsertTVShowParams for PostgreSQL
-func buildPostgresUpsertTVShowParams(libraryID int64, title, directory string) sqlc_postgres.UpsertTVShowParams {
+// buildUpsertTVShowParams builds UpsertTVShowParams
+func buildUpsertTVShowParams(libraryID int64, title, directory string) unified.UpsertTVShowParams {
 	// Normalize title to handle punctuation variants (e.g., "Star Trek: Voyager" vs "Star Trek Voyager")
 	normalizedTitle := domainCommon.NormalizeTitle(title)
 	sortTitle := domainCommon.NormalizeSortTitle(normalizedTitle)
-	return sqlc_postgres.UpsertTVShowParams{
+	return unified.UpsertTVShowParams{
 		LibraryID: libraryID,
 		Title:     normalizedTitle,
 		SortTitle: sql.NullString{String: sortTitle, Valid: true},
@@ -371,21 +298,8 @@ func buildPostgresUpsertTVShowParams(libraryID int64, title, directory string) s
 	}
 }
 
-// buildSQLiteUpsertTVShowParams builds UpsertTVShowParams for SQLite
-func buildSQLiteUpsertTVShowParams(libraryID int64, title, directory string) sqlc_sqlite.UpsertTVShowParams {
-	// Normalize title to handle punctuation variants (e.g., "Star Trek: Voyager" vs "Star Trek Voyager")
-	normalizedTitle := domainCommon.NormalizeTitle(title)
-	sortTitle := domainCommon.NormalizeSortTitle(normalizedTitle)
-	return sqlc_sqlite.UpsertTVShowParams{
-		LibraryID: libraryID,
-		Title:     normalizedTitle,
-		SortTitle: sql.NullString{String: sortTitle, Valid: true},
-		Directory: sql.NullString{String: directory, Valid: directory != ""},
-	}
-}
-
-// buildPostgresUpdateTVShowParams builds UpdateTVShowParams for Postgres from domain TVShow
-func buildPostgresUpdateTVShowParams(show media.TVShow) sqlc_postgres.UpdateTVShowParams {
+// buildUpdateTVShowParams builds UpdateTVShowParams from domain TVShow
+func buildUpdateTVShowParams(show media.TVShow) unified.UpdateTVShowParams {
 	// Join genres back to comma-separated string
 	genreStr := strings.Join(show.Genre, ", ")
 
@@ -399,48 +313,7 @@ func buildPostgresUpdateTVShowParams(show media.TVShow) sqlc_postgres.UpdateTVSh
 		return sql.NullInt64{Int64: int64(i), Valid: i != 0}
 	}
 
-	return sqlc_postgres.UpdateTVShowParams{
-		ID:               show.ID,
-		Title:            show.Title,
-		OriginalTitle:    toNullString(show.OriginalTitle),
-		SortTitle:        toNullString(show.SortTitle),
-		Year:             toNullInt64(show.Year),
-		FirstAirDate:     common.ParseDateString(show.FirstAirDate),
-		LastAirDate:      common.ParseDateString(show.LastAirDate),
-		Genre:            toNullString(genreStr),
-		Plot:             toNullString(show.Plot),
-		Status:           toNullString(show.Status),
-		ContentRating:    toNullString(show.ContentRating),
-		MaturityRating:   sql.NullInt64{Valid: false}, // Not exposed via enrichment proto
-		Network:          toNullString(show.Network),
-		OriginalLanguage: toNullString(show.OriginalLanguage),
-		CountryOfOrigin:  toNullString(show.CountryOfOrigin),
-		ImdbID:           toNullString(show.IMDbID),
-		TmdbID:           toNullInt64(show.TMDbID),
-		TvdbID:           toNullInt64(show.TVDbID),
-		Directory:        toNullString(show.Directory),
-		Rating:           common.NullFloat64FromFloat32(show.Rating),
-		RatingVotes:      toNullInt64(show.RatingVotes),
-		Tagline:          toNullString(show.Tagline),
-	}
-}
-
-// buildSQLiteUpdateTVShowParams builds UpdateTVShowParams for SQLite from domain TVShow
-func buildSQLiteUpdateTVShowParams(show media.TVShow) sqlc_sqlite.UpdateTVShowParams {
-	// Join genres back to comma-separated string
-	genreStr := strings.Join(show.Genre, ", ")
-
-	// Helper to convert string to sql.NullString
-	toNullString := func(s string) sql.NullString {
-		return sql.NullString{String: s, Valid: s != ""}
-	}
-
-	// Helper to convert int to sql.NullInt64
-	toNullInt64 := func(i int) sql.NullInt64 {
-		return sql.NullInt64{Int64: int64(i), Valid: i != 0}
-	}
-
-	return sqlc_sqlite.UpdateTVShowParams{
+	return unified.UpdateTVShowParams{
 		ID:               show.ID,
 		Title:            show.Title,
 		OriginalTitle:    toNullString(show.OriginalTitle),
@@ -484,8 +357,8 @@ func parseGenres(genreStr string) []string {
 	return genres
 }
 
-// postgresShowWithCountsToDomain converts PostgreSQL rows with counts to domain TVShowWithCounts
-func postgresShowWithCountsToDomain(row sqlc_postgres.GetTVShowsWithCountsByLibraryPaginatedRow) media.TVShowWithCounts {
+// showWithCountsToDomain converts GetTVShowsWithCountsByLibraryPaginatedRow to domain TVShowWithCounts
+func showWithCountsToDomain(row unified.GetTVShowsWithCountsByLibraryPaginatedRow) media.TVShowWithCounts {
 	return media.TVShowWithCounts{
 		TVShow: media.TVShow{
 			ID:            row.ID,
@@ -504,7 +377,8 @@ func postgresShowWithCountsToDomain(row sqlc_postgres.GetTVShowsWithCountsByLibr
 	}
 }
 
-func postgresShowWithCountsDescToDomain(row sqlc_postgres.GetTVShowsWithCountsByLibraryPaginatedDescRow) media.TVShowWithCounts {
+// showWithCountsDescToDomain converts GetTVShowsWithCountsByLibraryPaginatedDescRow to domain TVShowWithCounts
+func showWithCountsDescToDomain(row unified.GetTVShowsWithCountsByLibraryPaginatedDescRow) media.TVShowWithCounts {
 	return media.TVShowWithCounts{
 		TVShow: media.TVShow{
 			ID:            row.ID,
@@ -523,65 +397,8 @@ func postgresShowWithCountsDescToDomain(row sqlc_postgres.GetTVShowsWithCountsBy
 	}
 }
 
-func sqliteShowWithCountsToDomain(row sqlc_sqlite.GetTVShowsWithCountsByLibraryPaginatedRow) media.TVShowWithCounts {
-	return media.TVShowWithCounts{
-		TVShow: media.TVShow{
-			ID:            row.ID,
-			LibraryID:     row.LibraryID,
-			Title:         row.Title,
-			Year:          int(common.ParseNullInt64(row.Year)),
-			Genre:         parseGenres(common.ParseNullString(row.Genre)),
-			Plot:          common.ParseNullString(row.Plot),
-			IMDbID:        common.ParseNullString(row.ImdbID),
-			TMDbID:        int(common.ParseNullInt64(row.TmdbID)),
-			ContentRating: common.ParseNullString(row.ContentRating),
-			CreatedAt:     common.ParseNullTime(row.CreatedAt),
-		},
-		SeasonCount:  row.SeasonCount,
-		EpisodeCount: row.EpisodeCount,
-	}
-}
-
-func sqliteShowWithCountsDescToDomain(row sqlc_sqlite.GetTVShowsWithCountsByLibraryPaginatedDescRow) media.TVShowWithCounts {
-	return media.TVShowWithCounts{
-		TVShow: media.TVShow{
-			ID:            row.ID,
-			LibraryID:     row.LibraryID,
-			Title:         row.Title,
-			Year:          int(common.ParseNullInt64(row.Year)),
-			Genre:         parseGenres(common.ParseNullString(row.Genre)),
-			Plot:          common.ParseNullString(row.Plot),
-			IMDbID:        common.ParseNullString(row.ImdbID),
-			TMDbID:        int(common.ParseNullInt64(row.TmdbID)),
-			ContentRating: common.ParseNullString(row.ContentRating),
-			CreatedAt:     common.ParseNullTime(row.CreatedAt),
-		},
-		SeasonCount:  row.SeasonCount,
-		EpisodeCount: row.EpisodeCount,
-	}
-}
-
-// Search with counts converters
-func postgresSearchShowWithCountsToDomain(row sqlc_postgres.SearchTVShowsWithCountsByTitlePaginatedRow) media.TVShowWithCounts {
-	return media.TVShowWithCounts{
-		TVShow: media.TVShow{
-			ID:            row.ID,
-			LibraryID:     row.LibraryID,
-			Title:         row.Title,
-			Year:          int(common.ParseNullInt64(row.Year)),
-			Genre:         parseGenres(common.ParseNullString(row.Genre)),
-			Plot:          common.ParseNullString(row.Plot),
-			IMDbID:        common.ParseNullString(row.ImdbID),
-			TMDbID:        int(common.ParseNullInt64(row.TmdbID)),
-			ContentRating: common.ParseNullString(row.ContentRating),
-			CreatedAt:     common.ParseNullTime(row.CreatedAt),
-		},
-		SeasonCount:  row.SeasonCount,
-		EpisodeCount: row.EpisodeCount,
-	}
-}
-
-func sqliteSearchShowWithCountsToDomain(row sqlc_sqlite.SearchTVShowsWithCountsByTitlePaginatedRow) media.TVShowWithCounts {
+// searchShowWithCountsToDomain converts SearchTVShowsWithCountsByTitlePaginatedRow to domain TVShowWithCounts
+func searchShowWithCountsToDomain(row unified.SearchTVShowsWithCountsByTitlePaginatedRow) media.TVShowWithCounts {
 	return media.TVShowWithCounts{
 		TVShow: media.TVShow{
 			ID:            row.ID,
@@ -604,28 +421,19 @@ func sqliteSearchShowWithCountsToDomain(row sqlc_sqlite.SearchTVShowsWithCountsB
 // TV Season Converters
 // ========================================
 
-// postgresSeasonToDomain converts a PostgreSQL TvSeason row to domain TVSeason
-func postgresSeasonToDomain(row sqlc_postgres.TvSeason) media.TVSeason {
-	return mapSeasonToDomain(row)
-}
-
-// sqliteSeasonToDomain converts a SQLite TvSeason row to domain TVSeason
-func sqliteSeasonToDomain(row sqlc_sqlite.TvSeason) media.TVSeason {
-	return mapSeasonToDomain(row)
-}
-
-// buildPostgresCreateTVSeasonParams builds CreateTVSeasonParams for PostgreSQL
-func buildPostgresCreateTVSeasonParams(showID, seasonNumber int64) sqlc_postgres.CreateTVSeasonParams {
-	return sqlc_postgres.CreateTVSeasonParams{
-		ShowID:       showID,
-		SeasonNumber: seasonNumber,
-		EpisodeCount: sql.NullInt64{Int64: 0, Valid: true},
+// seasonToDomain converts a TvSeason row to domain TVSeason
+func seasonToDomain(row unified.TvSeason) media.TVSeason {
+	return media.TVSeason{
+		ID:           row.ID,
+		ShowID:       row.ShowID,
+		SeasonNumber: row.SeasonNumber,
+		EpisodeCount: int(common.ParseNullInt64(row.EpisodeCount)),
 	}
 }
 
-// buildSQLiteCreateTVSeasonParams builds CreateTVSeasonParams for SQLite
-func buildSQLiteCreateTVSeasonParams(showID, seasonNumber int64) sqlc_sqlite.CreateTVSeasonParams {
-	return sqlc_sqlite.CreateTVSeasonParams{
+// buildCreateTVSeasonParams builds CreateTVSeasonParams
+func buildCreateTVSeasonParams(showID, seasonNumber int64) unified.CreateTVSeasonParams {
+	return unified.CreateTVSeasonParams{
 		ShowID:       showID,
 		SeasonNumber: seasonNumber,
 		EpisodeCount: sql.NullInt64{Int64: 0, Valid: true},

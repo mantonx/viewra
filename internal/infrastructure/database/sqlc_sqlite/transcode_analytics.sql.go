@@ -269,26 +269,26 @@ const getOverallTranscodeSummary = `-- name: GetOverallTranscodeSummary :one
 SELECT
     COUNT(*) as total_sessions,
     COUNT(DISTINCT media_id) as unique_media,
-    AVG(manifest_ready_ms) as avg_manifest_ready_ms,
-    AVG(first_frame_ms) as avg_first_frame_ms,
-    AVG(first_segment_ms) as avg_first_segment_ms,
+    CAST(AVG(manifest_ready_ms) AS REAL) as avg_manifest_ready_ms,
+    CAST(AVG(first_frame_ms) AS REAL) as avg_first_frame_ms,
+    CAST(AVG(first_segment_ms) AS REAL) as avg_first_segment_ms,
     MIN(manifest_ready_ms) as min_manifest_ready_ms,
     MAX(manifest_ready_ms) as max_manifest_ready_ms,
-    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count,
-    SUM(CASE WHEN hw_accel IS NOT NULL AND hw_accel != '' THEN 1 ELSE 0 END) as hw_accel_count
+    CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_count,
+    CAST(SUM(CASE WHEN hw_accel IS NOT NULL AND hw_accel != '' THEN 1 ELSE 0 END) AS INTEGER) as hw_accel_count
 FROM transcode_analytics
 `
 
 type GetOverallTranscodeSummaryRow struct {
-	TotalSessions      int64           `json:"total_sessions"`
-	UniqueMedia        int64           `json:"unique_media"`
-	AvgManifestReadyMs sql.NullFloat64 `json:"avg_manifest_ready_ms"`
-	AvgFirstFrameMs    sql.NullFloat64 `json:"avg_first_frame_ms"`
-	AvgFirstSegmentMs  sql.NullFloat64 `json:"avg_first_segment_ms"`
-	MinManifestReadyMs interface{}     `json:"min_manifest_ready_ms"`
-	MaxManifestReadyMs interface{}     `json:"max_manifest_ready_ms"`
-	FailedCount        sql.NullFloat64 `json:"failed_count"`
-	HwAccelCount       sql.NullFloat64 `json:"hw_accel_count"`
+	TotalSessions      int64       `json:"total_sessions"`
+	UniqueMedia        int64       `json:"unique_media"`
+	AvgManifestReadyMs float64     `json:"avg_manifest_ready_ms"`
+	AvgFirstFrameMs    float64     `json:"avg_first_frame_ms"`
+	AvgFirstSegmentMs  float64     `json:"avg_first_segment_ms"`
+	MinManifestReadyMs interface{} `json:"min_manifest_ready_ms"`
+	MaxManifestReadyMs interface{} `json:"max_manifest_ready_ms"`
+	FailedCount        int64       `json:"failed_count"`
+	HwAccelCount       int64       `json:"hw_accel_count"`
 }
 
 func (q *Queries) GetOverallTranscodeSummary(ctx context.Context) (GetOverallTranscodeSummaryRow, error) {
@@ -341,24 +341,24 @@ func (q *Queries) GetTranscodeAnalyticsBySessionID(ctx context.Context, sessionI
 const getTranscodeSummaryByMediaID = `-- name: GetTranscodeSummaryByMediaID :one
 SELECT
     COUNT(*) as total_sessions,
-    AVG(manifest_ready_ms) as avg_manifest_ready_ms,
-    AVG(first_frame_ms) as avg_first_frame_ms,
-    AVG(first_segment_ms) as avg_first_segment_ms,
+    CAST(AVG(manifest_ready_ms) AS REAL) as avg_manifest_ready_ms,
+    CAST(AVG(first_frame_ms) AS REAL) as avg_first_frame_ms,
+    CAST(AVG(first_segment_ms) AS REAL) as avg_first_segment_ms,
     MIN(manifest_ready_ms) as min_manifest_ready_ms,
     MAX(manifest_ready_ms) as max_manifest_ready_ms,
-    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count
+    CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_count
 FROM transcode_analytics
 WHERE media_id = ?
 `
 
 type GetTranscodeSummaryByMediaIDRow struct {
-	TotalSessions      int64           `json:"total_sessions"`
-	AvgManifestReadyMs sql.NullFloat64 `json:"avg_manifest_ready_ms"`
-	AvgFirstFrameMs    sql.NullFloat64 `json:"avg_first_frame_ms"`
-	AvgFirstSegmentMs  sql.NullFloat64 `json:"avg_first_segment_ms"`
-	MinManifestReadyMs interface{}     `json:"min_manifest_ready_ms"`
-	MaxManifestReadyMs interface{}     `json:"max_manifest_ready_ms"`
-	FailedCount        sql.NullFloat64 `json:"failed_count"`
+	TotalSessions      int64       `json:"total_sessions"`
+	AvgManifestReadyMs float64     `json:"avg_manifest_ready_ms"`
+	AvgFirstFrameMs    float64     `json:"avg_first_frame_ms"`
+	AvgFirstSegmentMs  float64     `json:"avg_first_segment_ms"`
+	MinManifestReadyMs interface{} `json:"min_manifest_ready_ms"`
+	MaxManifestReadyMs interface{} `json:"max_manifest_ready_ms"`
+	FailedCount        int64       `json:"failed_count"`
 }
 
 func (q *Queries) GetTranscodeSummaryByMediaID(ctx context.Context, mediaID int64) (GetTranscodeSummaryByMediaIDRow, error) {

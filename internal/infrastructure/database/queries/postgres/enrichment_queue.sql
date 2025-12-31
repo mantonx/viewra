@@ -42,7 +42,7 @@ WHERE id IN (
     SELECT eq.id FROM enrichment_queue eq
     WHERE eq.stage = $2 AND eq.status = 'pending'
     ORDER BY eq.priority DESC, eq.created_at ASC
-    LIMIT $3
+    LIMIT sqlc.arg('limit')::bigint
     FOR UPDATE SKIP LOCKED
 )
 RETURNING *;
@@ -137,7 +137,7 @@ WHERE status = 'failed'
   AND next_retry_at <= NOW()
   AND stage = $1
 ORDER BY next_retry_at ASC
-LIMIT $2;
+LIMIT sqlc.arg('limit')::bigint;
 
 -- name: ResetEnrichmentJobForRetry :exec
 UPDATE enrichment_queue
@@ -224,7 +224,7 @@ LEFT JOIN music_artists mart ON eq.media_type = 'music_artist' AND eq.media_id =
 WHERE eq.library_id = $1
   AND eq.status = 'failed'
 ORDER BY eq.updated_at DESC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: CountLibraryEnrichmentFailures :one
 -- Count total failed enrichment jobs for a library.

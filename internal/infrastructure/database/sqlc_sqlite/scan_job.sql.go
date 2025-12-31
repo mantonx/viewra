@@ -165,18 +165,18 @@ func (q *Queries) CreateScanJob(ctx context.Context, arg CreateScanJobParams) (S
 
 const deleteOldScanJobs = `-- name: DeleteOldScanJobs :exec
 DELETE FROM scan_jobs
-WHERE library_id = ?
+WHERE library_id = ?1
   AND status IN ('completed', 'failed')
-  AND created_at < datetime('now', ?)
+  AND created_at < datetime('now', CAST(?2 AS TEXT))
 `
 
 type DeleteOldScanJobsParams struct {
-	LibraryID int64       `json:"library_id"`
-	Datetime  interface{} `json:"datetime"`
+	LibraryID     int64  `json:"library_id"`
+	RetentionDays string `json:"retention_days"`
 }
 
 func (q *Queries) DeleteOldScanJobs(ctx context.Context, arg DeleteOldScanJobsParams) error {
-	_, err := q.db.ExecContext(ctx, deleteOldScanJobs, arg.LibraryID, arg.Datetime)
+	_, err := q.db.ExecContext(ctx, deleteOldScanJobs, arg.LibraryID, arg.RetentionDays)
 	return err
 }
 
@@ -269,22 +269,22 @@ func (q *Queries) GetScanJob(ctx context.Context, id int64) (ScanJob, error) {
 const getScanJobStats = `-- name: GetScanJobStats :one
 SELECT
     COUNT(*) as total_jobs,
-    SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) as running_jobs,
-    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_jobs,
-    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_jobs,
-    SUM(files_processed) as total_files_processed,
-    SUM(bytes_processed) as total_bytes_processed
+    CAST(SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) AS INTEGER) as running_jobs,
+    CAST(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS INTEGER) as completed_jobs,
+    CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_jobs,
+    CAST(SUM(files_processed) AS INTEGER) as total_files_processed,
+    CAST(SUM(bytes_processed) AS INTEGER) as total_bytes_processed
 FROM scan_jobs
 WHERE library_id = ?
 `
 
 type GetScanJobStatsRow struct {
-	TotalJobs           int64           `json:"total_jobs"`
-	RunningJobs         sql.NullFloat64 `json:"running_jobs"`
-	CompletedJobs       sql.NullFloat64 `json:"completed_jobs"`
-	FailedJobs          sql.NullFloat64 `json:"failed_jobs"`
-	TotalFilesProcessed sql.NullFloat64 `json:"total_files_processed"`
-	TotalBytesProcessed sql.NullFloat64 `json:"total_bytes_processed"`
+	TotalJobs           int64 `json:"total_jobs"`
+	RunningJobs         int64 `json:"running_jobs"`
+	CompletedJobs       int64 `json:"completed_jobs"`
+	FailedJobs          int64 `json:"failed_jobs"`
+	TotalFilesProcessed int64 `json:"total_files_processed"`
+	TotalBytesProcessed int64 `json:"total_bytes_processed"`
 }
 
 func (q *Queries) GetScanJobStats(ctx context.Context, libraryID int64) (GetScanJobStatsRow, error) {

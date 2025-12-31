@@ -7,8 +7,7 @@ import (
 	"fmt"
 
 	"github.com/mantonx/viewra/internal/domain/media"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
@@ -28,66 +27,34 @@ func NewRepository(db *common.BaseRepository) *Repository {
 
 // GetPersonByID retrieves a person by their ID.
 func (r *Repository) GetPersonByID(id int64) (*media.Person, error) {
-	ctx := context.Background()
-	return common.QuerySingle(
-		r.BaseRepository, ctx,
-		func() (sqlc_postgres.Person, error) {
-			return r.Postgres().GetPersonByID(ctx, id)
-		},
-		func() (sqlc_sqlite.Person, error) {
-			return r.SQLite().GetPersonByID(ctx, id)
-		},
-		postgresPersonToDomain,
-		sqlitePersonToDomain,
-	)
+	row, err := r.Q().GetPersonByID(context.Background(), id)
+	if err != nil {
+		return nil, r.ConvertNotFoundError(err)
+	}
+	return personToDomain(row), nil
 }
 
 // GetPersonByName retrieves a person by their name.
 func (r *Repository) GetPersonByName(name string) (*media.Person, error) {
-	ctx := context.Background()
-	return common.QuerySingle(
-		r.BaseRepository, ctx,
-		func() (sqlc_postgres.Person, error) {
-			return r.Postgres().GetPersonByName(ctx, name)
-		},
-		func() (sqlc_sqlite.Person, error) {
-			return r.SQLite().GetPersonByName(ctx, name)
-		},
-		postgresPersonToDomain,
-		sqlitePersonToDomain,
-	)
+	row, err := r.Q().GetPersonByName(context.Background(), name)
+	if err != nil {
+		return nil, r.ConvertNotFoundError(err)
+	}
+	return personToDomain(row), nil
 }
 
 // GetPersonByTMDbID retrieves a person by their TMDb ID.
 func (r *Repository) GetPersonByTMDbID(tmdbID int) (*media.Person, error) {
-	ctx := context.Background()
-	return common.QuerySingle(
-		r.BaseRepository, ctx,
-		func() (sqlc_postgres.Person, error) {
-			return r.Postgres().GetPersonByTMDbID(ctx, common.NullInt64(int64(tmdbID)))
-		},
-		func() (sqlc_sqlite.Person, error) {
-			return r.SQLite().GetPersonByTMDbID(ctx, common.NullInt64(int64(tmdbID)))
-		},
-		postgresPersonToDomain,
-		sqlitePersonToDomain,
-	)
+	row, err := r.Q().GetPersonByTMDbID(context.Background(), common.NullInt64(int64(tmdbID)))
+	if err != nil {
+		return nil, r.ConvertNotFoundError(err)
+	}
+	return personToDomain(row), nil
 }
 
 // CreatePerson creates a new person in the database.
 func (r *Repository) CreatePerson(person *media.Person) error {
-	ctx := context.Background()
-
-	if r.Router().IsPostgresDB() {
-		result, err := r.Postgres().CreatePerson(ctx, buildPostgresCreatePersonParams(person))
-		if err != nil {
-			return fmt.Errorf("create person: %w", err)
-		}
-		person.ID = result.ID
-		return nil
-	}
-
-	result, err := r.SQLite().CreatePerson(ctx, buildSQLiteCreatePersonParams(person))
+	result, err := r.Q().CreatePerson(context.Background(), buildCreatePersonParams(person))
 	if err != nil {
 		return fmt.Errorf("create person: %w", err)
 	}
@@ -97,21 +64,13 @@ func (r *Repository) CreatePerson(person *media.Person) error {
 
 // UpdatePerson updates an existing person in the database.
 func (r *Repository) UpdatePerson(person *media.Person) error {
-	ctx := context.Background()
-	return common.ExecuteCommand(
-		r.BaseRepository, ctx,
-		func() error {
-			return r.Postgres().UpdatePerson(ctx, buildPostgresUpdatePersonParams(person))
-		},
-		func() error {
-			return r.SQLite().UpdatePerson(ctx, buildSQLiteUpdatePersonParams(person))
-		},
-	)
+	if err := r.Q().UpdatePerson(context.Background(), buildUpdatePersonParams(person)); err != nil {
+		return fmt.Errorf("update person: %w", err)
+	}
+	return nil
 }
 
 // isNotFoundError checks if the error indicates a record was not found.
-// This handles both sql.ErrNoRows (direct DB access) and media.ErrMediaNotFound (via QuerySingle).
-// Uses errors.Is to properly handle wrapped errors.
 func isNotFoundError(err error) bool {
 	return errors.Is(err, sql.ErrNoRows) || errors.Is(err, media.ErrMediaNotFound)
 }
@@ -135,10 +94,7 @@ func (r *Repository) FindOrCreatePerson(name string, tmdbID int) (*media.Person,
 		// Update TMDb ID if we have one and they don't
 		if tmdbID > 0 && person.TMDbID == 0 {
 			person.TMDbID = tmdbID
-			if updateErr := r.UpdatePerson(person); updateErr != nil {
-				// Non-fatal, just log and continue
-				return person, nil
-			}
+			_ = r.UpdatePerson(person)
 		}
 		return person, nil
 	}
@@ -167,7 +123,7 @@ func (r *Repository) FindOrCreatePersonWithPhoto(name string, tmdbID int, photoU
 			// Update photo URL if we have one and they don't
 			if photoURL != "" && person.PhotoURL == "" {
 				person.PhotoURL = photoURL
-				_ = r.UpdatePerson(person) // Non-fatal if update fails
+				_ = r.UpdatePerson(person)
 			}
 			return person, nil
 		}
@@ -180,18 +136,16 @@ func (r *Repository) FindOrCreatePersonWithPhoto(name string, tmdbID int, photoU
 	person, err := r.GetPersonByName(name)
 	if err == nil {
 		needsUpdate := false
-		// Update TMDb ID if we have one and they don't
 		if tmdbID > 0 && person.TMDbID == 0 {
 			person.TMDbID = tmdbID
 			needsUpdate = true
 		}
-		// Update photo URL if we have one and they don't
 		if photoURL != "" && person.PhotoURL == "" {
 			person.PhotoURL = photoURL
 			needsUpdate = true
 		}
 		if needsUpdate {
-			_ = r.UpdatePerson(person) // Non-fatal if update fails
+			_ = r.UpdatePerson(person)
 		}
 		return person, nil
 	}
@@ -216,56 +170,28 @@ func (r *Repository) FindOrCreatePersonWithPhoto(name string, tmdbID int, photoU
 
 // GetCreditsForEntity retrieves all credits for a media entity.
 func (r *Repository) GetCreditsForEntity(mediaType string, entityID int64) ([]*media.Credit, error) {
-	ctx := context.Background()
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.GetCreditsForEntityRow, error) {
-			return r.Postgres().GetCreditsForEntity(ctx, sqlc_postgres.GetCreditsForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		func() ([]sqlc_sqlite.GetCreditsForEntityRow, error) {
-			return r.SQLite().GetCreditsForEntity(ctx, sqlc_sqlite.GetCreditsForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		postgresCreditRowToDomain,
-		sqliteCreditRowToDomain,
-	)
+	rows, err := r.Q().GetCreditsForEntity(context.Background(), unified.GetCreditsForEntityParams{
+		MediaType: mediaType,
+		EntityID:  entityID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get credits for entity: %w", err)
+	}
+	return mapSlice(rows, creditRowToDomain), nil
 }
 
 // GetCreditsForPerson retrieves all credits for a person.
 func (r *Repository) GetCreditsForPerson(personID int64) ([]*media.Credit, error) {
-	ctx := context.Background()
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.GetCreditsForPersonRow, error) {
-			return r.Postgres().GetCreditsForPerson(ctx, personID)
-		},
-		func() ([]sqlc_sqlite.GetCreditsForPersonRow, error) {
-			return r.SQLite().GetCreditsForPerson(ctx, personID)
-		},
-		postgresCreditsForPersonToDomain,
-		sqliteCreditsForPersonToDomain,
-	)
+	rows, err := r.Q().GetCreditsForPerson(context.Background(), personID)
+	if err != nil {
+		return nil, fmt.Errorf("get credits for person: %w", err)
+	}
+	return mapSlice(rows, creditsForPersonToDomain), nil
 }
 
 // CreateCredit creates a new credit in the database.
 func (r *Repository) CreateCredit(credit *media.Credit) error {
-	ctx := context.Background()
-
-	if r.Router().IsPostgresDB() {
-		result, err := r.Postgres().CreateCredit(ctx, buildPostgresCreateCreditParams(credit))
-		if err != nil {
-			return fmt.Errorf("create credit: %w", err)
-		}
-		credit.ID = result.ID
-		return nil
-	}
-
-	result, err := r.SQLite().CreateCredit(ctx, buildSQLiteCreateCreditParams(credit))
+	result, err := r.Q().CreateCredit(context.Background(), buildCreateCreditParams(credit))
 	if err != nil {
 		return fmt.Errorf("create credit: %w", err)
 	}
@@ -275,32 +201,21 @@ func (r *Repository) CreateCredit(credit *media.Credit) error {
 
 // DeleteCreditsForEntity deletes all credits for a media entity.
 func (r *Repository) DeleteCreditsForEntity(mediaType string, entityID int64) error {
-	ctx := context.Background()
-	return common.ExecuteCommand(
-		r.BaseRepository, ctx,
-		func() error {
-			return r.Postgres().DeleteCreditsForEntity(ctx, sqlc_postgres.DeleteCreditsForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		func() error {
-			return r.SQLite().DeleteCreditsForEntity(ctx, sqlc_sqlite.DeleteCreditsForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-	)
+	if err := r.Q().DeleteCreditsForEntity(context.Background(), unified.DeleteCreditsForEntityParams{
+		MediaType: mediaType,
+		EntityID:  entityID,
+	}); err != nil {
+		return fmt.Errorf("delete credits for entity: %w", err)
+	}
+	return nil
 }
 
 // ReplaceCreditsForEntity deletes all existing credits and creates new ones.
 func (r *Repository) ReplaceCreditsForEntity(mediaType string, entityID int64, credits []*media.Credit) error {
-	// Delete existing credits
 	if err := r.DeleteCreditsForEntity(mediaType, entityID); err != nil {
 		return fmt.Errorf("delete existing credits: %w", err)
 	}
 
-	// Create new credits
 	for _, credit := range credits {
 		credit.MediaType = mediaType
 		credit.EntityID = entityID
@@ -316,90 +231,58 @@ func (r *Repository) ReplaceCreditsForEntity(mediaType string, entityID int64, c
 
 // GetCastForEntity retrieves cast credits for a media entity.
 func (r *Repository) GetCastForEntity(mediaType string, entityID int64, limit int) ([]*media.Credit, error) {
-	ctx := context.Background()
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.GetCastForEntityRow, error) {
-			return r.Postgres().GetCastForEntity(ctx, sqlc_postgres.GetCastForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-				Limit:     int32(limit),
-			})
-		},
-		func() ([]sqlc_sqlite.GetCastForEntityRow, error) {
-			return r.SQLite().GetCastForEntity(ctx, sqlc_sqlite.GetCastForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-				Limit:     int64(limit),
-			})
-		},
-		postgresCastRowToDomain,
-		sqliteCastRowToDomain,
-	)
+	rows, err := r.Q().GetCastForEntity(context.Background(), unified.GetCastForEntityParams{
+		MediaType: mediaType,
+		EntityID:  entityID,
+		Limit:     int64(limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get cast for entity: %w", err)
+	}
+	return mapSlice(rows, castRowToDomain), nil
 }
 
 // GetDirectorsForEntity retrieves director credits for a media entity.
 func (r *Repository) GetDirectorsForEntity(mediaType string, entityID int64) ([]*media.Credit, error) {
-	ctx := context.Background()
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.GetDirectorsForEntityRow, error) {
-			return r.Postgres().GetDirectorsForEntity(ctx, sqlc_postgres.GetDirectorsForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		func() ([]sqlc_sqlite.GetDirectorsForEntityRow, error) {
-			return r.SQLite().GetDirectorsForEntity(ctx, sqlc_sqlite.GetDirectorsForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		postgresDirectorRowToDomain,
-		sqliteDirectorRowToDomain,
-	)
+	rows, err := r.Q().GetDirectorsForEntity(context.Background(), unified.GetDirectorsForEntityParams{
+		MediaType: mediaType,
+		EntityID:  entityID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get directors for entity: %w", err)
+	}
+	return mapSlice(rows, directorRowToDomain), nil
 }
 
 // GetWritersForEntity retrieves writer credits for a media entity.
 func (r *Repository) GetWritersForEntity(mediaType string, entityID int64) ([]*media.Credit, error) {
-	ctx := context.Background()
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.GetWritersForEntityRow, error) {
-			return r.Postgres().GetWritersForEntity(ctx, sqlc_postgres.GetWritersForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		func() ([]sqlc_sqlite.GetWritersForEntityRow, error) {
-			return r.SQLite().GetWritersForEntity(ctx, sqlc_sqlite.GetWritersForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		postgresWriterRowToDomain,
-		sqliteWriterRowToDomain,
-	)
+	rows, err := r.Q().GetWritersForEntity(context.Background(), unified.GetWritersForEntityParams{
+		MediaType: mediaType,
+		EntityID:  entityID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get writers for entity: %w", err)
+	}
+	return mapSlice(rows, writerRowToDomain), nil
 }
 
 // GetCreatorsForEntity retrieves creator credits for a media entity.
 func (r *Repository) GetCreatorsForEntity(mediaType string, entityID int64) ([]*media.Credit, error) {
-	ctx := context.Background()
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.GetCreatorsForEntityRow, error) {
-			return r.Postgres().GetCreatorsForEntity(ctx, sqlc_postgres.GetCreatorsForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		func() ([]sqlc_sqlite.GetCreatorsForEntityRow, error) {
-			return r.SQLite().GetCreatorsForEntity(ctx, sqlc_sqlite.GetCreatorsForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		postgresCreatorRowToDomain,
-		sqliteCreatorRowToDomain,
-	)
+	rows, err := r.Q().GetCreatorsForEntity(context.Background(), unified.GetCreatorsForEntityParams{
+		MediaType: mediaType,
+		EntityID:  entityID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get creators for entity: %w", err)
+	}
+	return mapSlice(rows, creatorRowToDomain), nil
+}
+
+// mapSlice converts a slice of one type to another using the provided mapper function.
+func mapSlice[TFrom, TTo any](from []TFrom, mapper func(TFrom) TTo) []TTo {
+	result := make([]TTo, len(from))
+	for i, v := range from {
+		result[i] = mapper(v)
+	}
+	return result
 }

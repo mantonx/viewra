@@ -4,28 +4,16 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 )
 
 // searchTVShows searches for TV shows by title pattern across all libraries.
 func (q *DBMediaQuerier) searchTVShows(ctx context.Context, pattern string, year int, limit int) ([]*MediaInfo, error) {
-	results, err := q.router.Route(
-		func() (any, error) {
-			return q.postgres.SearchTVShowsGlobal(ctx, sqlc_postgres.SearchTVShowsGlobalParams{
-				Title:         pattern,
-				OriginalTitle: sql.NullString{String: pattern, Valid: true},
-				Limit:         int32(limit),
-			})
-		},
-		func() (any, error) {
-			return q.sqlite.SearchTVShowsGlobal(ctx, sqlc_sqlite.SearchTVShowsGlobalParams{
-				Title:         pattern,
-				OriginalTitle: sql.NullString{String: pattern, Valid: true},
-				Limit:         int64(limit),
-			})
-		},
-	)
+	results, err := q.querier.SearchTVShowsGlobal(ctx, unified.SearchTVShowsGlobalParams{
+		Title:         pattern,
+		OriginalTitle: sql.NullString{String: pattern, Valid: true},
+		Limit:         int64(limit),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -34,45 +22,25 @@ func (q *DBMediaQuerier) searchTVShows(ctx context.Context, pattern string, year
 }
 
 // tvShowResultsToInfo converts TV show search results to MediaInfo slice.
-func (q *DBMediaQuerier) tvShowResultsToInfo(results any, yearFilter int) []*MediaInfo {
+func (q *DBMediaQuerier) tvShowResultsToInfo(results []unified.SearchTVShowsGlobalRow, yearFilter int) []*MediaInfo {
 	var infos []*MediaInfo
 
-	if q.router.IsPostgresDB() {
-		for _, row := range results.([]sqlc_postgres.SearchTVShowsGlobalRow) {
-			year := 0
-			if row.Year.Valid {
-				year = int(row.Year.Int64)
-			}
-			// Filter by year if specified
-			if yearFilter > 0 && year != yearFilter {
-				continue
-			}
-			infos = append(infos, &MediaInfo{
-				ID:        row.ID,
-				MediaType: "tv_show",
-				Title:     row.Title,
-				Year:      year,
-				LibraryID: row.LibraryID,
-			})
+	for _, row := range results {
+		year := 0
+		if row.Year.Valid {
+			year = int(row.Year.Int64)
 		}
-	} else {
-		for _, row := range results.([]sqlc_sqlite.SearchTVShowsGlobalRow) {
-			year := 0
-			if row.Year.Valid {
-				year = int(row.Year.Int64)
-			}
-			// Filter by year if specified
-			if yearFilter > 0 && year != yearFilter {
-				continue
-			}
-			infos = append(infos, &MediaInfo{
-				ID:        row.ID,
-				MediaType: "tv_show",
-				Title:     row.Title,
-				Year:      year,
-				LibraryID: row.LibraryID,
-			})
+		// Filter by year if specified
+		if yearFilter > 0 && year != yearFilter {
+			continue
 		}
+		infos = append(infos, &MediaInfo{
+			ID:        row.ID,
+			MediaType: "tv_show",
+			Title:     row.Title,
+			Year:      year,
+			LibraryID: row.LibraryID,
+		})
 	}
 
 	return infos
@@ -81,14 +49,7 @@ func (q *DBMediaQuerier) tvShowResultsToInfo(results any, yearFilter int) []*Med
 // getTVShowDetailsDirectly fetches TV show details directly from the tv_shows table.
 // It also fetches credits from the credits table for proper ordering.
 func (q *DBMediaQuerier) getTVShowDetailsDirectly(ctx context.Context, id int64, externalIDs map[string]string) (*MediaDetailsInfo, error) {
-	result, err := q.router.Route(
-		func() (any, error) {
-			return q.postgres.GetTVShowByID(ctx, id)
-		},
-		func() (any, error) {
-			return q.sqlite.GetTVShowByID(ctx, id)
-		},
-	)
+	result, err := q.querier.GetTVShowByID(ctx, id)
 	if err != nil {
 		return &MediaDetailsInfo{
 			ID:          id,
@@ -134,14 +95,7 @@ func (q *DBMediaQuerier) getTVShowDetailsDirectly(ctx context.Context, id int64,
 }
 
 func (q *DBMediaQuerier) getTVShowDetails(ctx context.Context, id int64, basic *MediaInfo, externalIDs map[string]string) (*MediaDetailsInfo, error) {
-	result, err := q.router.Route(
-		func() (any, error) {
-			return q.postgres.GetTVShowByID(ctx, id)
-		},
-		func() (any, error) {
-			return q.sqlite.GetTVShowByID(ctx, id)
-		},
-	)
+	result, err := q.querier.GetTVShowByID(ctx, id)
 	if err != nil {
 		return &MediaDetailsInfo{
 			ID:          basic.ID,
@@ -156,58 +110,32 @@ func (q *DBMediaQuerier) getTVShowDetails(ctx context.Context, id int64, basic *
 	return q.tvShowRowToDetails(result, externalIDs), nil
 }
 
-func (q *DBMediaQuerier) tvShowRowToDetails(result any, externalIDs map[string]string) *MediaDetailsInfo {
+func (q *DBMediaQuerier) tvShowRowToDetails(row unified.TvShow, externalIDs map[string]string) *MediaDetailsInfo {
 	info := &MediaDetailsInfo{
 		MediaType:   "tv_show",
 		ExternalIDs: externalIDs,
+		ID:          row.ID,
+		Title:       row.Title,
+		LibraryID:   row.LibraryID,
 	}
 
-	if q.router.IsPostgresDB() {
-		row := result.(sqlc_postgres.TvShow)
-		info.ID = row.ID
-		info.Title = row.Title
-		info.LibraryID = row.LibraryID
-		if row.Year.Valid {
-			info.Year = int(row.Year.Int64)
-		}
-		if row.Plot.Valid {
-			info.Plot = row.Plot.String
-		}
-		if row.Genre.Valid {
-			info.Genres = splitAndTrim(row.Genre.String)
-		}
-		if row.ContentRating.Valid {
-			info.ContentRating = row.ContentRating.String
-		}
-		if row.OriginalLanguage.Valid {
-			info.OriginalLanguage = row.OriginalLanguage.String
-		}
-		if row.CountryOfOrigin.Valid {
-			info.CountryOfOrigin = row.CountryOfOrigin.String
-		}
-	} else {
-		row := result.(sqlc_sqlite.TvShow)
-		info.ID = row.ID
-		info.Title = row.Title
-		info.LibraryID = row.LibraryID
-		if row.Year.Valid {
-			info.Year = int(row.Year.Int64)
-		}
-		if row.Plot.Valid {
-			info.Plot = row.Plot.String
-		}
-		if row.Genre.Valid {
-			info.Genres = splitAndTrim(row.Genre.String)
-		}
-		if row.ContentRating.Valid {
-			info.ContentRating = row.ContentRating.String
-		}
-		if row.OriginalLanguage.Valid {
-			info.OriginalLanguage = row.OriginalLanguage.String
-		}
-		if row.CountryOfOrigin.Valid {
-			info.CountryOfOrigin = row.CountryOfOrigin.String
-		}
+	if row.Year.Valid {
+		info.Year = int(row.Year.Int64)
+	}
+	if row.Plot.Valid {
+		info.Plot = row.Plot.String
+	}
+	if row.Genre.Valid {
+		info.Genres = splitAndTrim(row.Genre.String)
+	}
+	if row.ContentRating.Valid {
+		info.ContentRating = row.ContentRating.String
+	}
+	if row.OriginalLanguage.Valid {
+		info.OriginalLanguage = row.OriginalLanguage.String
+	}
+	if row.CountryOfOrigin.Valid {
+		info.CountryOfOrigin = row.CountryOfOrigin.String
 	}
 
 	return info
@@ -215,14 +143,7 @@ func (q *DBMediaQuerier) tvShowRowToDetails(result any, externalIDs map[string]s
 
 // getTVEpisodeDetailsDirectly fetches TV episode details directly.
 func (q *DBMediaQuerier) getTVEpisodeDetailsDirectly(ctx context.Context, id int64, externalIDs map[string]string) (*MediaDetailsInfo, error) {
-	result, err := q.router.Route(
-		func() (any, error) {
-			return q.postgres.GetEpisodeWithShowTitle(ctx, id)
-		},
-		func() (any, error) {
-			return q.sqlite.GetEpisodeWithShowTitle(ctx, id)
-		},
-	)
+	result, err := q.querier.GetEpisodeWithShowTitle(ctx, id)
 	if err != nil {
 		return &MediaDetailsInfo{
 			ID:          id,
@@ -235,14 +156,7 @@ func (q *DBMediaQuerier) getTVEpisodeDetailsDirectly(ctx context.Context, id int
 }
 
 func (q *DBMediaQuerier) getTVEpisodeDetails(ctx context.Context, id int64, basic *MediaInfo, externalIDs map[string]string) (*MediaDetailsInfo, error) {
-	result, err := q.router.Route(
-		func() (any, error) {
-			return q.postgres.GetEpisodeWithShowTitle(ctx, id)
-		},
-		func() (any, error) {
-			return q.sqlite.GetEpisodeWithShowTitle(ctx, id)
-		},
-	)
+	result, err := q.querier.GetEpisodeWithShowTitle(ctx, id)
 	if err != nil {
 		return &MediaDetailsInfo{
 			ID:          basic.ID,
@@ -257,141 +171,75 @@ func (q *DBMediaQuerier) getTVEpisodeDetails(ctx context.Context, id int64, basi
 	return q.tvEpisodeRowToDetails(result, externalIDs), nil
 }
 
-func (q *DBMediaQuerier) tvEpisodeRowToDetails(result any, externalIDs map[string]string) *MediaDetailsInfo {
+func (q *DBMediaQuerier) tvEpisodeRowToDetails(row unified.GetEpisodeWithShowTitleRow, externalIDs map[string]string) *MediaDetailsInfo {
 	info := &MediaDetailsInfo{
-		MediaType:   "tv_episode",
-		ExternalIDs: externalIDs,
+		MediaType:     "tv_episode",
+		ExternalIDs:   externalIDs,
+		ID:            row.MediaID,
+		Title:         row.Title,
+		LibraryID:     row.LibraryID,
+		SeasonNumber:  int(row.SeasonNumber),
+		EpisodeNumber: int(row.EpisodeNumber),
+		ShowTitle:     row.ShowTitle,
 	}
 
-	if q.router.IsPostgresDB() {
-		row := result.(sqlc_postgres.GetEpisodeWithShowTitleRow)
-		info.ID = row.MediaID
-		info.Title = row.Title
-		info.LibraryID = row.LibraryID
-		if row.Plot.Valid {
-			info.Plot = row.Plot.String
-		}
-		info.SeasonNumber = int(row.SeasonNumber)
-		info.EpisodeNumber = int(row.EpisodeNumber)
-		info.ShowTitle = row.ShowTitle
-		if row.ShowGenre.Valid {
-			info.Genres = splitAndTrim(row.ShowGenre.String)
-		}
-	} else {
-		row := result.(sqlc_sqlite.GetEpisodeWithShowTitleRow)
-		info.ID = row.MediaID
-		info.Title = row.Title
-		info.LibraryID = row.LibraryID
-		if row.Plot.Valid {
-			info.Plot = row.Plot.String
-		}
-		info.SeasonNumber = int(row.SeasonNumber)
-		info.EpisodeNumber = int(row.EpisodeNumber)
-		info.ShowTitle = row.ShowTitle
-		if row.ShowGenre.Valid {
-			info.Genres = splitAndTrim(row.ShowGenre.String)
-		}
+	if row.Plot.Valid {
+		info.Plot = row.Plot.String
+	}
+	if row.ShowGenre.Valid {
+		info.Genres = splitAndTrim(row.ShowGenre.String)
 	}
 
 	return info
 }
 
 func (q *DBMediaQuerier) listTVShowDetailsByLibrary(ctx context.Context, libraryID int64, limit, offset int) ([]*MediaDetailsInfo, int, error) {
-	results, err := q.router.Route(
-		func() (any, error) {
-			return q.postgres.ListTVShowsByLibraryPaginated(ctx, sqlc_postgres.ListTVShowsByLibraryPaginatedParams{
-				LibraryID: libraryID,
-				Limit:     int32(limit),
-				Offset:    int32(offset),
-			})
-		},
-		func() (any, error) {
-			return q.sqlite.ListTVShowsByLibraryPaginated(ctx, sqlc_sqlite.ListTVShowsByLibraryPaginatedParams{
-				LibraryID: libraryID,
-				Limit:     int64(limit),
-				Offset:    int64(offset),
-			})
-		},
-	)
+	results, err := q.querier.ListTVShowsByLibraryPaginated(ctx, unified.ListTVShowsByLibraryPaginatedParams{
+		LibraryID: libraryID,
+		Limit:     int64(limit),
+		Offset:    int64(offset),
+	})
 	if err != nil {
 		return nil, 0, err
 	}
 
-	countResult, err := q.router.Route(
-		func() (any, error) {
-			return q.postgres.CountTVShowsByLibrary(ctx, libraryID)
-		},
-		func() (any, error) {
-			return q.sqlite.CountTVShowsByLibrary(ctx, libraryID)
-		},
-	)
+	total, err := q.querier.CountTVShowsByLibrary(ctx, libraryID)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	total := int(countResult.(int64))
-	return q.tvShowPaginatedRowsToDetails(results), total, nil
+	return q.tvShowPaginatedRowsToDetails(results), int(total), nil
 }
 
-func (q *DBMediaQuerier) tvShowPaginatedRowsToDetails(results any) []*MediaDetailsInfo {
+func (q *DBMediaQuerier) tvShowPaginatedRowsToDetails(results []unified.TvShow) []*MediaDetailsInfo {
 	var infos []*MediaDetailsInfo
 
-	if q.router.IsPostgresDB() {
-		for _, row := range results.([]sqlc_postgres.TvShow) {
-			info := &MediaDetailsInfo{
-				ID:        row.ID,
-				MediaType: "tv_show",
-				Title:     row.Title,
-				LibraryID: row.LibraryID,
-			}
-			if row.Year.Valid {
-				info.Year = int(row.Year.Int64)
-			}
-			if row.Plot.Valid {
-				info.Plot = row.Plot.String
-			}
-			if row.Genre.Valid {
-				info.Genres = splitAndTrim(row.Genre.String)
-			}
-			if row.ContentRating.Valid {
-				info.ContentRating = row.ContentRating.String
-			}
-			if row.OriginalLanguage.Valid {
-				info.OriginalLanguage = row.OriginalLanguage.String
-			}
-			if row.CountryOfOrigin.Valid {
-				info.CountryOfOrigin = row.CountryOfOrigin.String
-			}
-			infos = append(infos, info)
+	for _, row := range results {
+		info := &MediaDetailsInfo{
+			ID:        row.ID,
+			MediaType: "tv_show",
+			Title:     row.Title,
+			LibraryID: row.LibraryID,
 		}
-	} else {
-		for _, row := range results.([]sqlc_sqlite.TvShow) {
-			info := &MediaDetailsInfo{
-				ID:        row.ID,
-				MediaType: "tv_show",
-				Title:     row.Title,
-				LibraryID: row.LibraryID,
-			}
-			if row.Year.Valid {
-				info.Year = int(row.Year.Int64)
-			}
-			if row.Plot.Valid {
-				info.Plot = row.Plot.String
-			}
-			if row.Genre.Valid {
-				info.Genres = splitAndTrim(row.Genre.String)
-			}
-			if row.ContentRating.Valid {
-				info.ContentRating = row.ContentRating.String
-			}
-			if row.OriginalLanguage.Valid {
-				info.OriginalLanguage = row.OriginalLanguage.String
-			}
-			if row.CountryOfOrigin.Valid {
-				info.CountryOfOrigin = row.CountryOfOrigin.String
-			}
-			infos = append(infos, info)
+		if row.Year.Valid {
+			info.Year = int(row.Year.Int64)
 		}
+		if row.Plot.Valid {
+			info.Plot = row.Plot.String
+		}
+		if row.Genre.Valid {
+			info.Genres = splitAndTrim(row.Genre.String)
+		}
+		if row.ContentRating.Valid {
+			info.ContentRating = row.ContentRating.String
+		}
+		if row.OriginalLanguage.Valid {
+			info.OriginalLanguage = row.OriginalLanguage.String
+		}
+		if row.CountryOfOrigin.Valid {
+			info.CountryOfOrigin = row.CountryOfOrigin.String
+		}
+		infos = append(infos, info)
 	}
 
 	return infos

@@ -181,8 +181,9 @@ migrate-sqlite-create: ## Create a new SQLite-specific migration (usage: make mi
 	@if [ -z "$(NAME)" ]; then echo "Usage: make migrate-sqlite-create NAME=migration_name"; exit 1; fi
 	migrate create -ext sql -dir migrations/sqlite -seq $(NAME)
 
-sqlc-gen: ## Generate sqlc code from queries
+sqlc-gen: ## Generate sqlc code from queries (runs sqlc + post-processing for unified DB layer)
 	~/go/bin/sqlc generate
+	go run ./cmd/sqlc-gen
 
 taskgen: ## Generate scheduler task registration code
 	go run ./cmd/taskgen

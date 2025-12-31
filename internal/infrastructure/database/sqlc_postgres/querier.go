@@ -183,7 +183,7 @@ type Querier interface {
 	// - If status is pending/processing: keep existing state (idempotent)
 	// Always returns the row (new or existing) to avoid "no rows" errors.
 	EnqueueEnrichmentJob(ctx context.Context, arg EnqueueEnrichmentJobParams) (EnrichmentQueue, error)
-	ExistsAnyUser(ctx context.Context) (bool, error)
+	ExistsAnyUser(ctx context.Context) (int64, error)
 	FailEnrichmentJob(ctx context.Context, arg FailEnrichmentJobParams) error
 	FailTranscodeAnalytics(ctx context.Context, arg FailTranscodeAnalyticsParams) error
 	FindAlbumByTitle(ctx context.Context, arg FindAlbumByTitleParams) (MusicAlbum, error)
@@ -235,7 +235,7 @@ type Querier interface {
 	// Legacy query: gets external IDs by media table ID (for backward compatibility)
 	GetExternalIDsByMediaID(ctx context.Context, mediaID sql.NullInt64) ([]MediaExternalID, error)
 	// Batch fetch: gets external IDs for multiple media IDs
-	GetExternalIDsByMediaIDBatch(ctx context.Context, dollar_1 []int64) ([]MediaExternalID, error)
+	GetExternalIDsByMediaIDBatch(ctx context.Context, mediaIds []int64) ([]MediaExternalID, error)
 	GetExternalSubtitlesByMediaID(ctx context.Context, mediaID int64) ([]MediaSubtitleTrack, error)
 	GetFilePathCache(ctx context.Context, libraryID int64) ([]GetFilePathCacheRow, error)
 	GetFirstPipelineStage(ctx context.Context, mediaType string) (EnrichmentPipeline, error)
@@ -273,7 +273,7 @@ type Querier interface {
 	GetMetadataSourcesByMedia(ctx context.Context, mediaID int64) ([]MediaMetadataSource, error)
 	GetMovieByMediaID(ctx context.Context, mediaID int64) (GetMovieByMediaIDRow, error)
 	GetMusicTrackByMediaID(ctx context.Context, mediaID int64) (GetMusicTrackByMediaIDRow, error)
-	GetNextPipelinePosition(ctx context.Context, mediaType string) (int32, error)
+	GetNextPipelinePosition(ctx context.Context, mediaType string) (int64, error)
 	GetNextPipelineStage(ctx context.Context, arg GetNextPipelineStageParams) (EnrichmentPipeline, error)
 	// Find enrichment statuses where a stage completed but the next stage was never enqueued.
 	// This happens when the server crashes between marking a stage complete and enqueuing the next.
@@ -371,8 +371,8 @@ type Querier interface {
 	InsertAudioTrack(ctx context.Context, arg InsertAudioTrackParams) (InsertAudioTrackRow, error)
 	InsertKeyword(ctx context.Context, arg InsertKeywordParams) error
 	InsertSubtitleTrack(ctx context.Context, arg InsertSubtitleTrackParams) (InsertSubtitleTrackRow, error)
-	LibraryExistsByID(ctx context.Context, id int64) (bool, error)
-	LibraryExistsByPath(ctx context.Context, path string) (bool, error)
+	LibraryExistsByID(ctx context.Context, id int64) (int64, error)
+	LibraryExistsByPath(ctx context.Context, path string) (int64, error)
 	ListAlbumsByArtist(ctx context.Context, arg ListAlbumsByArtistParams) ([]MusicAlbum, error)
 	ListAlbumsByLibrary(ctx context.Context, libraryID int64) ([]MusicAlbum, error)
 	ListAlbumsByLibraryGrouped(ctx context.Context, libraryID int64) ([]ListAlbumsByLibraryGroupedRow, error)
@@ -417,10 +417,10 @@ type Querier interface {
 	ListPluginAPIKeys(ctx context.Context, pluginID string) ([]PluginApiKey, error)
 	ListPluginUserMetadataKeys(ctx context.Context, arg ListPluginUserMetadataKeysParams) ([]string, error)
 	ListPlugins(ctx context.Context) ([]ListPluginsRow, error)
-	ListPluginsByCategory(ctx context.Context, categories string) ([]ListPluginsByCategoryRow, error)
+	ListPluginsByCategory(ctx context.Context, category sql.NullString) ([]ListPluginsByCategoryRow, error)
 	ListProcessingTranscodeJobs(ctx context.Context) ([]TranscodeJob, error)
 	ListQualitySwitchEventsBySessionID(ctx context.Context, sessionID string) ([]QualitySwitchEvent, error)
-	ListQueuedTranscodeJobs(ctx context.Context, limit int32) ([]TranscodeJob, error)
+	ListQueuedTranscodeJobs(ctx context.Context, limit int64) ([]TranscodeJob, error)
 	ListRunningScanJobs(ctx context.Context) ([]ScanJob, error)
 	ListScanJobsByLibrary(ctx context.Context, arg ListScanJobsByLibraryParams) ([]ScanJob, error)
 	ListScheduledTasks(ctx context.Context) ([]ScheduledTask, error)
@@ -439,7 +439,7 @@ type Querier interface {
 	ListTVShowsByLibraryPaginated(ctx context.Context, arg ListTVShowsByLibraryPaginatedParams) ([]TvShow, error)
 	ListTVShowsByLibraryPaginatedDesc(ctx context.Context, arg ListTVShowsByLibraryPaginatedDescParams) ([]TvShow, error)
 	ListTranscodeAnalyticsByMediaID(ctx context.Context, arg ListTranscodeAnalyticsByMediaIDParams) ([]TranscodeAnalytic, error)
-	ListTranscodeJobsByLRU(ctx context.Context, limit int32) ([]TranscodeJob, error)
+	ListTranscodeJobsByLRU(ctx context.Context, limit int64) ([]TranscodeJob, error)
 	ListTranscodeJobsByMediaID(ctx context.Context, mediaID int64) ([]TranscodeJob, error)
 	ListTranscodeJobsByStatus(ctx context.Context, status string) ([]TranscodeJob, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
@@ -449,8 +449,8 @@ type Querier interface {
 	MarkEnrichmentFailed(ctx context.Context, arg MarkEnrichmentFailedParams) error
 	MarkEnrichmentSkipped(ctx context.Context, arg MarkEnrichmentSkippedParams) error
 	MarkRunningAsInterrupted(ctx context.Context, resumable sql.NullInt64) (int64, error)
-	MediaExistsInLibrary(ctx context.Context, arg MediaExistsInLibraryParams) (bool, error)
-	PluginExists(ctx context.Context, id string) (bool, error)
+	MediaExistsInLibrary(ctx context.Context, arg MediaExistsInLibraryParams) (int64, error)
+	PluginExists(ctx context.Context, id string) (int64, error)
 	PluginKVCount(ctx context.Context, pluginID string) (int64, error)
 	PluginKVDelete(ctx context.Context, arg PluginKVDeleteParams) error
 	PluginKVDeleteByPlugin(ctx context.Context, pluginID string) error
@@ -476,8 +476,8 @@ type Querier interface {
 	RetryEnrichmentJob(ctx context.Context, id int64) error
 	// Reset all failed jobs for a library to pending for retry.
 	RetryEnrichmentJobsByLibrary(ctx context.Context, libraryID sql.NullInt64) (int64, error)
-	ScheduledTaskExists(ctx context.Context, id string) (bool, error)
-	SchedulerLockExists(ctx context.Context, lockKey string) (bool, error)
+	ScheduledTaskExists(ctx context.Context, id string) (int64, error)
+	SchedulerLockExists(ctx context.Context, lockKey string) (int64, error)
 	SearchArtistsByName(ctx context.Context, arg SearchArtistsByNameParams) ([]MusicArtist, error)
 	SearchArtistsWithCountsByNamePaginated(ctx context.Context, arg SearchArtistsWithCountsByNamePaginatedParams) ([]SearchArtistsWithCountsByNamePaginatedRow, error)
 	SearchByKeyword(ctx context.Context, keyword string) ([]SearchByKeywordRow, error)

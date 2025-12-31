@@ -176,13 +176,13 @@ FROM credits c
 JOIN people p ON c.person_id = p.id
 WHERE c.media_type = $1 AND c.entity_id = $2 AND c.credit_type = 'cast'
 ORDER BY c.billing_order, p.name
-LIMIT $3
+LIMIT $3::bigint
 `
 
 type GetCastForEntityParams struct {
 	MediaType string `json:"media_type"`
 	EntityID  int64  `json:"entity_id"`
-	Limit     int32  `json:"limit"`
+	Limit     int64  `json:"limit"`
 }
 
 type GetCastForEntityRow struct {
@@ -821,12 +821,12 @@ func (q *Queries) GetWritersForEntity(ctx context.Context, arg GetWritersForEnti
 const listPeople = `-- name: ListPeople :many
 SELECT id, name, sort_name, photo_path, photo_url, imdb_id, tmdb_id, created_at, updated_at FROM people
 ORDER BY sort_name, name
-LIMIT $1 OFFSET $2
+LIMIT $2::bigint OFFSET $1::bigint
 `
 
 type ListPeopleParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) ListPeople(ctx context.Context, arg ListPeopleParams) ([]Person, error) {
@@ -866,12 +866,12 @@ const searchPeopleByName = `-- name: SearchPeopleByName :many
 SELECT id, name, sort_name, photo_path, photo_url, imdb_id, tmdb_id, created_at, updated_at FROM people
 WHERE name ILIKE $1
 ORDER BY sort_name, name
-LIMIT $2
+LIMIT $2::bigint
 `
 
 type SearchPeopleByNameParams struct {
 	Name  string `json:"name"`
-	Limit int32  `json:"limit"`
+	Limit int64  `json:"limit"`
 }
 
 func (q *Queries) SearchPeopleByName(ctx context.Context, arg SearchPeopleByNameParams) ([]Person, error) {

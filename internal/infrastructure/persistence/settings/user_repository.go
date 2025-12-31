@@ -6,53 +6,25 @@ import (
 	"errors"
 
 	"github.com/mantonx/viewra/internal/domain/settings"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // UserRepository implements the settings.UserRepository interface.
 type UserRepository struct {
-	db              *sql.DB
-	dbType          string
-	sqliteQuerier   sqlc_sqlite.Querier
-	postgresQuerier sqlc_postgres.Querier
+	*common.BaseRepository
 }
 
 // NewUserRepository creates a new user settings repository.
-func NewUserRepository(db *sql.DB, dbType string) *UserRepository {
-	r := &UserRepository{
-		db:     db,
-		dbType: dbType,
+func NewUserRepository(db *common.BaseRepository) *UserRepository {
+	return &UserRepository{
+		BaseRepository: db,
 	}
-
-	if common.IsPostgres(dbType) {
-		r.postgresQuerier = sqlc_postgres.New(db)
-	} else {
-		r.sqliteQuerier = sqlc_sqlite.New(db)
-	}
-
-	return r
 }
 
 // Get retrieves a user setting by user ID and key.
 func (r *UserRepository) Get(ctx context.Context, userID, key string) (*settings.UserSetting, error) {
-	if common.IsSQLite(r.dbType) {
-		row, err := r.sqliteQuerier.GetUserSetting(ctx, sqlc_sqlite.GetUserSettingParams{
-			UserID: userID,
-			Key:    key,
-		})
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, settings.ErrSettingNotFound
-			}
-			return nil, err
-		}
-		return sqliteUserSettingToEntity(row), nil
-	}
-
-	// PostgreSQL
-	row, err := r.postgresQuerier.GetUserSetting(ctx, sqlc_postgres.GetUserSettingParams{
+	row, err := r.Q().GetUserSetting(ctx, unified.GetUserSettingParams{
 		UserID: userID,
 		Key:    key,
 	})
@@ -62,48 +34,25 @@ func (r *UserRepository) Get(ctx context.Context, userID, key string) (*settings
 		}
 		return nil, err
 	}
-	return postgresUserSettingToEntity(row), nil
+	return userSettingToEntity(row), nil
 }
 
 // GetAll retrieves all settings for a user.
 func (r *UserRepository) GetAll(ctx context.Context, userID string) ([]*settings.UserSetting, error) {
-	if common.IsSQLite(r.dbType) {
-		rows, err := r.sqliteQuerier.GetAllUserSettings(ctx, userID)
-		if err != nil {
-			return nil, err
-		}
-		result := make([]*settings.UserSetting, len(rows))
-		for i, row := range rows {
-			result[i] = sqliteUserSettingToEntity(row)
-		}
-		return result, nil
-	}
-
-	// PostgreSQL
-	rows, err := r.postgresQuerier.GetAllUserSettings(ctx, userID)
+	rows, err := r.Q().GetAllUserSettings(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]*settings.UserSetting, len(rows))
 	for i, row := range rows {
-		result[i] = postgresUserSettingToEntity(row)
+		result[i] = userSettingToEntity(row)
 	}
 	return result, nil
 }
 
 // Set creates or updates a user setting.
 func (r *UserRepository) Set(ctx context.Context, setting *settings.UserSetting) error {
-	if common.IsSQLite(r.dbType) {
-		return r.sqliteQuerier.UpsertUserSetting(ctx, sqlc_sqlite.UpsertUserSettingParams{
-			UserID:    setting.UserID,
-			Key:       setting.Key,
-			Value:     setting.Value,
-			UpdatedAt: setting.UpdatedAt,
-		})
-	}
-
-	// PostgreSQL
-	return r.postgresQuerier.UpsertUserSetting(ctx, sqlc_postgres.UpsertUserSettingParams{
+	return r.Q().UpsertUserSetting(ctx, unified.UpsertUserSettingParams{
 		UserID:    setting.UserID,
 		Key:       setting.Key,
 		Value:     setting.Value,
@@ -113,15 +62,7 @@ func (r *UserRepository) Set(ctx context.Context, setting *settings.UserSetting)
 
 // Delete removes a user setting.
 func (r *UserRepository) Delete(ctx context.Context, userID, key string) error {
-	if common.IsSQLite(r.dbType) {
-		return r.sqliteQuerier.DeleteUserSetting(ctx, sqlc_sqlite.DeleteUserSettingParams{
-			UserID: userID,
-			Key:    key,
-		})
-	}
-
-	// PostgreSQL
-	return r.postgresQuerier.DeleteUserSetting(ctx, sqlc_postgres.DeleteUserSettingParams{
+	return r.Q().DeleteUserSetting(ctx, unified.DeleteUserSettingParams{
 		UserID: userID,
 		Key:    key,
 	})
@@ -129,24 +70,12 @@ func (r *UserRepository) Delete(ctx context.Context, userID, key string) error {
 
 // DeleteAll removes all settings for a user.
 func (r *UserRepository) DeleteAll(ctx context.Context, userID string) error {
-	if common.IsSQLite(r.dbType) {
-		return r.sqliteQuerier.DeleteAllUserSettings(ctx, userID)
-	}
-	return r.postgresQuerier.DeleteAllUserSettings(ctx, userID)
+	return r.Q().DeleteAllUserSettings(ctx, userID)
 }
 
 // Conversion helpers
 
-func sqliteUserSettingToEntity(row sqlc_sqlite.UserSetting) *settings.UserSetting {
-	return &settings.UserSetting{
-		UserID:    row.UserID,
-		Key:       row.Key,
-		Value:     row.Value,
-		UpdatedAt: row.UpdatedAt,
-	}
-}
-
-func postgresUserSettingToEntity(row sqlc_postgres.UserSetting) *settings.UserSetting {
+func userSettingToEntity(row unified.UserSetting) *settings.UserSetting {
 	return &settings.UserSetting{
 		UserID:    row.UserID,
 		Key:       row.Key,

@@ -4,20 +4,14 @@ import (
 	"database/sql"
 
 	"github.com/mantonx/viewra/internal/domain/media"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/metadata/quality"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // Repository implements media.Repository using sqlc.
-// It supports both SQLite and PostgreSQL through database-specific queriers.
 type Repository struct {
-	db       *sql.DB
-	dbType   string
-	sqlite   *sqlc_sqlite.Queries
-	postgres *sqlc_postgres.Queries
-	router   *common.QueryRouter
+	*common.BaseRepository
 }
 
 // calculateQualityScore computes a quality score for a media entity using technical characteristics.
@@ -32,37 +26,8 @@ func calculateQualityScore(m *media.Media) int {
 	})
 }
 
-// pgMediumToDomain converts a PostgreSQL Medium model to a domain Media entity.
-func pgMediumToDomain(pg sqlc_postgres.Medium) *media.Media {
-	return &media.Media{
-		ID:              int64(pg.ID),
-		LibraryID:       int64(pg.LibraryID),
-		Title:           pg.Title,
-		Type:            pg.Type,
-		FilePath:        pg.FilePath,
-		FileSize:        pg.FileSize.Int64,
-		FileHash:        pg.FileHash.String,
-		Duration:        int(pg.Duration.Float64),
-		IsExtra:         common.Int64ToBool(pg.IsExtra),
-		Width:           int(pg.Width.Int64),
-		Height:          int(pg.Height.Int64),
-		VideoCodec:      pg.Codec.String,
-		AudioCodec:      pg.AudioCodec.String,
-		Bitrate:         pg.BitRate.Int64,
-		FrameRate:       pg.FrameRate.Float64,
-		ContainerFormat: pg.ContainerFormat.String,
-		CodecProfile:    pg.CodecProfile.String,
-		ScanType:        pg.ScanType.String,
-		HDRFormat:       pg.HdrFormat.String,
-		ColorSpace:      pg.ColorSpace.String,
-		ColorPrimaries:  pg.ColorPrimaries.String,
-		CreatedAt:       common.ParseNullTime(pg.CreatedAt),
-		UpdatedAt:       common.ParseNullTime(pg.UpdatedAt),
-	}
-}
-
-// sqliteMediumToDomain converts a SQLite Medium model to a domain Media entity.
-func sqliteMediumToDomain(sq sqlc_sqlite.Medium) *media.Media {
+// mediumToDomain converts a database Medium model to a domain Media entity.
+func mediumToDomain(sq unified.Medium) *media.Media {
 	return &media.Media{
 		ID:              sq.ID,
 		LibraryID:       sq.LibraryID,
@@ -90,9 +55,9 @@ func sqliteMediumToDomain(sq sqlc_sqlite.Medium) *media.Media {
 	}
 }
 
-// buildPostgresCreateParams builds CreateMediaParams for PostgreSQL from a domain Media entity.
-func buildPostgresCreateParams(m *media.Media) sqlc_postgres.CreateMediaParams {
-	return sqlc_postgres.CreateMediaParams{
+// buildCreateParams builds CreateMediaParams from a domain Media entity.
+func buildCreateParams(m *media.Media) unified.CreateMediaParams {
+	return unified.CreateMediaParams{
 		LibraryID:         m.LibraryID,
 		Title:             m.Title,
 		FilePath:          m.FilePath,
@@ -114,7 +79,7 @@ func buildPostgresCreateParams(m *media.Media) sqlc_postgres.CreateMediaParams {
 		HdrFormat:         common.NullString(m.HDRFormat),
 		ColorSpace:        common.NullString(m.ColorSpace),
 		ColorPrimaries:    common.NullString(m.ColorPrimaries),
-		ThumbnailPath:     sql.NullString{}, // Set separately via UpdateThumbnailPath
+		ThumbnailPath:     sql.NullString{},
 		SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
 		ResolutionLabel:   common.NullString(media.CalculateResolutionLabelFromDimensions(m.Width, m.Height)),
 		QualityScore:      common.NullInt64(int64(calculateQualityScore(m))),
@@ -126,84 +91,10 @@ func buildPostgresCreateParams(m *media.Media) sqlc_postgres.CreateMediaParams {
 	}
 }
 
-// buildSQLiteCreateParams builds CreateMediaParams for SQLite from a domain Media entity.
-func buildSQLiteCreateParams(m *media.Media) sqlc_sqlite.CreateMediaParams {
-	return sqlc_sqlite.CreateMediaParams{
-		LibraryID:         m.LibraryID,
-		Title:             m.Title,
-		FilePath:          m.FilePath,
-		FileSize:          common.NullInt64(m.FileSize),
-		Duration:          common.NullFloat64(float64(m.Duration)),
-		Type:              m.Type,
-		IsExtra:           common.BoolToInt64(m.IsExtra),
-		FileHash:          common.NullString(m.FileHash),
-		ContainerFormat:   common.NullString(m.ContainerFormat),
-		Width:             common.NullInt64(int64(m.Width)),
-		Height:            common.NullInt64(int64(m.Height)),
-		AspectRatio:       common.NullString(media.CalculateAspectRatio(m.Width, m.Height)),
-		Codec:             common.NullString(m.VideoCodec),
-		AudioCodec:        common.NullString(m.AudioCodec),
-		CodecProfile:      common.NullString(m.CodecProfile),
-		BitRate:           common.NullInt64(m.Bitrate),
-		FrameRate:         common.NullFloat64(m.FrameRate),
-		ScanType:          common.NullString(m.ScanType),
-		HdrFormat:         common.NullString(m.HDRFormat),
-		ColorSpace:        common.NullString(m.ColorSpace),
-		ColorPrimaries:    common.NullString(m.ColorPrimaries),
-		ThumbnailPath:     sql.NullString{}, // TODO: Generate during scan
-		SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
-		ResolutionLabel:   common.NullString(media.CalculateResolutionLabelFromDimensions(m.Width, m.Height)),
-		QualityScore:      common.NullInt64(int64(calculateQualityScore(m))),
-		Is3d:              common.NullInt64FromBool(func() bool { is3d, _ := media.Detect3D(m.FilePath); return is3d }()),
-		StereoMode:        common.NullString(func() string { _, stereoMode := media.Detect3D(m.FilePath); return stereoMode }()),
-		HasDash:           common.NullInt64FromBool(false),
-		DashManifestPath:  sql.NullString{},
-		TranscodingStatus: sql.NullString{},
-	}
-}
-
-// buildPostgresUpdateParams builds UpdateMediaParams for PostgreSQL from a domain Media entity.
-func buildPostgresUpdateParams(m *media.Media) sqlc_postgres.UpdateMediaParams {
-	params := buildPostgresCreateParams(m)
-	return sqlc_postgres.UpdateMediaParams{
-		LibraryID:         params.LibraryID,
-		Title:             params.Title,
-		FilePath:          params.FilePath,
-		FileSize:          params.FileSize,
-		Duration:          params.Duration,
-		Type:              params.Type,
-		IsExtra:           params.IsExtra,
-		FileHash:          params.FileHash,
-		ContainerFormat:   params.ContainerFormat,
-		Width:             params.Width,
-		Height:            params.Height,
-		AspectRatio:       params.AspectRatio,
-		Codec:             params.Codec,
-		AudioCodec:        params.AudioCodec,
-		CodecProfile:      params.CodecProfile,
-		BitRate:           params.BitRate,
-		FrameRate:         params.FrameRate,
-		ScanType:          params.ScanType,
-		HdrFormat:         params.HdrFormat,
-		ColorSpace:        params.ColorSpace,
-		ColorPrimaries:    params.ColorPrimaries,
-		ThumbnailPath:     params.ThumbnailPath,
-		SourceType:        params.SourceType,
-		ResolutionLabel:   params.ResolutionLabel,
-		QualityScore:      params.QualityScore,
-		Is3d:              params.Is3d,
-		StereoMode:        params.StereoMode,
-		HasDash:           params.HasDash,
-		DashManifestPath:  params.DashManifestPath,
-		TranscodingStatus: params.TranscodingStatus,
-		ID:                m.ID,
-	}
-}
-
-// buildSQLiteUpdateParams builds UpdateMediaParams for SQLite from a domain Media entity.
-func buildSQLiteUpdateParams(m *media.Media) sqlc_sqlite.UpdateMediaParams {
-	params := buildSQLiteCreateParams(m)
-	return sqlc_sqlite.UpdateMediaParams{
+// buildUpdateParams builds UpdateMediaParams from a domain Media entity.
+func buildUpdateParams(m *media.Media) unified.UpdateMediaParams {
+	params := buildCreateParams(m)
+	return unified.UpdateMediaParams{
 		LibraryID:         params.LibraryID,
 		Title:             params.Title,
 		FilePath:          params.FilePath,

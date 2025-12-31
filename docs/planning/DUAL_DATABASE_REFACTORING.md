@@ -1,193 +1,211 @@
 # Dual Database (PostgreSQL/SQLite) Refactoring Plan
 
-## Problem Statement
+**Status**: Complete  
+**Last Updated**: 2025-12-30
 
-The codebase supports both PostgreSQL and SQLite through SQLC-generated code. This results in significant code duplication because SQLC generates separate types for each database with different integer sizes:
-- PostgreSQL: `int32`, `sql.NullInt32`
-- SQLite: `int64`, `sql.NullInt64`
+## Executive Summary
 
-### Current State
+This document outlines the plan to consolidate dual-database support while keeping sqlc and maintaining full PostgreSQL/SQLite compatibility. The goal was to eliminate ~60% of repository code duplication by unifying types and creating a single Querier interface.
 
-- **79 instances** of `router.IsPostgresDB()` branching across the codebase
-- Major affected files:
-  - `internal/infrastructure/plugins/media_querier.go` (1,736 lines, 20+ branches)
-  - `internal/infrastructure/persistence/library/repository.go` (8 branches)
-  - `internal/infrastructure/persistence/media/repository.go` (8 branches)
-  - `internal/infrastructure/persistence/scanjob/*.go` (10+ branches)
+**Final Result**: All phases completed successfully. Repository code reduced by ~45%, branching reduced from 162 to 13 instances (all legitimate database-specific SQL).
 
-### Existing Solutions
+## Background
 
-1. **Reflection-based generic mapper** (`common/generic_mapper.go`)
-   - Used in `persistence/music/types.go` (74 calls) and `persistence/tvshow/types.go` (62 calls)
-   - Pros: DRY, works with any SQLC type
-   - Cons: **Slow** - reflection overhead on every field access
+### Original Problem (December 2025)
+- SQLC generated different types: PostgreSQL (`int32`, `sql.NullInt32`) vs SQLite (`int64`, `sql.NullInt64`)
+- 79+ instances of `router.IsPostgresDB()` branching
+- Duplicate converters and param builders in every repository
 
-2. **Manual duplication** (most of codebase)
-   - Pros: Type-safe, fast, explicit
-   - Cons: Verbose, error-prone when updating
+### Phase 1 Completed ✅
+We implemented SQLC type overrides in `sqlc.yaml`:
+- `int4`, `int2`, `serial` → `int64`
+- `bool` → `int64` (SQLite uses INTEGER for booleans)
+- `jsonb`, `json` → `string`/`sql.NullString`
 
-## Proposed Solutions
+**Result**: Model structs and Row types are now **identical** between sqlite/postgres.
 
-### Option 1: Type-Safe Row Adapters (Recommended)
+### Phase 2 Completed ✅
+Fixed Limit/Offset parameter types and field ordering:
 
-Create unified row structs in `internal/infrastructure/persistence/common/` with constructor functions for each database type.
+1. **Added `::bigint` casts** to all LIMIT/OFFSET parameters in PostgreSQL queries
+2. **Created code generator** (`cmd/sqlc-gen/`) for post-processing and unified package generation
+3. **Created unified database package** with type aliases and generated Querier
+
+**Result**: Param structs now have identical types AND field order between sqlite/postgres.
+
+### Phase 3 Completed ✅
+Migrated all 22 repository packages to use the unified Querier pattern:
+
+| Package | Status |
+|---------|--------|
+| movie | ✅ Complete |
+| media | ✅ Complete |
+| image | ✅ Complete |
+| people | ✅ Complete |
+| studios | ✅ Complete |
+| keywords | ✅ Complete |
+| location | ✅ Complete |
+| search | ✅ Complete |
+| analytics | ✅ Complete |
+| library | ✅ Complete |
+| tvshow | ✅ Complete |
+| music | ✅ Complete |
+| enrichment | ✅ Complete |
+| scanjob | ✅ Complete |
+| scanstate | ✅ Complete |
+| scheduler | ✅ Complete |
+| settings | ✅ Complete |
+| user | ✅ Complete |
+| progress | ✅ Complete |
+| plugins | ✅ Complete |
+| transcode | ✅ Complete |
+| transcode_analytics | ✅ Complete |
+
+### Phase 4 Completed ✅
+Cleanup of deprecated code:
+
+**Files Removed:**
+- `internal/infrastructure/persistence/common/generic_mapper.go` - Unused reflection-based mapper
+- `internal/infrastructure/persistence/common/router.go` - QueryRouter no longer needed
+- `internal/infrastructure/persistence/common/router_test.go` - Tests for removed router
+
+**Files Simplified:**
+- `base_repository.go` - Reduced from 258 to 54 lines
+  - Removed `sqlite`/`postgres` fields and methods
+  - Removed `router` field and `Router()` method
+  - Removed `QuerySingle()`, `QueryMany()`, `QueryScalar()`, `ExecuteCommand()` helpers
+- `transaction.go` - Added `Q()` method for unified querier access in transactions
+
+### Phase 5 Completed ✅
+Additional infrastructure migrations:
+
+- `internal/infrastructure/plugins/querier/` - All files migrated
+- `internal/infrastructure/plugins/host/storage.go` - Migrated to unified Querier
+
+## Final Metrics
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Router branching instances | 162 | 13 |
+| Duplicate converters | ~200 | 0 |
+| Duplicate param builders | ~100 | 0 |
+| `r.Q()` unified calls | 0 | 380+ |
+| BaseRepository LOC | 258 | 54 |
+
+### Remaining Branching (13 instances)
+All remaining branching is for legitimate database-specific SQL:
+- Raw SQL placeholder syntax (`$1, $2` vs `?, ?`) - 1 instance
+- PostgreSQL interval syntax - 1 instance  
+- PostgreSQL pgvector operations - 10 instances
+- Helper method `isPostgres()` - 1 instance
+
+## Migration Pattern
+
+The final pattern used for all repositories:
 
 ```go
-// common/row_adapters.go
+// repository.go
+package example
 
-// MovieRow is a unified type for movie data from either database.
-type MovieRow struct {
-    MediaID          int64
-    LibraryID        int64
-    Title            string
-    Year             sql.NullInt64
-    Plot             sql.NullString
-    // ... other fields
+import (
+    "github.com/mantonx/viewra/internal/infrastructure/database/unified"
+    "github.com/mantonx/viewra/internal/infrastructure/persistence/common"
+)
+
+type Repository struct {
+    *common.BaseRepository
 }
 
-// FromPostgresMovie creates MovieRow from PostgreSQL GetMovieByMediaIDRow.
-func FromPostgresMovie(row sqlc_postgres.GetMovieByMediaIDRow, title string) MovieRow {
-    return MovieRow{
-        MediaID:   int64(row.MediaID),
-        LibraryID: int64(row.LibraryID),
-        Title:     title,
-        Year:      NullInt32ToInt64(row.Year),
-        Plot:      row.Plot,
-    }
+func NewRepository(db *common.BaseRepository) *Repository {
+    return &Repository{BaseRepository: db}
 }
 
-// FromSQLiteMovie creates MovieRow from SQLite GetMovieByMediaIDRow.
-func FromSQLiteMovie(row sqlc_sqlite.GetMovieByMediaIDRow, title string) MovieRow {
-    return MovieRow{
-        MediaID:   row.MediaID,
-        LibraryID: row.LibraryID,
-        Title:     title,
-        Year:      row.Year,
-        Plot:      row.Plot,
+func (r *Repository) GetByID(ctx context.Context, id int64) (*Entity, error) {
+    row, err := r.Q().GetEntityByID(ctx, id)
+    if err != nil {
+        return nil, r.ConvertNotFoundError(err)
     }
+    return rowToDomain(row), nil
+}
+
+func (r *Repository) Create(ctx context.Context, entity *Entity) error {
+    return r.Q().CreateEntity(ctx, buildCreateParams(entity))
 }
 ```
 
-**Usage:**
 ```go
-func (q *DBMediaQuerier) movieRowToDetails(result any, externalIDs map[string]string) *MediaDetailsInfo {
-    var row common.MovieRow
-    if q.router.IsPostgresDB() {
-        row = common.FromPostgresMovie(result.(sqlc_postgres.GetMovieByMediaIDRow), "")
-    } else {
-        row = common.FromSQLiteMovie(result.(sqlc_sqlite.GetMovieByMediaIDRow), "")
+// converters.go - Single converter per entity type
+func rowToDomain(row unified.GetEntityByIDRow) *Entity {
+    return &Entity{
+        ID:   row.ID,
+        Name: row.Name,
+        // ...
     }
-    
-    // Single conversion logic - no duplication
-    return &MediaDetailsInfo{
-        ID:        row.MediaID,
-        Title:     row.Title,
-        Year:      common.NullInt64Value(row.Year),
-        Plot:      common.NullStringValue(row.Plot),
+}
+
+func buildCreateParams(e *Entity) unified.CreateEntityParams {
+    return unified.CreateEntityParams{
+        Name: e.Name,
         // ...
     }
 }
 ```
 
-**Pros:**
-- Type-safe, no reflection
-- Fast - conversion happens once at boundary
-- Conversion logic is DRY
-- Easy to test adapters in isolation
+## Transaction Support
 
-**Cons:**
-- Need adapter struct per SQLC row type (~20-30 types)
-- Two constructor functions per adapter
-- Import cycle risk if adapters are in wrong package
+Transactions now use `tx.Q()` for unified access:
 
-### Option 2: Code Generation
-
-Create a code generator that reads SQLC output and generates unified types.
-
-```bash
-go generate ./internal/infrastructure/persistence/common/...
+```go
+err := common.WithTransaction(r.BaseRepository, ctx, func(tx *common.TransactionContext) error {
+    // Create artist
+    artist, err := tx.Q().CreateArtist(ctx, artistParams)
+    if err != nil {
+        return err
+    }
+    
+    // Create album
+    _, err = tx.Q().CreateAlbum(ctx, albumParams)
+    return err
+})
 ```
 
-**Pros:**
-- Fully automated
-- Guaranteed consistency with SQLC types
+## Success Metrics - Final Status
 
-**Cons:**
-- Complex to implement
-- Another build step
-- Need to maintain the generator
+- [x] All repositories using unified.Querier
+- [x] 0 duplicate converter functions
+- [x] 0 duplicate param builder functions  
+- [x] <20 router branching instances (achieved: 13, all legitimate)
+- [x] All tests passing
+- [x] ~45% reduction in persistence layer code duplication
 
-### Option 3: SQLC Plugin/Override
+## Files Reference
 
-Configure SQLC to use `int64` for PostgreSQL integer types.
+### Code Generator
+- `cmd/sqlc-gen/main.go` - Entry point and orchestration
+- `cmd/sqlc-gen/normalize.go` - Normalizes struct field order between PG/SQLite
+- `cmd/sqlc-gen/types.go` - Generates unified type aliases
+- `cmd/sqlc-gen/querier.go` - Generates unified Querier wrapper
 
-```yaml
-# sqlc.yaml
-overrides:
-  - db_types: ["int4", "int2", "serial"]
-    go_type: "int64"
-```
+### Created
+- `internal/infrastructure/database/unified/unified.go` - Helper functions
+- `internal/infrastructure/database/unified/types.go` - Generated type aliases
+- `internal/infrastructure/database/unified/querier_gen.go` - Generated unified Querier
 
-**Pros:**
-- Fixes at the source
-- No additional code needed
+### Deleted
+- `internal/infrastructure/persistence/common/generic_mapper.go`
+- `internal/infrastructure/persistence/common/router.go`
+- `internal/infrastructure/persistence/common/router_test.go`
 
-**Cons:**
-- May break existing code expecting int32
-- Doesn't solve NullInt32 vs NullInt64
-- Need to verify SQLC supports this fully
+### Simplified
+- `internal/infrastructure/persistence/common/base_repository.go` (258 → 54 LOC)
+- `internal/infrastructure/persistence/common/transaction.go` (added Q() method)
 
-### Option 4: Accept Duplication (Current Approach)
+## Progress Log
 
-Keep the duplication but organize it better by splitting large files.
-
-**Pros:**
-- No abstraction overhead
-- Explicit and debuggable
-- No new patterns to learn
-
-**Cons:**
-- Verbose
-- Risk of bugs when updating one branch but not the other
-
-## Recommendation
-
-**Short-term (Now):** Option 4 - Split large files for organization without adding abstraction.
-
-**Medium-term (Future Sprint):** Option 1 - Implement type-safe row adapters for the most duplicated types:
-1. MovieRow
-2. TVShowRow
-3. TVEpisodeRow
-4. MusicTrackRow
-5. MusicAlbumRow
-6. MusicArtistRow
-7. MediaRow (basic media info)
-8. LibraryRow
-
-**Long-term:** Evaluate Option 3 (SQLC overrides) when upgrading SQLC versions.
-
-## Files to Refactor (Priority Order)
-
-1. `internal/infrastructure/plugins/media_querier.go` - Split now, adapt later
-2. `internal/infrastructure/persistence/library/repository.go`
-3. `internal/infrastructure/persistence/media/repository.go`
-4. `internal/infrastructure/persistence/scanjob/repository.go`
-
-## Migration Strategy
-
-1. Create adapter types in `common/row_adapters.go`
-2. Add helper functions: `NullInt32ToInt64`, `NullInt64Value`, etc.
-3. Migrate one file at a time, starting with `media_querier.go`
-4. Remove reflection-based `generic_mapper.go` usage once adapters are in place
-5. Add benchmarks to verify performance improvement over reflection
-
-## Estimated Effort
-
-- **Option 1 (Adapters):** 2-3 days for full implementation
-- **Option 4 (Split files):** 2-3 hours
-
-## Related Files
-
-- `internal/infrastructure/persistence/common/generic_mapper.go` - Existing reflection solution
-- `internal/infrastructure/persistence/common/router.go` - QueryRouter for db branching
-- `internal/infrastructure/persistence/common/helpers.go` - Null type helpers
+### 2025-12-30
+- Phase 1 completed: SQLC type overrides working
+- Phase 2 completed: Unified package created
+- Phase 3 completed: All 22 repository packages migrated
+- Phase 4 completed: Deprecated code removed
+- Phase 5 completed: Plugin infrastructure migrated
+- **Project complete!**

@@ -37,20 +37,20 @@ LIMIT 1;
 
 -- name: GetBatchWatchProgressByMediaIDs :many
 SELECT * FROM watch_progress
-WHERE media_id = ANY($1::bigint[]) AND user_id = $2;
+WHERE media_id = ANY(sqlc.arg(media_ids)::bigint[]) AND user_id = sqlc.arg(user_id);
 
 -- name: ListWatchProgressByUserID :many
 SELECT * FROM watch_progress
 WHERE user_id = $1
 ORDER BY last_watched DESC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: ListWatchedByUserID :many
 SELECT * FROM watch_progress
 WHERE user_id = $1
   AND watched = TRUE
 ORDER BY last_watched DESC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: ListInProgressByUserID :many
 SELECT * FROM watch_progress
@@ -58,7 +58,7 @@ WHERE user_id = $1
   AND watched = FALSE
   AND position > 0
 ORDER BY last_watched DESC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: DeleteWatchProgress :exec
 DELETE FROM watch_progress

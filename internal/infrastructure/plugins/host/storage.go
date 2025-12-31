@@ -11,9 +11,7 @@ import (
 	"time"
 
 	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
-	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 )
 
 // StorageServer implements the HostStorage gRPC service.
@@ -24,12 +22,10 @@ type StorageServer struct {
 	// baseDir is the base directory for plugin data (e.g., SQLite databases).
 	baseDir string
 
-	// Database access via sqlc
-	db       *sql.DB
-	dbType   string
-	postgres *sqlc_postgres.Queries
-	sqlite   *sqlc_sqlite.Queries
-	router   *common.QueryRouter
+	// Database access via unified querier
+	db      *sql.DB
+	dbType  string
+	querier *unified.Querier
 
 	// Default quota per plugin (100 MB)
 	defaultQuota int64
@@ -62,22 +58,14 @@ func NewStorageServer(cfg StorageConfig, db *sql.DB, driver string, logger *slog
 		defaultQuota = 100 * 1024 * 1024 // 100 MB
 	}
 
-	s := &StorageServer{
+	return &StorageServer{
 		baseDir:      cfg.BaseDir,
 		db:           db,
 		dbType:       driver,
-		router:       common.NewQueryRouter(driver),
+		querier:      unified.NewQuerier(db, driver),
 		defaultQuota: defaultQuota,
 		logger:       logger,
-	}
-
-	if common.IsPostgres(driver) {
-		s.postgres = sqlc_postgres.New(db)
-	} else {
-		s.sqlite = sqlc_sqlite.New(db)
-	}
-
-	return s, nil
+	}, nil
 }
 
 // KVGet retrieves a value from the plugin's key-value store.
@@ -92,21 +80,10 @@ func (s *StorageServer) KVGet(ctx context.Context, req *pluginv1.KVKey) (*plugin
 		return nil, errors.New("key is required")
 	}
 
-	result, err := s.router.Route(
-		func() (any, error) {
-			return s.postgres.PluginKVGet(ctx, sqlc_postgres.PluginKVGetParams{
-				PluginID: pluginID,
-				Key:      req.Key,
-			})
-		},
-		func() (any, error) {
-			return s.sqlite.PluginKVGet(ctx, sqlc_sqlite.PluginKVGetParams{
-				PluginID: pluginID,
-				Key:      req.Key,
-			})
-		},
-	)
-
+	result, err := s.querier.PluginKVGet(ctx, unified.PluginKVGetParams{
+		PluginID: pluginID,
+		Key:      req.Key,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return &pluginv1.KVValue{Exists: false}, nil
@@ -115,17 +92,8 @@ func (s *StorageServer) KVGet(ctx context.Context, req *pluginv1.KVKey) (*plugin
 		return nil, err
 	}
 
-	// Extract value based on result type
-	var value []byte
-	switch r := result.(type) {
-	case sqlc_postgres.PluginKVGetRow:
-		value = r.Value
-	case sqlc_sqlite.PluginKVGetRow:
-		value = r.Value
-	}
-
 	return &pluginv1.KVValue{
-		Value:  value,
+		Value:  result.Value,
 		Exists: true,
 	}, nil
 }
@@ -149,25 +117,12 @@ func (s *StorageServer) KVSet(ctx context.Context, req *pluginv1.KVEntry) (*plug
 		expiresAt = sql.NullTime{Time: expiry, Valid: true}
 	}
 
-	_, err := s.router.Route(
-		func() (any, error) {
-			return nil, s.postgres.PluginKVSet(ctx, sqlc_postgres.PluginKVSetParams{
-				PluginID:  pluginID,
-				Key:       req.Key,
-				Value:     req.Value,
-				ExpiresAt: expiresAt,
-			})
-		},
-		func() (any, error) {
-			return nil, s.sqlite.PluginKVSet(ctx, sqlc_sqlite.PluginKVSetParams{
-				PluginID:  pluginID,
-				Key:       req.Key,
-				Value:     req.Value,
-				ExpiresAt: expiresAt,
-			})
-		},
-	)
-
+	err := s.querier.PluginKVSet(ctx, unified.PluginKVSetParams{
+		PluginID:  pluginID,
+		Key:       req.Key,
+		Value:     req.Value,
+		ExpiresAt: expiresAt,
+	})
 	if err != nil {
 		s.logger.Error("failed to set key", "plugin", pluginID, "key", req.Key, "error", err)
 		return nil, err
@@ -187,21 +142,10 @@ func (s *StorageServer) KVDelete(ctx context.Context, req *pluginv1.KVKey) (*plu
 		return nil, errors.New("key is required")
 	}
 
-	_, err := s.router.Route(
-		func() (any, error) {
-			return nil, s.postgres.PluginKVDelete(ctx, sqlc_postgres.PluginKVDeleteParams{
-				PluginID: pluginID,
-				Key:      req.Key,
-			})
-		},
-		func() (any, error) {
-			return nil, s.sqlite.PluginKVDelete(ctx, sqlc_sqlite.PluginKVDeleteParams{
-				PluginID: pluginID,
-				Key:      req.Key,
-			})
-		},
-	)
-
+	err := s.querier.PluginKVDelete(ctx, unified.PluginKVDeleteParams{
+		PluginID: pluginID,
+		Key:      req.Key,
+	})
 	if err != nil {
 		s.logger.Error("failed to delete key", "plugin", pluginID, "key", req.Key, "error", err)
 		return nil, err
@@ -222,35 +166,15 @@ func (s *StorageServer) KVList(ctx context.Context, req *pluginv1.KVListRequest)
 		limit = 100
 	}
 
-	result, err := s.router.Route(
-		func() (any, error) {
-			return s.postgres.PluginKVList(ctx, sqlc_postgres.PluginKVListParams{
-				PluginID: pluginID,
-				Column2:  req.Prefix,
-				Column3:  sql.NullString{String: req.Prefix, Valid: true},
-				Limit:    int32(limit),
-			})
-		},
-		func() (any, error) {
-			return s.sqlite.PluginKVList(ctx, sqlc_sqlite.PluginKVListParams{
-				PluginID: pluginID,
-				Column2:  req.Prefix,
-				Column3:  sql.NullString{String: req.Prefix, Valid: true},
-				Limit:    int64(limit),
-			})
-		},
-	)
-
+	keys, err := s.querier.PluginKVList(ctx, unified.PluginKVListParams{
+		PluginID: pluginID,
+		Column2:  req.Prefix,
+		Column3:  sql.NullString{String: req.Prefix, Valid: true},
+		Limit:    int64(limit),
+	})
 	if err != nil {
 		s.logger.Error("failed to list keys", "plugin", pluginID, "prefix", req.Prefix, "error", err)
 		return nil, err
-	}
-
-	// Extract keys based on result type
-	var keys []string
-	switch r := result.(type) {
-	case []string:
-		keys = r
 	}
 
 	return &pluginv1.KVKeyList{Keys: keys}, nil
@@ -289,26 +213,9 @@ func (s *StorageServer) GetDatabaseStats(ctx context.Context, _ *pluginv1.Empty)
 	}
 
 	// Get KV store size from database
-	result, err := s.router.Route(
-		func() (any, error) {
-			return s.postgres.PluginKVTotalSize(ctx, pluginID)
-		},
-		func() (any, error) {
-			return s.sqlite.PluginKVTotalSize(ctx, pluginID)
-		},
-	)
-
-	var kvSize int64
-	if err == nil {
-		switch r := result.(type) {
-		case int64:
-			kvSize = r
-		case interface{}:
-			// SQLite returns interface{} for COALESCE
-			if v, ok := r.(int64); ok {
-				kvSize = v
-			}
-		}
+	kvSize, err := s.querier.PluginKVTotalSize(ctx, pluginID)
+	if err != nil {
+		kvSize = 0
 	}
 
 	// Get plugin's local database file size
@@ -319,19 +226,9 @@ func (s *StorageServer) GetDatabaseStats(ctx context.Context, _ *pluginv1.Empty)
 	}
 
 	// Get key count
-	var keyCount int64
-	countResult, err := s.router.Route(
-		func() (any, error) {
-			return s.postgres.PluginKVCount(ctx, pluginID)
-		},
-		func() (any, error) {
-			return s.sqlite.PluginKVCount(ctx, pluginID)
-		},
-	)
-	if err == nil {
-		if c, ok := countResult.(int64); ok {
-			keyCount = c
-		}
+	keyCount, err := s.querier.PluginKVCount(ctx, pluginID)
+	if err != nil {
+		keyCount = 0
 	}
 
 	return &pluginv1.DatabaseStats{
@@ -345,14 +242,7 @@ func (s *StorageServer) GetDatabaseStats(ctx context.Context, _ *pluginv1.Empty)
 // Called when a plugin is uninstalled.
 func (s *StorageServer) DeletePluginStorage(ctx context.Context, pluginID string) error {
 	// Delete KV entries
-	_, err := s.router.Route(
-		func() (any, error) {
-			return nil, s.postgres.PluginKVDeleteByPlugin(ctx, pluginID)
-		},
-		func() (any, error) {
-			return nil, s.sqlite.PluginKVDeleteByPlugin(ctx, pluginID)
-		},
-	)
+	err := s.querier.PluginKVDeleteByPlugin(ctx, pluginID)
 	if err != nil {
 		s.logger.Error("failed to delete plugin KV entries", "plugin", pluginID, "error", err)
 	}
@@ -371,14 +261,7 @@ func (s *StorageServer) DeletePluginStorage(ctx context.Context, pluginID string
 // CleanupExpiredEntries removes expired KV entries.
 // Should be called periodically (e.g., daily).
 func (s *StorageServer) CleanupExpiredEntries(ctx context.Context) error {
-	_, err := s.router.Route(
-		func() (any, error) {
-			return nil, s.postgres.PluginKVDeleteExpired(ctx)
-		},
-		func() (any, error) {
-			return nil, s.sqlite.PluginKVDeleteExpired(ctx)
-		},
-	)
+	err := s.querier.PluginKVDeleteExpired(ctx)
 	if err != nil {
 		s.logger.Error("failed to cleanup expired entries", "error", err)
 		return err

@@ -318,7 +318,7 @@ SELECT id, name, version, description, author, license, homepage,
        settings, settings_schema,
        installed_at, updated_at
 FROM plugins
-WHERE categories LIKE '%' || ? || '%'
+WHERE categories LIKE '%' || ?1 || '%'
 ORDER BY is_builtin DESC, name
 `
 
@@ -343,8 +343,8 @@ type ListPluginsByCategoryRow struct {
 	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
-func (q *Queries) ListPluginsByCategory(ctx context.Context, dollar_1 sql.NullString) ([]ListPluginsByCategoryRow, error) {
-	rows, err := q.db.QueryContext(ctx, listPluginsByCategory, dollar_1)
+func (q *Queries) ListPluginsByCategory(ctx context.Context, category sql.NullString) ([]ListPluginsByCategoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPluginsByCategory, category)
 	if err != nil {
 		return nil, err
 	}

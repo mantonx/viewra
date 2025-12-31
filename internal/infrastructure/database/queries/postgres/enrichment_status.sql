@@ -29,7 +29,7 @@ ORDER BY stage;
 SELECT * FROM enrichment_status
 WHERE stage = $1 AND status = $2
 ORDER BY media_type, media_id
-LIMIT $3 OFFSET $4;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: CountEnrichmentStatusByStage :one
 SELECT
@@ -82,11 +82,11 @@ SELECT
     COUNT(*)::bigint as total_count
 FROM enrichment_status es
 WHERE (
-    (es.media_type IN ('movie', 'tv', 'music') AND EXISTS (SELECT 1 FROM media m WHERE m.id = es.media_id AND m.library_id = $1))
-    OR (es.media_type = 'tv_show' AND EXISTS (SELECT 1 FROM tv_shows ts WHERE ts.id = es.media_id AND ts.library_id = $1))
-    OR (es.media_type = 'tv_season' AND EXISTS (SELECT 1 FROM tv_seasons tsn JOIN tv_shows ts ON ts.id = tsn.show_id WHERE tsn.id = es.media_id AND ts.library_id = $1))
-    OR (es.media_type = 'music_album' AND EXISTS (SELECT 1 FROM music_albums ma WHERE ma.id = es.media_id AND ma.library_id = $1))
-    OR (es.media_type = 'music_artist' AND EXISTS (SELECT 1 FROM music_artists mart WHERE mart.id = es.media_id AND mart.library_id = $1))
+    (es.media_type IN ('movie', 'tv', 'music') AND EXISTS (SELECT 1 FROM media m WHERE m.id = es.media_id AND m.library_id = sqlc.arg('library_id')))
+    OR (es.media_type = 'tv_show' AND EXISTS (SELECT 1 FROM tv_shows ts WHERE ts.id = es.media_id AND ts.library_id = sqlc.arg('library_id')))
+    OR (es.media_type = 'tv_season' AND EXISTS (SELECT 1 FROM tv_seasons tsn JOIN tv_shows ts ON ts.id = tsn.show_id WHERE tsn.id = es.media_id AND ts.library_id = sqlc.arg('library_id')))
+    OR (es.media_type = 'music_album' AND EXISTS (SELECT 1 FROM music_albums ma WHERE ma.id = es.media_id AND ma.library_id = sqlc.arg('library_id')))
+    OR (es.media_type = 'music_artist' AND EXISTS (SELECT 1 FROM music_artists mart WHERE mart.id = es.media_id AND mart.library_id = sqlc.arg('library_id')))
 )
 GROUP BY es.stage;
 
@@ -98,11 +98,11 @@ SELECT
     -- Total unique media items in enrichment for this library
     (SELECT COUNT(DISTINCT (eq.media_id::text || ':' || eq.media_type))
      FROM enrichment_queue eq
-     WHERE eq.library_id = $1)::bigint as total_items,
+     WHERE eq.library_id = sqlc.narg('library_id'))::bigint as total_items,
     -- Items still pending/processing (not fully done)
     (SELECT COUNT(DISTINCT (eq.media_id::text || ':' || eq.media_type))
      FROM enrichment_queue eq
-     WHERE eq.library_id = $1
+     WHERE eq.library_id = sqlc.narg('library_id')
        AND eq.status IN ('pending', 'processing'))::bigint as remaining_items
 ;
 

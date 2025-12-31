@@ -235,7 +235,7 @@ type Querier interface {
 	// Batch fetch: gets external IDs for multiple media IDs
 	// Note: sqlc doesn't support array params in SQLite, so this is implemented
 	// in the repository using a dynamic query or multiple calls
-	GetExternalIDsByMediaIDBatch(ctx context.Context, mediaIds []sql.NullInt64) ([]MediaExternalID, error)
+	GetExternalIDsByMediaIDBatch(ctx context.Context, mediaIds []int64) ([]MediaExternalID, error)
 	GetExternalSubtitlesByMediaID(ctx context.Context, mediaID int64) ([]MediaSubtitleTrack, error)
 	GetFilePathCache(ctx context.Context, libraryID int64) ([]GetFilePathCacheRow, error)
 	GetFirstPipelineStage(ctx context.Context, mediaType string) (EnrichmentPipeline, error)
@@ -257,8 +257,8 @@ type Querier interface {
 	// Get overall enrichment progress for a library.
 	// Returns: items that completed all stages / total unique items that entered enrichment.
 	// "Fully enriched" means an item has completed the last stage in the pipeline.
-	GetLibraryEnrichmentOverallProgress(ctx context.Context, arg GetLibraryEnrichmentOverallProgressParams) (GetLibraryEnrichmentOverallProgressRow, error)
-	GetLibraryEnrichmentProgress(ctx context.Context, arg GetLibraryEnrichmentProgressParams) ([]GetLibraryEnrichmentProgressRow, error)
+	GetLibraryEnrichmentOverallProgress(ctx context.Context, libraryID sql.NullInt64) (GetLibraryEnrichmentOverallProgressRow, error)
+	GetLibraryEnrichmentProgress(ctx context.Context, libraryID int64) ([]GetLibraryEnrichmentProgressRow, error)
 	GetLibraryErrors(ctx context.Context, libraryID int64) ([]ScanState, error)
 	GetLibraryIssues(ctx context.Context, libraryID int64) ([]ScanState, error)
 	GetLibraryScanState(ctx context.Context, libraryID int64) ([]ScanState, error)
@@ -417,7 +417,7 @@ type Querier interface {
 	ListPluginAPIKeys(ctx context.Context, pluginID string) ([]PluginApiKey, error)
 	ListPluginUserMetadataKeys(ctx context.Context, arg ListPluginUserMetadataKeysParams) ([]string, error)
 	ListPlugins(ctx context.Context) ([]ListPluginsRow, error)
-	ListPluginsByCategory(ctx context.Context, dollar_1 sql.NullString) ([]ListPluginsByCategoryRow, error)
+	ListPluginsByCategory(ctx context.Context, category sql.NullString) ([]ListPluginsByCategoryRow, error)
 	ListProcessingTranscodeJobs(ctx context.Context) ([]TranscodeJob, error)
 	ListQualitySwitchEventsBySessionID(ctx context.Context, sessionID string) ([]QualitySwitchEvent, error)
 	ListQueuedTranscodeJobs(ctx context.Context, limit int64) ([]TranscodeJob, error)
@@ -458,7 +458,7 @@ type Querier interface {
 	PluginKVGet(ctx context.Context, arg PluginKVGetParams) (PluginKVGetRow, error)
 	PluginKVList(ctx context.Context, arg PluginKVListParams) ([]string, error)
 	PluginKVSet(ctx context.Context, arg PluginKVSetParams) error
-	PluginKVTotalSize(ctx context.Context, pluginID string) (interface{}, error)
+	PluginKVTotalSize(ctx context.Context, pluginID string) (int64, error)
 	RefreshSchedulerLock(ctx context.Context, arg RefreshSchedulerLockParams) error
 	ReleaseSchedulerLock(ctx context.Context, lockKey string) error
 	ReleaseStuckEnrichmentJobs(ctx context.Context, dollar_1 sql.NullString) error

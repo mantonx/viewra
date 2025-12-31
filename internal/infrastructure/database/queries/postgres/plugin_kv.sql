@@ -21,7 +21,7 @@ WHERE plugin_id = $1
   AND ($2 = '' OR key LIKE $3 || '%')
   AND (expires_at IS NULL OR expires_at > NOW())
 ORDER BY key
-LIMIT $4;
+LIMIT sqlc.arg('limit')::bigint;
 
 -- name: PluginKVDeleteExpired :exec
 DELETE FROM plugin_kv WHERE expires_at IS NOT NULL AND expires_at <= NOW();

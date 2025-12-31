@@ -2,14 +2,13 @@ package keywords
 
 import (
 	"github.com/mantonx/viewra/internal/domain/media"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
-// SQLite mappers
+// Unified mappers - work for both SQLite and PostgreSQL since types are identical
 
-func sqliteKeywordRowToDomain(row sqlc_sqlite.GetKeywordsByEntityRow) *media.Keyword {
+func keywordRowToDomain(row unified.GetKeywordsByEntityRow) *media.Keyword {
 	return &media.Keyword{
 		KeywordID:  int(row.KeywordID),
 		Name:       row.Keyword,
@@ -17,25 +16,7 @@ func sqliteKeywordRowToDomain(row sqlc_sqlite.GetKeywordsByEntityRow) *media.Key
 	}
 }
 
-func sqliteLocationKeywordRowToDomain(row sqlc_sqlite.GetLocationKeywordsByEntityRow) *media.Keyword {
-	return &media.Keyword{
-		KeywordID:  int(row.KeywordID),
-		Name:       row.Keyword,
-		IsLocation: true,
-	}
-}
-
-// PostgreSQL mappers
-
-func postgresKeywordRowToDomain(row sqlc_postgres.GetKeywordsByEntityRow) *media.Keyword {
-	return &media.Keyword{
-		KeywordID:  int(row.KeywordID),
-		Name:       row.Keyword,
-		IsLocation: common.NullInt64ToBool(row.IsLocation),
-	}
-}
-
-func postgresLocationKeywordRowToDomain(row sqlc_postgres.GetLocationKeywordsByEntityRow) *media.Keyword {
+func locationKeywordRowToDomain(row unified.GetLocationKeywordsByEntityRow) *media.Keyword {
 	return &media.Keyword{
 		KeywordID:  int(row.KeywordID),
 		Name:       row.Keyword,

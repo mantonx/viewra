@@ -7,11 +7,12 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 // setupTestDB creates an in-memory SQLite database with schema
-func setupTestDB(t *testing.T) *sql.DB {
+func setupTestDB(t *testing.T) *common.BaseRepository {
 	t.Helper()
 
 	db, err := sql.Open("sqlite3", ":memory:")
@@ -90,39 +91,27 @@ func setupTestDB(t *testing.T) *sql.DB {
 		t.Fatalf("Failed to insert test library: %v", err)
 	}
 
-	return db
+	return common.NewBaseRepository(db, "sqlite")
 }
 
 func TestNewRepository(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	baseRepo := setupTestDB(t)
+	defer baseRepo.DB().Close()
 
-	tests := []struct {
-		name   string
-		driver string
-	}{
-		{"sqlite driver", "sqlite"},
-		{"sqlite3 driver", "sqlite3"},
+	repo := NewRepository(baseRepo)
+	if repo == nil {
+		t.Error("Expected repository to be created, got nil")
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			repo := NewRepository(db, tt.driver)
-			if repo == nil {
-				t.Error("Expected repository to be created, got nil")
-			}
-			if repo.db != db {
-				t.Error("Expected db to be set")
-			}
-		})
+	if repo.BaseRepository != baseRepo {
+		t.Error("Expected BaseRepository to be set")
 	}
 }
 
 func TestRepository_Create(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	baseRepo := setupTestDB(t)
+	defer baseRepo.DB().Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(baseRepo)
 	ctx := context.Background()
 	now := time.Now()
 
@@ -222,10 +211,10 @@ func TestRepository_Create(t *testing.T) {
 }
 
 func TestRepository_GetByID(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	baseRepo := setupTestDB(t)
+	defer baseRepo.DB().Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(baseRepo)
 	ctx := context.Background()
 	now := time.Now()
 
@@ -305,10 +294,10 @@ func TestRepository_GetByID(t *testing.T) {
 }
 
 func TestRepository_GetLatestByLibrary(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	baseRepo := setupTestDB(t)
+	defer baseRepo.DB().Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(baseRepo)
 	ctx := context.Background()
 	now := time.Now()
 
@@ -324,7 +313,7 @@ func TestRepository_GetLatestByLibrary(t *testing.T) {
 
 	// Manually set older created_at to simulate an older job
 	olderTime := now.Add(-1 * time.Hour)
-	_, err := db.Exec("UPDATE scan_jobs SET created_at = ? WHERE id = ?", olderTime, older.ID)
+	_, err := baseRepo.DB().Exec("UPDATE scan_jobs SET created_at = ? WHERE id = ?", olderTime, older.ID)
 	if err != nil {
 		t.Fatalf("Failed to update created_at for older job: %v", err)
 	}
@@ -393,10 +382,10 @@ func TestRepository_GetLatestByLibrary(t *testing.T) {
 }
 
 func TestRepository_ListByLibrary(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	baseRepo := setupTestDB(t)
+	defer baseRepo.DB().Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(baseRepo)
 	ctx := context.Background()
 	now := time.Now()
 
@@ -476,10 +465,10 @@ func TestRepository_ListByLibrary(t *testing.T) {
 }
 
 func TestRepository_ListRunning(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	baseRepo := setupTestDB(t)
+	defer baseRepo.DB().Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(baseRepo)
 	ctx := context.Background()
 	now := time.Now()
 
@@ -520,10 +509,10 @@ func TestRepository_ListRunning(t *testing.T) {
 }
 
 func TestRepository_UpdateProgress(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	baseRepo := setupTestDB(t)
+	defer baseRepo.DB().Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(baseRepo)
 	ctx := context.Background()
 	now := time.Now()
 
@@ -576,10 +565,10 @@ func TestRepository_UpdateProgress(t *testing.T) {
 }
 
 func TestRepository_UpdateStatus(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	baseRepo := setupTestDB(t)
+	defer baseRepo.DB().Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(baseRepo)
 	ctx := context.Background()
 	now := time.Now()
 
@@ -615,10 +604,10 @@ func TestRepository_UpdateStatus(t *testing.T) {
 }
 
 func TestRepository_Complete(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	baseRepo := setupTestDB(t)
+	defer baseRepo.DB().Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(baseRepo)
 	ctx := context.Background()
 	now := time.Now()
 
@@ -677,10 +666,10 @@ func TestRepository_Complete(t *testing.T) {
 }
 
 func TestRepository_Complete_WithError(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	baseRepo := setupTestDB(t)
+	defer baseRepo.DB().Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(baseRepo)
 	ctx := context.Background()
 	now := time.Now()
 
@@ -727,10 +716,10 @@ func TestRepository_Complete_WithError(t *testing.T) {
 }
 
 func TestRepository_Delete(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	baseRepo := setupTestDB(t)
+	defer baseRepo.DB().Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(baseRepo)
 	ctx := context.Background()
 	now := time.Now()
 
@@ -788,10 +777,10 @@ func TestRepository_Delete(t *testing.T) {
 }
 
 func TestRepository_DeleteOld(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	baseRepo := setupTestDB(t)
+	defer baseRepo.DB().Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(baseRepo)
 	ctx := context.Background()
 	now := time.Now()
 
@@ -812,7 +801,7 @@ func TestRepository_DeleteOld(t *testing.T) {
 
 	// Manually update created_at to simulate an old job
 	// The DELETE query filters by created_at, not completed_at
-	_, err := db.Exec("UPDATE scan_jobs SET created_at = ? WHERE id = ?", oldCompleted, oldJob.ID)
+	_, err := baseRepo.DB().Exec("UPDATE scan_jobs SET created_at = ? WHERE id = ?", oldCompleted, oldJob.ID)
 	if err != nil {
 		t.Fatalf("Failed to update created_at for old job: %v", err)
 	}
@@ -829,7 +818,7 @@ func TestRepository_DeleteOld(t *testing.T) {
 	}
 
 	// Update created_at to simulate a recent job
-	_, err = db.Exec("UPDATE scan_jobs SET created_at = ? WHERE id = ?", recentCompleted, recentJob.ID)
+	_, err = baseRepo.DB().Exec("UPDATE scan_jobs SET created_at = ? WHERE id = ?", recentCompleted, recentJob.ID)
 	if err != nil {
 		t.Fatalf("Failed to update created_at for recent job: %v", err)
 	}

@@ -248,13 +248,14 @@ const listPlaybackSessionsByMediaID = `-- name: ListPlaybackSessionsByMediaID :m
 SELECT id, session_id, media_id, start_time, end_time, total_play_time_ms, total_buffer_time_ms, stall_count, quality_switch_count, average_quality, device_type, connection_type, created_at, startup_time_ms FROM playback_sessions
 WHERE media_id = $1
 ORDER BY start_time DESC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListPlaybackSessionsByMediaIDParams struct {
 	MediaID int64 `json:"media_id"`
-	Limit   int32 `json:"limit"`
-	Offset  int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) ListPlaybackSessionsByMediaID(ctx context.Context, arg ListPlaybackSessionsByMediaIDParams) ([]PlaybackSession, error) {

@@ -5,26 +5,15 @@ import (
 	"database/sql"
 
 	"github.com/mantonx/viewra/internal/domain/enrichment"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // NewExternalIDRepository creates a new external ID repository with the appropriate database driver.
-func NewExternalIDRepository(db *sql.DB, driver string) *ExternalIDRepository {
-	r := &ExternalIDRepository{
-		db:     db,
-		dbType: driver,
-		router: common.NewQueryRouter(driver),
+func NewExternalIDRepository(db *common.BaseRepository) *ExternalIDRepository {
+	return &ExternalIDRepository{
+		BaseRepository: db,
 	}
-
-	if common.IsPostgres(driver) {
-		r.postgres = sqlc_postgres.New(db)
-	} else {
-		r.sqlite = sqlc_sqlite.New(db)
-	}
-
-	return r
 }
 
 // Upsert creates or updates an external ID.
@@ -36,66 +25,34 @@ func (r *ExternalIDRepository) Upsert(ctx context.Context, id *enrichment.Extern
 		mediaID = sql.NullInt64{Int64: *id.MediaID, Valid: true}
 	}
 
-	return r.router.RouteVoid(
-		func() error {
-			return r.postgres.UpsertExternalID(ctx, sqlc_postgres.UpsertExternalIDParams{
-				MediaID:    mediaID,
-				MediaType:  string(id.MediaType),
-				EntityID:   id.EntityID,
-				Provider:   id.Provider,
-				ExternalID: id.ExternalID,
-			})
-		},
-		func() error {
-			return r.sqlite.UpsertExternalID(ctx, sqlc_sqlite.UpsertExternalIDParams{
-				MediaID:    mediaID,
-				MediaType:  string(id.MediaType),
-				EntityID:   id.EntityID,
-				Provider:   id.Provider,
-				ExternalID: id.ExternalID,
-			})
-		},
-	)
+	return r.Q().UpsertExternalID(ctx, unified.UpsertExternalIDParams{
+		MediaID:    mediaID,
+		MediaType:  string(id.MediaType),
+		EntityID:   id.EntityID,
+		Provider:   id.Provider,
+		ExternalID: id.ExternalID,
+	})
 }
 
 // GetByEntity returns all external IDs for an entity by type and ID.
 func (r *ExternalIDRepository) GetByEntity(ctx context.Context, mediaType enrichment.MediaType, entityID int64) ([]*enrichment.ExternalID, error) {
-	result, err := r.router.Route(
-		func() (any, error) {
-			return r.postgres.GetExternalIDsByMedia(ctx, sqlc_postgres.GetExternalIDsByMediaParams{
-				MediaType: string(mediaType),
-				EntityID:  entityID,
-			})
-		},
-		func() (any, error) {
-			return r.sqlite.GetExternalIDsByMedia(ctx, sqlc_sqlite.GetExternalIDsByMediaParams{
-				MediaType: string(mediaType),
-				EntityID:  entityID,
-			})
-		},
-	)
+	rows, err := r.Q().GetExternalIDsByMedia(ctx, unified.GetExternalIDsByMediaParams{
+		MediaType: string(mediaType),
+		EntityID:  entityID,
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	return r.convertResultList(result), nil
+	return mapSlice(rows, convertExternalID), nil
 }
 
 // GetByMedia returns all external IDs for a media table entry (legacy).
 func (r *ExternalIDRepository) GetByMedia(ctx context.Context, mediaID int64) ([]*enrichment.ExternalID, error) {
-	result, err := r.router.Route(
-		func() (any, error) {
-			return r.postgres.GetExternalIDsByMediaID(ctx, sql.NullInt64{Int64: mediaID, Valid: true})
-		},
-		func() (any, error) {
-			return r.sqlite.GetExternalIDsByMediaID(ctx, sql.NullInt64{Int64: mediaID, Valid: true})
-		},
-	)
+	rows, err := r.Q().GetExternalIDsByMediaID(ctx, sql.NullInt64{Int64: mediaID, Valid: true})
 	if err != nil {
 		return nil, err
 	}
-
-	return r.convertResultList(result), nil
+	return mapSlice(rows, convertExternalID), nil
 }
 
 // GetByMediaBatch returns external IDs for multiple media IDs in a single query.
@@ -105,41 +62,17 @@ func (r *ExternalIDRepository) GetByMediaBatch(ctx context.Context, mediaIDs []i
 		return make(map[int64][]*enrichment.ExternalID), nil
 	}
 
-	result, err := r.router.Route(
-		func() (any, error) {
-			return r.postgres.GetExternalIDsByMediaIDBatch(ctx, mediaIDs)
-		},
-		func() (any, error) {
-			// Convert to []sql.NullInt64 for SQLite
-			sqliteIDs := make([]sql.NullInt64, len(mediaIDs))
-			for i, id := range mediaIDs {
-				sqliteIDs[i] = sql.NullInt64{Int64: id, Valid: true}
-			}
-			return r.sqlite.GetExternalIDsByMediaIDBatch(ctx, sqliteIDs)
-		},
-	)
+	rows, err := r.Q().GetExternalIDsByMediaIDBatch(ctx, mediaIDs)
 	if err != nil {
 		return nil, err
 	}
 
 	// Group results by media ID
 	resultMap := make(map[int64][]*enrichment.ExternalID)
-
-	if r.router.IsPostgresDB() {
-		pgIDs := result.([]sqlc_postgres.MediaExternalID)
-		for _, pgID := range pgIDs {
-			if pgID.MediaID.Valid {
-				mediaID := pgID.MediaID.Int64
-				resultMap[mediaID] = append(resultMap[mediaID], r.convertPostgresExternalID(pgID))
-			}
-		}
-	} else {
-		sqIDs := result.([]sqlc_sqlite.MediaExternalID)
-		for _, sqID := range sqIDs {
-			if sqID.MediaID.Valid {
-				mediaID := sqID.MediaID.Int64
-				resultMap[mediaID] = append(resultMap[mediaID], r.convertSqliteExternalID(sqID))
-			}
+	for _, row := range rows {
+		if row.MediaID.Valid {
+			mediaID := row.MediaID.Int64
+			resultMap[mediaID] = append(resultMap[mediaID], convertExternalID(row))
 		}
 	}
 
@@ -148,143 +81,33 @@ func (r *ExternalIDRepository) GetByMediaBatch(ctx context.Context, mediaIDs []i
 
 // GetEntityByExternalID finds an entity by provider and external ID.
 func (r *ExternalIDRepository) GetEntityByExternalID(ctx context.Context, provider, externalID string) (enrichment.MediaType, int64, error) {
-	result, err := r.router.Route(
-		func() (any, error) {
-			return r.postgres.GetEntityByExternalID(ctx, sqlc_postgres.GetEntityByExternalIDParams{
-				Provider:   provider,
-				ExternalID: externalID,
-			})
-		},
-		func() (any, error) {
-			return r.sqlite.GetEntityByExternalID(ctx, sqlc_sqlite.GetEntityByExternalIDParams{
-				Provider:   provider,
-				ExternalID: externalID,
-			})
-		},
-	)
+	row, err := r.Q().GetEntityByExternalID(ctx, unified.GetEntityByExternalIDParams{
+		Provider:   provider,
+		ExternalID: externalID,
+	})
 	if err != nil {
 		return "", 0, err
 	}
-
-	if r.router.IsPostgresDB() {
-		row := result.(sqlc_postgres.GetEntityByExternalIDRow)
-		return enrichment.MediaType(row.MediaType), row.EntityID, nil
-	}
-
-	row := result.(sqlc_sqlite.GetEntityByExternalIDRow)
 	return enrichment.MediaType(row.MediaType), row.EntityID, nil
 }
 
 // GetMediaByExternalID finds a media item by provider and external ID (legacy).
 func (r *ExternalIDRepository) GetMediaByExternalID(ctx context.Context, provider, externalID string) (int64, error) {
-	result, err := r.router.Route(
-		func() (any, error) {
-			return r.postgres.GetMediaByExternalID(ctx, sqlc_postgres.GetMediaByExternalIDParams{
-				Provider:   provider,
-				ExternalID: externalID,
-			})
-		},
-		func() (any, error) {
-			return r.sqlite.GetMediaByExternalID(ctx, sqlc_sqlite.GetMediaByExternalIDParams{
-				Provider:   provider,
-				ExternalID: externalID,
-			})
-		},
-	)
-	if err != nil {
-		return 0, err
-	}
-
-	if r.router.IsPostgresDB() {
-		return int64(result.(int32)), nil
-	}
-	return result.(int64), nil
+	return r.Q().GetMediaByExternalID(ctx, unified.GetMediaByExternalIDParams{
+		Provider:   provider,
+		ExternalID: externalID,
+	})
 }
 
 // DeleteByEntity removes all external IDs for an entity.
 func (r *ExternalIDRepository) DeleteByEntity(ctx context.Context, mediaType enrichment.MediaType, entityID int64) error {
-	return r.router.RouteVoid(
-		func() error {
-			return r.postgres.DeleteExternalIDsByMedia(ctx, sqlc_postgres.DeleteExternalIDsByMediaParams{
-				MediaType: string(mediaType),
-				EntityID:  entityID,
-			})
-		},
-		func() error {
-			return r.sqlite.DeleteExternalIDsByMedia(ctx, sqlc_sqlite.DeleteExternalIDsByMediaParams{
-				MediaType: string(mediaType),
-				EntityID:  entityID,
-			})
-		},
-	)
+	return r.Q().DeleteExternalIDsByMedia(ctx, unified.DeleteExternalIDsByMediaParams{
+		MediaType: string(mediaType),
+		EntityID:  entityID,
+	})
 }
 
 // DeleteByMedia removes all external IDs for a media table entry (legacy).
 func (r *ExternalIDRepository) DeleteByMedia(ctx context.Context, mediaID int64) error {
-	return r.router.RouteVoid(
-		func() error {
-			return r.postgres.DeleteExternalIDsByMediaID(ctx, sql.NullInt64{Int64: mediaID, Valid: true})
-		},
-		func() error {
-			return r.sqlite.DeleteExternalIDsByMediaID(ctx, sql.NullInt64{Int64: mediaID, Valid: true})
-		},
-	)
-}
-
-// convertResultList converts sqlc result list to domain ExternalID list.
-func (r *ExternalIDRepository) convertResultList(result any) []*enrichment.ExternalID {
-	if r.router.IsPostgresDB() {
-		pgIDs := result.([]sqlc_postgres.MediaExternalID)
-		ids := make([]*enrichment.ExternalID, len(pgIDs))
-		for i, pgID := range pgIDs {
-			ids[i] = r.convertPostgresExternalID(pgID)
-		}
-		return ids
-	}
-
-	sqIDs := result.([]sqlc_sqlite.MediaExternalID)
-	ids := make([]*enrichment.ExternalID, len(sqIDs))
-	for i, sqID := range sqIDs {
-		ids[i] = r.convertSqliteExternalID(sqID)
-	}
-	return ids
-}
-
-// convertPostgresExternalID converts a Postgres sqlc result to domain ExternalID.
-func (r *ExternalIDRepository) convertPostgresExternalID(pgID sqlc_postgres.MediaExternalID) *enrichment.ExternalID {
-	var mediaID *int64
-	if pgID.MediaID.Valid {
-		v := pgID.MediaID.Int64
-		mediaID = &v
-	}
-
-	return &enrichment.ExternalID{
-		ID:         pgID.ID,
-		MediaID:    mediaID,
-		MediaType:  enrichment.MediaType(pgID.MediaType),
-		EntityID:   pgID.EntityID,
-		Provider:   pgID.Provider,
-		ExternalID: pgID.ExternalID,
-		CreatedAt:  common.ParseNullTime(pgID.CreatedAt),
-		UpdatedAt:  common.ParseNullTime(pgID.UpdatedAt),
-	}
-}
-
-// convertSqliteExternalID converts a SQLite sqlc result to domain ExternalID.
-func (r *ExternalIDRepository) convertSqliteExternalID(sqID sqlc_sqlite.MediaExternalID) *enrichment.ExternalID {
-	var mediaID *int64
-	if sqID.MediaID.Valid {
-		mediaID = &sqID.MediaID.Int64
-	}
-
-	return &enrichment.ExternalID{
-		ID:         sqID.ID,
-		MediaID:    mediaID,
-		MediaType:  enrichment.MediaType(sqID.MediaType),
-		EntityID:   sqID.EntityID,
-		Provider:   sqID.Provider,
-		ExternalID: sqID.ExternalID,
-		CreatedAt:  common.ParseNullTime(sqID.CreatedAt),
-		UpdatedAt:  common.ParseNullTime(sqID.UpdatedAt),
-	}
+	return r.Q().DeleteExternalIDsByMediaID(ctx, sql.NullInt64{Int64: mediaID, Valid: true})
 }

@@ -43,7 +43,7 @@ ORDER BY created_at ASC;
 SELECT * FROM transcode_jobs
 WHERE status = 'queued'
 ORDER BY created_at ASC
-LIMIT $1;
+LIMIT sqlc.arg('limit')::bigint;
 
 -- name: ListProcessingTranscodeJobs :many
 SELECT * FROM transcode_jobs
@@ -83,7 +83,7 @@ SELECT * FROM transcode_jobs
 WHERE status = 'completed'
   AND last_accessed_at IS NOT NULL
 ORDER BY last_accessed_at ASC
-LIMIT $1;
+LIMIT sqlc.arg('limit')::bigint;
 
 -- name: GetTotalTranscodeSize :one
 SELECT COALESCE(SUM(file_size_bytes), 0) as total_size

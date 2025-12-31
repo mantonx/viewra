@@ -5,17 +5,18 @@ import (
 	"strings"
 
 	"github.com/mantonx/viewra/internal/domain/media"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // ========================================
-// PostgreSQL Mappers
+// Unified Row Mappers
 // ========================================
+// Since PostgreSQL and SQLite types are now structurally identical,
+// we use a single converter per query type using unified type aliases.
 
-// postgresMovieToDomain converts a PostgreSQL GetMovieByMediaIDRow to domain Movie
-func postgresMovieToDomain(row sqlc_postgres.GetMovieByMediaIDRow) *media.Movie {
+// movieRowToDomain converts a GetMovieByMediaIDRow to domain Movie
+func movieRowToDomain(row unified.GetMovieByMediaIDRow) *media.Movie {
 	return toMovieDomain(
 		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
 		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
@@ -30,8 +31,8 @@ func postgresMovieToDomain(row sqlc_postgres.GetMovieByMediaIDRow) *media.Movie 
 	)
 }
 
-// postgresListMovieToDomain converts a PostgreSQL ListMoviesByLibraryRow to domain Movie
-func postgresListMovieToDomain(row sqlc_postgres.ListMoviesByLibraryRow) *media.Movie {
+// listMovieRowToDomain converts a ListMoviesByLibraryRow to domain Movie
+func listMovieRowToDomain(row unified.ListMoviesByLibraryRow) *media.Movie {
 	return toMovieDomain(
 		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
 		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
@@ -46,8 +47,8 @@ func postgresListMovieToDomain(row sqlc_postgres.ListMoviesByLibraryRow) *media.
 	)
 }
 
-// postgresSearchMovieToDomain converts a PostgreSQL SearchMoviesByTitleRow to domain Movie
-func postgresSearchMovieToDomain(row sqlc_postgres.SearchMoviesByTitleRow) *media.Movie {
+// searchMovieRowToDomain converts a SearchMoviesByTitleRow to domain Movie
+func searchMovieRowToDomain(row unified.SearchMoviesByTitleRow) *media.Movie {
 	return toMovieDomain(
 		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
 		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
@@ -62,8 +63,8 @@ func postgresSearchMovieToDomain(row sqlc_postgres.SearchMoviesByTitleRow) *medi
 	)
 }
 
-// postgresGenreMovieToDomain converts a PostgreSQL ListMoviesByGenreRow to domain Movie
-func postgresGenreMovieToDomain(row sqlc_postgres.ListMoviesByGenreRow) *media.Movie {
+// genreMovieRowToDomain converts a ListMoviesByGenreRow to domain Movie
+func genreMovieRowToDomain(row unified.ListMoviesByGenreRow) *media.Movie {
 	return toMovieDomain(
 		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
 		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
@@ -78,92 +79,8 @@ func postgresGenreMovieToDomain(row sqlc_postgres.ListMoviesByGenreRow) *media.M
 	)
 }
 
-// postgresYearMovieToDomain converts a PostgreSQL ListMoviesByYearRow to domain Movie
-func postgresYearMovieToDomain(row sqlc_postgres.ListMoviesByYearRow) *media.Movie {
-	return toMovieDomain(
-		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
-		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
-		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
-		row.CreatedAt, row.UpdatedAt,
-		row.Year, row.ReleaseDate, row.Genre, row.Director, row.Cast,
-		row.ContentRating, row.MaturityRating, row.ContentAdvisories,
-		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
-		row.ImdbID, row.TmdbID, row.RuntimeMinutes, row.Budget,
-		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
-		row.Rating, row.RatingVotes,
-	)
-}
-
-// ========================================
-// SQLite Mappers
-// ========================================
-
-// sqliteMovieToDomain converts a SQLite GetMovieByMediaIDRow to domain Movie
-func sqliteMovieToDomain(row sqlc_sqlite.GetMovieByMediaIDRow) *media.Movie {
-	return toMovieDomain(
-		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
-		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
-		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
-		row.CreatedAt, row.UpdatedAt,
-		row.Year, row.ReleaseDate, row.Genre, row.Director, row.Cast,
-		row.ContentRating, row.MaturityRating, row.ContentAdvisories,
-		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
-		row.ImdbID, row.TmdbID, row.RuntimeMinutes, row.Budget,
-		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
-		row.Rating, row.RatingVotes,
-	)
-}
-
-// sqliteListMovieToDomain converts a ListMoviesByLibraryRow to domain Movie
-func sqliteListMovieToDomain(row sqlc_sqlite.ListMoviesByLibraryRow) *media.Movie {
-	return toMovieDomain(
-		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
-		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
-		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
-		row.CreatedAt, row.UpdatedAt,
-		row.Year, row.ReleaseDate, row.Genre, row.Director, row.Cast,
-		row.ContentRating, row.MaturityRating, row.ContentAdvisories,
-		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
-		row.ImdbID, row.TmdbID, row.RuntimeMinutes, row.Budget,
-		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
-		row.Rating, row.RatingVotes,
-	)
-}
-
-// sqliteSearchMovieToDomain converts a SearchMoviesByTitleRow to domain Movie
-func sqliteSearchMovieToDomain(row sqlc_sqlite.SearchMoviesByTitleRow) *media.Movie {
-	return toMovieDomain(
-		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
-		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
-		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
-		row.CreatedAt, row.UpdatedAt,
-		row.Year, row.ReleaseDate, row.Genre, row.Director, row.Cast,
-		row.ContentRating, row.MaturityRating, row.ContentAdvisories,
-		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
-		row.ImdbID, row.TmdbID, row.RuntimeMinutes, row.Budget,
-		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
-		row.Rating, row.RatingVotes,
-	)
-}
-
-// sqliteGenreMovieToDomain converts a ListMoviesByGenreRow to domain Movie
-func sqliteGenreMovieToDomain(row sqlc_sqlite.ListMoviesByGenreRow) *media.Movie {
-	return toMovieDomain(
-		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
-		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
-		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
-		row.CreatedAt, row.UpdatedAt,
-		row.Year, row.ReleaseDate, row.Genre, row.Director, row.Cast,
-		row.ContentRating, row.MaturityRating, row.ContentAdvisories,
-		row.Plot, row.Tagline, row.OriginalTitle, row.SortTitle,
-		row.ImdbID, row.TmdbID, row.RuntimeMinutes, row.Budget,
-		row.Revenue, row.OriginalLanguage, row.CountryOfOrigin, row.AwardsSummary,
-		row.Rating, row.RatingVotes,
-	)
-}
-
-// sqliteYearMovieToDomain converts a ListMoviesByYearRow to domain Movie
-func sqliteYearMovieToDomain(row sqlc_sqlite.ListMoviesByYearRow) *media.Movie {
+// yearMovieRowToDomain converts a ListMoviesByYearRow to domain Movie
+func yearMovieRowToDomain(row unified.ListMoviesByYearRow) *media.Movie {
 	return toMovieDomain(
 		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
 		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
@@ -244,12 +161,14 @@ func toMovieDomain(
 }
 
 // ========================================
-// PostgreSQL Param Builders
+// Unified Param Builders
 // ========================================
+// Since PostgreSQL and SQLite param types are now structurally identical,
+// we use a single builder per operation using unified type aliases.
 
-// buildPostgresCreateMovieParams builds CreateMovieParams for PostgreSQL from a domain Movie entity
-func buildPostgresCreateMovieParams(m *media.Movie) sqlc_postgres.CreateMovieParams {
-	return sqlc_postgres.CreateMovieParams{
+// buildCreateMovieParams builds CreateMovieParams from a domain Movie entity
+func buildCreateMovieParams(m *media.Movie) unified.CreateMovieParams {
+	return unified.CreateMovieParams{
 		MediaID:           m.Media.ID,
 		Year:              common.NullInt64(int64(m.Year)),
 		ReleaseDate:       common.NullTime(m.ReleaseDate),
@@ -276,10 +195,10 @@ func buildPostgresCreateMovieParams(m *media.Movie) sqlc_postgres.CreateMoviePar
 	}
 }
 
-// buildPostgresUpdateMovieParams builds UpdateMovieParams for PostgreSQL from a domain Movie entity
-func buildPostgresUpdateMovieParams(m *media.Movie) sqlc_postgres.UpdateMovieParams {
-	params := buildPostgresCreateMovieParams(m)
-	return sqlc_postgres.UpdateMovieParams{
+// buildUpdateMovieParams builds UpdateMovieParams from a domain Movie entity
+func buildUpdateMovieParams(m *media.Movie) unified.UpdateMovieParams {
+	params := buildCreateMovieParams(m)
+	return unified.UpdateMovieParams{
 		Year:              params.Year,
 		ReleaseDate:       params.ReleaseDate,
 		Genre:             params.Genre,
@@ -307,67 +226,8 @@ func buildPostgresUpdateMovieParams(m *media.Movie) sqlc_postgres.UpdateMoviePar
 }
 
 // ========================================
-// SQLite Param Builders
+// String Serialization Helpers
 // ========================================
-
-// buildSQLiteCreateMovieParams builds CreateMovieParams for SQLite from a domain Movie entity
-func buildSQLiteCreateMovieParams(m *media.Movie) sqlc_sqlite.CreateMovieParams {
-	return sqlc_sqlite.CreateMovieParams{
-		MediaID:           m.Media.ID,
-		Year:              common.NullInt64(int64(m.Year)),
-		ReleaseDate:       common.NullTime(m.ReleaseDate),
-		Genre:             common.NullString(serializeGenres(m.Genre)),
-		Director:          common.NullString(m.Director),
-		Cast:              common.NullString(serializeCast(m.Cast)),
-		ContentRating:     common.NullString(m.ContentRating),
-		MaturityRating:    common.NullInt64(int64(m.MaturityRating)),
-		ContentAdvisories: common.NullString(serializeAdvisories(m.ContentAdvisories)),
-		Plot:              common.NullString(m.Plot),
-		Tagline:           common.NullString(m.Tagline),
-		OriginalTitle:     common.NullString(m.OriginalTitle),
-		SortTitle:         common.NullString(m.SortTitle),
-		ImdbID:            common.NullString(m.IMDbID),
-		TmdbID:            common.NullInt64(int64(m.TMDbID)),
-		RuntimeMinutes:    common.NullInt64(int64(m.RuntimeMinutes)),
-		Budget:            common.NullInt64(m.Budget),
-		Revenue:           common.NullInt64(m.Revenue),
-		OriginalLanguage:  common.NullString(m.OriginalLanguage),
-		CountryOfOrigin:   common.NullString(m.CountryOfOrigin),
-		AwardsSummary:     common.NullString(m.AwardsSummary),
-		Rating:            common.NullFloat64FromFloat32(m.Rating),
-		RatingVotes:       common.NullInt64(int64(m.RatingVotes)),
-	}
-}
-
-// buildSQLiteUpdateMovieParams builds UpdateMovieParams for SQLite from a domain Movie entity
-func buildSQLiteUpdateMovieParams(m *media.Movie) sqlc_sqlite.UpdateMovieParams {
-	params := buildSQLiteCreateMovieParams(m)
-	return sqlc_sqlite.UpdateMovieParams{
-		Year:              params.Year,
-		ReleaseDate:       params.ReleaseDate,
-		Genre:             params.Genre,
-		Director:          params.Director,
-		Cast:              params.Cast,
-		ContentRating:     params.ContentRating,
-		MaturityRating:    params.MaturityRating,
-		ContentAdvisories: params.ContentAdvisories,
-		Plot:              params.Plot,
-		Tagline:           params.Tagline,
-		OriginalTitle:     params.OriginalTitle,
-		SortTitle:         params.SortTitle,
-		ImdbID:            params.ImdbID,
-		TmdbID:            params.TmdbID,
-		RuntimeMinutes:    params.RuntimeMinutes,
-		Budget:            params.Budget,
-		Revenue:           params.Revenue,
-		OriginalLanguage:  params.OriginalLanguage,
-		CountryOfOrigin:   params.CountryOfOrigin,
-		AwardsSummary:     params.AwardsSummary,
-		Rating:            params.Rating,
-		RatingVotes:       params.RatingVotes,
-		MediaID:           m.Media.ID,
-	}
-}
 
 // parseGenres converts a comma-separated genre string to a slice
 func parseGenres(genreStr string) []string {

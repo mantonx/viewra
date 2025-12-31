@@ -4,8 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
@@ -104,107 +103,54 @@ func normalizeLanguageCode(lang string) string {
 // Returns cast and crew (directors, writers, producers) separately for embedding generation.
 func (q *DBMediaQuerier) getCreditsForEntity(ctx context.Context, mediaType string, entityID int64) (cast []CastMemberInfo, directors, writers, producers []string) {
 	// Fetch cast
-	if q.router.IsPostgresDB() {
-		castRows, err := q.postgres.GetCreditsForEntityByType(ctx, sqlc_postgres.GetCreditsForEntityByTypeParams{
-			MediaType:  mediaType,
-			EntityID:   entityID,
-			CreditType: "cast",
-		})
-		if err == nil {
-			for _, row := range castRows {
-				cast = append(cast, CastMemberInfo{
-					Name:      row.PersonName,
-					Character: row.CharacterName.String,
-					Order:     int(row.BillingOrder.Int64),
-				})
-			}
+	castRows, err := q.querier.GetCreditsForEntityByType(ctx, unified.GetCreditsForEntityByTypeParams{
+		MediaType:  mediaType,
+		EntityID:   entityID,
+		CreditType: "cast",
+	})
+	if err == nil {
+		for _, row := range castRows {
+			cast = append(cast, CastMemberInfo{
+				Name:      row.PersonName,
+				Character: row.CharacterName.String,
+				Order:     int(row.BillingOrder.Int64),
+			})
 		}
+	}
 
-		// Fetch directors
-		directorRows, err := q.postgres.GetCreditsForEntityByType(ctx, sqlc_postgres.GetCreditsForEntityByTypeParams{
-			MediaType:  mediaType,
-			EntityID:   entityID,
-			CreditType: "director",
-		})
-		if err == nil {
-			for _, row := range directorRows {
-				directors = append(directors, row.PersonName)
-			}
+	// Fetch directors
+	directorRows, err := q.querier.GetCreditsForEntityByType(ctx, unified.GetCreditsForEntityByTypeParams{
+		MediaType:  mediaType,
+		EntityID:   entityID,
+		CreditType: "director",
+	})
+	if err == nil {
+		for _, row := range directorRows {
+			directors = append(directors, row.PersonName)
 		}
+	}
 
-		// Fetch writers
-		writerRows, err := q.postgres.GetCreditsForEntityByType(ctx, sqlc_postgres.GetCreditsForEntityByTypeParams{
-			MediaType:  mediaType,
-			EntityID:   entityID,
-			CreditType: "writer",
-		})
-		if err == nil {
-			for _, row := range writerRows {
-				writers = append(writers, row.PersonName)
-			}
+	// Fetch writers
+	writerRows, err := q.querier.GetCreditsForEntityByType(ctx, unified.GetCreditsForEntityByTypeParams{
+		MediaType:  mediaType,
+		EntityID:   entityID,
+		CreditType: "writer",
+	})
+	if err == nil {
+		for _, row := range writerRows {
+			writers = append(writers, row.PersonName)
 		}
+	}
 
-		// Fetch producers
-		producerRows, err := q.postgres.GetCreditsForEntityByType(ctx, sqlc_postgres.GetCreditsForEntityByTypeParams{
-			MediaType:  mediaType,
-			EntityID:   entityID,
-			CreditType: "producer",
-		})
-		if err == nil {
-			for _, row := range producerRows {
-				producers = append(producers, row.PersonName)
-			}
-		}
-	} else {
-		castRows, err := q.sqlite.GetCreditsForEntityByType(ctx, sqlc_sqlite.GetCreditsForEntityByTypeParams{
-			MediaType:  mediaType,
-			EntityID:   entityID,
-			CreditType: "cast",
-		})
-		if err == nil {
-			for _, row := range castRows {
-				cast = append(cast, CastMemberInfo{
-					Name:      row.PersonName,
-					Character: row.CharacterName.String,
-					Order:     int(row.BillingOrder.Int64),
-				})
-			}
-		}
-
-		// Fetch directors
-		directorRows, err := q.sqlite.GetCreditsForEntityByType(ctx, sqlc_sqlite.GetCreditsForEntityByTypeParams{
-			MediaType:  mediaType,
-			EntityID:   entityID,
-			CreditType: "director",
-		})
-		if err == nil {
-			for _, row := range directorRows {
-				directors = append(directors, row.PersonName)
-			}
-		}
-
-		// Fetch writers
-		writerRows, err := q.sqlite.GetCreditsForEntityByType(ctx, sqlc_sqlite.GetCreditsForEntityByTypeParams{
-			MediaType:  mediaType,
-			EntityID:   entityID,
-			CreditType: "writer",
-		})
-		if err == nil {
-			for _, row := range writerRows {
-				writers = append(writers, row.PersonName)
-			}
-		}
-
-		// Fetch producers
-		producerRows, err := q.sqlite.GetCreditsForEntityByType(ctx, sqlc_sqlite.GetCreditsForEntityByTypeParams{
-			MediaType:  mediaType,
-			EntityID:   entityID,
-			CreditType: "producer",
-		})
-		if err == nil {
-			for _, row := range producerRows {
-				producers = append(producers, row.PersonName)
-			}
+	// Fetch producers
+	producerRows, err := q.querier.GetCreditsForEntityByType(ctx, unified.GetCreditsForEntityByTypeParams{
+		MediaType:  mediaType,
+		EntityID:   entityID,
+		CreditType: "producer",
+	})
+	if err == nil {
+		for _, row := range producerRows {
+			producers = append(producers, row.PersonName)
 		}
 	}
 
@@ -215,42 +161,25 @@ func (q *DBMediaQuerier) getCreditsForEntity(ctx context.Context, mediaType stri
 // This is used as a fallback when original_language is not set in metadata.
 // Returns the normalized ISO 639-1 code (e.g., "ko", "ja", "en") or empty string.
 func (q *DBMediaQuerier) getPrimaryAudioLanguage(ctx context.Context, mediaID int64) string {
-	// Use SQLC-generated query to get all audio tracks, then find primary language
-	if q.router.IsPostgresDB() {
-		tracks, err := q.postgres.GetAudioTracksByMediaID(ctx, mediaID)
-		if err != nil || len(tracks) == 0 {
-			return ""
-		}
-		// Find the default track, or use the first one
-		for _, track := range tracks {
-			if common.NullInt64ToBool(track.IsDefault) && track.Language.Valid && track.Language.String != "" {
-				return normalizeLanguageCode(track.Language.String)
-			}
-		}
-		// Fallback to first track with language
-		for _, track := range tracks {
-			if track.Language.Valid && track.Language.String != "" {
-				return normalizeLanguageCode(track.Language.String)
-			}
-		}
-	} else {
-		tracks, err := q.sqlite.GetAudioTracksByMediaID(ctx, mediaID)
-		if err != nil || len(tracks) == 0 {
-			return ""
-		}
-		// Find the default track, or use the first one
-		for _, track := range tracks {
-			if common.NullInt64ToBool(track.IsDefault) && track.Language.Valid && track.Language.String != "" {
-				return normalizeLanguageCode(track.Language.String)
-			}
-		}
-		// Fallback to first track with language
-		for _, track := range tracks {
-			if track.Language.Valid && track.Language.String != "" {
-				return normalizeLanguageCode(track.Language.String)
-			}
+	tracks, err := q.querier.GetAudioTracksByMediaID(ctx, mediaID)
+	if err != nil || len(tracks) == 0 {
+		return ""
+	}
+
+	// Find the default track, or use the first one
+	for _, track := range tracks {
+		if common.NullInt64ToBool(track.IsDefault) && track.Language.Valid && track.Language.String != "" {
+			return normalizeLanguageCode(track.Language.String)
 		}
 	}
+
+	// Fallback to first track with language
+	for _, track := range tracks {
+		if track.Language.Valid && track.Language.String != "" {
+			return normalizeLanguageCode(track.Language.String)
+		}
+	}
+
 	return ""
 }
 
@@ -258,25 +187,13 @@ func (q *DBMediaQuerier) getPrimaryAudioLanguage(ctx context.Context, mediaID in
 func (q *DBMediaQuerier) getStudiosForEntity(ctx context.Context, mediaType string, entityID int64) []string {
 	var studios []string
 
-	if q.router.IsPostgresDB() {
-		rows, err := q.postgres.GetStudiosForEntity(ctx, sqlc_postgres.GetStudiosForEntityParams{
-			MediaType: mediaType,
-			EntityID:  entityID,
-		})
-		if err == nil {
-			for _, row := range rows {
-				studios = append(studios, row.Name)
-			}
-		}
-	} else {
-		rows, err := q.sqlite.GetStudiosForEntity(ctx, sqlc_sqlite.GetStudiosForEntityParams{
-			MediaType: mediaType,
-			EntityID:  entityID,
-		})
-		if err == nil {
-			for _, row := range rows {
-				studios = append(studios, row.Name)
-			}
+	rows, err := q.querier.GetStudiosForEntity(ctx, unified.GetStudiosForEntityParams{
+		MediaType: mediaType,
+		EntityID:  entityID,
+	})
+	if err == nil {
+		for _, row := range rows {
+			studios = append(studios, row.Name)
 		}
 	}
 
@@ -288,25 +205,13 @@ func (q *DBMediaQuerier) getStudiosForEntity(ctx context.Context, mediaType stri
 func (q *DBMediaQuerier) getLocationKeywordsForEntity(ctx context.Context, mediaType string, entityID int64) []string {
 	var keywords []string
 
-	if q.router.IsPostgresDB() {
-		rows, err := q.postgres.GetLocationKeywordsByEntity(ctx, sqlc_postgres.GetLocationKeywordsByEntityParams{
-			MediaType: mediaType,
-			EntityID:  entityID,
-		})
-		if err == nil {
-			for _, row := range rows {
-				keywords = append(keywords, row.Keyword)
-			}
-		}
-	} else {
-		rows, err := q.sqlite.GetLocationKeywordsByEntity(ctx, sqlc_sqlite.GetLocationKeywordsByEntityParams{
-			MediaType: mediaType,
-			EntityID:  entityID,
-		})
-		if err == nil {
-			for _, row := range rows {
-				keywords = append(keywords, row.Keyword)
-			}
+	rows, err := q.querier.GetLocationKeywordsByEntity(ctx, unified.GetLocationKeywordsByEntityParams{
+		MediaType: mediaType,
+		EntityID:  entityID,
+	})
+	if err == nil {
+		for _, row := range rows {
+			keywords = append(keywords, row.Keyword)
 		}
 	}
 
@@ -318,25 +223,13 @@ func (q *DBMediaQuerier) getLocationKeywordsForEntity(ctx context.Context, media
 func (q *DBMediaQuerier) getThemeKeywordsForEntity(ctx context.Context, mediaType string, entityID int64) []string {
 	var keywords []string
 
-	if q.router.IsPostgresDB() {
-		rows, err := q.postgres.GetThemeKeywordsByEntity(ctx, sqlc_postgres.GetThemeKeywordsByEntityParams{
-			MediaType: mediaType,
-			EntityID:  entityID,
-		})
-		if err == nil {
-			for _, row := range rows {
-				keywords = append(keywords, row.Keyword)
-			}
-		}
-	} else {
-		rows, err := q.sqlite.GetThemeKeywordsByEntity(ctx, sqlc_sqlite.GetThemeKeywordsByEntityParams{
-			MediaType: mediaType,
-			EntityID:  entityID,
-		})
-		if err == nil {
-			for _, row := range rows {
-				keywords = append(keywords, row.Keyword)
-			}
+	rows, err := q.querier.GetThemeKeywordsByEntity(ctx, unified.GetThemeKeywordsByEntityParams{
+		MediaType: mediaType,
+		EntityID:  entityID,
+	})
+	if err == nil {
+		for _, row := range rows {
+			keywords = append(keywords, row.Keyword)
 		}
 	}
 

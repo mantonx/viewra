@@ -7,46 +7,30 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // DBMediaQuerier implements MediaQuerier using SQLC-generated queries.
-// It supports both SQLite and PostgreSQL through the QueryRouter pattern.
+// It supports both SQLite and PostgreSQL through the unified Querier pattern.
 type DBMediaQuerier struct {
-	db       *sql.DB
-	router   *common.QueryRouter
-	sqlite   *sqlc_sqlite.Queries
-	postgres *sqlc_postgres.Queries
+	db      *sql.DB
+	querier *unified.Querier
+	dbType  string
 }
 
 // NewDBMediaQuerier creates a new DBMediaQuerier with the specified database.
 func NewDBMediaQuerier(db *sql.DB, driver string) *DBMediaQuerier {
-	q := &DBMediaQuerier{
-		db:     db,
-		router: common.NewQueryRouter(driver),
+	return &DBMediaQuerier{
+		db:      db,
+		querier: unified.NewQuerier(db, driver),
+		dbType:  driver,
 	}
-
-	if common.IsPostgres(driver) {
-		q.postgres = sqlc_postgres.New(db)
-	} else {
-		q.sqlite = sqlc_sqlite.New(db)
-	}
-
-	return q
 }
 
 // GetMediaByID returns a media item by its database ID.
 func (q *DBMediaQuerier) GetMediaByID(ctx context.Context, id int64) (*MediaInfo, error) {
-	result, err := q.router.Route(
-		func() (any, error) {
-			return q.postgres.GetMediaByID(ctx, id)
-		},
-		func() (any, error) {
-			return q.sqlite.GetMediaByID(ctx, id)
-		},
-	)
+	result, err := q.querier.GetMediaByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -57,30 +41,12 @@ func (q *DBMediaQuerier) GetMediaByID(ctx context.Context, id int64) (*MediaInfo
 // GetMediaByExternalID returns a media item by an external ID.
 func (q *DBMediaQuerier) GetMediaByExternalID(ctx context.Context, provider, externalID string) (*MediaInfo, error) {
 	// First, get the entity_id from external_ids table
-	entityResult, err := q.router.Route(
-		func() (any, error) {
-			return q.postgres.GetMediaByExternalID(ctx, sqlc_postgres.GetMediaByExternalIDParams{
-				Provider:   provider,
-				ExternalID: externalID,
-			})
-		},
-		func() (any, error) {
-			return q.sqlite.GetMediaByExternalID(ctx, sqlc_sqlite.GetMediaByExternalIDParams{
-				Provider:   provider,
-				ExternalID: externalID,
-			})
-		},
-	)
+	entityID, err := q.querier.GetMediaByExternalID(ctx, unified.GetMediaByExternalIDParams{
+		Provider:   provider,
+		ExternalID: externalID,
+	})
 	if err != nil {
 		return nil, err
-	}
-
-	// Extract entity_id based on DB type
-	var entityID int64
-	if q.router.IsPostgresDB() {
-		entityID = entityResult.(int64)
-	} else {
-		entityID = entityResult.(int64)
 	}
 
 	// Now get the full media record
@@ -199,14 +165,7 @@ func (q *DBMediaQuerier) GetFilePath(ctx context.Context, mediaID int64) (string
 
 // GetExternalIDs returns all external IDs for a media item.
 func (q *DBMediaQuerier) GetExternalIDs(ctx context.Context, mediaID int64) (map[string]string, error) {
-	results, err := q.router.Route(
-		func() (any, error) {
-			return q.postgres.GetExternalIDsByMediaID(ctx, sql.NullInt64{Int64: mediaID, Valid: true})
-		},
-		func() (any, error) {
-			return q.sqlite.GetExternalIDsByMediaID(ctx, sql.NullInt64{Int64: mediaID, Valid: true})
-		},
-	)
+	results, err := q.querier.GetExternalIDsByMediaID(ctx, sql.NullInt64{Int64: mediaID, Valid: true})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return make(map[string]string), nil
@@ -215,37 +174,15 @@ func (q *DBMediaQuerier) GetExternalIDs(ctx context.Context, mediaID int64) (map
 	}
 
 	ids := make(map[string]string)
-	if q.router.IsPostgresDB() {
-		for _, row := range results.([]sqlc_postgres.MediaExternalID) {
-			ids[row.Provider] = row.ExternalID
-		}
-	} else {
-		for _, row := range results.([]sqlc_sqlite.MediaExternalID) {
-			ids[row.Provider] = row.ExternalID
-		}
+	for _, row := range results {
+		ids[row.Provider] = row.ExternalID
 	}
 
 	return ids, nil
 }
 
 // mediaToInfo converts a SQLC Medium to MediaInfo.
-func (q *DBMediaQuerier) mediaToInfo(result any) *MediaInfo {
-	if result == nil {
-		return nil
-	}
-
-	if q.router.IsPostgresDB() {
-		m := result.(sqlc_postgres.Medium)
-		return &MediaInfo{
-			ID:        m.ID,
-			MediaType: m.Type,
-			Title:     m.Title,
-			FilePath:  m.FilePath,
-			LibraryID: m.LibraryID,
-		}
-	}
-
-	m := result.(sqlc_sqlite.Medium)
+func (q *DBMediaQuerier) mediaToInfo(m unified.Medium) *MediaInfo {
 	return &MediaInfo{
 		ID:        m.ID,
 		MediaType: m.Type,
@@ -257,38 +194,16 @@ func (q *DBMediaQuerier) mediaToInfo(result any) *MediaInfo {
 
 // GetLibrary returns library information by ID.
 func (q *DBMediaQuerier) GetLibrary(ctx context.Context, id int64) (*LibraryInfo, error) {
-	result, err := q.router.Route(
-		func() (any, error) {
-			return q.postgres.GetLibraryByID(ctx, id)
-		},
-		func() (any, error) {
-			return q.sqlite.GetLibraryByID(ctx, id)
-		},
-	)
+	lib, err := q.querier.GetLibraryByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return q.libraryToInfo(result), nil
+	return q.libraryToInfo(lib), nil
 }
 
 // libraryToInfo converts a SQLC Library to LibraryInfo.
-func (q *DBMediaQuerier) libraryToInfo(result any) *LibraryInfo {
-	if result == nil {
-		return nil
-	}
-
-	if q.router.IsPostgresDB() {
-		lib := result.(sqlc_postgres.Library)
-		return &LibraryInfo{
-			ID:        lib.ID,
-			Name:      lib.Name,
-			Path:      lib.Path,
-			MediaType: lib.Type,
-		}
-	}
-
-	lib := result.(sqlc_sqlite.Library)
+func (q *DBMediaQuerier) libraryToInfo(lib unified.Library) *LibraryInfo {
 	return &LibraryInfo{
 		ID:        lib.ID,
 		Name:      lib.Name,
@@ -370,4 +285,9 @@ func (q *DBMediaQuerier) ListMediaByLibrary(ctx context.Context, libraryID int64
 	default:
 		return nil, 0, errors.New("unsupported library type: " + lib.MediaType)
 	}
+}
+
+// isPostgres returns true if using PostgreSQL database.
+func (q *DBMediaQuerier) isPostgres() bool {
+	return common.IsPostgres(q.dbType)
 }

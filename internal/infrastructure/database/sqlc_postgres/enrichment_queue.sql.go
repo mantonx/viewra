@@ -43,7 +43,7 @@ WHERE id IN (
     SELECT eq.id FROM enrichment_queue eq
     WHERE eq.stage = $2 AND eq.status = 'pending'
     ORDER BY eq.priority DESC, eq.created_at ASC
-    LIMIT $3
+    LIMIT $3::bigint
     FOR UPDATE SKIP LOCKED
 )
 RETURNING id, media_id, media_type, stage, priority, status, attempts, max_attempts, error_message, error_category, next_retry_at, locked_by, locked_at, created_at, updated_at, library_id
@@ -52,7 +52,7 @@ RETURNING id, media_id, media_type, stage, priority, status, attempts, max_attem
 type ClaimEnrichmentJobsParams struct {
 	LockedBy sql.NullString `json:"locked_by"`
 	Stage    string         `json:"stage"`
-	Limit    int32          `json:"limit"`
+	Limit    int64          `json:"limit"`
 }
 
 func (q *Queries) ClaimEnrichmentJobs(ctx context.Context, arg ClaimEnrichmentJobsParams) ([]EnrichmentQueue, error) {
@@ -472,13 +472,14 @@ LEFT JOIN music_artists mart ON eq.media_type = 'music_artist' AND eq.media_id =
 WHERE eq.library_id = $1
   AND eq.status = 'failed'
 ORDER BY eq.updated_at DESC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type GetLibraryEnrichmentFailuresParams struct {
 	LibraryID sql.NullInt64 `json:"library_id"`
-	Limit     int32         `json:"limit"`
-	Offset    int32         `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 type GetLibraryEnrichmentFailuresRow struct {
@@ -614,12 +615,12 @@ WHERE status = 'failed'
   AND next_retry_at <= NOW()
   AND stage = $1
 ORDER BY next_retry_at ASC
-LIMIT $2
+LIMIT $2::bigint
 `
 
 type GetRetryableEnrichmentJobsParams struct {
 	Stage string `json:"stage"`
-	Limit int32  `json:"limit"`
+	Limit int64  `json:"limit"`
 }
 
 func (q *Queries) GetRetryableEnrichmentJobs(ctx context.Context, arg GetRetryableEnrichmentJobsParams) ([]EnrichmentQueue, error) {

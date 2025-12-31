@@ -33,11 +33,11 @@ LIMIT ? OFFSET ?;
 
 -- name: CountEnrichmentStatusByStage :one
 SELECT
-    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count,
-    SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing_count,
-    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_count,
-    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count,
-    SUM(CASE WHEN status = 'skipped' THEN 1 ELSE 0 END) as skipped_count,
+    CAST(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS INTEGER) as pending_count,
+    CAST(SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS INTEGER) as processing_count,
+    CAST(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS INTEGER) as completed_count,
+    CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_count,
+    CAST(SUM(CASE WHEN status = 'skipped' THEN 1 ELSE 0 END) AS INTEGER) as skipped_count,
     COUNT(*) as total_count
 FROM enrichment_status
 WHERE stage = ?;
@@ -74,19 +74,19 @@ DELETE FROM enrichment_status WHERE media_type = ? AND media_id = ?;
 -- name: GetLibraryEnrichmentProgress :many
 SELECT
     es.stage,
-    SUM(CASE WHEN es.status = 'completed' THEN 1 ELSE 0 END) as completed_count,
-    SUM(CASE WHEN es.status = 'pending' THEN 1 ELSE 0 END) as pending_count,
-    SUM(CASE WHEN es.status = 'processing' THEN 1 ELSE 0 END) as processing_count,
-    SUM(CASE WHEN es.status = 'failed' THEN 1 ELSE 0 END) as failed_count,
-    SUM(CASE WHEN es.status = 'skipped' THEN 1 ELSE 0 END) as skipped_count,
+    CAST(SUM(CASE WHEN es.status = 'completed' THEN 1 ELSE 0 END) AS INTEGER) as completed_count,
+    CAST(SUM(CASE WHEN es.status = 'pending' THEN 1 ELSE 0 END) AS INTEGER) as pending_count,
+    CAST(SUM(CASE WHEN es.status = 'processing' THEN 1 ELSE 0 END) AS INTEGER) as processing_count,
+    CAST(SUM(CASE WHEN es.status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_count,
+    CAST(SUM(CASE WHEN es.status = 'skipped' THEN 1 ELSE 0 END) AS INTEGER) as skipped_count,
     COUNT(*) as total_count
 FROM enrichment_status es
 WHERE (
-    (es.media_type IN ('movie', 'tv', 'music') AND EXISTS (SELECT 1 FROM media m WHERE m.id = es.media_id AND m.library_id = ?))
-    OR (es.media_type = 'tv_show' AND EXISTS (SELECT 1 FROM tv_shows ts WHERE ts.id = es.media_id AND ts.library_id = ?))
-    OR (es.media_type = 'tv_season' AND EXISTS (SELECT 1 FROM tv_seasons tsn JOIN tv_shows ts ON ts.id = tsn.show_id WHERE tsn.id = es.media_id AND ts.library_id = ?))
-    OR (es.media_type = 'music_album' AND EXISTS (SELECT 1 FROM music_albums ma WHERE ma.id = es.media_id AND ma.library_id = ?))
-    OR (es.media_type = 'music_artist' AND EXISTS (SELECT 1 FROM music_artists mart WHERE mart.id = es.media_id AND mart.library_id = ?))
+    (es.media_type IN ('movie', 'tv', 'music') AND EXISTS (SELECT 1 FROM media m WHERE m.id = es.media_id AND m.library_id = sqlc.arg('library_id')))
+    OR (es.media_type = 'tv_show' AND EXISTS (SELECT 1 FROM tv_shows ts WHERE ts.id = es.media_id AND ts.library_id = sqlc.arg('library_id')))
+    OR (es.media_type = 'tv_season' AND EXISTS (SELECT 1 FROM tv_seasons tsn JOIN tv_shows ts ON ts.id = tsn.show_id WHERE tsn.id = es.media_id AND ts.library_id = sqlc.arg('library_id')))
+    OR (es.media_type = 'music_album' AND EXISTS (SELECT 1 FROM music_albums ma WHERE ma.id = es.media_id AND ma.library_id = sqlc.arg('library_id')))
+    OR (es.media_type = 'music_artist' AND EXISTS (SELECT 1 FROM music_artists mart WHERE mart.id = es.media_id AND mart.library_id = sqlc.arg('library_id')))
 )
 GROUP BY es.stage;
 
@@ -98,11 +98,11 @@ SELECT
     -- Total unique media items in enrichment for this library
     (SELECT COUNT(DISTINCT eq.media_id || ':' || eq.media_type)
      FROM enrichment_queue eq
-     WHERE eq.library_id = ?) as total_items,
+     WHERE eq.library_id = sqlc.narg('library_id')) as total_items,
     -- Items still pending/processing (not fully done)
     (SELECT COUNT(DISTINCT eq.media_id || ':' || eq.media_type)
      FROM enrichment_queue eq
-     WHERE eq.library_id = ?
+     WHERE eq.library_id = sqlc.narg('library_id')
        AND eq.status IN ('pending', 'processing')) as remaining_items
 
 ;

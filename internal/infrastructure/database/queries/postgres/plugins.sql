@@ -33,7 +33,7 @@ SELECT id, name, version, description, author, license, homepage,
        settings, settings_schema,
        installed_at, updated_at
 FROM plugins
-WHERE categories ? $1
+WHERE categories ? sqlc.narg('category')
 ORDER BY is_builtin DESC, name;
 
 -- name: CreatePlugin :exec
@@ -86,7 +86,7 @@ UPDATE plugins SET
 WHERE id = $1;
 
 -- name: PluginExists :one
-SELECT EXISTS(SELECT 1 FROM plugins WHERE id = $1) as plugin_exists;
+SELECT EXISTS(SELECT 1 FROM plugins WHERE id = $1)::bigint as plugin_exists;
 
 -- name: UpsertPlugin :exec
 INSERT INTO plugins (

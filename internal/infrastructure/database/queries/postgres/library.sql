@@ -38,12 +38,12 @@ DELETE FROM libraries
 WHERE id = $1;
 
 -- name: LibraryExistsByPath :one
-SELECT COUNT(*) > 0 as exists
+SELECT (COUNT(*) > 0)::bigint as exists
 FROM libraries
 WHERE path = $1;
 
 -- name: LibraryExistsByID :one
-SELECT COUNT(*) > 0 as exists
+SELECT (COUNT(*) > 0)::bigint as exists
 FROM libraries
 WHERE id = $1;
 

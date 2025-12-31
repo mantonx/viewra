@@ -1,0 +1,396 @@
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+)
+
+// generateQuerier creates a unified Querier wrapper that delegates to either
+// SQLite or PostgreSQL backends based on the database driver.
+func generateQuerier(cfg Config) error {
+	querierPath := filepath.Join(cfg.SQLiteDir, "querier.go")
+	methods, imports, err := parseQuerierInterface(querierPath)
+	if err != nil {
+		return fmt.Errorf("parsing querier interface: %w", err)
+	}
+
+	code := buildQuerierCode(cfg, methods, imports)
+
+	if err := os.WriteFile(cfg.QuerierFile, []byte(code), 0644); err != nil {
+		return fmt.Errorf("writing output: %w", err)
+	}
+
+	fmt.Printf("  Generated %s with %d methods\n", cfg.QuerierFile, len(methods))
+	return nil
+}
+
+// Method represents a parsed interface method.
+type Method struct {
+	Name    string
+	Params  []Param
+	Returns []Return
+}
+
+// Param represents a method parameter.
+type Param struct {
+	Name string
+	Type string
+}
+
+// Return represents a return type.
+type Return struct {
+	Type string
+}
+
+// parseQuerierInterface extracts method signatures from the Querier interface.
+func parseQuerierInterface(path string) ([]Method, map[string]bool, error) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	imports := make(map[string]bool)
+	imports["context"] = true
+
+	var methods []Method
+
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.TYPE {
+			continue
+		}
+
+		for _, spec := range genDecl.Specs {
+			typeSpec, ok := spec.(*ast.TypeSpec)
+			if !ok || typeSpec.Name.Name != "Querier" {
+				continue
+			}
+
+			iface, ok := typeSpec.Type.(*ast.InterfaceType)
+			if !ok {
+				continue
+			}
+
+			for _, method := range iface.Methods.List {
+				if len(method.Names) == 0 {
+					continue
+				}
+
+				funcType, ok := method.Type.(*ast.FuncType)
+				if !ok {
+					continue
+				}
+
+				m := Method{
+					Name: method.Names[0].Name,
+				}
+
+				if funcType.Params != nil {
+					for _, param := range funcType.Params.List {
+						typeStr := typeToString(param.Type)
+						trackImports(typeStr, imports)
+
+						for _, name := range param.Names {
+							m.Params = append(m.Params, Param{
+								Name: name.Name,
+								Type: typeStr,
+							})
+						}
+						if len(param.Names) == 0 {
+							m.Params = append(m.Params, Param{
+								Name: "_",
+								Type: typeStr,
+							})
+						}
+					}
+				}
+
+				if funcType.Results != nil {
+					for _, result := range funcType.Results.List {
+						typeStr := typeToString(result.Type)
+						trackImports(typeStr, imports)
+						m.Returns = append(m.Returns, Return{Type: typeStr})
+					}
+				}
+
+				methods = append(methods, m)
+			}
+		}
+	}
+
+	return methods, imports, nil
+}
+
+// typeToString converts an AST type expression to its string representation.
+func typeToString(expr ast.Expr) string {
+	switch t := expr.(type) {
+	case *ast.Ident:
+		return t.Name
+	case *ast.SelectorExpr:
+		return typeToString(t.X) + "." + t.Sel.Name
+	case *ast.StarExpr:
+		return "*" + typeToString(t.X)
+	case *ast.ArrayType:
+		return "[]" + typeToString(t.Elt)
+	case *ast.MapType:
+		return "map[" + typeToString(t.Key) + "]" + typeToString(t.Value)
+	case *ast.InterfaceType:
+		return "interface{}"
+	case *ast.Ellipsis:
+		return "..." + typeToString(t.Elt)
+	default:
+		return fmt.Sprintf("%T", expr)
+	}
+}
+
+// trackImports adds necessary imports based on type usage.
+func trackImports(typeStr string, imports map[string]bool) {
+	if strings.Contains(typeStr, "sql.") {
+		imports["database/sql"] = true
+	}
+	if strings.Contains(typeStr, "time.") {
+		imports["time"] = true
+	}
+}
+
+// isLocalType returns true if the type is defined in the sqlc package.
+func isLocalType(typeStr string) bool {
+	if strings.HasPrefix(typeStr, "sql.") ||
+		strings.HasPrefix(typeStr, "time.") ||
+		strings.HasPrefix(typeStr, "context.") ||
+		typeStr == "error" ||
+		typeStr == "int64" ||
+		typeStr == "int32" ||
+		typeStr == "string" ||
+		typeStr == "bool" ||
+		typeStr == "interface{}" {
+		return false
+	}
+	if strings.HasPrefix(typeStr, "[]") {
+		return isLocalType(strings.TrimPrefix(typeStr, "[]"))
+	}
+	return true
+}
+
+// prefixLocalType adds a package prefix to local types.
+func prefixLocalType(typeStr, pkg string) string {
+	if !isLocalType(typeStr) {
+		return typeStr
+	}
+	if strings.HasPrefix(typeStr, "[]") {
+		inner := strings.TrimPrefix(typeStr, "[]")
+		return "[]" + prefixLocalType(inner, pkg)
+	}
+	return pkg + "." + typeStr
+}
+
+// buildQuerierCode generates the complete unified Querier source code.
+func buildQuerierCode(cfg Config, methods []Method, imports map[string]bool) string {
+	sqliteImport := cfg.ModulePath + "/" + cfg.SQLiteDir
+	postgresImport := cfg.ModulePath + "/" + cfg.PostgresDir
+
+	var buf bytes.Buffer
+
+	buf.WriteString(`// Code generated by sqlc-gen. DO NOT EDIT.
+// Regenerate with: make sqlc-gen
+//
+// Unified Database Querier
+// ------------------------
+// This wrapper delegates all database calls to either SQLite or PostgreSQL
+// based on which driver is configured. Both backends implement identical
+// method signatures after SQLC generation and normalization.
+//
+// Repositories call q.Q().MethodName() and the correct backend handles it.
+// Return types are safely cast between backends since the underlying structs
+// have identical memory layouts after normalization.
+
+package unified
+
+import (
+`)
+
+	var importList []string
+	for imp := range imports {
+		importList = append(importList, imp)
+	}
+	sort.Strings(importList)
+
+	for _, imp := range importList {
+		fmt.Fprintf(&buf, "\t%q\n", imp)
+	}
+
+	fmt.Fprintf(&buf, `
+	sqlc_sqlite %q
+	sqlc_postgres %q
+)
+
+// Querier provides a unified interface to either SQLite or PostgreSQL backend.
+// All methods delegate to the appropriate backend based on the isPostgres flag.
+// Type conversions are safe because both backends generate identical types
+// after sqlc postprocessing.
+type Querier struct {
+	sqlite     *sqlc_sqlite.Queries
+	postgres   *sqlc_postgres.Queries
+	isPostgres bool
+}
+
+// NewQuerier creates a new unified Querier for the given database.
+func NewQuerier(db DBTX, driver string) *Querier {
+	if IsPostgres(driver) {
+		return &Querier{
+			postgres:   sqlc_postgres.New(db),
+			isPostgres: true,
+		}
+	}
+	return &Querier{
+		sqlite: sqlc_sqlite.New(db),
+	}
+}
+
+// DBTX is the database interface used by sqlc.
+type DBTX interface {
+	ExecContext(context.Context, string, ...interface{}) (sql.Result, error)
+	PrepareContext(context.Context, string) (*sql.Stmt, error)
+	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
+	QueryRowContext(context.Context, string, ...interface{}) *sql.Row
+}
+
+// castSlice converts between structurally identical slice types.
+// This is safe because PostgreSQL and SQLite types are guaranteed to have
+// identical layouts after sqlc postprocessing.
+func castSlice[TFrom, TTo any](from []TFrom) []TTo {
+	result := make([]TTo, len(from))
+	for i, v := range from {
+		result[i] = any(v).(TTo)
+	}
+	return result
+}
+
+`, sqliteImport, postgresImport)
+
+	for _, m := range methods {
+		buf.WriteString(buildMethodWrapper(m))
+		buf.WriteString("\n")
+	}
+
+	return buf.String()
+}
+
+// buildMethodWrapper generates a single wrapper method.
+func buildMethodWrapper(m Method) string {
+	var buf bytes.Buffer
+
+	var paramStrs []string
+	for _, p := range m.Params {
+		typeStr := p.Type
+		if isLocalType(typeStr) {
+			typeStr = prefixLocalType(typeStr, "sqlc_sqlite")
+		}
+		paramStrs = append(paramStrs, p.Name+" "+typeStr)
+	}
+
+	var returnStrs []string
+	for _, r := range m.Returns {
+		typeStr := r.Type
+		if isLocalType(typeStr) {
+			typeStr = prefixLocalType(typeStr, "sqlc_sqlite")
+		}
+		returnStrs = append(returnStrs, typeStr)
+	}
+
+	returnSig := strings.Join(returnStrs, ", ")
+	if len(returnStrs) > 1 {
+		returnSig = "(" + returnSig + ")"
+	}
+
+	fmt.Fprintf(&buf, "func (q *Querier) %s(%s) %s {\n",
+		m.Name,
+		strings.Join(paramStrs, ", "),
+		returnSig)
+
+	buf.WriteString(buildMethodBody(m))
+	buf.WriteString("}\n")
+
+	return buf.String()
+}
+
+// buildMethodBody generates the if/else delegation logic for a method.
+func buildMethodBody(m Method) string {
+	var buf bytes.Buffer
+
+	var argNames []string
+	for _, p := range m.Params {
+		argNames = append(argNames, p.Name)
+	}
+
+	hasLocalReturns := false
+	for _, r := range m.Returns {
+		if isLocalType(r.Type) && r.Type != "error" {
+			hasLocalReturns = true
+			break
+		}
+	}
+
+	var pgArgNames []string
+	for _, p := range m.Params {
+		if isLocalType(p.Type) {
+			pgType := prefixLocalType(p.Type, "sqlc_postgres")
+			pgArgNames = append(pgArgNames, fmt.Sprintf("%s(%s)", pgType, p.Name))
+		} else {
+			pgArgNames = append(pgArgNames, p.Name)
+		}
+	}
+
+	buf.WriteString("\tif q.isPostgres {\n")
+
+	if !hasLocalReturns {
+		fmt.Fprintf(&buf, "\t\treturn q.postgres.%s(%s)\n",
+			m.Name, strings.Join(pgArgNames, ", "))
+	} else {
+		var resultVars []string
+		var convertedVars []string
+		for i, r := range m.Returns {
+			if r.Type == "error" {
+				resultVars = append(resultVars, "err")
+				convertedVars = append(convertedVars, "err")
+			} else {
+				varName := fmt.Sprintf("r%d", i)
+				resultVars = append(resultVars, varName)
+
+				if isLocalType(r.Type) {
+					sqliteType := prefixLocalType(r.Type, "sqlc_sqlite")
+					if strings.HasPrefix(r.Type, "[]") {
+						innerType := strings.TrimPrefix(r.Type, "[]")
+						sqliteInner := prefixLocalType(innerType, "sqlc_sqlite")
+						pgInner := prefixLocalType(innerType, "sqlc_postgres")
+						convertedVars = append(convertedVars,
+							fmt.Sprintf("castSlice[%s, %s](%s)", pgInner, sqliteInner, varName))
+					} else {
+						convertedVars = append(convertedVars, fmt.Sprintf("%s(%s)", sqliteType, varName))
+					}
+				} else {
+					convertedVars = append(convertedVars, varName)
+				}
+			}
+		}
+
+		fmt.Fprintf(&buf, "\t\t%s := q.postgres.%s(%s)\n",
+			strings.Join(resultVars, ", "),
+			m.Name,
+			strings.Join(pgArgNames, ", "))
+		fmt.Fprintf(&buf, "\t\treturn %s\n", strings.Join(convertedVars, ", "))
+	}
+
+	buf.WriteString("\t}\n")
+	fmt.Fprintf(&buf, "\treturn q.sqlite.%s(%s)\n", m.Name, strings.Join(argNames, ", "))
+
+	return buf.String()
+}

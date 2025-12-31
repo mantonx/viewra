@@ -30,13 +30,13 @@ WHERE id = $7;
 -- name: ListPeople :many
 SELECT * FROM people
 ORDER BY sort_name, name
-LIMIT $1 OFFSET $2;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: SearchPeopleByName :many
 SELECT * FROM people
 WHERE name ILIKE $1
 ORDER BY sort_name, name
-LIMIT $2;
+LIMIT sqlc.arg('limit')::bigint;
 
 -- name: DeletePerson :exec
 DELETE FROM people WHERE id = $1;
@@ -122,7 +122,7 @@ FROM credits c
 JOIN people p ON c.person_id = p.id
 WHERE c.media_type = $1 AND c.entity_id = $2 AND c.credit_type = 'cast'
 ORDER BY c.billing_order, p.name
-LIMIT $3;
+LIMIT sqlc.arg('limit')::bigint;
 
 -- name: GetDirectorsForEntity :many
 SELECT

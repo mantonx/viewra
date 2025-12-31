@@ -35,7 +35,7 @@ WHERE plugin_id = ?
   AND (expires_at IS NULL OR expires_at > datetime('now'));
 
 -- name: PluginKVTotalSize :one
-SELECT COALESCE(SUM(LENGTH(value)), 0) as total_bytes
+SELECT CAST(COALESCE(SUM(LENGTH(value)), 0) AS INTEGER) as total_bytes
 FROM plugin_kv
 WHERE plugin_id = ?
   AND (expires_at IS NULL OR expires_at > datetime('now'));

@@ -6,32 +6,21 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 )
 
 // TransactionContext provides a database-agnostic interface for transactional operations.
 // It allows code to work with both SQLite and PostgreSQL transactions uniformly.
 type TransactionContext struct {
-	sqliteTx   *sql.Tx
-	postgresTx *sql.Tx
-	dbType     string
+	tx      *sql.Tx
+	dbType  string
+	querier *unified.Querier
 }
 
-// SQLite returns a sqlc Queries instance bound to the SQLite transaction
-func (tc *TransactionContext) SQLite() *sqlc_sqlite.Queries {
-	if tc.sqliteTx == nil {
-		return nil
-	}
-	return sqlc_sqlite.New(tc.sqliteTx)
-}
-
-// Postgres returns a sqlc Queries instance bound to the PostgreSQL transaction
-func (tc *TransactionContext) Postgres() *sqlc_postgres.Queries {
-	if tc.postgresTx == nil {
-		return nil
-	}
-	return sqlc_postgres.New(tc.postgresTx)
+// Q returns the unified Querier bound to this transaction.
+// This is the preferred way to access the database within a transaction.
+func (tc *TransactionContext) Q() *unified.Querier {
+	return tc.querier
 }
 
 // IsPostgresDB returns true if this is a PostgreSQL transaction
@@ -46,24 +35,18 @@ func (tc *TransactionContext) IsSQLiteDB() bool {
 
 // Commit commits the transaction
 func (tc *TransactionContext) Commit() error {
-	if tc.postgresTx != nil {
-		return tc.postgresTx.Commit()
+	if tc.tx == nil {
+		return fmt.Errorf("no active transaction to commit")
 	}
-	if tc.sqliteTx != nil {
-		return tc.sqliteTx.Commit()
-	}
-	return fmt.Errorf("no active transaction to commit")
+	return tc.tx.Commit()
 }
 
 // Rollback rolls back the transaction
 func (tc *TransactionContext) Rollback() error {
-	if tc.postgresTx != nil {
-		return tc.postgresTx.Rollback()
+	if tc.tx == nil {
+		return fmt.Errorf("no active transaction to rollback")
 	}
-	if tc.sqliteTx != nil {
-		return tc.sqliteTx.Rollback()
-	}
-	return fmt.Errorf("no active transaction to rollback")
+	return tc.tx.Rollback()
 }
 
 // WithTransaction executes a function within a database transaction.
@@ -74,12 +57,12 @@ func (tc *TransactionContext) Rollback() error {
 //
 //	err := common.WithTransaction(repo.BaseRepository, ctx, func(tx *common.TransactionContext) error {
 //	    // Create artist
-//	    artist, err := tx.Postgres().CreateArtist(ctx, params)
+//	    artist, err := tx.Q().CreateArtist(ctx, params)
 //	    if err != nil {
 //	        return err
 //	    }
 //	    // Create album
-//	    album, err := tx.Postgres().CreateAlbum(ctx, albumParams)
+//	    album, err := tx.Q().CreateAlbum(ctx, albumParams)
 //	    if err != nil {
 //	        return err
 //	    }
@@ -92,15 +75,11 @@ func WithTransaction(repo *BaseRepository, ctx context.Context, fn func(tx *Tran
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
-	// Create transaction context
+	// Create transaction context with unified querier
 	txCtx := &TransactionContext{
-		dbType: repo.DBType(),
-	}
-
-	if repo.Router().IsPostgresDB() {
-		txCtx.postgresTx = sqlTx
-	} else {
-		txCtx.sqliteTx = sqlTx
+		tx:      sqlTx,
+		dbType:  repo.DBType(),
+		querier: unified.NewQuerierWithTx(sqlTx, repo.DBType()),
 	}
 
 	// Ensure transaction is finalized

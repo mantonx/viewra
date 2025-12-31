@@ -150,15 +150,15 @@ func (q *Queries) PluginKVSet(ctx context.Context, arg PluginKVSetParams) error 
 }
 
 const pluginKVTotalSize = `-- name: PluginKVTotalSize :one
-SELECT COALESCE(SUM(LENGTH(value)), 0) as total_bytes
+SELECT CAST(COALESCE(SUM(LENGTH(value)), 0) AS INTEGER) as total_bytes
 FROM plugin_kv
 WHERE plugin_id = ?
   AND (expires_at IS NULL OR expires_at > datetime('now'))
 `
 
-func (q *Queries) PluginKVTotalSize(ctx context.Context, pluginID string) (interface{}, error) {
+func (q *Queries) PluginKVTotalSize(ctx context.Context, pluginID string) (int64, error) {
 	row := q.db.QueryRowContext(ctx, pluginKVTotalSize, pluginID)
-	var total_bytes interface{}
+	var total_bytes int64
 	err := row.Scan(&total_bytes)
 	return total_bytes, err
 }

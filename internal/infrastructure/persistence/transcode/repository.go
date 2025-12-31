@@ -7,33 +7,20 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/transcode"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // Repository implements the domain transcode.Repository interface.
 type Repository struct {
-	db              *sql.DB
-	dbType          string // "sqlite" or "postgres"
-	sqliteQuerier   sqlc_sqlite.Querier
-	postgresQuerier sqlc_postgres.Querier
+	*common.BaseRepository
 }
 
 // NewRepository creates a new transcode job repository.
-func NewRepository(db *sql.DB, dbType string) *Repository {
-	r := &Repository{
-		db:     db,
-		dbType: dbType,
+func NewRepository(db *common.BaseRepository) *Repository {
+	return &Repository{
+		BaseRepository: db,
 	}
-
-	if common.IsPostgres(dbType) {
-		r.postgresQuerier = sqlc_postgres.New(db)
-	} else {
-		r.sqliteQuerier = sqlc_sqlite.New(db)
-	}
-
-	return r
 }
 
 // Create creates a new transcode job.
@@ -45,27 +32,7 @@ func (r *Repository) Create(ctx context.Context, job *transcode.TranscodeJob) er
 	now := time.Now()
 	job.CreatedAt = now
 
-	if r.dbType == "sqlite" {
-		result, err := r.sqliteQuerier.CreateTranscodeJob(ctx, sqlc_sqlite.CreateTranscodeJobParams{
-			MediaID:   job.MediaID,
-			Quality:   job.Quality,
-			Status:    job.Status,
-			Progress:  common.NullInt64(int64(job.Progress)),
-			CreatedAt: common.NullTime(job.CreatedAt),
-		})
-		if err != nil {
-			if common.IsUniqueConstraintError(err) {
-				return transcode.ErrJobAlreadyExists
-			}
-			return err
-		}
-
-		job.ID = result.ID
-		return nil
-	}
-
-	// PostgreSQL
-	result, err := r.postgresQuerier.CreateTranscodeJob(ctx, sqlc_postgres.CreateTranscodeJobParams{
+	result, err := r.Q().CreateTranscodeJob(ctx, unified.CreateTranscodeJobParams{
 		MediaID:   job.MediaID,
 		Quality:   job.Quality,
 		Type:      job.Type,
@@ -80,7 +47,7 @@ func (r *Repository) Create(ctx context.Context, job *transcode.TranscodeJob) er
 		return err
 	}
 
-	job.ID = int64(result.ID)
+	job.ID = result.ID
 	return nil
 }
 
@@ -90,28 +57,7 @@ func (r *Repository) Update(ctx context.Context, job *transcode.TranscodeJob) er
 		return err
 	}
 
-	if r.dbType == "sqlite" {
-		err := r.sqliteQuerier.UpdateTranscodeJob(ctx, sqlc_sqlite.UpdateTranscodeJobParams{
-			ID:            job.ID,
-			Status:        job.Status,
-			Progress:      common.NullInt64(int64(job.Progress)),
-			Error:         common.NullString(job.Error),
-			StartedAt:     common.NullTime(job.StartedAt),
-			CompletedAt:   common.NullTime(job.CompletedAt),
-			FilePath:      common.NullString(job.FilePath),
-			FileSizeBytes: common.NullInt64(job.FileSizeBytes),
-		})
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return transcode.ErrJobNotFound
-			}
-			return err
-		}
-		return nil
-	}
-
-	// PostgreSQL
-	err := r.postgresQuerier.UpdateTranscodeJob(ctx, sqlc_postgres.UpdateTranscodeJobParams{
+	err := r.Q().UpdateTranscodeJob(ctx, unified.UpdateTranscodeJobParams{
 		ID:            job.ID,
 		Status:        job.Status,
 		Progress:      common.NullInt64(int64(job.Progress)),
@@ -133,220 +79,95 @@ func (r *Repository) Update(ctx context.Context, job *transcode.TranscodeJob) er
 
 // GetByID retrieves a transcode job by its ID.
 func (r *Repository) GetByID(ctx context.Context, id int64) (*transcode.TranscodeJob, error) {
-	if r.dbType == "sqlite" {
-		result, err := r.sqliteQuerier.GetTranscodeJobByID(ctx, id)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, transcode.ErrJobNotFound
-			}
-			return nil, err
-		}
-		return r.sqliteModelToDomain(result), nil
-	}
-
-	// PostgreSQL
-	result, err := r.postgresQuerier.GetTranscodeJobByID(ctx, id)
+	result, err := r.Q().GetTranscodeJobByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, transcode.ErrJobNotFound
 		}
 		return nil, err
 	}
-	return r.postgresModelToDomain(result), nil
+	return modelToDomain(result), nil
 }
 
 // GetByMediaIDAndQuality retrieves a transcode job by media ID and quality.
 func (r *Repository) GetByMediaIDAndQuality(ctx context.Context, mediaID int64, quality string) (*transcode.TranscodeJob, error) {
-	if r.dbType == "sqlite" {
-		result, err := r.sqliteQuerier.GetTranscodeJobByMediaIDAndQuality(ctx,
-			sqlc_sqlite.GetTranscodeJobByMediaIDAndQualityParams{
-				MediaID: mediaID,
-				Quality: quality,
-			})
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, transcode.ErrJobNotFound
-			}
-			return nil, err
-		}
-		return r.sqliteModelToDomain(result), nil
-	}
-
-	// PostgreSQL
-	result, err := r.postgresQuerier.GetTranscodeJobByMediaIDAndQuality(ctx,
-		sqlc_postgres.GetTranscodeJobByMediaIDAndQualityParams{
-			MediaID: mediaID,
-			Quality: quality,
-		})
+	result, err := r.Q().GetTranscodeJobByMediaIDAndQuality(ctx, unified.GetTranscodeJobByMediaIDAndQualityParams{
+		MediaID: mediaID,
+		Quality: quality,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, transcode.ErrJobNotFound
 		}
 		return nil, err
 	}
-	return r.postgresModelToDomain(result), nil
+	return modelToDomain(result), nil
 }
 
 // ListByStatus retrieves all transcode jobs with a specific status.
 func (r *Repository) ListByStatus(ctx context.Context, status string) ([]*transcode.TranscodeJob, error) {
-	if r.dbType == "sqlite" {
-		results, err := r.sqliteQuerier.ListTranscodeJobsByStatus(ctx, status)
-		if err != nil {
-			return nil, err
-		}
-		jobs := make([]*transcode.TranscodeJob, len(results))
-		for i, result := range results {
-			jobs[i] = r.sqliteModelToDomain(result)
-		}
-		return jobs, nil
-	}
-
-	// PostgreSQL
-	results, err := r.postgresQuerier.ListTranscodeJobsByStatus(ctx, status)
+	results, err := r.Q().ListTranscodeJobsByStatus(ctx, status)
 	if err != nil {
 		return nil, err
 	}
-	jobs := make([]*transcode.TranscodeJob, len(results))
-	for i, result := range results {
-		jobs[i] = r.postgresModelToDomain(result)
-	}
-	return jobs, nil
+	return mapSlice(results, modelToDomain), nil
 }
 
 // ListQueuedJobs retrieves queued jobs up to a limit, ordered by creation time.
 func (r *Repository) ListQueuedJobs(ctx context.Context, limit int) ([]*transcode.TranscodeJob, error) {
-	if r.dbType == "sqlite" {
-		results, err := r.sqliteQuerier.ListQueuedTranscodeJobs(ctx, int64(limit))
-		if err != nil {
-			return nil, err
-		}
-		jobs := make([]*transcode.TranscodeJob, len(results))
-		for i, result := range results {
-			jobs[i] = r.sqliteModelToDomain(result)
-		}
-		return jobs, nil
-	}
-
-	// PostgreSQL
-	results, err := r.postgresQuerier.ListQueuedTranscodeJobs(ctx, int32(limit))
+	results, err := r.Q().ListQueuedTranscodeJobs(ctx, int64(limit))
 	if err != nil {
 		return nil, err
 	}
-	jobs := make([]*transcode.TranscodeJob, len(results))
-	for i, result := range results {
-		jobs[i] = r.postgresModelToDomain(result)
-	}
-	return jobs, nil
+	return mapSlice(results, modelToDomain), nil
 }
 
 // ListProcessingJobs retrieves all currently processing jobs.
 func (r *Repository) ListProcessingJobs(ctx context.Context) ([]*transcode.TranscodeJob, error) {
-	if r.dbType == "sqlite" {
-		results, err := r.sqliteQuerier.ListProcessingTranscodeJobs(ctx)
-		if err != nil {
-			return nil, err
-		}
-		jobs := make([]*transcode.TranscodeJob, len(results))
-		for i, result := range results {
-			jobs[i] = r.sqliteModelToDomain(result)
-		}
-		return jobs, nil
-	}
-
-	// PostgreSQL
-	results, err := r.postgresQuerier.ListProcessingTranscodeJobs(ctx)
+	results, err := r.Q().ListProcessingTranscodeJobs(ctx)
 	if err != nil {
 		return nil, err
 	}
-	jobs := make([]*transcode.TranscodeJob, len(results))
-	for i, result := range results {
-		jobs[i] = r.postgresModelToDomain(result)
-	}
-	return jobs, nil
+	return mapSlice(results, modelToDomain), nil
 }
 
 // CountByStatus counts jobs with a specific status.
 func (r *Repository) CountByStatus(ctx context.Context, status string) (int64, error) {
-	if r.dbType == "sqlite" {
-		count, err := r.sqliteQuerier.CountTranscodeJobsByStatus(ctx, status)
-		if err != nil {
-			return 0, err
-		}
-		return count, nil
-	}
-
-	// PostgreSQL
-	count, err := r.postgresQuerier.CountTranscodeJobsByStatus(ctx, status)
-	if err != nil {
-		return 0, err
-	}
-	return count, nil
+	return r.Q().CountTranscodeJobsByStatus(ctx, status)
 }
 
 // Delete deletes a transcode job by ID.
 func (r *Repository) Delete(ctx context.Context, id int64) error {
-	if r.dbType == "sqlite" {
-		err := r.sqliteQuerier.DeleteTranscodeJob(ctx, id)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-
-	// PostgreSQL
-	err := r.postgresQuerier.DeleteTranscodeJob(ctx, id)
-	if err != nil {
-		return err
-	}
-	return nil
+	return r.Q().DeleteTranscodeJob(ctx, id)
 }
 
 // DeleteByMediaID deletes all transcode jobs for a media item.
 func (r *Repository) DeleteByMediaID(ctx context.Context, mediaID int64) error {
-	if r.dbType == "sqlite" {
-		err := r.sqliteQuerier.DeleteTranscodeJobsByMediaID(ctx, mediaID)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-
-	// PostgreSQL
-	err := r.postgresQuerier.DeleteTranscodeJobsByMediaID(ctx, mediaID)
-	if err != nil {
-		return err
-	}
-	return nil
+	return r.Q().DeleteTranscodeJobsByMediaID(ctx, mediaID)
 }
 
 // ListAll retrieves all transcode jobs (for cleanup operations).
 func (r *Repository) ListAll(ctx context.Context) ([]*transcode.TranscodeJob, error) {
-	// SQLite only for now
-	results, err := r.sqliteQuerier.ListAllTranscodeJobs(ctx)
+	results, err := r.Q().ListAllTranscodeJobs(ctx)
 	if err != nil {
 		return nil, err
 	}
-	jobs := make([]*transcode.TranscodeJob, len(results))
-	for i, result := range results {
-		jobs[i] = r.sqliteModelToDomain(result)
-	}
-	return jobs, nil
+	return mapSlice(results, modelToDomain), nil
 }
 
 // UpdateAccess updates the last accessed time and increments access count.
 func (r *Repository) UpdateAccess(ctx context.Context, mediaID int64, quality string) error {
 	now := time.Now()
-	err := r.sqliteQuerier.UpdateTranscodeJobAccessByMediaAndQuality(ctx, sqlc_sqlite.UpdateTranscodeJobAccessByMediaAndQualityParams{
+	return r.Q().UpdateTranscodeJobAccessByMediaAndQuality(ctx, unified.UpdateTranscodeJobAccessByMediaAndQualityParams{
 		LastAccessedAt: common.NullTime(now),
 		MediaID:        mediaID,
 		Quality:        quality,
 	})
-	return err
 }
 
 // GetTotalSize returns the total size of all completed transcodes.
 func (r *Repository) GetTotalSize(ctx context.Context) (int64, error) {
-	totalSize, err := r.sqliteQuerier.GetTotalTranscodeSize(ctx)
+	totalSize, err := r.Q().GetTotalTranscodeSize(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -359,39 +180,15 @@ func (r *Repository) GetTotalSize(ctx context.Context) (int64, error) {
 
 // ListByLRU lists transcode jobs ordered by least recently used.
 func (r *Repository) ListByLRU(ctx context.Context, limit int) ([]*transcode.TranscodeJob, error) {
-	results, err := r.sqliteQuerier.ListTranscodeJobsByLRU(ctx, int64(limit))
+	results, err := r.Q().ListTranscodeJobsByLRU(ctx, int64(limit))
 	if err != nil {
 		return nil, err
 	}
-	jobs := make([]*transcode.TranscodeJob, len(results))
-	for i, result := range results {
-		jobs[i] = r.sqliteModelToDomain(result)
-	}
-	return jobs, nil
+	return mapSlice(results, modelToDomain), nil
 }
 
-// sqliteModelToDomain converts a SQLite model to a domain entity.
-func (r *Repository) sqliteModelToDomain(model sqlc_sqlite.TranscodeJob) *transcode.TranscodeJob {
-	return &transcode.TranscodeJob{
-		ID:             model.ID,
-		MediaID:        model.MediaID,
-		Quality:        model.Quality,
-		Type:           model.Type,
-		Status:         model.Status,
-		Progress:       int(common.ParseNullInt64(model.Progress)),
-		Error:          common.ParseNullString(model.Error),
-		StartedAt:      common.ParseNullTime(model.StartedAt),
-		CompletedAt:    common.ParseNullTime(model.CompletedAt),
-		CreatedAt:      common.ParseNullTime(model.CreatedAt),
-		FilePath:       common.ParseNullString(model.FilePath),
-		FileSizeBytes:  common.ParseNullInt64(model.FileSizeBytes),
-		LastAccessedAt: common.ParseNullTime(model.LastAccessedAt),
-		AccessCount:    int(common.ParseNullInt64(model.AccessCount)),
-	}
-}
-
-// postgresModelToDomain converts a PostgreSQL model to a domain entity.
-func (r *Repository) postgresModelToDomain(model sqlc_postgres.TranscodeJob) *transcode.TranscodeJob {
+// modelToDomain converts a unified model to a domain entity.
+func modelToDomain(model unified.TranscodeJob) *transcode.TranscodeJob {
 	return &transcode.TranscodeJob{
 		ID:             model.ID,
 		MediaID:        model.MediaID,
@@ -409,4 +206,13 @@ func (r *Repository) postgresModelToDomain(model sqlc_postgres.TranscodeJob) *tr
 		AccessCount:    int(common.ParseNullInt64(model.AccessCount)),
 		StartPosition:  int(common.ParseNullFloat64(model.StartPosition)),
 	}
+}
+
+// mapSlice converts a slice of one type to another using the provided mapper function.
+func mapSlice[TFrom, TTo any](from []TFrom, mapper func(TFrom) TTo) []TTo {
+	result := make([]TTo, len(from))
+	for i, v := range from {
+		result[i] = mapper(v)
+	}
+	return result
 }

@@ -4,8 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
@@ -65,44 +64,19 @@ type CorrelatedAnalytics struct {
 
 // Repository handles transcode analytics persistence.
 type Repository struct {
-	db              *sql.DB
-	dbType          string
-	sqliteQuerier   sqlc_sqlite.Querier
-	postgresQuerier sqlc_postgres.Querier
+	*common.BaseRepository
 }
 
 // NewRepository creates a new transcode analytics repository.
-func NewRepository(db *sql.DB, dbType string) *Repository {
-	r := &Repository{
-		db:     db,
-		dbType: dbType,
+func NewRepository(baseRepo *common.BaseRepository) *Repository {
+	return &Repository{
+		BaseRepository: baseRepo,
 	}
-
-	if common.IsPostgres(dbType) {
-		r.postgresQuerier = sqlc_postgres.New(db)
-	} else {
-		r.sqliteQuerier = sqlc_sqlite.New(db)
-	}
-
-	return r
 }
 
 // Create creates a new transcode analytics record when a session starts.
 func (r *Repository) Create(ctx context.Context, sessionID string, mediaID int64, quality, strategy, strategyDisplay, strategyReason, hwAccel string, createdAt int64) error {
-	if r.dbType == "sqlite" {
-		return r.sqliteQuerier.CreateTranscodeAnalytics(ctx, sqlc_sqlite.CreateTranscodeAnalyticsParams{
-			SessionID:       sessionID,
-			MediaID:         mediaID,
-			QualityProfile:  quality,
-			Strategy:        strategy,
-			StrategyDisplay: common.NullString(strategyDisplay),
-			StrategyReason:  common.NullString(strategyReason),
-			HwAccel:         common.NullString(hwAccel),
-			CreatedAt:       createdAt,
-		})
-	}
-
-	return r.postgresQuerier.CreateTranscodeAnalytics(ctx, sqlc_postgres.CreateTranscodeAnalyticsParams{
+	return r.Q().CreateTranscodeAnalytics(ctx, unified.CreateTranscodeAnalyticsParams{
 		SessionID:       sessionID,
 		MediaID:         mediaID,
 		QualityProfile:  quality,
@@ -116,13 +90,7 @@ func (r *Repository) Create(ctx context.Context, sessionID string, mediaID int64
 
 // UpdateFirstFrame records when the first frame was decoded.
 func (r *Repository) UpdateFirstFrame(ctx context.Context, sessionID string, firstFrameMs int64) error {
-	if r.dbType == "sqlite" {
-		return r.sqliteQuerier.UpdateTranscodeFirstFrame(ctx, sqlc_sqlite.UpdateTranscodeFirstFrameParams{
-			FirstFrameMs: common.NullInt64(firstFrameMs),
-			SessionID:    sessionID,
-		})
-	}
-	return r.postgresQuerier.UpdateTranscodeFirstFrame(ctx, sqlc_postgres.UpdateTranscodeFirstFrameParams{
+	return r.Q().UpdateTranscodeFirstFrame(ctx, unified.UpdateTranscodeFirstFrameParams{
 		FirstFrameMs: common.NullInt64(firstFrameMs),
 		SessionID:    sessionID,
 	})
@@ -130,13 +98,7 @@ func (r *Repository) UpdateFirstFrame(ctx context.Context, sessionID string, fir
 
 // UpdateFirstSegment records when the first segment was written.
 func (r *Repository) UpdateFirstSegment(ctx context.Context, sessionID string, firstSegmentMs int64) error {
-	if r.dbType == "sqlite" {
-		return r.sqliteQuerier.UpdateTranscodeFirstSegment(ctx, sqlc_sqlite.UpdateTranscodeFirstSegmentParams{
-			FirstSegmentMs: common.NullInt64(firstSegmentMs),
-			SessionID:      sessionID,
-		})
-	}
-	return r.postgresQuerier.UpdateTranscodeFirstSegment(ctx, sqlc_postgres.UpdateTranscodeFirstSegmentParams{
+	return r.Q().UpdateTranscodeFirstSegment(ctx, unified.UpdateTranscodeFirstSegmentParams{
 		FirstSegmentMs: common.NullInt64(firstSegmentMs),
 		SessionID:      sessionID,
 	})
@@ -144,13 +106,7 @@ func (r *Repository) UpdateFirstSegment(ctx context.Context, sessionID string, f
 
 // UpdateManifestReady records when the manifest became available.
 func (r *Repository) UpdateManifestReady(ctx context.Context, sessionID string, manifestReadyMs int64) error {
-	if r.dbType == "sqlite" {
-		return r.sqliteQuerier.UpdateTranscodeManifestReady(ctx, sqlc_sqlite.UpdateTranscodeManifestReadyParams{
-			ManifestReadyMs: common.NullInt64(manifestReadyMs),
-			SessionID:       sessionID,
-		})
-	}
-	return r.postgresQuerier.UpdateTranscodeManifestReady(ctx, sqlc_postgres.UpdateTranscodeManifestReadyParams{
+	return r.Q().UpdateTranscodeManifestReady(ctx, unified.UpdateTranscodeManifestReadyParams{
 		ManifestReadyMs: common.NullInt64(manifestReadyMs),
 		SessionID:       sessionID,
 	})
@@ -158,13 +114,7 @@ func (r *Repository) UpdateManifestReady(ctx context.Context, sessionID string, 
 
 // UpdateSegmentCount records how many segments have been created.
 func (r *Repository) UpdateSegmentCount(ctx context.Context, sessionID string, segmentsCreated int64) error {
-	if r.dbType == "sqlite" {
-		return r.sqliteQuerier.UpdateTranscodeSegmentCount(ctx, sqlc_sqlite.UpdateTranscodeSegmentCountParams{
-			SegmentsCreated: common.NullInt64(segmentsCreated),
-			SessionID:       sessionID,
-		})
-	}
-	return r.postgresQuerier.UpdateTranscodeSegmentCount(ctx, sqlc_postgres.UpdateTranscodeSegmentCountParams{
+	return r.Q().UpdateTranscodeSegmentCount(ctx, unified.UpdateTranscodeSegmentCountParams{
 		SegmentsCreated: common.NullInt64(segmentsCreated),
 		SessionID:       sessionID,
 	})
@@ -172,14 +122,7 @@ func (r *Repository) UpdateSegmentCount(ctx context.Context, sessionID string, s
 
 // Complete marks a transcode session as completed.
 func (r *Repository) Complete(ctx context.Context, sessionID string, totalDurationMs, completedAt int64) error {
-	if r.dbType == "sqlite" {
-		return r.sqliteQuerier.CompleteTranscodeAnalytics(ctx, sqlc_sqlite.CompleteTranscodeAnalyticsParams{
-			TotalDurationMs: common.NullInt64(totalDurationMs),
-			CompletedAt:     common.NullInt64(completedAt),
-			SessionID:       sessionID,
-		})
-	}
-	return r.postgresQuerier.CompleteTranscodeAnalytics(ctx, sqlc_postgres.CompleteTranscodeAnalyticsParams{
+	return r.Q().CompleteTranscodeAnalytics(ctx, unified.CompleteTranscodeAnalyticsParams{
 		TotalDurationMs: common.NullInt64(totalDurationMs),
 		CompletedAt:     common.NullInt64(completedAt),
 		SessionID:       sessionID,
@@ -188,14 +131,7 @@ func (r *Repository) Complete(ctx context.Context, sessionID string, totalDurati
 
 // Fail marks a transcode session as failed.
 func (r *Repository) Fail(ctx context.Context, sessionID, errorReason string, completedAt int64) error {
-	if r.dbType == "sqlite" {
-		return r.sqliteQuerier.FailTranscodeAnalytics(ctx, sqlc_sqlite.FailTranscodeAnalyticsParams{
-			ErrorReason: common.NullString(errorReason),
-			CompletedAt: common.NullInt64(completedAt),
-			SessionID:   sessionID,
-		})
-	}
-	return r.postgresQuerier.FailTranscodeAnalytics(ctx, sqlc_postgres.FailTranscodeAnalyticsParams{
+	return r.Q().FailTranscodeAnalytics(ctx, unified.FailTranscodeAnalyticsParams{
 		ErrorReason: common.NullString(errorReason),
 		CompletedAt: common.NullInt64(completedAt),
 		SessionID:   sessionID,
@@ -204,39 +140,43 @@ func (r *Repository) Fail(ctx context.Context, sessionID, errorReason string, co
 
 // GetBySessionID retrieves transcode analytics by session ID.
 func (r *Repository) GetBySessionID(ctx context.Context, sessionID string) (*TranscodeAnalytics, error) {
-	if r.dbType == "sqlite" {
-		row, err := r.sqliteQuerier.GetTranscodeAnalyticsBySessionID(ctx, sessionID)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return nil, nil
-			}
-			return nil, err
-		}
-		return &TranscodeAnalytics{
-			SessionID:       row.SessionID,
-			MediaID:         row.MediaID,
-			QualityProfile:  row.QualityProfile,
-			Strategy:        row.Strategy,
-			HWAccel:         common.ParseNullString(row.HwAccel),
-			FirstFrameMs:    common.ParseNullInt64Ptr(row.FirstFrameMs),
-			FirstSegmentMs:  common.ParseNullInt64Ptr(row.FirstSegmentMs),
-			ManifestReadyMs: common.ParseNullInt64Ptr(row.ManifestReadyMs),
-			Status:          row.Status,
-			ErrorReason:     common.ParseNullString(row.ErrorReason),
-			TotalDurationMs: common.ParseNullInt64Ptr(row.TotalDurationMs),
-			SegmentsCreated: common.ParseNullInt64Ptr(row.SegmentsCreated),
-			CreatedAt:       row.CreatedAt,
-			CompletedAt:     common.ParseNullInt64Ptr(row.CompletedAt),
-		}, nil
-	}
-
-	row, err := r.postgresQuerier.GetTranscodeAnalyticsBySessionID(ctx, sessionID)
+	row, err := r.Q().GetTranscodeAnalyticsBySessionID(ctx, sessionID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, err
 	}
+	return transcodeAnalyticRowToDomain(row), nil
+}
+
+// GetCorrelatedByMediaID retrieves correlated frontend/backend analytics for a media item.
+func (r *Repository) GetCorrelatedByMediaID(ctx context.Context, mediaID int64, limit, offset int) ([]CorrelatedAnalytics, error) {
+	rows, err := r.Q().GetCorrelatedAnalytics(ctx, unified.GetCorrelatedAnalyticsParams{
+		MediaID: mediaID,
+		Limit:   int64(limit),
+		Offset:  int64(offset),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, correlatedAnalyticsRowToDomain), nil
+}
+
+// GetCorrelatedAll retrieves all correlated analytics across all media.
+func (r *Repository) GetCorrelatedAll(ctx context.Context, limit, offset int) ([]CorrelatedAnalytics, error) {
+	rows, err := r.Q().GetCorrelatedAnalyticsAll(ctx, unified.GetCorrelatedAnalyticsAllParams{
+		Limit:  int64(limit),
+		Offset: int64(offset),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, correlatedAnalyticsAllRowToDomain), nil
+}
+
+// transcodeAnalyticRowToDomain converts a unified TranscodeAnalytic row to the domain type.
+func transcodeAnalyticRowToDomain(row unified.TranscodeAnalytic) *TranscodeAnalytics {
 	return &TranscodeAnalytics{
 		SessionID:       row.SessionID,
 		MediaID:         row.MediaID,
@@ -252,141 +192,58 @@ func (r *Repository) GetBySessionID(ctx context.Context, sessionID string) (*Tra
 		SegmentsCreated: common.ParseNullInt64Ptr(row.SegmentsCreated),
 		CreatedAt:       row.CreatedAt,
 		CompletedAt:     common.ParseNullInt64Ptr(row.CompletedAt),
-	}, nil
+	}
 }
 
-// GetCorrelatedByMediaID retrieves correlated frontend/backend analytics for a media item.
-func (r *Repository) GetCorrelatedByMediaID(ctx context.Context, mediaID int64, limit, offset int) ([]CorrelatedAnalytics, error) {
-	if r.dbType == "sqlite" {
-		rows, err := r.sqliteQuerier.GetCorrelatedAnalytics(ctx, sqlc_sqlite.GetCorrelatedAnalyticsParams{
-			MediaID: mediaID,
-			Limit:   int64(limit),
-			Offset:  int64(offset),
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		result := make([]CorrelatedAnalytics, len(rows))
-		for i, row := range rows {
-			result[i] = CorrelatedAnalytics{
-				SessionID:         row.SessionID,
-				MediaID:           row.MediaID,
-				FrontendStartupMs: common.ParseNullInt64Ptr(row.FrontendStartupMs),
-				TotalPlayTimeMs:   common.ParseNullInt64Ptr(row.TotalPlayTimeMs),
-				TotalBufferTimeMs: common.ParseNullInt64Ptr(row.TotalBufferTimeMs),
-				StallCount:        common.ParseNullInt64Ptr(row.StallCount),
-				QualityProfile:    common.ParseNullStringPtr(row.QualityProfile),
-				Strategy:          common.ParseNullStringPtr(row.Strategy),
-				StrategyDisplay:   common.ParseNullStringPtr(row.StrategyDisplay),
-				StrategyReason:    common.ParseNullStringPtr(row.StrategyReason),
-				HWAccel:           common.ParseNullStringPtr(row.HwAccel),
-				BackendStartupMs:  common.ParseNullInt64Ptr(row.BackendStartupMs),
-				FirstFrameMs:      common.ParseNullInt64Ptr(row.FirstFrameMs),
-				FirstSegmentMs:    common.ParseNullInt64Ptr(row.FirstSegmentMs),
-				TranscodeStatus:   common.ParseNullStringPtr(row.TranscodeStatus),
-				SegmentsCreated:   common.ParseNullInt64Ptr(row.SegmentsCreated),
-			}
-		}
-		return result, nil
+// correlatedAnalyticsRowToDomain converts a GetCorrelatedAnalyticsRow to the domain type.
+func correlatedAnalyticsRowToDomain(row unified.GetCorrelatedAnalyticsRow) CorrelatedAnalytics {
+	return CorrelatedAnalytics{
+		SessionID:         row.SessionID,
+		MediaID:           row.MediaID,
+		FrontendStartupMs: common.ParseNullInt64Ptr(row.FrontendStartupMs),
+		TotalPlayTimeMs:   common.ParseNullInt64Ptr(row.TotalPlayTimeMs),
+		TotalBufferTimeMs: common.ParseNullInt64Ptr(row.TotalBufferTimeMs),
+		StallCount:        common.ParseNullInt64Ptr(row.StallCount),
+		QualityProfile:    common.ParseNullStringPtr(row.QualityProfile),
+		Strategy:          common.ParseNullStringPtr(row.Strategy),
+		StrategyDisplay:   common.ParseNullStringPtr(row.StrategyDisplay),
+		StrategyReason:    common.ParseNullStringPtr(row.StrategyReason),
+		HWAccel:           common.ParseNullStringPtr(row.HwAccel),
+		BackendStartupMs:  common.ParseNullInt64Ptr(row.BackendStartupMs),
+		FirstFrameMs:      common.ParseNullInt64Ptr(row.FirstFrameMs),
+		FirstSegmentMs:    common.ParseNullInt64Ptr(row.FirstSegmentMs),
+		TranscodeStatus:   common.ParseNullStringPtr(row.TranscodeStatus),
+		SegmentsCreated:   common.ParseNullInt64Ptr(row.SegmentsCreated),
 	}
-
-	rows, err := r.postgresQuerier.GetCorrelatedAnalytics(ctx, sqlc_postgres.GetCorrelatedAnalyticsParams{
-		MediaID: mediaID,
-		Limit:   int32(limit),
-		Offset:  int32(offset),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]CorrelatedAnalytics, len(rows))
-	for i, row := range rows {
-		result[i] = CorrelatedAnalytics{
-			SessionID:         row.SessionID,
-			MediaID:           row.MediaID,
-			FrontendStartupMs: common.ParseNullInt64Ptr(row.FrontendStartupMs),
-			TotalPlayTimeMs:   common.ParseNullInt64Ptr(row.TotalPlayTimeMs),
-			TotalBufferTimeMs: common.ParseNullInt64Ptr(row.TotalBufferTimeMs),
-			StallCount:        common.ParseNullInt64Ptr(row.StallCount),
-			QualityProfile:    common.ParseNullStringPtr(row.QualityProfile),
-			Strategy:          common.ParseNullStringPtr(row.Strategy),
-			StrategyDisplay:   common.ParseNullStringPtr(row.StrategyDisplay),
-			StrategyReason:    common.ParseNullStringPtr(row.StrategyReason),
-			HWAccel:           common.ParseNullStringPtr(row.HwAccel),
-			BackendStartupMs:  common.ParseNullInt64Ptr(row.BackendStartupMs),
-			FirstFrameMs:      common.ParseNullInt64Ptr(row.FirstFrameMs),
-			FirstSegmentMs:    common.ParseNullInt64Ptr(row.FirstSegmentMs),
-			TranscodeStatus:   common.ParseNullStringPtr(row.TranscodeStatus),
-			SegmentsCreated:   common.ParseNullInt64Ptr(row.SegmentsCreated),
-		}
-	}
-	return result, nil
 }
 
-// GetCorrelatedAll retrieves all correlated analytics across all media.
-func (r *Repository) GetCorrelatedAll(ctx context.Context, limit, offset int) ([]CorrelatedAnalytics, error) {
-	if r.dbType == "sqlite" {
-		rows, err := r.sqliteQuerier.GetCorrelatedAnalyticsAll(ctx, sqlc_sqlite.GetCorrelatedAnalyticsAllParams{
-			Limit:  int64(limit),
-			Offset: int64(offset),
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		result := make([]CorrelatedAnalytics, len(rows))
-		for i, row := range rows {
-			result[i] = CorrelatedAnalytics{
-				SessionID:         row.SessionID,
-				MediaID:           row.MediaID,
-				FrontendStartupMs: common.ParseNullInt64Ptr(row.FrontendStartupMs),
-				TotalPlayTimeMs:   common.ParseNullInt64Ptr(row.TotalPlayTimeMs),
-				TotalBufferTimeMs: common.ParseNullInt64Ptr(row.TotalBufferTimeMs),
-				StallCount:        common.ParseNullInt64Ptr(row.StallCount),
-				QualityProfile:    common.ParseNullStringPtr(row.QualityProfile),
-				Strategy:          common.ParseNullStringPtr(row.Strategy),
-				StrategyDisplay:   common.ParseNullStringPtr(row.StrategyDisplay),
-				StrategyReason:    common.ParseNullStringPtr(row.StrategyReason),
-				HWAccel:           common.ParseNullStringPtr(row.HwAccel),
-				BackendStartupMs:  common.ParseNullInt64Ptr(row.BackendStartupMs),
-				FirstFrameMs:      common.ParseNullInt64Ptr(row.FirstFrameMs),
-				FirstSegmentMs:    common.ParseNullInt64Ptr(row.FirstSegmentMs),
-				TranscodeStatus:   common.ParseNullStringPtr(row.TranscodeStatus),
-				SegmentsCreated:   common.ParseNullInt64Ptr(row.SegmentsCreated),
-			}
-		}
-		return result, nil
+// correlatedAnalyticsAllRowToDomain converts a GetCorrelatedAnalyticsAllRow to the domain type.
+func correlatedAnalyticsAllRowToDomain(row unified.GetCorrelatedAnalyticsAllRow) CorrelatedAnalytics {
+	return CorrelatedAnalytics{
+		SessionID:         row.SessionID,
+		MediaID:           row.MediaID,
+		FrontendStartupMs: common.ParseNullInt64Ptr(row.FrontendStartupMs),
+		TotalPlayTimeMs:   common.ParseNullInt64Ptr(row.TotalPlayTimeMs),
+		TotalBufferTimeMs: common.ParseNullInt64Ptr(row.TotalBufferTimeMs),
+		StallCount:        common.ParseNullInt64Ptr(row.StallCount),
+		QualityProfile:    common.ParseNullStringPtr(row.QualityProfile),
+		Strategy:          common.ParseNullStringPtr(row.Strategy),
+		StrategyDisplay:   common.ParseNullStringPtr(row.StrategyDisplay),
+		StrategyReason:    common.ParseNullStringPtr(row.StrategyReason),
+		HWAccel:           common.ParseNullStringPtr(row.HwAccel),
+		BackendStartupMs:  common.ParseNullInt64Ptr(row.BackendStartupMs),
+		FirstFrameMs:      common.ParseNullInt64Ptr(row.FirstFrameMs),
+		FirstSegmentMs:    common.ParseNullInt64Ptr(row.FirstSegmentMs),
+		TranscodeStatus:   common.ParseNullStringPtr(row.TranscodeStatus),
+		SegmentsCreated:   common.ParseNullInt64Ptr(row.SegmentsCreated),
 	}
+}
 
-	rows, err := r.postgresQuerier.GetCorrelatedAnalyticsAll(ctx, sqlc_postgres.GetCorrelatedAnalyticsAllParams{
-		Limit:  int32(limit),
-		Offset: int32(offset),
-	})
-	if err != nil {
-		return nil, err
+// mapSlice converts a slice of one type to another using the provided mapper function.
+func mapSlice[TFrom, TTo any](from []TFrom, mapper func(TFrom) TTo) []TTo {
+	result := make([]TTo, len(from))
+	for i, v := range from {
+		result[i] = mapper(v)
 	}
-
-	result := make([]CorrelatedAnalytics, len(rows))
-	for i, row := range rows {
-		result[i] = CorrelatedAnalytics{
-			SessionID:         row.SessionID,
-			MediaID:           row.MediaID,
-			FrontendStartupMs: common.ParseNullInt64Ptr(row.FrontendStartupMs),
-			TotalPlayTimeMs:   common.ParseNullInt64Ptr(row.TotalPlayTimeMs),
-			TotalBufferTimeMs: common.ParseNullInt64Ptr(row.TotalBufferTimeMs),
-			StallCount:        common.ParseNullInt64Ptr(row.StallCount),
-			QualityProfile:    common.ParseNullStringPtr(row.QualityProfile),
-			Strategy:          common.ParseNullStringPtr(row.Strategy),
-			StrategyDisplay:   common.ParseNullStringPtr(row.StrategyDisplay),
-			StrategyReason:    common.ParseNullStringPtr(row.StrategyReason),
-			HWAccel:           common.ParseNullStringPtr(row.HwAccel),
-			BackendStartupMs:  common.ParseNullInt64Ptr(row.BackendStartupMs),
-			FirstFrameMs:      common.ParseNullInt64Ptr(row.FirstFrameMs),
-			FirstSegmentMs:    common.ParseNullInt64Ptr(row.FirstSegmentMs),
-			TranscodeStatus:   common.ParseNullStringPtr(row.TranscodeStatus),
-			SegmentsCreated:   common.ParseNullInt64Ptr(row.SegmentsCreated),
-		}
-	}
-	return result, nil
+	return result
 }

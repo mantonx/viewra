@@ -70,7 +70,7 @@ DELETE FROM enrichment_pipelines WHERE id = $1;
 DELETE FROM enrichment_pipelines WHERE media_type = $1;
 
 -- name: GetNextPipelinePosition :one
-SELECT COALESCE(MAX(position), 0) + 1 as next_position
+SELECT (COALESCE(MAX(position), 0) + 1)::bigint as next_position
 FROM enrichment_pipelines
 WHERE media_type = $1;
 

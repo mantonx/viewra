@@ -8,37 +8,21 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/scanner"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // CheckpointRepo implements scanner.CheckpointRepository using sqlc.
-// It supports both SQLite and PostgreSQL through database-specific queriers.
+// It embeds BaseRepository for dual-database support.
 type CheckpointRepo struct {
-	db       *sql.DB
-	dbType   string
-	postgres *sqlc_postgres.Queries
-	sqlite   *sqlc_sqlite.Queries
-	router   *common.QueryRouter
+	*common.BaseRepository
 }
 
-// NewCheckpointRepo creates a new checkpoint repository with the appropriate database driver.
-// The driver parameter should be "sqlite", "sqlite3", "postgres", or "postgresql".
-func NewCheckpointRepo(db *sql.DB, driver string) *CheckpointRepo {
-	r := &CheckpointRepo{
-		db:     db,
-		dbType: driver,
-		router: common.NewQueryRouter(driver),
+// NewCheckpointRepo creates a new checkpoint repository with the unified querier pattern.
+func NewCheckpointRepo(db *common.BaseRepository) *CheckpointRepo {
+	return &CheckpointRepo{
+		BaseRepository: db,
 	}
-
-	if common.IsPostgres(driver) {
-		r.postgres = sqlc_postgres.New(db)
-	} else {
-		r.sqlite = sqlc_sqlite.New(db)
-	}
-
-	return r
 }
 
 // CreateBatch creates multiple checkpoints in a single multi-row INSERT operation.
@@ -52,7 +36,7 @@ func (r *CheckpointRepo) CreateBatch(ctx context.Context, checkpoints []*scanner
 	}
 
 	// Use a transaction for atomic batch insert
-	tx, err := r.db.BeginTx(ctx, nil)
+	tx, err := r.DB().BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -68,7 +52,7 @@ func (r *CheckpointRepo) CreateBatch(ctx context.Context, checkpoints []*scanner
 	var placeholders string
 	args := make([]interface{}, 0, len(checkpoints)*6)
 
-	if r.router.IsPostgresDB() {
+	if common.IsPostgres(r.DBType()) {
 		// PostgreSQL uses $1, $2, $3, ... for placeholders
 		for i, cp := range checkpoints {
 			if i > 0 {
@@ -114,25 +98,15 @@ func (r *CheckpointRepo) CreateBatch(ctx context.Context, checkpoints []*scanner
 
 // GetPendingBatch retrieves a batch of pending files to process
 func (r *CheckpointRepo) GetPendingBatch(ctx context.Context, jobID int64, limit int) ([]*scanner.ScanCheckpoint, error) {
-	result, err := r.router.Route(
-		func() (any, error) {
-			return r.postgres.GetPendingScanCheckpoints(ctx, sqlc_postgres.GetPendingScanCheckpointsParams{
-				ScanJobID: jobID,
-				Limit:     int32(limit),
-			})
-		},
-		func() (any, error) {
-			return r.sqlite.GetPendingScanCheckpoints(ctx, sqlc_sqlite.GetPendingScanCheckpointsParams{
-				ScanJobID: jobID,
-				Limit:     int64(limit),
-			})
-		},
-	)
+	rows, err := r.Q().GetPendingScanCheckpoints(ctx, unified.GetPendingScanCheckpointsParams{
+		ScanJobID: jobID,
+		Limit:     int64(limit),
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	return r.convertSlice(result), nil
+	return mapSlice(rows, convertToCheckpoint), nil
 }
 
 // UpdateStatus updates the processing status of a checkpoint
@@ -143,115 +117,51 @@ func (r *CheckpointRepo) UpdateStatus(ctx context.Context, id int64, status scan
 		processedAt = sql.NullTime{Time: time.Now(), Valid: true}
 	}
 
-	_, err := r.router.Route(
-		func() (any, error) {
-			return nil, r.postgres.UpdateScanCheckpointStatus(ctx, sqlc_postgres.UpdateScanCheckpointStatusParams{
-				Status:        string(status),
-				ErrorMessage:  common.NullString(errorMsg),
-				ErrorCategory: common.NullString(string(errorCategory)),
-				ProcessedAt:   processedAt,
-				ID:            id,
-			})
-		},
-		func() (any, error) {
-			return nil, r.sqlite.UpdateScanCheckpointStatus(ctx, sqlc_sqlite.UpdateScanCheckpointStatusParams{
-				Status:        string(status),
-				ErrorMessage:  common.NullString(errorMsg),
-				ErrorCategory: common.NullString(string(errorCategory)),
-				ProcessedAt:   processedAt,
-				ID:            id,
-			})
-		},
-	)
-	return err
+	return r.Q().UpdateScanCheckpointStatus(ctx, unified.UpdateScanCheckpointStatusParams{
+		Status:        string(status),
+		ErrorMessage:  common.NullString(errorMsg),
+		ErrorCategory: common.NullString(string(errorCategory)),
+		ProcessedAt:   processedAt,
+		ID:            id,
+	})
 }
 
 // UpdateRetryCount increments the retry count for a checkpoint
 func (r *CheckpointRepo) UpdateRetryCount(ctx context.Context, id int64, retryCount int) error {
-	_, err := r.router.Route(
-		func() (any, error) {
-			return nil, r.postgres.UpdateScanCheckpointRetryCount(ctx, sqlc_postgres.UpdateScanCheckpointRetryCountParams{
-				RetryCount: int64(retryCount),
-				ID:         id,
-			})
-		},
-		func() (any, error) {
-			return nil, r.sqlite.UpdateScanCheckpointRetryCount(ctx, sqlc_sqlite.UpdateScanCheckpointRetryCountParams{
-				RetryCount: int64(retryCount),
-				ID:         id,
-			})
-		},
-	)
-	return err
+	return r.Q().UpdateScanCheckpointRetryCount(ctx, unified.UpdateScanCheckpointRetryCountParams{
+		RetryCount: int64(retryCount),
+		ID:         id,
+	})
 }
 
 // GetStats retrieves aggregate statistics for a scan job's checkpoints
 func (r *CheckpointRepo) GetStats(ctx context.Context, jobID int64) (*scanner.CheckpointStats, error) {
 	// Get basic stats
-	statsResult, err := r.router.Route(
-		func() (any, error) {
-			return r.postgres.GetScanCheckpointStats(ctx, jobID)
-		},
-		func() (any, error) {
-			return r.sqlite.GetScanCheckpointStats(ctx, jobID)
-		},
-	)
+	statsRow, err := r.Q().GetScanCheckpointStats(ctx, jobID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get error breakdown by category
-	errorResult, err := r.router.Route(
-		func() (any, error) {
-			return r.postgres.GetScanCheckpointErrorsByCategory(ctx, jobID)
-		},
-		func() (any, error) {
-			return r.sqlite.GetScanCheckpointErrorsByCategory(ctx, jobID)
-		},
-	)
+	errorRows, err := r.Q().GetScanCheckpointErrorsByCategory(ctx, jobID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
 
 	stats := &scanner.CheckpointStats{
+		TotalFiles:       statsRow.TotalFiles,
+		PendingFiles:     statsRow.PendingFiles,
+		CompletedFiles:   statsRow.CompletedFiles,
+		FailedFiles:      statsRow.FailedFiles,
+		WarningFiles:     statsRow.WarningFiles,
+		ProcessedFiles:   statsRow.ProcessedFiles,
+		FirstProcessedAt: parseInterfaceTime(statsRow.FirstProcessedAt),
 		ErrorsByCategory: make(map[scanner.ErrorCategory]int64),
 	}
 
-	if r.router.IsPostgresDB() {
-		pgStats := statsResult.(sqlc_postgres.GetScanCheckpointStatsRow)
-		stats.TotalFiles = pgStats.TotalFiles
-		stats.PendingFiles = int64(pgStats.PendingFiles)
-		stats.CompletedFiles = int64(pgStats.CompletedFiles)
-		stats.FailedFiles = int64(pgStats.FailedFiles)
-		stats.WarningFiles = int64(pgStats.WarningFiles)
-		stats.ProcessedFiles = int64(pgStats.ProcessedFiles)
-		stats.FirstProcessedAt = parseInterfaceTime(pgStats.FirstProcessedAt)
-
-		if errorResult != nil {
-			pgErrors := errorResult.([]sqlc_postgres.GetScanCheckpointErrorsByCategoryRow)
-			for _, e := range pgErrors {
-				if e.ErrorCategory.Valid {
-					stats.ErrorsByCategory[scanner.ErrorCategory(e.ErrorCategory.String)] = e.ErrorCount
-				}
-			}
-		}
-	} else {
-		sqStats := statsResult.(sqlc_sqlite.GetScanCheckpointStatsRow)
-		stats.TotalFiles = sqStats.TotalFiles
-		stats.PendingFiles = int64(sqStats.PendingFiles.Float64)
-		stats.CompletedFiles = int64(sqStats.CompletedFiles.Float64)
-		stats.FailedFiles = int64(sqStats.FailedFiles.Float64)
-		stats.WarningFiles = int64(sqStats.WarningFiles.Float64)
-		stats.ProcessedFiles = int64(sqStats.ProcessedFiles.Float64)
-		stats.FirstProcessedAt = parseInterfaceTime(sqStats.FirstProcessedAt)
-
-		if errorResult != nil {
-			sqErrors := errorResult.([]sqlc_sqlite.GetScanCheckpointErrorsByCategoryRow)
-			for _, e := range sqErrors {
-				if e.ErrorCategory.Valid {
-					stats.ErrorsByCategory[scanner.ErrorCategory(e.ErrorCategory.String)] = e.ErrorCount
-				}
-			}
+	for _, e := range errorRows {
+		if e.ErrorCategory.Valid {
+			stats.ErrorsByCategory[scanner.ErrorCategory(e.ErrorCategory.String)] = e.ErrorCount
 		}
 	}
 
@@ -260,20 +170,10 @@ func (r *CheckpointRepo) GetStats(ctx context.Context, jobID int64) (*scanner.Ch
 
 // ListFailed retrieves all failed checkpoints for error reporting
 func (r *CheckpointRepo) ListFailed(ctx context.Context, jobID int64, limit int) ([]*scanner.ScanCheckpoint, error) {
-	result, err := r.router.Route(
-		func() (any, error) {
-			return r.postgres.ListFailedScanCheckpoints(ctx, sqlc_postgres.ListFailedScanCheckpointsParams{
-				ScanJobID: jobID,
-				Limit:     int32(limit),
-			})
-		},
-		func() (any, error) {
-			return r.sqlite.ListFailedScanCheckpoints(ctx, sqlc_sqlite.ListFailedScanCheckpointsParams{
-				ScanJobID: jobID,
-				Limit:     int64(limit),
-			})
-		},
-	)
+	rows, err := r.Q().ListFailedScanCheckpoints(ctx, unified.ListFailedScanCheckpointsParams{
+		ScanJobID: jobID,
+		Limit:     int64(limit),
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return []*scanner.ScanCheckpoint{}, nil
@@ -281,25 +181,15 @@ func (r *CheckpointRepo) ListFailed(ctx context.Context, jobID int64, limit int)
 		return nil, err
 	}
 
-	return r.convertSlice(result), nil
+	return mapSlice(rows, convertToCheckpoint), nil
 }
 
 // GetByPath retrieves a checkpoint for a specific file path
 func (r *CheckpointRepo) GetByPath(ctx context.Context, jobID int64, filePath string) (*scanner.ScanCheckpoint, error) {
-	result, err := r.router.Route(
-		func() (any, error) {
-			return r.postgres.GetScanCheckpointByPath(ctx, sqlc_postgres.GetScanCheckpointByPathParams{
-				ScanJobID: jobID,
-				FilePath:  filePath,
-			})
-		},
-		func() (any, error) {
-			return r.sqlite.GetScanCheckpointByPath(ctx, sqlc_sqlite.GetScanCheckpointByPathParams{
-				ScanJobID: jobID,
-				FilePath:  filePath,
-			})
-		},
-	)
+	row, err := r.Q().GetScanCheckpointByPath(ctx, unified.GetScanCheckpointByPathParams{
+		ScanJobID: jobID,
+		FilePath:  filePath,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, scanner.ErrNotFound
@@ -307,29 +197,15 @@ func (r *CheckpointRepo) GetByPath(ctx context.Context, jobID int64, filePath st
 		return nil, err
 	}
 
-	return r.convertToCheckpoint(result), nil
+	return convertToCheckpoint(row), nil
 }
 
 // ResetFailed resets all failed checkpoints to pending for retry
 func (r *CheckpointRepo) ResetFailed(ctx context.Context, jobID int64) (int64, error) {
 	// First count the failed checkpoints
-	countResult, err := r.router.Route(
-		func() (any, error) {
-			return r.postgres.CountFailedScanCheckpoints(ctx, jobID)
-		},
-		func() (any, error) {
-			return r.sqlite.CountFailedScanCheckpoints(ctx, jobID)
-		},
-	)
+	count, err := r.Q().CountFailedScanCheckpoints(ctx, jobID)
 	if err != nil {
 		return 0, err
-	}
-
-	var count int64
-	if r.router.IsPostgresDB() {
-		count = countResult.(int64)
-	} else {
-		count = countResult.(int64)
 	}
 
 	if count == 0 {
@@ -337,15 +213,7 @@ func (r *CheckpointRepo) ResetFailed(ctx context.Context, jobID int64) (int64, e
 	}
 
 	// Reset the failed checkpoints
-	_, err = r.router.Route(
-		func() (any, error) {
-			return nil, r.postgres.ResetFailedScanCheckpoints(ctx, jobID)
-		},
-		func() (any, error) {
-			return nil, r.sqlite.ResetFailedScanCheckpoints(ctx, jobID)
-		},
-	)
-	if err != nil {
+	if err := r.Q().ResetFailedScanCheckpoints(ctx, jobID); err != nil {
 		return 0, err
 	}
 
@@ -354,68 +222,23 @@ func (r *CheckpointRepo) ResetFailed(ctx context.Context, jobID int64) (int64, e
 
 // DeleteByJobID deletes all checkpoints for a scan job
 func (r *CheckpointRepo) DeleteByJobID(ctx context.Context, jobID int64) error {
-	_, err := r.router.Route(
-		func() (any, error) {
-			return nil, r.postgres.DeleteScanCheckpointsByJobID(ctx, jobID)
-		},
-		func() (any, error) {
-			return nil, r.sqlite.DeleteScanCheckpointsByJobID(ctx, jobID)
-		},
-	)
-	return err
+	return r.Q().DeleteScanCheckpointsByJobID(ctx, jobID)
 }
 
-// convertSlice converts a slice of sqlc checkpoints to domain checkpoints
-func (r *CheckpointRepo) convertSlice(result any) []*scanner.ScanCheckpoint {
-	if r.router.IsPostgresDB() {
-		pgSlice := result.([]sqlc_postgres.ScanCheckpoint)
-		checkpoints := make([]*scanner.ScanCheckpoint, len(pgSlice))
-		for i, pg := range pgSlice {
-			checkpoints[i] = r.convertToCheckpoint(pg)
-		}
-		return checkpoints
-	}
-
-	sqSlice := result.([]sqlc_sqlite.ScanCheckpoint)
-	checkpoints := make([]*scanner.ScanCheckpoint, len(sqSlice))
-	for i, sq := range sqSlice {
-		checkpoints[i] = r.convertToCheckpoint(sq)
-	}
-	return checkpoints
-}
-
-// convertToCheckpoint converts sqlc result to domain ScanCheckpoint
-func (r *CheckpointRepo) convertToCheckpoint(result any) *scanner.ScanCheckpoint {
-	if r.router.IsPostgresDB() {
-		pg := result.(sqlc_postgres.ScanCheckpoint)
-		return &scanner.ScanCheckpoint{
-			ID:            int64(pg.ID),
-			ScanJobID:     int64(pg.ScanJobID),
-			FilePath:      pg.FilePath,
-			Status:        scanner.CheckpointStatus(pg.Status),
-			FileSize:      common.ParseNullInt64(pg.FileSize),
-			FileHash:      common.ParseNullString(pg.FileHash),
-			ErrorMessage:  common.ParseNullString(pg.ErrorMessage),
-			ErrorCategory: scanner.ErrorCategory(common.ParseNullString(pg.ErrorCategory)),
-			RetryCount:    int(pg.RetryCount),
-			ProcessedAt:   common.ParseNullTimePtr(pg.ProcessedAt),
-			CreatedAt:     common.ParseNullTime(pg.CreatedAt),
-		}
-	}
-
-	sq := result.(sqlc_sqlite.ScanCheckpoint)
+// convertToCheckpoint converts a unified ScanCheckpoint to domain ScanCheckpoint
+func convertToCheckpoint(row unified.ScanCheckpoint) *scanner.ScanCheckpoint {
 	return &scanner.ScanCheckpoint{
-		ID:            sq.ID,
-		ScanJobID:     sq.ScanJobID,
-		FilePath:      sq.FilePath,
-		Status:        scanner.CheckpointStatus(sq.Status),
-		FileSize:      common.ParseNullInt64(sq.FileSize),
-		FileHash:      common.ParseNullString(sq.FileHash),
-		ErrorMessage:  common.ParseNullString(sq.ErrorMessage),
-		ErrorCategory: scanner.ErrorCategory(common.ParseNullString(sq.ErrorCategory)),
-		RetryCount:    int(sq.RetryCount),
-		ProcessedAt:   common.ParseNullTimePtr(sq.ProcessedAt),
-		CreatedAt:     common.ParseNullTime(sq.CreatedAt),
+		ID:            row.ID,
+		ScanJobID:     row.ScanJobID,
+		FilePath:      row.FilePath,
+		Status:        scanner.CheckpointStatus(row.Status),
+		FileSize:      common.ParseNullInt64(row.FileSize),
+		FileHash:      common.ParseNullString(row.FileHash),
+		ErrorMessage:  common.ParseNullString(row.ErrorMessage),
+		ErrorCategory: scanner.ErrorCategory(common.ParseNullString(row.ErrorCategory)),
+		RetryCount:    int(row.RetryCount),
+		ProcessedAt:   common.ParseNullTimePtr(row.ProcessedAt),
+		CreatedAt:     common.ParseNullTime(row.CreatedAt),
 	}
 }
 

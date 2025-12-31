@@ -3,289 +3,362 @@ package music
 import (
 	"database/sql"
 	"time"
-	"unsafe"
 
 	domainCommon "github.com/mantonx/viewra/internal/domain/common"
 	"github.com/mantonx/viewra/internal/domain/media"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // ========================================
-// Generic Music Track Mapper
+// Unified Row Mappers
 // ========================================
+// Since PostgreSQL and SQLite types are now structurally identical,
+// we use a single converter per query type using unified type aliases.
 
-// mapMusicTrackToDomain converts any music track query row to domain MusicTrack
-// Handles both SQLite and PostgreSQL row types using reflection-based field getters
-// This single function replaces 400+ lines of duplicate SQLite/PostgreSQL converters
-func mapMusicTrackToDomain(row interface{}) *media.MusicTrack {
+// musicTrackRowToDomain converts a GetMusicTrackByMediaIDRow to domain MusicTrack
+func musicTrackRowToDomain(row unified.GetMusicTrackByMediaIDRow) *media.MusicTrack {
+	return toMusicTrackDomain(
+		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
+		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
+		row.CreatedAt, row.UpdatedAt,
+		row.Artist, row.Album, row.AlbumArtist, row.TrackNumber, row.DiscNumber,
+		row.TotalTracks, row.TotalDiscs, row.Genre, row.Year, row.ReleaseDate,
+		row.Composer, row.Lyricist, row.RecordLabel, row.Isrc, row.ReleaseType,
+		row.Compilation, row.OriginalTitle, row.SortTitle,
+		row.MusicbrainzTrackID, row.MusicbrainzAlbumID, row.MusicbrainzArtistID,
+		row.AlbumID, row.ArtistID,
+	)
+}
+
+// listMusicTrackRowToDomain converts a ListMusicTracksByLibraryRow to domain MusicTrack
+func listMusicTrackRowToDomain(row unified.ListMusicTracksByLibraryRow) *media.MusicTrack {
+	return toMusicTrackDomain(
+		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
+		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
+		row.CreatedAt, row.UpdatedAt,
+		row.Artist, row.Album, row.AlbumArtist, row.TrackNumber, row.DiscNumber,
+		row.TotalTracks, row.TotalDiscs, row.Genre, row.Year, row.ReleaseDate,
+		row.Composer, row.Lyricist, row.RecordLabel, row.Isrc, row.ReleaseType,
+		row.Compilation, row.OriginalTitle, row.SortTitle,
+		row.MusicbrainzTrackID, row.MusicbrainzAlbumID, row.MusicbrainzArtistID,
+		row.AlbumID, row.ArtistID,
+	)
+}
+
+// albumMusicTrackRowToDomain converts a ListMusicTracksByAlbumRow to domain MusicTrack
+func albumMusicTrackRowToDomain(row unified.ListMusicTracksByAlbumRow) *media.MusicTrack {
+	return toMusicTrackDomain(
+		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
+		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
+		row.CreatedAt, row.UpdatedAt,
+		row.Artist, row.Album, row.AlbumArtist, row.TrackNumber, row.DiscNumber,
+		row.TotalTracks, row.TotalDiscs, row.Genre, row.Year, row.ReleaseDate,
+		row.Composer, row.Lyricist, row.RecordLabel, row.Isrc, row.ReleaseType,
+		row.Compilation, row.OriginalTitle, row.SortTitle,
+		row.MusicbrainzTrackID, row.MusicbrainzAlbumID, row.MusicbrainzArtistID,
+		row.AlbumID, row.ArtistID,
+	)
+}
+
+// albumIDMusicTrackRowToDomain converts a ListMusicTracksByAlbumIDRow to domain MusicTrack
+func albumIDMusicTrackRowToDomain(row unified.ListMusicTracksByAlbumIDRow) *media.MusicTrack {
+	return toMusicTrackDomain(
+		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
+		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
+		row.CreatedAt, row.UpdatedAt,
+		row.Artist, row.Album, row.AlbumArtist, row.TrackNumber, row.DiscNumber,
+		row.TotalTracks, row.TotalDiscs, row.Genre, row.Year, row.ReleaseDate,
+		row.Composer, row.Lyricist, row.RecordLabel, row.Isrc, row.ReleaseType,
+		row.Compilation, row.OriginalTitle, row.SortTitle,
+		row.MusicbrainzTrackID, row.MusicbrainzAlbumID, row.MusicbrainzArtistID,
+		row.AlbumID, row.ArtistID,
+	)
+}
+
+// artistMusicTrackRowToDomain converts a ListMusicTracksByArtistRow to domain MusicTrack
+func artistMusicTrackRowToDomain(row unified.ListMusicTracksByArtistRow) *media.MusicTrack {
+	return toMusicTrackDomain(
+		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
+		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
+		row.CreatedAt, row.UpdatedAt,
+		row.Artist, row.Album, row.AlbumArtist, row.TrackNumber, row.DiscNumber,
+		row.TotalTracks, row.TotalDiscs, row.Genre, row.Year, row.ReleaseDate,
+		row.Composer, row.Lyricist, row.RecordLabel, row.Isrc, row.ReleaseType,
+		row.Compilation, row.OriginalTitle, row.SortTitle,
+		row.MusicbrainzTrackID, row.MusicbrainzAlbumID, row.MusicbrainzArtistID,
+		row.AlbumID, row.ArtistID,
+	)
+}
+
+// searchMusicTrackRowToDomain converts a SearchMusicTracksRow to domain MusicTrack
+func searchMusicTrackRowToDomain(row unified.SearchMusicTracksRow) *media.MusicTrack {
+	return toMusicTrackDomain(
+		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
+		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
+		row.CreatedAt, row.UpdatedAt,
+		row.Artist, row.Album, row.AlbumArtist, row.TrackNumber, row.DiscNumber,
+		row.TotalTracks, row.TotalDiscs, row.Genre, row.Year, row.ReleaseDate,
+		row.Composer, row.Lyricist, row.RecordLabel, row.Isrc, row.ReleaseType,
+		row.Compilation, row.OriginalTitle, row.SortTitle,
+		row.MusicbrainzTrackID, row.MusicbrainzAlbumID, row.MusicbrainzArtistID,
+		row.AlbumID, row.ArtistID,
+	)
+}
+
+// paginatedMusicTrackRowToDomain converts a ListMusicTracksByLibraryPaginatedRow to domain MusicTrack
+func paginatedMusicTrackRowToDomain(row unified.ListMusicTracksByLibraryPaginatedRow) *media.MusicTrack {
+	return toMusicTrackDomain(
+		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
+		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
+		row.CreatedAt, row.UpdatedAt,
+		row.Artist, row.Album, row.AlbumArtist, row.TrackNumber, row.DiscNumber,
+		row.TotalTracks, row.TotalDiscs, row.Genre, row.Year, row.ReleaseDate,
+		row.Composer, row.Lyricist, row.RecordLabel, row.Isrc, row.ReleaseType,
+		row.Compilation, row.OriginalTitle, row.SortTitle,
+		row.MusicbrainzTrackID, row.MusicbrainzAlbumID, row.MusicbrainzArtistID,
+		row.AlbumID, row.ArtistID,
+	)
+}
+
+// paginatedDescMusicTrackRowToDomain converts a ListMusicTracksByLibraryPaginatedDescRow to domain MusicTrack
+func paginatedDescMusicTrackRowToDomain(row unified.ListMusicTracksByLibraryPaginatedDescRow) *media.MusicTrack {
+	return toMusicTrackDomain(
+		row.MediaID_2, row.LibraryID, row.Title, row.Type, row.FilePath,
+		row.FileSize, row.ContainerFormat, row.Duration, row.Width, row.Height,
+		row.Codec, row.AudioCodec, row.BitRate, row.FrameRate, row.IsExtra != 0,
+		row.CreatedAt, row.UpdatedAt,
+		row.Artist, row.Album, row.AlbumArtist, row.TrackNumber, row.DiscNumber,
+		row.TotalTracks, row.TotalDiscs, row.Genre, row.Year, row.ReleaseDate,
+		row.Composer, row.Lyricist, row.RecordLabel, row.Isrc, row.ReleaseType,
+		row.Compilation, row.OriginalTitle, row.SortTitle,
+		row.MusicbrainzTrackID, row.MusicbrainzAlbumID, row.MusicbrainzArtistID,
+		row.AlbumID, row.ArtistID,
+	)
+}
+
+// toMusicTrackDomain is the single source of truth for converting database fields to domain MusicTrack.
+// All row-specific converters delegate to this function.
+func toMusicTrackDomain(
+	// Media fields
+	mediaID, libraryID int64, title, mediaType, filePath string,
+	fileSize sql.NullInt64, containerFormat sql.NullString, duration sql.NullFloat64,
+	width, height sql.NullInt64, codec, audioCodec sql.NullString,
+	bitRate sql.NullInt64, frameRate sql.NullFloat64, isExtra bool,
+	createdAt, updatedAt sql.NullTime,
+	// Music-specific fields
+	artist, album, albumArtist sql.NullString,
+	trackNumber, discNumber, totalTracks, totalDiscs sql.NullInt64,
+	genre sql.NullString, year sql.NullInt64, releaseDate sql.NullTime,
+	composer, lyricist, recordLabel, isrc, releaseType sql.NullString,
+	compilation sql.NullInt64, originalTitle, sortTitle sql.NullString,
+	musicbrainzTrackID, musicbrainzAlbumID, musicbrainzArtistID sql.NullString,
+	albumID, artistID sql.NullInt64,
+) *media.MusicTrack {
 	return &media.MusicTrack{
 		Media: media.Media{
-			ID:              common.IntFieldGetter(row, "MediaID_2"),
-			LibraryID:       common.IntFieldGetter(row, "LibraryID"),
-			Title:           common.StringFieldGetter(row, "Title"),
-			Type:            common.StringFieldGetter(row, "Type"),
-			FilePath:        common.StringFieldGetter(row, "FilePath"),
-			FileSize:        common.ParseNullInt64(common.NullIntFieldGetter(row, "FileSize")),
-			Duration:        int(common.Float64FieldGetter(row, "Duration")),
-			IsExtra:         common.BoolFieldGetter(row, "IsExtra"),
-			Width:           int(common.ParseNullInt64(common.NullIntFieldGetter(row, "Width"))),
-			Height:          int(common.ParseNullInt64(common.NullIntFieldGetter(row, "Height"))),
-			VideoCodec:      common.ParseNullString(common.NullStringFieldGetter(row, "Codec")),
-			AudioCodec:      common.ParseNullString(common.NullStringFieldGetter(row, "AudioCodec")),
-			Bitrate:         common.ParseNullInt64(common.NullIntFieldGetter(row, "BitRate")),
-			FrameRate:       common.Float64FieldGetter(row, "FrameRate"),
-			ContainerFormat: common.ParseNullString(common.NullStringFieldGetter(row, "ContainerFormat")),
-			CreatedAt:       common.ParseNullTime(common.TimeFieldGetter(row, "CreatedAt")),
-			UpdatedAt:       common.ParseNullTime(common.TimeFieldGetter(row, "UpdatedAt")),
+			ID:              mediaID,
+			LibraryID:       libraryID,
+			Title:           title,
+			Type:            mediaType,
+			FilePath:        filePath,
+			FileSize:        common.ParseNullInt64(fileSize),
+			Duration:        int(common.ParseNullFloat64(duration)),
+			IsExtra:         isExtra,
+			Width:           int(common.ParseNullInt64(width)),
+			Height:          int(common.ParseNullInt64(height)),
+			VideoCodec:      common.ParseNullString(codec),
+			AudioCodec:      common.ParseNullString(audioCodec),
+			Bitrate:         common.ParseNullInt64(bitRate),
+			FrameRate:       common.ParseNullFloat64(frameRate),
+			ContainerFormat: common.ParseNullString(containerFormat),
+			CreatedAt:       common.ParseNullTime(createdAt),
+			UpdatedAt:       common.ParseNullTime(updatedAt),
 		},
-		Artist:              common.ParseNullString(common.NullStringFieldGetter(row, "Artist")),
-		Album:               common.ParseNullString(common.NullStringFieldGetter(row, "Album")),
-		AlbumArtist:         common.ParseNullString(common.NullStringFieldGetter(row, "AlbumArtist")),
-		TrackNumber:         int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TrackNumber"))),
-		DiscNumber:          int(common.ParseNullInt64(common.NullIntFieldGetter(row, "DiscNumber"))),
-		Year:                int(common.ParseNullInt64(common.NullIntFieldGetter(row, "Year"))),
-		Genre:               common.ParseNullString(common.NullStringFieldGetter(row, "Genre")),
-		Composer:            common.ParseNullString(common.NullStringFieldGetter(row, "Composer")),
-		Publisher:           common.ParseNullString(common.NullStringFieldGetter(row, "RecordLabel")),
-		Bitrate:             int(common.ParseNullInt64(common.NullIntFieldGetter(row, "BitRate")) / 1000),
-		TotalTracks:         int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TotalTracks"))),
-		TotalDiscs:          int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TotalDiscs"))),
-		ReleaseDate:         common.FormatNullDate(common.TimeFieldGetter(row, "ReleaseDate")),
-		Lyricist:            common.ParseNullString(common.NullStringFieldGetter(row, "Lyricist")),
-		ISRC:                common.ParseNullString(common.NullStringFieldGetter(row, "Isrc")),
-		ReleaseType:         common.ParseNullString(common.NullStringFieldGetter(row, "ReleaseType")),
-		Compilation:         common.ParseNullBool(sql.NullBool{Bool: common.BoolFieldGetter(row, "Compilation"), Valid: true}),
-		OriginalTitle:       common.ParseNullString(common.NullStringFieldGetter(row, "OriginalTitle")),
-		SortTitle:           common.ParseNullString(common.NullStringFieldGetter(row, "SortTitle")),
-		MusicBrainzTrackID:  common.ParseNullString(common.NullStringFieldGetter(row, "MusicbrainzTrackID")),
-		MusicBrainzAlbumID:  common.ParseNullString(common.NullStringFieldGetter(row, "MusicbrainzAlbumID")),
-		MusicBrainzArtistID: common.ParseNullString(common.NullStringFieldGetter(row, "MusicbrainzArtistID")),
-		AlbumID:             common.IntFieldGetter(row, "AlbumID"),
-		ArtistID:            common.IntFieldGetter(row, "ArtistID"),
+		Artist:              common.ParseNullString(artist),
+		Album:               common.ParseNullString(album),
+		AlbumArtist:         common.ParseNullString(albumArtist),
+		TrackNumber:         int(common.ParseNullInt64(trackNumber)),
+		DiscNumber:          int(common.ParseNullInt64(discNumber)),
+		TotalTracks:         int(common.ParseNullInt64(totalTracks)),
+		TotalDiscs:          int(common.ParseNullInt64(totalDiscs)),
+		Genre:               common.ParseNullString(genre),
+		Year:                int(common.ParseNullInt64(year)),
+		ReleaseDate:         common.FormatNullDate(releaseDate),
+		Composer:            common.ParseNullString(composer),
+		Lyricist:            common.ParseNullString(lyricist),
+		Publisher:           common.ParseNullString(recordLabel),
+		ISRC:                common.ParseNullString(isrc),
+		ReleaseType:         common.ParseNullString(releaseType),
+		Compilation:         compilation.Valid && compilation.Int64 != 0,
+		OriginalTitle:       common.ParseNullString(originalTitle),
+		SortTitle:           common.ParseNullString(sortTitle),
+		MusicBrainzTrackID:  common.ParseNullString(musicbrainzTrackID),
+		MusicBrainzAlbumID:  common.ParseNullString(musicbrainzAlbumID),
+		MusicBrainzArtistID: common.ParseNullString(musicbrainzArtistID),
+		Bitrate:             int(common.ParseNullInt64(bitRate) / 1000), // Convert from bps to kbps
+		AlbumID:             common.ParseNullInt64(albumID),
+		ArtistID:            common.ParseNullInt64(artistID),
 	}
 }
 
 // ========================================
-// Generic Album Mapper
+// Album Row Mappers
 // ========================================
 
-// mapAlbumToDomain converts any album row to domain Album
-func mapAlbumToDomain(row interface{}) *media.Album {
-	createdAt := common.TimeFieldGetter(row, "CreatedAt")
-	updatedAt := common.TimeFieldGetter(row, "UpdatedAt")
-
+// albumToDomain converts a MusicAlbum to domain Album
+func albumToDomain(row unified.MusicAlbum) *media.Album {
 	var createdAtStr, updatedAtStr string
-	if createdAt.Valid {
-		createdAtStr = createdAt.Time.Format("2006-01-02T15:04:05Z07:00")
+	if row.CreatedAt.Valid {
+		createdAtStr = row.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00")
 	}
-	if updatedAt.Valid {
-		updatedAtStr = updatedAt.Time.Format("2006-01-02T15:04:05Z07:00")
+	if row.UpdatedAt.Valid {
+		updatedAtStr = row.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00")
 	}
 
 	return &media.Album{
-		ID:                 common.IntFieldGetter(row, "ID"),
-		LibraryID:          common.IntFieldGetter(row, "LibraryID"),
-		ArtistID:           common.IntFieldGetter(row, "ArtistID"),
-		Title:              common.StringFieldGetter(row, "Title"),
-		AlbumArtist:        common.ParseNullString(common.NullStringFieldGetter(row, "AlbumArtist")),
-		Artist:             common.ParseNullString(common.NullStringFieldGetter(row, "Artist")),
-		Year:               int(common.ParseNullInt64(common.NullIntFieldGetter(row, "Year"))),
-		ReleaseDate:        common.FormatNullDate(common.TimeFieldGetter(row, "ReleaseDate")),
-		Genre:              common.ParseNullString(common.NullStringFieldGetter(row, "Genre")),
-		TotalTracks:        int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TotalTracks"))),
-		TotalDiscs:         int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TotalDiscs"))),
-		RecordLabel:        common.ParseNullString(common.NullStringFieldGetter(row, "RecordLabel")),
-		ReleaseType:        common.ParseNullString(common.NullStringFieldGetter(row, "ReleaseType")),
-		Compilation:        common.ParseNullBool(sql.NullBool{Bool: common.BoolFieldGetter(row, "Compilation"), Valid: true}),
-		MusicBrainzAlbumID: common.ParseNullString(common.NullStringFieldGetter(row, "MusicbrainzAlbumID")),
-		CoverArtPath:       common.ParseNullString(common.NullStringFieldGetter(row, "CoverArtPath")),
-		SortTitle:          common.ParseNullString(common.NullStringFieldGetter(row, "SortTitle")),
-		Directory:          common.ParseNullString(common.NullStringFieldGetter(row, "Directory")),
+		ID:                 row.ID,
+		LibraryID:          row.LibraryID,
+		ArtistID:           common.ParseNullInt64(row.ArtistID),
+		Title:              row.Title,
+		AlbumArtist:        common.ParseNullString(row.AlbumArtist),
+		Artist:             common.ParseNullString(row.Artist),
+		Year:               int(common.ParseNullInt64(row.Year)),
+		ReleaseDate:        common.FormatNullDate(row.ReleaseDate),
+		Genre:              common.ParseNullString(row.Genre),
+		TotalTracks:        int(common.ParseNullInt64(row.TotalTracks)),
+		TotalDiscs:         int(common.ParseNullInt64(row.TotalDiscs)),
+		RecordLabel:        common.ParseNullString(row.RecordLabel),
+		ReleaseType:        common.ParseNullString(row.ReleaseType),
+		Compilation:        row.Compilation.Valid && row.Compilation.Int64 != 0,
+		MusicBrainzAlbumID: common.ParseNullString(row.MusicbrainzAlbumID),
+		CoverArtPath:       common.ParseNullString(row.CoverArtPath),
+		SortTitle:          common.ParseNullString(row.SortTitle),
+		Directory:          common.ParseNullString(row.Directory),
 		CreatedAt:          createdAtStr,
 		UpdatedAt:          updatedAtStr,
 	}
 }
 
-// ========================================
-// Generic Artist Mapper
-// ========================================
-
-// mapArtistToDomain converts any artist row to domain Artist
-func mapArtistToDomain(row interface{}) *media.Artist {
-	createdAt := common.TimeFieldGetter(row, "CreatedAt")
-	updatedAt := common.TimeFieldGetter(row, "UpdatedAt")
-
-	var createdAtStr, updatedAtStr string
-	if createdAt.Valid {
-		createdAtStr = createdAt.Time.Format("2006-01-02T15:04:05Z07:00")
+// listAlbumRowToDomain converts a ListAlbumsByLibraryPaginatedRow to domain MusicAlbum
+func listAlbumRowToDomain(row unified.ListAlbumsByLibraryPaginatedRow) media.MusicAlbum {
+	return media.MusicAlbum{
+		Album:       common.ParseNullString(row.Album),
+		AlbumArtist: common.ParseNullString(row.AlbumArtist),
+		Year:        common.ParseNullInt64(row.Year),
+		TrackCount:  row.TrackCount,
+		Duration:    row.TotalDuration,
 	}
-	if updatedAt.Valid {
-		updatedAtStr = updatedAt.Time.Format("2006-01-02T15:04:05Z07:00")
+}
+
+// listAlbumDescRowToDomain converts a ListAlbumsByLibraryPaginatedDescRow to domain MusicAlbum
+func listAlbumDescRowToDomain(row unified.ListAlbumsByLibraryPaginatedDescRow) media.MusicAlbum {
+	return media.MusicAlbum{
+		Album:       common.ParseNullString(row.Album),
+		AlbumArtist: common.ParseNullString(row.AlbumArtist),
+		Year:        common.ParseNullInt64(row.Year),
+		TrackCount:  row.TrackCount,
+		Duration:    row.TotalDuration,
+	}
+}
+
+// ========================================
+// Artist Row Mappers
+// ========================================
+
+// artistToDomain converts a MusicArtist to domain Artist
+func artistToDomain(row unified.MusicArtist) *media.Artist {
+	var createdAtStr, updatedAtStr string
+	if row.CreatedAt.Valid {
+		createdAtStr = row.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00")
+	}
+	if row.UpdatedAt.Valid {
+		updatedAtStr = row.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00")
 	}
 
 	return &media.Artist{
-		ID:                  common.IntFieldGetter(row, "ID"),
-		LibraryID:           common.IntFieldGetter(row, "LibraryID"),
-		Name:                common.StringFieldGetter(row, "Name"),
-		SortName:            common.ParseNullString(common.NullStringFieldGetter(row, "SortName")),
-		Bio:                 common.ParseNullString(common.NullStringFieldGetter(row, "Bio")),
-		Country:             common.ParseNullString(common.NullStringFieldGetter(row, "Country")),
-		FormedYear:          int(common.ParseNullInt64(common.NullIntFieldGetter(row, "FormedYear"))),
-		Genre:               common.ParseNullString(common.NullStringFieldGetter(row, "Genre")),
-		MusicBrainzArtistID: common.ParseNullString(common.NullStringFieldGetter(row, "MusicbrainzArtistID")),
-		ImagePath:           common.ParseNullString(common.NullStringFieldGetter(row, "ImagePath")),
-		Directory:           common.ParseNullString(common.NullStringFieldGetter(row, "Directory")),
+		ID:                  row.ID,
+		LibraryID:           row.LibraryID,
+		Name:                row.Name,
+		SortName:            common.ParseNullString(row.SortName),
+		Bio:                 common.ParseNullString(row.Bio),
+		Country:             common.ParseNullString(row.Country),
+		FormedYear:          int(common.ParseNullInt64(row.FormedYear)),
+		Genre:               common.ParseNullString(row.Genre),
+		MusicBrainzArtistID: common.ParseNullString(row.MusicbrainzArtistID),
+		ImagePath:           common.ParseNullString(row.ImagePath),
+		Directory:           common.ParseNullString(row.Directory),
 		CreatedAt:           createdAtStr,
 		UpdatedAt:           updatedAtStr,
 	}
 }
 
-// ========================================
-// SQLite/PostgreSQL Specific Mappers
-// ========================================
-
-// buildSQLiteCreateMediaParams builds CreateMediaParams for SQLite from a domain Media entity
-func buildSQLiteCreateMediaParams(m *media.Media) sqlc_sqlite.CreateMediaParams {
-	return sqlc_sqlite.CreateMediaParams{
-		LibraryID:         m.LibraryID,
-		Title:             m.Title,
-		FilePath:          m.FilePath,
-		FileSize:          common.NullInt64(m.FileSize),
-		Duration:          common.NullFloat64(float64(m.Duration)),
-		Type:              m.Type,
-		IsExtra:           common.BoolToInt64(m.IsExtra),
-		FileHash:          common.NullString(m.FileHash),
-		ContainerFormat:   common.NullString(m.ContainerFormat),
-		Width:             common.NullInt64(int64(m.Width)),
-		Height:            common.NullInt64(int64(m.Height)),
-		AspectRatio:       common.NullString(media.CalculateAspectRatio(m.Width, m.Height)),
-		Codec:             common.NullString(m.VideoCodec),
-		AudioCodec:        common.NullString(m.AudioCodec),
-		CodecProfile:      common.NullString(m.CodecProfile),
-		BitRate:           common.NullInt64(m.Bitrate),
-		FrameRate:         common.NullFloat64(m.FrameRate),
-		ScanType:          common.NullString(m.ScanType),
-		HdrFormat:         common.NullString(m.HDRFormat),
-		ColorSpace:        common.NullString(m.ColorSpace),
-		ColorPrimaries:    common.NullString(m.ColorPrimaries),
-		ThumbnailPath:     sql.NullString{},
-		SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
-		ResolutionLabel:   common.NullString(media.CalculateResolutionLabelFromDimensions(m.Width, m.Height)),
-		QualityScore:      sql.NullInt64{},
-		Is3d:              common.NullInt64FromBool(func() bool { is3d, _ := media.Detect3D(m.FilePath); return is3d }()),
-		StereoMode:        common.NullString(func() string { _, stereoMode := media.Detect3D(m.FilePath); return stereoMode }()),
-		HasDash:           common.NullInt64FromBool(false),
-		DashManifestPath:  sql.NullString{},
-		TranscodingStatus: sql.NullString{},
+// artistWithCountsRowToDomain converts a GetArtistsWithCountsByLibraryPaginatedRow to domain MusicArtist
+func artistWithCountsRowToDomain(row unified.GetArtistsWithCountsByLibraryPaginatedRow) media.MusicArtist {
+	return media.MusicArtist{
+		RepresentativeID: row.ID,
+		Artist:           row.Name,
+		AlbumCount:       row.AlbumCount,
+		TrackCount:       row.TrackCount,
 	}
 }
 
-// sqliteMusicTrackToDomain converts a SQLite music track query row to a domain MusicTrack entity
-func sqliteMusicTrackToDomain(row sqlc_sqlite.GetMusicTrackByMediaIDRow) *media.MusicTrack {
-	return mapMusicTrackToDomain(row)
-}
-
-// musicTrackFields holds all the fields needed to construct a MusicTrack from various query row types
-type musicTrackFields struct {
-	MediaID             int64
-	Artist              sql.NullString
-	Album               sql.NullString
-	AlbumArtist         sql.NullString
-	TrackNumber         sql.NullInt64
-	DiscNumber          sql.NullInt64
-	Genre               sql.NullString
-	Year                sql.NullInt64
-	Composer            sql.NullString
-	RecordLabel         sql.NullString
-	TotalTracks         sql.NullInt64
-	TotalDiscs          sql.NullInt64
-	ReleaseDate         sql.NullTime
-	Lyricist            sql.NullString
-	ISRC                sql.NullString
-	ReleaseType         sql.NullString
-	Compilation         sql.NullBool
-	OriginalTitle       sql.NullString
-	SortTitle           sql.NullString
-	MusicBrainzTrackID  sql.NullString
-	MusicBrainzAlbumID  sql.NullString
-	MusicBrainzArtistID sql.NullString
-	AlbumID             sql.NullInt64
-	ArtistID            sql.NullInt64
-	MediaID2            int64
-	LibraryID           int64
-	Title               string
-	FilePath            string
-	FileSize            sql.NullInt64
-	Duration            sql.NullFloat64
-	Width               sql.NullInt64
-	Height              sql.NullInt64
-	Codec               sql.NullString
-	AudioCodec          sql.NullString
-	BitRate             sql.NullInt64
-	FrameRate           sql.NullFloat64
-	ContainerFormat     sql.NullString
-	Type                string
-	IsExtra             bool
-	CreatedAt           sql.NullTime
-	UpdatedAt           sql.NullTime
-}
-
-// sqliteMusicTrackRowToDomain converts music track fields to a domain MusicTrack entity
-func sqliteMusicTrackRowToDomain(fields musicTrackFields) *media.MusicTrack {
-	return &media.MusicTrack{
-		Media: media.Media{
-			ID:              fields.MediaID2,
-			LibraryID:       fields.LibraryID,
-			Title:           fields.Title,
-			Type:            fields.Type,
-			FilePath:        fields.FilePath,
-			FileSize:        common.ParseNullInt64(fields.FileSize),
-			Duration:        int(common.ParseNullFloat64(fields.Duration)),
-			IsExtra:         fields.IsExtra,
-			Width:           int(common.ParseNullInt64(fields.Width)),
-			Height:          int(common.ParseNullInt64(fields.Height)),
-			VideoCodec:      common.ParseNullString(fields.Codec),
-			AudioCodec:      common.ParseNullString(fields.AudioCodec),
-			Bitrate:         common.ParseNullInt64(fields.BitRate),
-			FrameRate:       common.ParseNullFloat64(fields.FrameRate),
-			ContainerFormat: common.ParseNullString(fields.ContainerFormat),
-			CreatedAt:       common.ParseNullTime(fields.CreatedAt),
-			UpdatedAt:       common.ParseNullTime(fields.UpdatedAt),
-		},
-		// Basic music metadata
-		Artist:      common.ParseNullString(fields.Artist),
-		Album:       common.ParseNullString(fields.Album),
-		AlbumArtist: common.ParseNullString(fields.AlbumArtist),
-		TrackNumber: int(common.ParseNullInt64(fields.TrackNumber)),
-		DiscNumber:  int(common.ParseNullInt64(fields.DiscNumber)),
-		Year:        int(common.ParseNullInt64(fields.Year)),
-		Genre:       common.ParseNullString(fields.Genre),
-		Composer:    common.ParseNullString(fields.Composer),
-		Publisher:   common.ParseNullString(fields.RecordLabel),
-		Bitrate:     int(common.ParseNullInt64(fields.BitRate) / 1000), // Convert from bps to kbps
-		// Extended metadata
-		TotalTracks:         int(common.ParseNullInt64(fields.TotalTracks)),
-		TotalDiscs:          int(common.ParseNullInt64(fields.TotalDiscs)),
-		ReleaseDate:         common.FormatNullDate(fields.ReleaseDate),
-		Lyricist:            common.ParseNullString(fields.Lyricist),
-		ISRC:                common.ParseNullString(fields.ISRC),
-		ReleaseType:         common.ParseNullString(fields.ReleaseType),
-		Compilation:         common.ParseNullBool(fields.Compilation),
-		OriginalTitle:       common.ParseNullString(fields.OriginalTitle),
-		SortTitle:           common.ParseNullString(fields.SortTitle),
-		MusicBrainzTrackID:  common.ParseNullString(fields.MusicBrainzTrackID),
-		MusicBrainzAlbumID:  common.ParseNullString(fields.MusicBrainzAlbumID),
-		MusicBrainzArtistID: common.ParseNullString(fields.MusicBrainzArtistID),
-		// Entity references
-		AlbumID:  common.ParseNullInt64(fields.AlbumID),
-		ArtistID: common.ParseNullInt64(fields.ArtistID),
+// artistWithCountsDescRowToDomain converts a GetArtistsWithCountsByLibraryPaginatedDescRow to domain MusicArtist
+func artistWithCountsDescRowToDomain(row unified.GetArtistsWithCountsByLibraryPaginatedDescRow) media.MusicArtist {
+	return media.MusicArtist{
+		RepresentativeID: row.ID,
+		Artist:           row.Name,
+		AlbumCount:       row.AlbumCount,
+		TrackCount:       row.TrackCount,
 	}
 }
 
-// buildSQLiteCreateMusicTrackParams builds CreateMusicTrackParams for SQLite from a domain MusicTrack entity
-func buildSQLiteCreateMusicTrackParams(t *media.MusicTrack) sqlc_sqlite.CreateMusicTrackParams {
+// searchArtistWithCountsRowToDomain converts a SearchArtistsWithCountsByNamePaginatedRow to ArtistWithCounts
+func searchArtistWithCountsRowToDomain(row unified.SearchArtistsWithCountsByNamePaginatedRow) ArtistWithCounts {
+	return ArtistWithCounts{
+		ID:         row.ID,
+		LibraryID:  row.LibraryID,
+		Name:       row.Name,
+		AlbumCount: int(row.AlbumCount),
+		TrackCount: int(row.TrackCount),
+	}
+}
+
+// artistWithCountsToInternal converts a GetArtistsWithCountsByLibraryPaginatedRow to ArtistWithCounts
+func artistWithCountsToInternal(row unified.GetArtistsWithCountsByLibraryPaginatedRow) ArtistWithCounts {
+	return ArtistWithCounts{
+		ID:         row.ID,
+		LibraryID:  row.LibraryID,
+		Name:       row.Name,
+		AlbumCount: int(row.AlbumCount),
+		TrackCount: int(row.TrackCount),
+	}
+}
+
+// artistWithCountsDescToInternal converts a GetArtistsWithCountsByLibraryPaginatedDescRow to ArtistWithCounts
+func artistWithCountsDescToInternal(row unified.GetArtistsWithCountsByLibraryPaginatedDescRow) ArtistWithCounts {
+	return ArtistWithCounts{
+		ID:         row.ID,
+		LibraryID:  row.LibraryID,
+		Name:       row.Name,
+		AlbumCount: int(row.AlbumCount),
+		TrackCount: int(row.TrackCount),
+	}
+}
+
+// ========================================
+// Unified Param Builders
+// ========================================
+
+// buildCreateMusicTrackParams builds CreateMusicTrackParams from a domain MusicTrack entity
+func buildCreateMusicTrackParams(t *media.MusicTrack) unified.CreateMusicTrackParams {
 	// Use AlbumArtist if set, otherwise default to track artist
 	albumArtist := t.AlbumArtist
 	if albumArtist == "" {
@@ -298,7 +371,7 @@ func buildSQLiteCreateMusicTrackParams(t *media.MusicTrack) sqlc_sqlite.CreateMu
 		sortTitle = domainCommon.NormalizeSortTitle(t.Media.Title)
 	}
 
-	return sqlc_sqlite.CreateMusicTrackParams{
+	return unified.CreateMusicTrackParams{
 		MediaID:             t.Media.ID,
 		Artist:              common.NullString(t.Artist),
 		Album:               common.NullString(t.Album),
@@ -326,10 +399,10 @@ func buildSQLiteCreateMusicTrackParams(t *media.MusicTrack) sqlc_sqlite.CreateMu
 	}
 }
 
-// buildSQLiteUpdateMusicTrackParams builds UpdateMusicTrackParams for SQLite from a domain MusicTrack entity
-func buildSQLiteUpdateMusicTrackParams(t *media.MusicTrack) sqlc_sqlite.UpdateMusicTrackParams {
-	params := buildSQLiteCreateMusicTrackParams(t)
-	return sqlc_sqlite.UpdateMusicTrackParams{
+// buildUpdateMusicTrackParams builds UpdateMusicTrackParams from a domain MusicTrack entity
+func buildUpdateMusicTrackParams(t *media.MusicTrack) unified.UpdateMusicTrackParams {
+	params := buildCreateMusicTrackParams(t)
+	return unified.UpdateMusicTrackParams{
 		Artist:              params.Artist,
 		Album:               params.Album,
 		AlbumArtist:         params.AlbumArtist,
@@ -357,13 +430,8 @@ func buildSQLiteUpdateMusicTrackParams(t *media.MusicTrack) sqlc_sqlite.UpdateMu
 	}
 }
 
-// sqliteAlbumToDomain converts a SQLite album row to a domain Album entity
-func sqliteAlbumToDomain(row sqlc_sqlite.MusicAlbum) *media.Album {
-	return mapAlbumToDomain(row)
-}
-
-// buildSQLiteCreateAlbumParams builds CreateAlbumParams for SQLite from a domain Album entity
-func buildSQLiteCreateAlbumParams(a *media.Album) sqlc_sqlite.CreateAlbumParams {
+// buildCreateAlbumParams builds CreateAlbumParams from a domain Album entity
+func buildCreateAlbumParams(a *media.Album) unified.CreateAlbumParams {
 	sortTitle := a.SortTitle
 	if sortTitle == "" {
 		sortTitle = domainCommon.NormalizeSortTitle(a.Title)
@@ -371,7 +439,7 @@ func buildSQLiteCreateAlbumParams(a *media.Album) sqlc_sqlite.CreateAlbumParams 
 
 	now := sql.NullTime{Time: time.Now().UTC(), Valid: true}
 
-	return sqlc_sqlite.CreateAlbumParams{
+	return unified.CreateAlbumParams{
 		LibraryID:          a.LibraryID,
 		Title:              a.Title,
 		AlbumArtist:        common.NullString(a.AlbumArtist),
@@ -394,10 +462,10 @@ func buildSQLiteCreateAlbumParams(a *media.Album) sqlc_sqlite.CreateAlbumParams 
 	}
 }
 
-// buildSQLiteUpdateAlbumParams builds UpdateAlbumParams for SQLite from a domain Album entity
-func buildSQLiteUpdateAlbumParams(a *media.Album) sqlc_sqlite.UpdateAlbumParams {
-	params := buildSQLiteCreateAlbumParams(a)
-	return sqlc_sqlite.UpdateAlbumParams{
+// buildUpdateAlbumParams builds UpdateAlbumParams from a domain Album entity
+func buildUpdateAlbumParams(a *media.Album) unified.UpdateAlbumParams {
+	params := buildCreateAlbumParams(a)
+	return unified.UpdateAlbumParams{
 		Title:              params.Title,
 		AlbumArtist:        params.AlbumArtist,
 		Artist:             params.Artist,
@@ -418,14 +486,9 @@ func buildSQLiteUpdateAlbumParams(a *media.Album) sqlc_sqlite.UpdateAlbumParams 
 	}
 }
 
-// sqliteArtistToDomain converts a SQLite artist row to a domain Artist entity
-func sqliteArtistToDomain(row sqlc_sqlite.MusicArtist) *media.Artist {
-	return mapArtistToDomain(row)
-}
-
-// buildSQLiteCreateArtistParams builds parameters for creating an artist in SQLite
-func buildSQLiteCreateArtistParams(a *media.Artist) sqlc_sqlite.CreateArtistParams {
-	return sqlc_sqlite.CreateArtistParams{
+// buildCreateArtistParams builds CreateArtistParams from a domain Artist entity
+func buildCreateArtistParams(a *media.Artist) unified.CreateArtistParams {
+	return unified.CreateArtistParams{
 		LibraryID:           a.LibraryID,
 		Name:                a.Name,
 		SortName:            common.NullString(a.SortName),
@@ -441,9 +504,9 @@ func buildSQLiteCreateArtistParams(a *media.Artist) sqlc_sqlite.CreateArtistPara
 	}
 }
 
-// buildSQLiteUpdateArtistParams builds parameters for updating an artist in SQLite
-func buildSQLiteUpdateArtistParams(a *media.Artist) sqlc_sqlite.UpdateArtistParams {
-	return sqlc_sqlite.UpdateArtistParams{
+// buildUpdateArtistParams builds UpdateArtistParams from a domain Artist entity
+func buildUpdateArtistParams(a *media.Artist) unified.UpdateArtistParams {
+	return unified.UpdateArtistParams{
 		Name:                a.Name,
 		SortName:            common.NullString(a.SortName),
 		MusicbrainzArtistID: common.NullString(a.MusicBrainzArtistID),
@@ -458,165 +521,9 @@ func buildSQLiteUpdateArtistParams(a *media.Artist) sqlc_sqlite.UpdateArtistPara
 	}
 }
 
-// ========================================
-// PostgreSQL Mappers
-// ========================================
-
-// postgresMusicTrackToDomain converts a PostgreSQL GetMusicTrackByMediaIDRow to domain MusicTrack
-func postgresMusicTrackToDomain(row sqlc_postgres.GetMusicTrackByMediaIDRow) *media.MusicTrack {
-	return mapMusicTrackToDomain(row)
-}
-
-// postgresAlbumToDomain converts a PostgreSQL MusicAlbum row to domain Album
-func postgresAlbumToDomain(row sqlc_postgres.MusicAlbum) *media.Album {
-	return mapAlbumToDomain(row)
-}
-
-// postgresArtistToDomain converts a PostgreSQL MusicArtist row to domain Artist
-func postgresArtistToDomain(row sqlc_postgres.MusicArtist) *media.Artist {
-	return mapArtistToDomain(row)
-}
-
-// ========================================
-// PostgreSQL Param Builders
-// ========================================
-
-// buildPostgresCreateMusicTrackParams builds CreateMusicTrackParams for PostgreSQL from a domain MusicTrack entity
-func buildPostgresCreateMusicTrackParams(t *media.MusicTrack) sqlc_postgres.CreateMusicTrackParams {
-	// Use AlbumArtist if set, otherwise default to track artist
-	albumArtist := t.AlbumArtist
-	if albumArtist == "" {
-		albumArtist = t.Artist
-	}
-
-	// Use SortTitle from track if set, otherwise generate from title
-	sortTitle := t.SortTitle
-	if sortTitle == "" {
-		sortTitle = domainCommon.NormalizeSortTitle(t.Media.Title)
-	}
-
-	return sqlc_postgres.CreateMusicTrackParams{
-		MediaID:             t.Media.ID,
-		Artist:              common.NullString(t.Artist),
-		Album:               common.NullString(t.Album),
-		AlbumArtist:         common.NullString(albumArtist),
-		TrackNumber:         common.NullInt64(int64(t.TrackNumber)),
-		DiscNumber:          common.NullInt64(int64(t.DiscNumber)),
-		TotalTracks:         common.NullInt64(int64(t.TotalTracks)),
-		TotalDiscs:          common.NullInt64(int64(t.TotalDiscs)),
-		Genre:               common.NullString(t.Genre),
-		Year:                common.NullInt64(int64(t.Year)),
-		ReleaseDate:         common.ParseDateString(t.ReleaseDate),
-		Composer:            common.NullString(t.Composer),
-		Lyricist:            common.NullString(t.Lyricist),
-		RecordLabel:         common.NullString(t.Publisher),
-		Isrc:                common.NullString(t.ISRC),
-		ReleaseType:         common.NullString(t.ReleaseType),
-		Compilation:         common.NullInt64FromBool(t.Compilation),
-		MusicbrainzTrackID:  common.NullString(t.MusicBrainzTrackID),
-		MusicbrainzAlbumID:  common.NullString(t.MusicBrainzAlbumID),
-		MusicbrainzArtistID: common.NullString(t.MusicBrainzArtistID),
-		OriginalTitle:       common.NullString(t.OriginalTitle),
-		SortTitle:           common.NullString(sortTitle),
-		AlbumID:             common.NullInt64(t.AlbumID),
-		ArtistID:            common.NullInt64(t.ArtistID),
-	}
-}
-
-// buildPostgresUpdateMusicTrackParams builds UpdateMusicTrackParams for PostgreSQL from a domain MusicTrack entity
-func buildPostgresUpdateMusicTrackParams(t *media.MusicTrack) sqlc_postgres.UpdateMusicTrackParams {
-	params := buildPostgresCreateMusicTrackParams(t)
-	return sqlc_postgres.UpdateMusicTrackParams{
-		Artist:              params.Artist,
-		Album:               params.Album,
-		AlbumArtist:         params.AlbumArtist,
-		TrackNumber:         params.TrackNumber,
-		DiscNumber:          params.DiscNumber,
-		TotalTracks:         params.TotalTracks,
-		TotalDiscs:          params.TotalDiscs,
-		Genre:               params.Genre,
-		Year:                params.Year,
-		ReleaseDate:         params.ReleaseDate,
-		Composer:            params.Composer,
-		Lyricist:            params.Lyricist,
-		RecordLabel:         params.RecordLabel,
-		Isrc:                params.Isrc,
-		ReleaseType:         params.ReleaseType,
-		Compilation:         params.Compilation,
-		MusicbrainzTrackID:  params.MusicbrainzTrackID,
-		MusicbrainzAlbumID:  params.MusicbrainzAlbumID,
-		MusicbrainzArtistID: params.MusicbrainzArtistID,
-		OriginalTitle:       params.OriginalTitle,
-		SortTitle:           params.SortTitle,
-		AlbumID:             params.AlbumID,
-		ArtistID:            params.ArtistID,
-		MediaID:             t.Media.ID,
-	}
-}
-
-// buildPostgresCreateAlbumParams builds CreateAlbumParams for PostgreSQL from a domain Album entity
-func buildPostgresCreateAlbumParams(a *media.Album) sqlc_postgres.CreateAlbumParams {
-	sortTitle := a.SortTitle
-	if sortTitle == "" {
-		sortTitle = domainCommon.NormalizeSortTitle(a.Title)
-	}
-
-	now := sql.NullTime{Time: time.Now().UTC(), Valid: true}
-
-	return sqlc_postgres.CreateAlbumParams{
-		LibraryID:          a.LibraryID,
-		Title:              a.Title,
-		AlbumArtist:        common.NullString(a.AlbumArtist),
-		Artist:             common.NullString(a.Artist),
-		Year:               common.NullInt64(int64(a.Year)),
-		ReleaseDate:        common.ParseDateString(a.ReleaseDate),
-		Genre:              common.NullString(a.Genre),
-		TotalTracks:        common.NullInt64(int64(a.TotalTracks)),
-		TotalDiscs:         common.NullInt64(int64(a.TotalDiscs)),
-		RecordLabel:        common.NullString(a.RecordLabel),
-		ReleaseType:        common.NullString(a.ReleaseType),
-		Compilation:        common.NullInt64FromBool(a.Compilation),
-		MusicbrainzAlbumID: common.NullString(a.MusicBrainzAlbumID),
-		CoverArtPath:       common.NullString(a.CoverArtPath),
-		SortTitle:          common.NullString(sortTitle),
-		CreatedAt:          now,
-		UpdatedAt:          now,
-		ArtistID:           common.NullInt64(a.ArtistID),
-		Directory:          common.NullString(a.Directory),
-	}
-}
-
-// buildPostgresUpdateAlbumParams builds UpdateAlbumParams for PostgreSQL from a domain Album entity
-func buildPostgresUpdateAlbumParams(a *media.Album) sqlc_postgres.UpdateAlbumParams {
-	sortTitle := a.SortTitle
-	if sortTitle == "" {
-		sortTitle = domainCommon.NormalizeSortTitle(a.Title)
-	}
-
-	return sqlc_postgres.UpdateAlbumParams{
-		ID:                 a.ID,
-		Title:              a.Title,
-		AlbumArtist:        common.NullString(a.AlbumArtist),
-		Artist:             common.NullString(a.Artist),
-		Year:               common.NullInt64(int64(a.Year)),
-		ReleaseDate:        common.ParseDateString(a.ReleaseDate),
-		Genre:              common.NullString(a.Genre),
-		TotalTracks:        common.NullInt64(int64(a.TotalTracks)),
-		TotalDiscs:         common.NullInt64(int64(a.TotalDiscs)),
-		RecordLabel:        common.NullString(a.RecordLabel),
-		ReleaseType:        common.NullString(a.ReleaseType),
-		Compilation:        common.NullInt64FromBool(a.Compilation),
-		MusicbrainzAlbumID: common.NullString(a.MusicBrainzAlbumID),
-		CoverArtPath:       common.NullString(a.CoverArtPath),
-		SortTitle:          common.NullString(sortTitle),
-		Directory:          common.NullString(a.Directory),
-		UpdatedAt:          sql.NullTime{Time: time.Now().UTC(), Valid: true},
-	}
-}
-
-// buildPostgresCreateMediaParams builds CreateMediaParams for PostgreSQL from a domain Media entity
-func buildPostgresCreateMediaParams(m *media.Media) sqlc_postgres.CreateMediaParams {
-	return sqlc_postgres.CreateMediaParams{
+// buildCreateMediaParams builds CreateMediaParams from a domain Media entity
+func buildCreateMediaParams(m *media.Media) unified.CreateMediaParams {
+	return unified.CreateMediaParams{
 		LibraryID:         m.LibraryID,
 		Title:             m.Title,
 		FilePath:          m.FilePath,
@@ -650,123 +557,11 @@ func buildPostgresCreateMediaParams(m *media.Media) sqlc_postgres.CreateMediaPar
 	}
 }
 
-// buildPostgresCreateArtistParams builds CreateArtistParams for PostgreSQL from a domain Artist entity
-func buildPostgresCreateArtistParams(a *media.Artist) sqlc_postgres.CreateArtistParams {
-	return sqlc_postgres.CreateArtistParams{
-		LibraryID:           a.LibraryID,
-		Name:                a.Name,
-		SortName:            common.NullString(a.SortName),
-		MusicbrainzArtistID: common.NullString(a.MusicBrainzArtistID),
-		Bio:                 common.NullString(a.Bio),
-		Country:             common.NullString(a.Country),
-		FormedYear:          common.NullInt64(int64(a.FormedYear)),
-		Genre:               common.NullString(a.Genre),
-		ImagePath:           common.NullString(a.ImagePath),
-		CreatedAt:           sql.NullTime{Time: time.Now().UTC(), Valid: true},
-		UpdatedAt:           sql.NullTime{Time: time.Now().UTC(), Valid: true},
-		Directory:           common.NullString(a.Directory),
+// mapSlice converts a slice of one type to another using the provided mapper function.
+func mapSlice[TFrom, TTo any](from []TFrom, mapper func(TFrom) TTo) []TTo {
+	result := make([]TTo, len(from))
+	for i, v := range from {
+		result[i] = mapper(v)
 	}
-}
-
-// buildPostgresUpdateArtistParams builds UpdateArtistParams for PostgreSQL from a domain Artist entity
-func buildPostgresUpdateArtistParams(a *media.Artist) sqlc_postgres.UpdateArtistParams {
-	return sqlc_postgres.UpdateArtistParams{
-		ID:                  a.ID,
-		Name:                a.Name,
-		SortName:            common.NullString(a.SortName),
-		MusicbrainzArtistID: common.NullString(a.MusicBrainzArtistID),
-		Bio:                 common.NullString(a.Bio),
-		Country:             common.NullString(a.Country),
-		FormedYear:          common.NullInt64(int64(a.FormedYear)),
-		Genre:               common.NullString(a.Genre),
-		ImagePath:           common.NullString(a.ImagePath),
-		Directory:           common.NullString(a.Directory),
-		UpdatedAt:           sql.NullTime{Time: time.Now().UTC(), Valid: true},
-	}
-}
-
-// postgresMusicTrackRow is a generic interface for all PostgreSQL music track query row types
-type postgresMusicTrackRow interface {
-	sqlc_postgres.ListMusicTracksByLibraryRow |
-		sqlc_postgres.ListMusicTracksByAlbumRow |
-		sqlc_postgres.ListMusicTracksByAlbumIDRow |
-		sqlc_postgres.ListMusicTracksByArtistRow |
-		sqlc_postgres.SearchMusicTracksRow |
-		sqlc_postgres.ListMusicTracksByLibraryPaginatedRow |
-		sqlc_postgres.ListMusicTracksByLibraryPaginatedDescRow
-}
-
-// postgresMusicTrackRowToDomain converts any PostgreSQL music track row type to domain MusicTrack
-func postgresMusicTrackRowToDomain[T postgresMusicTrackRow](row T) *media.MusicTrack {
-	// Use generic mapper - no more unsafe.Pointer needed!
-	return mapMusicTrackToDomain(row)
-}
-
-// convertPostgresRowsToMusicTracks converts a slice of PostgreSQL music track rows to domain MusicTrack entities
-func convertPostgresRowsToMusicTracks[T postgresMusicTrackRow](rows []T) []*media.MusicTrack {
-	tracks := make([]*media.MusicTrack, len(rows))
-	for i, row := range rows {
-		tracks[i] = postgresMusicTrackRowToDomain(row)
-	}
-	return tracks
-}
-
-// sqliteGenericMusicTrackRowToDomain converts any SQLite music track row type to domain MusicTrack
-func sqliteGenericMusicTrackRowToDomain[T musicTrackRow](row T) *media.MusicTrack {
-	fields := extractMusicTrackFields(row)
-	return sqliteMusicTrackRowToDomain(fields)
-}
-
-// postgresAlbumRow is a generic interface for all PostgreSQL album query row types
-type postgresAlbumRow interface {
-	sqlc_postgres.ListAlbumsByLibraryPaginatedRow |
-		sqlc_postgres.ListAlbumsByLibraryPaginatedDescRow
-}
-
-// postgresAlbumRowToDomain converts any PostgreSQL album row type to domain MusicAlbum
-func postgresAlbumRowToDomain[T postgresAlbumRow](row T) media.MusicAlbum {
-	// All row types have identical structures
-	var r sqlc_postgres.ListAlbumsByLibraryPaginatedRow
-
-	switch typed := any(row).(type) {
-	case sqlc_postgres.ListAlbumsByLibraryPaginatedRow:
-		r = typed
-	case sqlc_postgres.ListAlbumsByLibraryPaginatedDescRow:
-		r = *(*sqlc_postgres.ListAlbumsByLibraryPaginatedRow)(unsafe.Pointer(&typed))
-	}
-
-	return media.MusicAlbum{
-		Album:       common.ParseNullString(r.Album),
-		AlbumArtist: common.ParseNullString(r.AlbumArtist),
-		Year:        common.ParseNullInt64(r.Year),
-		TrackCount:  r.TrackCount,
-		Duration:    r.TotalDuration,
-	}
-}
-
-// sqliteAlbumRow is a generic interface for all SQLite album query row types
-type sqliteAlbumRow interface {
-	sqlc_sqlite.ListAlbumsByLibraryPaginatedRow |
-		sqlc_sqlite.ListAlbumsByLibraryPaginatedDescRow
-}
-
-// sqliteAlbumRowToDomain converts any SQLite album row type to domain MusicAlbum
-func sqliteAlbumRowToDomain[T sqliteAlbumRow](row T) media.MusicAlbum {
-	// All row types have identical structures
-	var r sqlc_sqlite.ListAlbumsByLibraryPaginatedRow
-
-	switch typed := any(row).(type) {
-	case sqlc_sqlite.ListAlbumsByLibraryPaginatedRow:
-		r = typed
-	case sqlc_sqlite.ListAlbumsByLibraryPaginatedDescRow:
-		r = *(*sqlc_sqlite.ListAlbumsByLibraryPaginatedRow)(unsafe.Pointer(&typed))
-	}
-
-	return media.MusicAlbum{
-		Album:       common.ParseNullString(r.Album),
-		AlbumArtist: common.ParseNullString(r.AlbumArtist),
-		Year:        common.ParseNullInt64(r.Year),
-		TrackCount:  r.TrackCount,
-		Duration:    int64(common.ParseNullFloat64(r.TotalDuration)),
-	}
+	return result
 }

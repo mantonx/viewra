@@ -362,12 +362,12 @@ const listScanJobsByLibrary = `-- name: ListScanJobsByLibrary :many
 SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count, discovery_errors, discovery_warnings, dirs_scanned, dirs_skipped, files_skipped FROM scan_jobs
 WHERE library_id = $1
 ORDER BY created_at DESC
-LIMIT $2
+LIMIT $2::bigint
 `
 
 type ListScanJobsByLibraryParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
+	Limit     int64 `json:"limit"`
 }
 
 func (q *Queries) ListScanJobsByLibrary(ctx context.Context, arg ListScanJobsByLibraryParams) ([]ScanJob, error) {

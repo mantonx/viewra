@@ -303,7 +303,7 @@ SELECT DISTINCT
     mt.album_artist,
     mt.year,
     COUNT(*) as track_count,
-    SUM(med.duration) as total_duration
+    CAST(SUM(med.duration) AS INTEGER) as total_duration
 FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = ?
@@ -312,11 +312,11 @@ ORDER BY mt.album_artist, mt.album
 `
 
 type ListAlbumsByLibraryGroupedRow struct {
-	Album         sql.NullString  `json:"album"`
-	AlbumArtist   sql.NullString  `json:"album_artist"`
-	Year          sql.NullInt64   `json:"year"`
-	TrackCount    int64           `json:"track_count"`
-	TotalDuration sql.NullFloat64 `json:"total_duration"`
+	Album         sql.NullString `json:"album"`
+	AlbumArtist   sql.NullString `json:"album_artist"`
+	Year          sql.NullInt64  `json:"year"`
+	TrackCount    int64          `json:"track_count"`
+	TotalDuration int64          `json:"total_duration"`
 }
 
 func (q *Queries) ListAlbumsByLibraryGrouped(ctx context.Context, libraryID int64) ([]ListAlbumsByLibraryGroupedRow, error) {
@@ -354,7 +354,7 @@ SELECT DISTINCT
     mt.album_artist,
     mt.year,
     COUNT(*) as track_count,
-    SUM(med.duration) as total_duration
+    CAST(SUM(med.duration) AS INTEGER) as total_duration
 FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = ?
@@ -370,11 +370,11 @@ type ListAlbumsByLibraryPaginatedParams struct {
 }
 
 type ListAlbumsByLibraryPaginatedRow struct {
-	Album         sql.NullString  `json:"album"`
-	AlbumArtist   sql.NullString  `json:"album_artist"`
-	Year          sql.NullInt64   `json:"year"`
-	TrackCount    int64           `json:"track_count"`
-	TotalDuration sql.NullFloat64 `json:"total_duration"`
+	Album         sql.NullString `json:"album"`
+	AlbumArtist   sql.NullString `json:"album_artist"`
+	Year          sql.NullInt64  `json:"year"`
+	TrackCount    int64          `json:"track_count"`
+	TotalDuration int64          `json:"total_duration"`
 }
 
 func (q *Queries) ListAlbumsByLibraryPaginated(ctx context.Context, arg ListAlbumsByLibraryPaginatedParams) ([]ListAlbumsByLibraryPaginatedRow, error) {
@@ -412,7 +412,7 @@ SELECT DISTINCT
     mt.album_artist,
     mt.year,
     COUNT(*) as track_count,
-    SUM(med.duration) as total_duration
+    CAST(SUM(med.duration) AS INTEGER) as total_duration
 FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = ?
@@ -428,11 +428,11 @@ type ListAlbumsByLibraryPaginatedDescParams struct {
 }
 
 type ListAlbumsByLibraryPaginatedDescRow struct {
-	Album         sql.NullString  `json:"album"`
-	AlbumArtist   sql.NullString  `json:"album_artist"`
-	Year          sql.NullInt64   `json:"year"`
-	TrackCount    int64           `json:"track_count"`
-	TotalDuration sql.NullFloat64 `json:"total_duration"`
+	Album         sql.NullString `json:"album"`
+	AlbumArtist   sql.NullString `json:"album_artist"`
+	Year          sql.NullInt64  `json:"year"`
+	TrackCount    int64          `json:"track_count"`
+	TotalDuration int64          `json:"total_duration"`
 }
 
 func (q *Queries) ListAlbumsByLibraryPaginatedDesc(ctx context.Context, arg ListAlbumsByLibraryPaginatedDescParams) ([]ListAlbumsByLibraryPaginatedDescRow, error) {

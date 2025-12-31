@@ -39,7 +39,7 @@ WHERE id = ?;
 
 -- name: GetTVShowByTitle :one
 SELECT * FROM tv_shows
-WHERE library_id = ? AND LOWER(title) = LOWER(?)
+WHERE library_id = sqlc.arg(library_id) AND LOWER(title) = LOWER(sqlc.arg(title))
 LIMIT 1;
 
 -- name: GetTVShowByDirectory :one

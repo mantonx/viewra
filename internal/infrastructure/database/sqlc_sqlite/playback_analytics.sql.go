@@ -115,11 +115,11 @@ const getOverallPlaybackSummary = `-- name: GetOverallPlaybackSummary :one
 SELECT
     COUNT(*) as total_sessions,
     COUNT(DISTINCT media_id) as unique_media,
-    COALESCE(AVG(total_play_time_ms), 0) as avg_play_time_ms,
-    COALESCE(AVG(total_buffer_time_ms), 0) as avg_buffer_time_ms,
+    COALESCE(CAST(AVG(total_play_time_ms) AS REAL), 0) as avg_play_time_ms,
+    COALESCE(CAST(AVG(total_buffer_time_ms) AS REAL), 0) as avg_buffer_time_ms,
     COALESCE(SUM(stall_count), 0) as total_stalls,
-    COALESCE(AVG(stall_count), 0) as avg_stalls_per_session,
-    COALESCE(AVG(startup_time_ms), 0) as avg_startup_time_ms,
+    COALESCE(CAST(AVG(stall_count) AS REAL), 0) as avg_stalls_per_session,
+    COALESCE(CAST(AVG(startup_time_ms) AS REAL), 0) as avg_startup_time_ms,
     MIN(startup_time_ms) as min_startup_time_ms,
     MAX(startup_time_ms) as max_startup_time_ms
 FROM playback_sessions
@@ -184,11 +184,11 @@ func (q *Queries) GetPlaybackSessionByID(ctx context.Context, sessionID string) 
 const getPlaybackSummaryByMediaID = `-- name: GetPlaybackSummaryByMediaID :one
 SELECT
     COUNT(*) as total_sessions,
-    COALESCE(AVG(total_play_time_ms), 0) as avg_play_time_ms,
-    COALESCE(AVG(total_buffer_time_ms), 0) as avg_buffer_time_ms,
+    COALESCE(CAST(AVG(total_play_time_ms) AS REAL), 0) as avg_play_time_ms,
+    COALESCE(CAST(AVG(total_buffer_time_ms) AS REAL), 0) as avg_buffer_time_ms,
     COALESCE(SUM(stall_count), 0) as total_stalls,
-    COALESCE(AVG(stall_count), 0) as avg_stalls_per_session,
-    COALESCE(AVG(startup_time_ms), 0) as avg_startup_time_ms,
+    COALESCE(CAST(AVG(stall_count) AS REAL), 0) as avg_stalls_per_session,
+    COALESCE(CAST(AVG(startup_time_ms) AS REAL), 0) as avg_startup_time_ms,
     MIN(startup_time_ms) as min_startup_time_ms,
     MAX(startup_time_ms) as max_startup_time_ms
 FROM playback_sessions
@@ -225,16 +225,16 @@ func (q *Queries) GetPlaybackSummaryByMediaID(ctx context.Context, mediaID int64
 const getQualitySwitchStats = `-- name: GetQualitySwitchStats :one
 SELECT
     COUNT(*) as total_switches,
-    SUM(CASE WHEN caused_stall = 1 THEN 1 ELSE 0 END) as switches_with_stall,
+    CAST(SUM(CASE WHEN caused_stall = 1 THEN 1 ELSE 0 END) AS INTEGER) as switches_with_stall,
     COUNT(DISTINCT session_id) as unique_sessions
 FROM quality_switch_events
 WHERE media_id = ?
 `
 
 type GetQualitySwitchStatsRow struct {
-	TotalSwitches     int64           `json:"total_switches"`
-	SwitchesWithStall sql.NullFloat64 `json:"switches_with_stall"`
-	UniqueSessions    int64           `json:"unique_sessions"`
+	TotalSwitches     int64 `json:"total_switches"`
+	SwitchesWithStall int64 `json:"switches_with_stall"`
+	UniqueSessions    int64 `json:"unique_sessions"`
 }
 
 func (q *Queries) GetQualitySwitchStats(ctx context.Context, mediaID int64) (GetQualitySwitchStatsRow, error) {

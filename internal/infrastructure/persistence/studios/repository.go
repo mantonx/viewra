@@ -6,8 +6,7 @@ import (
 	"errors"
 
 	"github.com/mantonx/viewra/internal/domain/media"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
@@ -24,65 +23,37 @@ func NewRepository(base *common.BaseRepository) *Repository {
 // GetStudioByID retrieves a studio by its ID.
 func (r *Repository) GetStudioByID(id int64) (*media.Studio, error) {
 	ctx := context.Background()
-	return common.QuerySingle(
-		r.BaseRepository, ctx,
-		func() (sqlc_postgres.Studio, error) {
-			return r.Postgres().GetStudioByID(ctx, id)
-		},
-		func() (sqlc_sqlite.Studio, error) {
-			return r.SQLite().GetStudioByID(ctx, id)
-		},
-		postgresStudioToDomain,
-		sqliteStudioToDomain,
-	)
+	row, err := r.Q().GetStudioByID(ctx, id)
+	if err != nil {
+		return nil, r.ConvertNotFoundError(err)
+	}
+	return studioToDomain(row), nil
 }
 
 // GetStudioByName retrieves a studio by its name.
 func (r *Repository) GetStudioByName(name string) (*media.Studio, error) {
 	ctx := context.Background()
-	return common.QuerySingle(
-		r.BaseRepository, ctx,
-		func() (sqlc_postgres.Studio, error) {
-			return r.Postgres().GetStudioByName(ctx, name)
-		},
-		func() (sqlc_sqlite.Studio, error) {
-			return r.SQLite().GetStudioByName(ctx, name)
-		},
-		postgresStudioToDomain,
-		sqliteStudioToDomain,
-	)
+	row, err := r.Q().GetStudioByName(ctx, name)
+	if err != nil {
+		return nil, r.ConvertNotFoundError(err)
+	}
+	return studioToDomain(row), nil
 }
 
 // GetStudioByTMDbID retrieves a studio by its TMDb ID.
 func (r *Repository) GetStudioByTMDbID(tmdbID int) (*media.Studio, error) {
 	ctx := context.Background()
-	return common.QuerySingle(
-		r.BaseRepository, ctx,
-		func() (sqlc_postgres.Studio, error) {
-			return r.Postgres().GetStudioByTMDbID(ctx, sql.NullInt64{Int64: int64(tmdbID), Valid: true})
-		},
-		func() (sqlc_sqlite.Studio, error) {
-			return r.SQLite().GetStudioByTMDbID(ctx, sql.NullInt64{Int64: int64(tmdbID), Valid: true})
-		},
-		postgresStudioToDomain,
-		sqliteStudioToDomain,
-	)
+	row, err := r.Q().GetStudioByTMDbID(ctx, sql.NullInt64{Int64: int64(tmdbID), Valid: true})
+	if err != nil {
+		return nil, r.ConvertNotFoundError(err)
+	}
+	return studioToDomain(row), nil
 }
 
 // CreateStudio creates a new studio.
 func (r *Repository) CreateStudio(studio *media.Studio) error {
 	ctx := context.Background()
-
-	if r.Router().IsPostgresDB() {
-		result, err := r.Postgres().CreateStudio(ctx, buildPostgresCreateStudioParams(studio))
-		if err != nil {
-			return err
-		}
-		studio.ID = result.ID
-		return nil
-	}
-
-	result, err := r.SQLite().CreateStudio(ctx, buildSQLiteCreateStudioParams(studio))
+	result, err := r.Q().CreateStudio(ctx, buildCreateStudioParams(studio))
 	if err != nil {
 		return err
 	}
@@ -93,20 +64,10 @@ func (r *Repository) CreateStudio(studio *media.Studio) error {
 // UpdateStudio updates an existing studio.
 func (r *Repository) UpdateStudio(studio *media.Studio) error {
 	ctx := context.Background()
-	return common.ExecuteCommand(
-		r.BaseRepository, ctx,
-		func() error {
-			return r.Postgres().UpdateStudio(ctx, buildPostgresUpdateStudioParams(studio))
-		},
-		func() error {
-			return r.SQLite().UpdateStudio(ctx, buildSQLiteUpdateStudioParams(studio))
-		},
-	)
+	return r.Q().UpdateStudio(ctx, buildUpdateStudioParams(studio))
 }
 
 // isNotFoundError checks if the error indicates a record was not found.
-// This handles both sql.ErrNoRows (direct DB access) and media.ErrMediaNotFound (via QuerySingle).
-// Uses errors.Is to properly handle wrapped errors.
 func isNotFoundError(err error) bool {
 	return errors.Is(err, sql.ErrNoRows) || errors.Is(err, media.ErrMediaNotFound)
 }
@@ -152,110 +113,49 @@ func (r *Repository) FindOrCreateStudio(name string, tmdbID int) (*media.Studio,
 // GetStudiosForEntity retrieves all studios for a media entity.
 func (r *Repository) GetStudiosForEntity(mediaType string, entityID int64) ([]*media.Studio, error) {
 	ctx := context.Background()
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.Studio, error) {
-			return r.Postgres().GetStudiosForEntity(ctx, sqlc_postgres.GetStudiosForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		func() ([]sqlc_sqlite.Studio, error) {
-			return r.SQLite().GetStudiosForEntity(ctx, sqlc_sqlite.GetStudiosForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		postgresStudioToDomain,
-		sqliteStudioToDomain,
-	)
+	rows, err := r.Q().GetStudiosForEntity(ctx, unified.GetStudiosForEntityParams{
+		MediaType: mediaType,
+		EntityID:  entityID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, studioToDomain), nil
 }
 
 // AddStudioToEntity adds a studio association to a media entity.
 func (r *Repository) AddStudioToEntity(mediaType string, entityID int64, studioID int64) error {
 	ctx := context.Background()
-	return common.ExecuteCommand(
-		r.BaseRepository, ctx,
-		func() error {
-			return r.Postgres().AddMediaStudio(ctx, sqlc_postgres.AddMediaStudioParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-				StudioID:  studioID,
-			})
-		},
-		func() error {
-			return r.SQLite().AddMediaStudio(ctx, sqlc_sqlite.AddMediaStudioParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-				StudioID:  studioID,
-			})
-		},
-	)
+	return r.Q().AddMediaStudio(ctx, unified.AddMediaStudioParams{
+		MediaType: mediaType,
+		EntityID:  entityID,
+		StudioID:  studioID,
+	})
 }
 
 // RemoveStudioFromEntity removes a studio association from a media entity.
 func (r *Repository) RemoveStudioFromEntity(mediaType string, entityID int64, studioID int64) error {
 	ctx := context.Background()
-	return common.ExecuteCommand(
-		r.BaseRepository, ctx,
-		func() error {
-			return r.Postgres().RemoveMediaStudio(ctx, sqlc_postgres.RemoveMediaStudioParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-				StudioID:  studioID,
-			})
-		},
-		func() error {
-			return r.SQLite().RemoveMediaStudio(ctx, sqlc_sqlite.RemoveMediaStudioParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-				StudioID:  studioID,
-			})
-		},
-	)
+	return r.Q().RemoveMediaStudio(ctx, unified.RemoveMediaStudioParams{
+		MediaType: mediaType,
+		EntityID:  entityID,
+		StudioID:  studioID,
+	})
 }
 
 // ClearStudiosForEntity removes all studio associations for a media entity.
 func (r *Repository) ClearStudiosForEntity(mediaType string, entityID int64) error {
 	ctx := context.Background()
-	return common.ExecuteCommand(
-		r.BaseRepository, ctx,
-		func() error {
-			return r.Postgres().ClearStudiosForEntity(ctx, sqlc_postgres.ClearStudiosForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		func() error {
-			return r.SQLite().ClearStudiosForEntity(ctx, sqlc_sqlite.ClearStudiosForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-	)
+	return r.Q().ClearStudiosForEntity(ctx, unified.ClearStudiosForEntityParams{
+		MediaType: mediaType,
+		EntityID:  entityID,
+	})
 }
 
 // ReplaceStudiosForEntity clears existing studios and adds new ones.
 func (r *Repository) ReplaceStudiosForEntity(mediaType string, entityID int64, studios []*media.Studio) error {
-	ctx := context.Background()
-
 	// Clear existing studios
-	err := common.ExecuteCommand(
-		r.BaseRepository, ctx,
-		func() error {
-			return r.Postgres().ClearStudiosForEntity(ctx, sqlc_postgres.ClearStudiosForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		func() error {
-			return r.SQLite().ClearStudiosForEntity(ctx, sqlc_sqlite.ClearStudiosForEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-	)
-	if err != nil {
+	if err := r.ClearStudiosForEntity(mediaType, entityID); err != nil {
 		return err
 	}
 
@@ -267,4 +167,13 @@ func (r *Repository) ReplaceStudiosForEntity(mediaType string, entityID int64, s
 	}
 
 	return nil
+}
+
+// mapSlice converts a slice of one type to another using the provided mapper function.
+func mapSlice[TFrom, TTo any](from []TFrom, mapper func(TFrom) TTo) []TTo {
+	result := make([]TTo, len(from))
+	for i, v := range from {
+		result[i] = mapper(v)
+	}
+	return result
 }

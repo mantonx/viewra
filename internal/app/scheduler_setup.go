@@ -11,6 +11,7 @@ import (
 	"github.com/mantonx/viewra/internal/app/usecases"
 	appscheduler "github.com/mantonx/viewra/internal/application/scheduler"
 	"github.com/mantonx/viewra/internal/domain/events"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 	schedrepo "github.com/mantonx/viewra/internal/infrastructure/persistence/scheduler"
 )
 
@@ -30,9 +31,10 @@ func InitScheduler(deps SchedulerDeps) (*appscheduler.Service, error) {
 	ctx := context.Background()
 
 	// Create repositories
-	taskRepo := schedrepo.NewTaskRepository(deps.DB, deps.DBDriver)
-	execRepo := schedrepo.NewExecutionRepository(deps.DB, deps.DBDriver)
-	lockRepo := schedrepo.NewLockRepository(deps.DB, deps.DBDriver)
+	baseRepo := common.NewBaseRepository(deps.DB, deps.DBDriver)
+	taskRepo := schedrepo.NewTaskRepository(baseRepo)
+	execRepo := schedrepo.NewExecutionRepository(baseRepo)
+	lockRepo := schedrepo.NewLockRepository(baseRepo)
 
 	// Create event bus adapter (can be nil)
 	var eventBus appscheduler.EventPublisher

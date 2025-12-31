@@ -8,8 +8,7 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/scheduler"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
@@ -23,24 +22,14 @@ func toNullString(data []byte) sql.NullString {
 
 // TaskRepository implements scheduler.TaskRepository.
 type TaskRepository struct {
-	db              *sql.DB
-	dbType          string
-	sqliteQuerier   sqlc_sqlite.Querier
-	postgresQuerier sqlc_postgres.Querier
+	*common.BaseRepository
 }
 
 // NewTaskRepository creates a new task repository.
-func NewTaskRepository(db *sql.DB, dbType string) *TaskRepository {
-	r := &TaskRepository{
-		db:     db,
-		dbType: dbType,
+func NewTaskRepository(base *common.BaseRepository) *TaskRepository {
+	return &TaskRepository{
+		BaseRepository: base,
 	}
-	if common.IsPostgres(dbType) {
-		r.postgresQuerier = sqlc_postgres.New(db)
-	} else {
-		r.sqliteQuerier = sqlc_sqlite.New(db)
-	}
-	return r
 }
 
 // Upsert creates a new task or updates if it already exists.
@@ -50,32 +39,15 @@ func (r *TaskRepository) Upsert(ctx context.Context, task *scheduler.Task) error
 		return err
 	}
 
-	if common.IsPostgres(r.dbType) {
-		return r.postgresQuerier.UpsertScheduledTask(ctx, sqlc_postgres.UpsertScheduledTaskParams{
-			ID:                task.ID,
-			Name:              task.Name,
-			Description:       common.NullString(task.Description),
-			Schedule:          common.NullString(task.Schedule),
-			Enabled:           common.BoolToInt64(task.Enabled),
-			Source:            string(task.Source),
-			SourceID:          common.NullString(task.SourceID),
-			DependsOn:         toNullString(dependsOnJSON),
-			TimeoutSeconds:    common.NullInt64(int64(task.TimeoutSeconds)),
-			RetryCount:        common.NullInt64(int64(task.RetryCount)),
-			RetryDelaySeconds: common.NullInt64(int64(task.RetryDelaySecs)),
-			ConcurrencyKey:    common.NullString(task.ConcurrencyKey),
-		})
-	}
-
-	return r.sqliteQuerier.UpsertScheduledTask(ctx, sqlc_sqlite.UpsertScheduledTaskParams{
+	return r.Q().UpsertScheduledTask(ctx, unified.UpsertScheduledTaskParams{
 		ID:                task.ID,
 		Name:              task.Name,
 		Description:       common.NullString(task.Description),
 		Schedule:          common.NullString(task.Schedule),
-		Enabled:           boolToInt64(task.Enabled),
+		Enabled:           common.BoolToInt64(task.Enabled),
 		Source:            string(task.Source),
 		SourceID:          common.NullString(task.SourceID),
-		DependsOn:         common.NullString(string(dependsOnJSON)),
+		DependsOn:         toNullString(dependsOnJSON),
 		TimeoutSeconds:    common.NullInt64(int64(task.TimeoutSeconds)),
 		RetryCount:        common.NullInt64(int64(task.RetryCount)),
 		RetryDelaySeconds: common.NullInt64(int64(task.RetryDelaySecs)),
@@ -85,113 +57,58 @@ func (r *TaskRepository) Upsert(ctx context.Context, task *scheduler.Task) error
 
 // Get retrieves a task by ID.
 func (r *TaskRepository) Get(ctx context.Context, id string) (*scheduler.Task, error) {
-	if common.IsPostgres(r.dbType) {
-		row, err := r.postgresQuerier.GetScheduledTask(ctx, id)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return nil, scheduler.ErrTaskNotFound
-			}
-			return nil, err
-		}
-		return postgresRowToTask(row), nil
-	}
-
-	row, err := r.sqliteQuerier.GetScheduledTask(ctx, id)
+	row, err := r.Q().GetScheduledTask(ctx, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, scheduler.ErrTaskNotFound
 		}
 		return nil, err
 	}
-	return sqliteRowToTask(row), nil
+	return rowToTask(row), nil
 }
 
 // List retrieves all tasks.
 func (r *TaskRepository) List(ctx context.Context) ([]*scheduler.Task, error) {
-	if common.IsPostgres(r.dbType) {
-		rows, err := r.postgresQuerier.ListScheduledTasks(ctx)
-		if err != nil {
-			return nil, err
-		}
-		result := make([]*scheduler.Task, len(rows))
-		for i, row := range rows {
-			result[i] = postgresRowToTask(row)
-		}
-		return result, nil
-	}
-
-	rows, err := r.sqliteQuerier.ListScheduledTasks(ctx)
+	rows, err := r.Q().ListScheduledTasks(ctx)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]*scheduler.Task, len(rows))
 	for i, row := range rows {
-		result[i] = sqliteRowToTask(row)
+		result[i] = rowToTask(row)
 	}
 	return result, nil
 }
 
 // ListBySource retrieves tasks by source (internal or plugin).
 func (r *TaskRepository) ListBySource(ctx context.Context, source scheduler.TaskSource) ([]*scheduler.Task, error) {
-	if common.IsPostgres(r.dbType) {
-		rows, err := r.postgresQuerier.ListScheduledTasksBySource(ctx, string(source))
-		if err != nil {
-			return nil, err
-		}
-		result := make([]*scheduler.Task, len(rows))
-		for i, row := range rows {
-			result[i] = postgresRowToTask(row)
-		}
-		return result, nil
-	}
-
-	rows, err := r.sqliteQuerier.ListScheduledTasksBySource(ctx, string(source))
+	rows, err := r.Q().ListScheduledTasksBySource(ctx, string(source))
 	if err != nil {
 		return nil, err
 	}
 	result := make([]*scheduler.Task, len(rows))
 	for i, row := range rows {
-		result[i] = sqliteRowToTask(row)
+		result[i] = rowToTask(row)
 	}
 	return result, nil
 }
 
 // ListBySourceID retrieves tasks by source ID (plugin ID or service name).
 func (r *TaskRepository) ListBySourceID(ctx context.Context, sourceID string) ([]*scheduler.Task, error) {
-	if common.IsPostgres(r.dbType) {
-		rows, err := r.postgresQuerier.ListScheduledTasksBySourceID(ctx, common.NullString(sourceID))
-		if err != nil {
-			return nil, err
-		}
-		result := make([]*scheduler.Task, len(rows))
-		for i, row := range rows {
-			result[i] = postgresRowToTask(row)
-		}
-		return result, nil
-	}
-
-	rows, err := r.sqliteQuerier.ListScheduledTasksBySourceID(ctx, common.NullString(sourceID))
+	rows, err := r.Q().ListScheduledTasksBySourceID(ctx, common.NullString(sourceID))
 	if err != nil {
 		return nil, err
 	}
 	result := make([]*scheduler.Task, len(rows))
 	for i, row := range rows {
-		result[i] = sqliteRowToTask(row)
+		result[i] = rowToTask(row)
 	}
 	return result, nil
 }
 
 // Update updates a task.
 func (r *TaskRepository) Update(ctx context.Context, id string, update scheduler.TaskUpdate) error {
-	if common.IsPostgres(r.dbType) {
-		return r.postgresQuerier.UpdateScheduledTask(ctx, sqlc_postgres.UpdateScheduledTaskParams{
-			ID:       id,
-			Schedule: common.NullStringPtr(update.Schedule),
-			Enabled:  nullBoolPtrToInt64(update.Enabled),
-		})
-	}
-
-	return r.sqliteQuerier.UpdateScheduledTask(ctx, sqlc_sqlite.UpdateScheduledTaskParams{
+	return r.Q().UpdateScheduledTask(ctx, unified.UpdateScheduledTaskParams{
 		ID:       id,
 		Schedule: common.NullStringPtr(update.Schedule),
 		Enabled:  nullBoolPtrToInt64(update.Enabled),
@@ -200,18 +117,12 @@ func (r *TaskRepository) Update(ctx context.Context, id string, update scheduler
 
 // Delete removes a task by ID.
 func (r *TaskRepository) Delete(ctx context.Context, id string) error {
-	if common.IsPostgres(r.dbType) {
-		return r.postgresQuerier.DeleteScheduledTask(ctx, id)
-	}
-	return r.sqliteQuerier.DeleteScheduledTask(ctx, id)
+	return r.Q().DeleteScheduledTask(ctx, id)
 }
 
 // DeleteBySourceID removes all tasks for a source ID.
 func (r *TaskRepository) DeleteBySourceID(ctx context.Context, sourceID string) error {
-	if common.IsPostgres(r.dbType) {
-		return r.postgresQuerier.DeleteScheduledTasksBySourceID(ctx, common.NullString(sourceID))
-	}
-	return r.sqliteQuerier.DeleteScheduledTasksBySourceID(ctx, common.NullString(sourceID))
+	return r.Q().DeleteScheduledTasksBySourceID(ctx, common.NullString(sourceID))
 }
 
 // GetDependents returns tasks that depend on the given task ID.
@@ -236,49 +147,19 @@ func (r *TaskRepository) GetDependents(ctx context.Context, taskID string) ([]*s
 
 // ExecutionRepository implements scheduler.ExecutionRepository.
 type ExecutionRepository struct {
-	db              *sql.DB
-	dbType          string
-	sqliteQuerier   sqlc_sqlite.Querier
-	postgresQuerier sqlc_postgres.Querier
+	*common.BaseRepository
 }
 
 // NewExecutionRepository creates a new execution repository.
-func NewExecutionRepository(db *sql.DB, dbType string) *ExecutionRepository {
-	r := &ExecutionRepository{
-		db:     db,
-		dbType: dbType,
+func NewExecutionRepository(base *common.BaseRepository) *ExecutionRepository {
+	return &ExecutionRepository{
+		BaseRepository: base,
 	}
-	if common.IsPostgres(dbType) {
-		r.postgresQuerier = sqlc_postgres.New(db)
-	} else {
-		r.sqliteQuerier = sqlc_sqlite.New(db)
-	}
-	return r
 }
 
 // Create creates a new execution record.
 func (r *ExecutionRepository) Create(ctx context.Context, exec *scheduler.Execution) error {
-	if common.IsPostgres(r.dbType) {
-		return r.postgresQuerier.CreateSchedulerExecution(ctx, sqlc_postgres.CreateSchedulerExecutionParams{
-			ID:                exec.ID,
-			TaskID:            exec.TaskID,
-			Status:            string(exec.Status),
-			ScheduledAt:       common.NullTimePtr(exec.ScheduledAt),
-			StartedAt:         common.NullTimePtr(exec.StartedAt),
-			EndedAt:           common.NullTimePtr(exec.EndedAt),
-			DurationMs:        common.NullInt64(exec.DurationMs),
-			Success:           boolPtrToNullInt64(exec.Success),
-			Error:             common.NullString(exec.Error),
-			Logs:              common.NullString(exec.Logs),
-			Attempt:           common.NullInt64(int64(exec.Attempt)),
-			ParentExecutionID: common.NullString(exec.ParentID),
-			TriggeredBy:       string(exec.TriggeredBy),
-			DependencyExecID:  common.NullString(exec.DependencyExecID),
-			Resumable:         common.NullInt64FromBool(exec.Resumable),
-		})
-	}
-
-	return r.sqliteQuerier.CreateSchedulerExecution(ctx, sqlc_sqlite.CreateSchedulerExecutionParams{
+	return r.Q().CreateSchedulerExecution(ctx, unified.CreateSchedulerExecutionParams{
 		ID:                exec.ID,
 		TaskID:            exec.TaskID,
 		Status:            string(exec.Status),
@@ -299,44 +180,19 @@ func (r *ExecutionRepository) Create(ctx context.Context, exec *scheduler.Execut
 
 // Get retrieves an execution by ID.
 func (r *ExecutionRepository) Get(ctx context.Context, id string) (*scheduler.Execution, error) {
-	if common.IsPostgres(r.dbType) {
-		row, err := r.postgresQuerier.GetSchedulerExecution(ctx, id)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return nil, scheduler.ErrExecutionNotFound
-			}
-			return nil, err
-		}
-		return postgresExecRowToExecution(row), nil
-	}
-
-	row, err := r.sqliteQuerier.GetSchedulerExecution(ctx, id)
+	row, err := r.Q().GetSchedulerExecution(ctx, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, scheduler.ErrExecutionNotFound
 		}
 		return nil, err
 	}
-	return sqliteExecRowToExecution(row), nil
+	return rowToExecution(row), nil
 }
 
 // Update updates an execution record.
 func (r *ExecutionRepository) Update(ctx context.Context, exec *scheduler.Execution) error {
-	if common.IsPostgres(r.dbType) {
-		return r.postgresQuerier.UpdateSchedulerExecution(ctx, sqlc_postgres.UpdateSchedulerExecutionParams{
-			ID:         exec.ID,
-			Status:     string(exec.Status),
-			StartedAt:  common.NullTimePtr(exec.StartedAt),
-			EndedAt:    common.NullTimePtr(exec.EndedAt),
-			DurationMs: common.NullInt64(exec.DurationMs),
-			Success:    boolPtrToNullInt64(exec.Success),
-			Error:      common.NullString(exec.Error),
-			Logs:       common.NullString(exec.Logs),
-			Resumable:  common.NullInt64FromBool(exec.Resumable),
-		})
-	}
-
-	return r.sqliteQuerier.UpdateSchedulerExecution(ctx, sqlc_sqlite.UpdateSchedulerExecutionParams{
+	return r.Q().UpdateSchedulerExecution(ctx, unified.UpdateSchedulerExecutionParams{
 		ID:         exec.ID,
 		Status:     string(exec.Status),
 		StartedAt:  common.NullTimePtr(exec.StartedAt),
@@ -356,33 +212,9 @@ func (r *ExecutionRepository) List(ctx context.Context, opts scheduler.Execution
 		limit = 50
 	}
 
-	if common.IsPostgres(r.dbType) {
-		rows, err := r.postgresQuerier.ListSchedulerExecutions(ctx, sqlc_postgres.ListSchedulerExecutionsParams{
-			TaskID: common.NullString(opts.TaskID),
-			Status: common.NullString(string(opts.Status)),
-			Limit:  int32(limit),
-			Offset: int32(opts.Offset),
-		})
-		if err != nil {
-			return nil, err
-		}
-		result := make([]*scheduler.Execution, len(rows))
-		for i, row := range rows {
-			result[i] = postgresExecRowToExecution(row)
-		}
-		return result, nil
-	}
-
-	var taskID, status interface{}
-	if opts.TaskID != "" {
-		taskID = opts.TaskID
-	}
-	if opts.Status != "" {
-		status = string(opts.Status)
-	}
-	rows, err := r.sqliteQuerier.ListSchedulerExecutions(ctx, sqlc_sqlite.ListSchedulerExecutionsParams{
-		TaskID: taskID,
-		Status: status,
+	rows, err := r.Q().ListSchedulerExecutions(ctx, unified.ListSchedulerExecutionsParams{
+		TaskID: common.NullString(opts.TaskID),
+		Status: common.NullString(string(opts.Status)),
 		Limit:  int64(limit),
 		Offset: int64(opts.Offset),
 	})
@@ -391,154 +223,88 @@ func (r *ExecutionRepository) List(ctx context.Context, opts scheduler.Execution
 	}
 	result := make([]*scheduler.Execution, len(rows))
 	for i, row := range rows {
-		result[i] = sqliteExecRowToExecution(row)
+		result[i] = rowToExecution(row)
 	}
 	return result, nil
 }
 
 // GetLatest retrieves the most recent execution for a task.
 func (r *ExecutionRepository) GetLatest(ctx context.Context, taskID string) (*scheduler.Execution, error) {
-	if common.IsPostgres(r.dbType) {
-		row, err := r.postgresQuerier.GetLatestSchedulerExecution(ctx, taskID)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return nil, scheduler.ErrExecutionNotFound
-			}
-			return nil, err
-		}
-		return postgresExecRowToExecution(row), nil
-	}
-
-	row, err := r.sqliteQuerier.GetLatestSchedulerExecution(ctx, taskID)
+	row, err := r.Q().GetLatestSchedulerExecution(ctx, taskID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, scheduler.ErrExecutionNotFound
 		}
 		return nil, err
 	}
-	return sqliteExecRowToExecution(row), nil
+	return rowToExecution(row), nil
 }
 
 // GetRunning retrieves all currently running executions.
 func (r *ExecutionRepository) GetRunning(ctx context.Context) ([]*scheduler.Execution, error) {
-	if common.IsPostgres(r.dbType) {
-		rows, err := r.postgresQuerier.GetRunningSchedulerExecutions(ctx)
-		if err != nil {
-			return nil, err
-		}
-		result := make([]*scheduler.Execution, len(rows))
-		for i, row := range rows {
-			result[i] = postgresExecRowToExecution(row)
-		}
-		return result, nil
-	}
-
-	rows, err := r.sqliteQuerier.GetRunningSchedulerExecutions(ctx)
+	rows, err := r.Q().GetRunningSchedulerExecutions(ctx)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]*scheduler.Execution, len(rows))
 	for i, row := range rows {
-		result[i] = sqliteExecRowToExecution(row)
+		result[i] = rowToExecution(row)
 	}
 	return result, nil
 }
 
 // GetInterrupted retrieves all interrupted executions that are resumable.
 func (r *ExecutionRepository) GetInterrupted(ctx context.Context) ([]*scheduler.Execution, error) {
-	if common.IsPostgres(r.dbType) {
-		rows, err := r.postgresQuerier.GetInterruptedSchedulerExecutions(ctx)
-		if err != nil {
-			return nil, err
-		}
-		result := make([]*scheduler.Execution, len(rows))
-		for i, row := range rows {
-			result[i] = postgresExecRowToExecution(row)
-		}
-		return result, nil
-	}
-
-	rows, err := r.sqliteQuerier.GetInterruptedSchedulerExecutions(ctx)
+	rows, err := r.Q().GetInterruptedSchedulerExecutions(ctx)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]*scheduler.Execution, len(rows))
 	for i, row := range rows {
-		result[i] = sqliteExecRowToExecution(row)
+		result[i] = rowToExecution(row)
 	}
 	return result, nil
 }
 
 // CountByTask counts executions for a task.
 func (r *ExecutionRepository) CountByTask(ctx context.Context, taskID string) (int, error) {
-	if common.IsPostgres(r.dbType) {
-		count, err := r.postgresQuerier.CountSchedulerExecutionsByTask(ctx, taskID)
-		return int(count), err
-	}
-	count, err := r.sqliteQuerier.CountSchedulerExecutionsByTask(ctx, taskID)
+	count, err := r.Q().CountSchedulerExecutionsByTask(ctx, taskID)
 	return int(count), err
 }
 
 // DeleteOlderThan removes executions older than the given time.
 func (r *ExecutionRepository) DeleteOlderThan(ctx context.Context, before time.Time) (int64, error) {
-	if common.IsPostgres(r.dbType) {
-		return r.postgresQuerier.DeleteOldSchedulerExecutions(ctx, before)
-	}
-	return r.sqliteQuerier.DeleteOldSchedulerExecutions(ctx, before)
+	return r.Q().DeleteOldSchedulerExecutions(ctx, before)
 }
 
 // MarkInterrupted marks all running executions as interrupted.
 func (r *ExecutionRepository) MarkInterrupted(ctx context.Context, resumable bool) (int64, error) {
-	if common.IsPostgres(r.dbType) {
-		return r.postgresQuerier.MarkRunningAsInterrupted(ctx, common.NullInt64FromBool(resumable))
-	}
-	return r.sqliteQuerier.MarkRunningAsInterrupted(ctx, common.NullInt64FromBool(resumable))
+	return r.Q().MarkRunningAsInterrupted(ctx, common.NullInt64FromBool(resumable))
 }
 
 // LockRepository implements scheduler.LockRepository.
 type LockRepository struct {
-	db              *sql.DB
-	dbType          string
-	sqliteQuerier   sqlc_sqlite.Querier
-	postgresQuerier sqlc_postgres.Querier
+	*common.BaseRepository
 }
 
 // NewLockRepository creates a new lock repository.
-func NewLockRepository(db *sql.DB, dbType string) *LockRepository {
-	r := &LockRepository{
-		db:     db,
-		dbType: dbType,
+func NewLockRepository(base *common.BaseRepository) *LockRepository {
+	return &LockRepository{
+		BaseRepository: base,
 	}
-	if common.IsPostgres(dbType) {
-		r.postgresQuerier = sqlc_postgres.New(db)
-	} else {
-		r.sqliteQuerier = sqlc_sqlite.New(db)
-	}
-	return r
 }
 
 // TryAcquire attempts to acquire a lock.
 func (r *LockRepository) TryAcquire(ctx context.Context, key, executionID string, ttl time.Duration) (bool, error) {
 	expiresAt := time.Now().Add(ttl)
 
-	if common.IsPostgres(r.dbType) {
-		err := r.postgresQuerier.TryAcquireSchedulerLock(ctx, sqlc_postgres.TryAcquireSchedulerLockParams{
-			LockKey:     key,
-			ExecutionID: executionID,
-			ExpiresAt:   expiresAt,
-		})
-		if err != nil {
-			return false, err
-		}
-	} else {
-		err := r.sqliteQuerier.TryAcquireSchedulerLock(ctx, sqlc_sqlite.TryAcquireSchedulerLockParams{
-			LockKey:     key,
-			ExecutionID: executionID,
-			ExpiresAt:   expiresAt,
-		})
-		if err != nil {
-			return false, err
-		}
+	err := r.Q().TryAcquireSchedulerLock(ctx, unified.TryAcquireSchedulerLockParams{
+		LockKey:     key,
+		ExecutionID: executionID,
+		ExpiresAt:   expiresAt,
+	})
+	if err != nil {
+		return false, err
 	}
 
 	// Check if we own the lock (ON CONFLICT DO NOTHING means no rows affected if already exists)
@@ -550,20 +316,7 @@ func (r *LockRepository) TryAcquire(ctx context.Context, key, executionID string
 }
 
 func (r *LockRepository) getLock(ctx context.Context, key string) (*lockInfo, error) {
-	if common.IsPostgres(r.dbType) {
-		row, err := r.postgresQuerier.GetSchedulerLock(ctx, key)
-		if err != nil {
-			return nil, err
-		}
-		return &lockInfo{
-			LockKey:     row.LockKey,
-			ExecutionID: row.ExecutionID,
-			AcquiredAt:  row.AcquiredAt,
-			ExpiresAt:   row.ExpiresAt,
-		}, nil
-	}
-
-	row, err := r.sqliteQuerier.GetSchedulerLock(ctx, key)
+	row, err := r.Q().GetSchedulerLock(ctx, key)
 	if err != nil {
 		return nil, err
 	}
@@ -584,23 +337,14 @@ type lockInfo struct {
 
 // Release releases a lock.
 func (r *LockRepository) Release(ctx context.Context, key string) error {
-	if common.IsPostgres(r.dbType) {
-		return r.postgresQuerier.ReleaseSchedulerLock(ctx, key)
-	}
-	return r.sqliteQuerier.ReleaseSchedulerLock(ctx, key)
+	return r.Q().ReleaseSchedulerLock(ctx, key)
 }
 
 // Refresh extends the TTL of an existing lock.
 func (r *LockRepository) Refresh(ctx context.Context, key string, ttl time.Duration) error {
 	expiresAt := time.Now().Add(ttl)
 
-	if common.IsPostgres(r.dbType) {
-		return r.postgresQuerier.RefreshSchedulerLock(ctx, sqlc_postgres.RefreshSchedulerLockParams{
-			LockKey:   key,
-			ExpiresAt: expiresAt,
-		})
-	}
-	return r.sqliteQuerier.RefreshSchedulerLock(ctx, sqlc_sqlite.RefreshSchedulerLockParams{
+	return r.Q().RefreshSchedulerLock(ctx, unified.RefreshSchedulerLockParams{
 		LockKey:   key,
 		ExpiresAt: expiresAt,
 	})
@@ -608,18 +352,11 @@ func (r *LockRepository) Refresh(ctx context.Context, key string, ttl time.Durat
 
 // IsHeld checks if a lock is currently held.
 func (r *LockRepository) IsHeld(ctx context.Context, key string) (bool, error) {
-	if common.IsPostgres(r.dbType) {
-		exists, err := r.postgresQuerier.SchedulerLockExists(ctx, key)
-		return exists, err
-	}
-	exists, err := r.sqliteQuerier.SchedulerLockExists(ctx, key)
-	return exists == 1, err
+	exists, err := r.Q().SchedulerLockExists(ctx, key)
+	return exists > 0, err
 }
 
 // CleanExpired removes all expired locks.
 func (r *LockRepository) CleanExpired(ctx context.Context) (int64, error) {
-	if common.IsPostgres(r.dbType) {
-		return r.postgresQuerier.CleanExpiredSchedulerLocks(ctx)
-	}
-	return r.sqliteQuerier.CleanExpiredSchedulerLocks(ctx)
+	return r.Q().CleanExpiredSchedulerLocks(ctx)
 }

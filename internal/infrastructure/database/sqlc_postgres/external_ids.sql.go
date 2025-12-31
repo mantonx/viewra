@@ -223,13 +223,13 @@ func (q *Queries) GetExternalIDsByMediaID(ctx context.Context, mediaID sql.NullI
 
 const getExternalIDsByMediaIDBatch = `-- name: GetExternalIDsByMediaIDBatch :many
 SELECT id, media_id, media_type, entity_id, provider, external_id, created_at, updated_at FROM media_external_ids
-WHERE media_id = ANY($1::int[])
+WHERE media_id = ANY($1::bigint[])
 ORDER BY media_id, provider
 `
 
 // Batch fetch: gets external IDs for multiple media IDs
-func (q *Queries) GetExternalIDsByMediaIDBatch(ctx context.Context, dollar_1 []int64) ([]MediaExternalID, error) {
-	rows, err := q.db.QueryContext(ctx, getExternalIDsByMediaIDBatch, pq.Array(dollar_1))
+func (q *Queries) GetExternalIDsByMediaIDBatch(ctx context.Context, mediaIds []int64) ([]MediaExternalID, error) {
+	rows, err := q.db.QueryContext(ctx, getExternalIDsByMediaIDBatch, pq.Array(mediaIds))
 	if err != nil {
 		return nil, err
 	}

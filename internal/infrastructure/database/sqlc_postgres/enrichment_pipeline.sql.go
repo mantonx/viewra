@@ -204,14 +204,14 @@ func (q *Queries) GetFirstPipelineStage(ctx context.Context, mediaType string) (
 }
 
 const getNextPipelinePosition = `-- name: GetNextPipelinePosition :one
-SELECT COALESCE(MAX(position), 0) + 1 as next_position
+SELECT (COALESCE(MAX(position), 0) + 1)::bigint as next_position
 FROM enrichment_pipelines
 WHERE media_type = $1
 `
 
-func (q *Queries) GetNextPipelinePosition(ctx context.Context, mediaType string) (int32, error) {
+func (q *Queries) GetNextPipelinePosition(ctx context.Context, mediaType string) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getNextPipelinePosition, mediaType)
-	var next_position int32
+	var next_position int64
 	err := row.Scan(&next_position)
 	return next_position, err
 }

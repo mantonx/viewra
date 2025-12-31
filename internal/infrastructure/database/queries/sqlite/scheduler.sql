@@ -113,8 +113,8 @@ SELECT id, task_id, status, scheduled_at, started_at, ended_at, duration_ms,
        success, error, logs, attempt, parent_execution_id, triggered_by,
        dependency_exec_id, resumable, created_at
 FROM scheduler_executions
-WHERE (sqlc.narg('task_id') IS NULL OR task_id = sqlc.narg('task_id'))
-  AND (sqlc.narg('status') IS NULL OR status = sqlc.narg('status'))
+WHERE (CAST(sqlc.narg('task_id') AS TEXT) IS NULL OR task_id = sqlc.narg('task_id'))
+  AND (CAST(sqlc.narg('status') AS TEXT) IS NULL OR status = sqlc.narg('status'))
 ORDER BY created_at DESC
 LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
 
@@ -171,9 +171,9 @@ WHERE status IN ('pending', 'running');
 -- name: GetSchedulerExecutionStats :one
 SELECT
     COUNT(*) as total_executions,
-    SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful_executions,
-    SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failed_executions,
-    AVG(duration_ms) as avg_duration_ms,
+    CAST(SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) AS INTEGER) as successful_executions,
+    CAST(SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) AS INTEGER) as failed_executions,
+    CAST(AVG(duration_ms) AS REAL) as avg_duration_ms,
     MAX(started_at) as last_execution
 FROM scheduler_executions
 WHERE task_id = ?;

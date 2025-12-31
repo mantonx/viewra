@@ -811,17 +811,17 @@ func (q *Queries) GetTVShowByID(ctx context.Context, id int64) (TvShow, error) {
 
 const getTVShowByTitle = `-- name: GetTVShowByTitle :one
 SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
-WHERE library_id = ? AND LOWER(title) = LOWER(?)
+WHERE library_id = ?1 AND LOWER(title) = LOWER(?2)
 LIMIT 1
 `
 
 type GetTVShowByTitleParams struct {
 	LibraryID int64  `json:"library_id"`
-	LOWER     string `json:"LOWER"`
+	Title     string `json:"title"`
 }
 
 func (q *Queries) GetTVShowByTitle(ctx context.Context, arg GetTVShowByTitleParams) (TvShow, error) {
-	row := q.db.QueryRowContext(ctx, getTVShowByTitle, arg.LibraryID, arg.LOWER)
+	row := q.db.QueryRowContext(ctx, getTVShowByTitle, arg.LibraryID, arg.Title)
 	var i TvShow
 	err := row.Scan(
 		&i.ID,

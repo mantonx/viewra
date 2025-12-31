@@ -247,14 +247,14 @@ func (q *Queries) GetScanCheckpointErrorsByCategory(ctx context.Context, scanJob
 const getScanCheckpointProgress = `-- name: GetScanCheckpointProgress :one
 SELECT
     COUNT(*) as total,
-    SUM(CASE WHEN status IN ('completed', 'failed', 'warning') THEN 1 ELSE 0 END) as processed
+    CAST(SUM(CASE WHEN status IN ('completed', 'failed', 'warning') THEN 1 ELSE 0 END) AS INTEGER) as processed
 FROM scan_checkpoints
 WHERE scan_job_id = ?
 `
 
 type GetScanCheckpointProgressRow struct {
-	Total     int64           `json:"total"`
-	Processed sql.NullFloat64 `json:"processed"`
+	Total     int64 `json:"total"`
+	Processed int64 `json:"processed"`
 }
 
 func (q *Queries) GetScanCheckpointProgress(ctx context.Context, scanJobID int64) (GetScanCheckpointProgressRow, error) {
@@ -267,24 +267,24 @@ func (q *Queries) GetScanCheckpointProgress(ctx context.Context, scanJobID int64
 const getScanCheckpointStats = `-- name: GetScanCheckpointStats :one
 SELECT
     COUNT(*) as total_files,
-    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_files,
-    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_files,
-    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_files,
-    SUM(CASE WHEN status = 'warning' THEN 1 ELSE 0 END) as warning_files,
-    SUM(CASE WHEN status IN ('completed', 'failed', 'warning') THEN 1 ELSE 0 END) as processed_files,
+    CAST(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS INTEGER) as pending_files,
+    CAST(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS INTEGER) as completed_files,
+    CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_files,
+    CAST(SUM(CASE WHEN status = 'warning' THEN 1 ELSE 0 END) AS INTEGER) as warning_files,
+    CAST(SUM(CASE WHEN status IN ('completed', 'failed', 'warning') THEN 1 ELSE 0 END) AS INTEGER) as processed_files,
     MIN(CASE WHEN status IN ('completed', 'failed', 'warning') THEN processed_at END) as first_processed_at
 FROM scan_checkpoints
 WHERE scan_job_id = ?
 `
 
 type GetScanCheckpointStatsRow struct {
-	TotalFiles       int64           `json:"total_files"`
-	PendingFiles     sql.NullFloat64 `json:"pending_files"`
-	CompletedFiles   sql.NullFloat64 `json:"completed_files"`
-	FailedFiles      sql.NullFloat64 `json:"failed_files"`
-	WarningFiles     sql.NullFloat64 `json:"warning_files"`
-	ProcessedFiles   sql.NullFloat64 `json:"processed_files"`
-	FirstProcessedAt interface{}     `json:"first_processed_at"`
+	TotalFiles       int64       `json:"total_files"`
+	PendingFiles     int64       `json:"pending_files"`
+	CompletedFiles   int64       `json:"completed_files"`
+	FailedFiles      int64       `json:"failed_files"`
+	WarningFiles     int64       `json:"warning_files"`
+	ProcessedFiles   int64       `json:"processed_files"`
+	FirstProcessedAt interface{} `json:"first_processed_at"`
 }
 
 func (q *Queries) GetScanCheckpointStats(ctx context.Context, scanJobID int64) (GetScanCheckpointStatsRow, error) {

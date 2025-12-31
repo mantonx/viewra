@@ -229,7 +229,7 @@ ORDER BY media_id, provider
 // Batch fetch: gets external IDs for multiple media IDs
 // Note: sqlc doesn't support array params in SQLite, so this is implemented
 // in the repository using a dynamic query or multiple calls
-func (q *Queries) GetExternalIDsByMediaIDBatch(ctx context.Context, mediaIds []sql.NullInt64) ([]MediaExternalID, error) {
+func (q *Queries) GetExternalIDsByMediaIDBatch(ctx context.Context, mediaIds []int64) ([]MediaExternalID, error) {
 	query := getExternalIDsByMediaIDBatch
 	var queryParams []interface{}
 	if len(mediaIds) > 0 {

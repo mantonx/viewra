@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/mantonx/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -43,11 +44,17 @@ func setupTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-func TestRepository_Create(t *testing.T) {
+// setupTestRepo creates a test repository with an in-memory database
+func setupTestRepo(t *testing.T) (*Repository, *sql.DB) {
+	t.Helper()
 	db := setupTestDB(t)
-	defer db.Close()
+	baseRepo := common.NewBaseRepository(db, "sqlite")
+	return NewRepository(baseRepo), db
+}
 
-	repo := NewRepository(db, "sqlite")
+func TestRepository_Create(t *testing.T) {
+	repo, db := setupTestRepo(t)
+	defer db.Close()
 	ctx := context.Background()
 
 	lib := &library.Library{
@@ -92,10 +99,8 @@ func TestRepository_Create(t *testing.T) {
 }
 
 func TestRepository_GetByID(t *testing.T) {
-	db := setupTestDB(t)
+	repo, db := setupTestRepo(t)
 	defer db.Close()
-
-	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create a library first
@@ -129,10 +134,8 @@ func TestRepository_GetByID(t *testing.T) {
 }
 
 func TestRepository_GetByPath(t *testing.T) {
-	db := setupTestDB(t)
+	repo, db := setupTestRepo(t)
 	defer db.Close()
-
-	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create a library first
@@ -163,10 +166,8 @@ func TestRepository_GetByPath(t *testing.T) {
 }
 
 func TestRepository_List(t *testing.T) {
-	db := setupTestDB(t)
+	repo, db := setupTestRepo(t)
 	defer db.Close()
-
-	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create multiple libraries
@@ -196,10 +197,8 @@ func TestRepository_List(t *testing.T) {
 }
 
 func TestRepository_Update(t *testing.T) {
-	db := setupTestDB(t)
+	repo, db := setupTestRepo(t)
 	defer db.Close()
-
-	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create a library first
@@ -239,10 +238,8 @@ func TestRepository_Update(t *testing.T) {
 }
 
 func TestRepository_Delete(t *testing.T) {
-	db := setupTestDB(t)
+	repo, db := setupTestRepo(t)
 	defer db.Close()
-
-	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create a library first
@@ -273,10 +270,8 @@ func TestRepository_Delete(t *testing.T) {
 }
 
 func TestRepository_Exists(t *testing.T) {
-	db := setupTestDB(t)
+	repo, db := setupTestRepo(t)
 	defer db.Close()
-
-	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create a library first

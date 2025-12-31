@@ -33,7 +33,7 @@ ORDER BY provider;
 -- name: GetExternalIDsByMediaIDBatch :many
 -- Batch fetch: gets external IDs for multiple media IDs
 SELECT * FROM media_external_ids
-WHERE media_id = ANY($1::int[])
+WHERE media_id = ANY(sqlc.arg('media_ids')::bigint[])
 ORDER BY media_id, provider;
 
 -- name: GetMediaByExternalID :one

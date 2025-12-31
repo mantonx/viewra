@@ -81,7 +81,7 @@ DELETE FROM media
 WHERE id = $1;
 
 -- name: MediaExistsInLibrary :one
-SELECT COUNT(*) > 0 as exists FROM media
+SELECT (COUNT(*) > 0)::bigint as exists FROM media
 WHERE library_id = $1 AND file_path = $2;
 
 -- name: CountMediaInLibrary :one

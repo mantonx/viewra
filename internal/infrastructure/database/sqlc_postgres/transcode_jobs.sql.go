@@ -285,10 +285,10 @@ const listQueuedTranscodeJobs = `-- name: ListQueuedTranscodeJobs :many
 SELECT id, media_id, quality, type, status, progress, error, started_at, completed_at, created_at, file_path, file_size_bytes, last_accessed_at, access_count, start_position, codec, client_device_type, client_network_type, recommended_quality, streaming_strategy FROM transcode_jobs
 WHERE status = 'queued'
 ORDER BY created_at ASC
-LIMIT $1
+LIMIT $1::bigint
 `
 
-func (q *Queries) ListQueuedTranscodeJobs(ctx context.Context, limit int32) ([]TranscodeJob, error) {
+func (q *Queries) ListQueuedTranscodeJobs(ctx context.Context, limit int64) ([]TranscodeJob, error) {
 	rows, err := q.db.QueryContext(ctx, listQueuedTranscodeJobs, limit)
 	if err != nil {
 		return nil, err
@@ -337,10 +337,10 @@ SELECT id, media_id, quality, type, status, progress, error, started_at, complet
 WHERE status = 'completed'
   AND last_accessed_at IS NOT NULL
 ORDER BY last_accessed_at ASC
-LIMIT $1
+LIMIT $1::bigint
 `
 
-func (q *Queries) ListTranscodeJobsByLRU(ctx context.Context, limit int32) ([]TranscodeJob, error) {
+func (q *Queries) ListTranscodeJobsByLRU(ctx context.Context, limit int64) ([]TranscodeJob, error) {
 	rows, err := q.db.QueryContext(ctx, listTranscodeJobsByLRU, limit)
 	if err != nil {
 		return nil, err
@@ -498,7 +498,6 @@ WHERE id = $1
 `
 
 type UpdateTranscodeJobParams struct {
-	ID            int64           `json:"id"`
 	Status        string          `json:"status"`
 	Progress      sql.NullInt64   `json:"progress"`
 	Error         sql.NullString  `json:"error"`
@@ -507,11 +506,12 @@ type UpdateTranscodeJobParams struct {
 	FilePath      sql.NullString  `json:"file_path"`
 	FileSizeBytes sql.NullInt64   `json:"file_size_bytes"`
 	StartPosition sql.NullFloat64 `json:"start_position"`
+	ID            int64           `json:"id"`
 }
 
 func (q *Queries) UpdateTranscodeJob(ctx context.Context, arg UpdateTranscodeJobParams) error {
 	_, err := q.db.ExecContext(ctx, updateTranscodeJob,
-		arg.ID,
+
 		arg.Status,
 		arg.Progress,
 		arg.Error,
@@ -519,7 +519,7 @@ func (q *Queries) UpdateTranscodeJob(ctx context.Context, arg UpdateTranscodeJob
 		arg.CompletedAt,
 		arg.FilePath,
 		arg.FileSizeBytes,
-		arg.StartPosition,
+		arg.StartPosition, arg.ID,
 	)
 	return err
 }
@@ -532,12 +532,12 @@ WHERE id = $1
 `
 
 type UpdateTranscodeJobAccessParams struct {
-	ID             int64        `json:"id"`
 	LastAccessedAt sql.NullTime `json:"last_accessed_at"`
+	ID             int64        `json:"id"`
 }
 
 func (q *Queries) UpdateTranscodeJobAccess(ctx context.Context, arg UpdateTranscodeJobAccessParams) error {
-	_, err := q.db.ExecContext(ctx, updateTranscodeJobAccess, arg.ID, arg.LastAccessedAt)
+	_, err := q.db.ExecContext(ctx, updateTranscodeJobAccess, arg.LastAccessedAt, arg.ID)
 	return err
 }
 
@@ -549,12 +549,12 @@ WHERE media_id = $1 AND quality = $2
 `
 
 type UpdateTranscodeJobAccessByMediaAndQualityParams struct {
+	LastAccessedAt sql.NullTime `json:"last_accessed_at"`
 	MediaID        int64        `json:"media_id"`
 	Quality        string       `json:"quality"`
-	LastAccessedAt sql.NullTime `json:"last_accessed_at"`
 }
 
 func (q *Queries) UpdateTranscodeJobAccessByMediaAndQuality(ctx context.Context, arg UpdateTranscodeJobAccessByMediaAndQualityParams) error {
-	_, err := q.db.ExecContext(ctx, updateTranscodeJobAccessByMediaAndQuality, arg.MediaID, arg.Quality, arg.LastAccessedAt)
+	_, err := q.db.ExecContext(ctx, updateTranscodeJobAccessByMediaAndQuality, arg.LastAccessedAt, arg.MediaID, arg.Quality)
 	return err
 }

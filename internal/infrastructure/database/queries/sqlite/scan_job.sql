@@ -85,9 +85,9 @@ WHERE id = ?;
 
 -- name: DeleteOldScanJobs :exec
 DELETE FROM scan_jobs
-WHERE library_id = ?
+WHERE library_id = sqlc.arg(library_id)
   AND status IN ('completed', 'failed')
-  AND created_at < datetime('now', ?);
+  AND created_at < datetime('now', CAST(sqlc.arg(retention_days) AS TEXT));
 
 -- name: CountScanJobsByLibrary :one
 SELECT COUNT(*) FROM scan_jobs
@@ -96,10 +96,10 @@ WHERE library_id = ?;
 -- name: GetScanJobStats :one
 SELECT
     COUNT(*) as total_jobs,
-    SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) as running_jobs,
-    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_jobs,
-    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_jobs,
-    SUM(files_processed) as total_files_processed,
-    SUM(bytes_processed) as total_bytes_processed
+    CAST(SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) AS INTEGER) as running_jobs,
+    CAST(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS INTEGER) as completed_jobs,
+    CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_jobs,
+    CAST(SUM(files_processed) AS INTEGER) as total_files_processed,
+    CAST(SUM(bytes_processed) AS INTEGER) as total_bytes_processed
 FROM scan_jobs
 WHERE library_id = ?;

@@ -343,8 +343,8 @@ type ListPluginsByCategoryRow struct {
 	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
-func (q *Queries) ListPluginsByCategory(ctx context.Context, categories string) ([]ListPluginsByCategoryRow, error) {
-	rows, err := q.db.QueryContext(ctx, listPluginsByCategory, categories)
+func (q *Queries) ListPluginsByCategory(ctx context.Context, category sql.NullString) ([]ListPluginsByCategoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPluginsByCategory, category)
 	if err != nil {
 		return nil, err
 	}
@@ -386,12 +386,12 @@ func (q *Queries) ListPluginsByCategory(ctx context.Context, categories string) 
 }
 
 const pluginExists = `-- name: PluginExists :one
-SELECT EXISTS(SELECT 1 FROM plugins WHERE id = $1) as plugin_exists
+SELECT EXISTS(SELECT 1 FROM plugins WHERE id = $1)::bigint as plugin_exists
 `
 
-func (q *Queries) PluginExists(ctx context.Context, id string) (bool, error) {
+func (q *Queries) PluginExists(ctx context.Context, id string) (int64, error) {
 	row := q.db.QueryRowContext(ctx, pluginExists, id)
-	var plugin_exists bool
+	var plugin_exists int64
 	err := row.Scan(&plugin_exists)
 	return plugin_exists, err
 }

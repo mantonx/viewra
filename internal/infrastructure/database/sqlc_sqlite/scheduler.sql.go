@@ -333,20 +333,20 @@ func (q *Queries) GetSchedulerExecution(ctx context.Context, id string) (Schedul
 const getSchedulerExecutionStats = `-- name: GetSchedulerExecutionStats :one
 SELECT
     COUNT(*) as total_executions,
-    SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful_executions,
-    SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failed_executions,
-    AVG(duration_ms) as avg_duration_ms,
+    CAST(SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) AS INTEGER) as successful_executions,
+    CAST(SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) AS INTEGER) as failed_executions,
+    CAST(AVG(duration_ms) AS REAL) as avg_duration_ms,
     MAX(started_at) as last_execution
 FROM scheduler_executions
 WHERE task_id = ?
 `
 
 type GetSchedulerExecutionStatsRow struct {
-	TotalExecutions      int64           `json:"total_executions"`
-	SuccessfulExecutions sql.NullFloat64 `json:"successful_executions"`
-	FailedExecutions     sql.NullFloat64 `json:"failed_executions"`
-	AvgDurationMs        sql.NullFloat64 `json:"avg_duration_ms"`
-	LastExecution        interface{}     `json:"last_execution"`
+	TotalExecutions      int64       `json:"total_executions"`
+	SuccessfulExecutions int64       `json:"successful_executions"`
+	FailedExecutions     int64       `json:"failed_executions"`
+	AvgDurationMs        float64     `json:"avg_duration_ms"`
+	LastExecution        interface{} `json:"last_execution"`
 }
 
 func (q *Queries) GetSchedulerExecutionStats(ctx context.Context, taskID string) (GetSchedulerExecutionStatsRow, error) {
@@ -572,17 +572,17 @@ SELECT id, task_id, status, scheduled_at, started_at, ended_at, duration_ms,
        success, error, logs, attempt, parent_execution_id, triggered_by,
        dependency_exec_id, resumable, created_at
 FROM scheduler_executions
-WHERE (?1 IS NULL OR task_id = ?1)
-  AND (?2 IS NULL OR status = ?2)
+WHERE (CAST(?1 AS TEXT) IS NULL OR task_id = ?1)
+  AND (CAST(?2 AS TEXT) IS NULL OR status = ?2)
 ORDER BY created_at DESC
 LIMIT ?4 OFFSET ?3
 `
 
 type ListSchedulerExecutionsParams struct {
-	TaskID interface{} `json:"task_id"`
-	Status interface{} `json:"status"`
-	Offset int64       `json:"offset"`
-	Limit  int64       `json:"limit"`
+	TaskID sql.NullString `json:"task_id"`
+	Status sql.NullString `json:"status"`
+	Offset int64          `json:"offset"`
+	Limit  int64          `json:"limit"`
 }
 
 func (q *Queries) ListSchedulerExecutions(ctx context.Context, arg ListSchedulerExecutionsParams) ([]SchedulerExecution, error) {

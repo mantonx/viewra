@@ -2,10 +2,11 @@
 INSERT INTO transcode_jobs (
     media_id,
     quality,
+    type,
     status,
     progress,
     created_at
-) VALUES (?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateTranscodeJob :exec
@@ -16,7 +17,8 @@ SET status = ?,
     started_at = ?,
     completed_at = ?,
     file_path = ?,
-    file_size_bytes = ?
+    file_size_bytes = ?,
+    start_position = ?
 WHERE id = ?;
 
 -- name: GetTranscodeJobByID :one

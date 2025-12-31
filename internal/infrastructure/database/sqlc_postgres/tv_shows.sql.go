@@ -817,11 +817,11 @@ LIMIT 1
 
 type GetTVShowByTitleParams struct {
 	LibraryID int64  `json:"library_id"`
-	Lower     string `json:"lower"`
+	Title     string `json:"title"`
 }
 
 func (q *Queries) GetTVShowByTitle(ctx context.Context, arg GetTVShowByTitleParams) (TvShow, error) {
-	row := q.db.QueryRowContext(ctx, getTVShowByTitle, arg.LibraryID, arg.Lower)
+	row := q.db.QueryRowContext(ctx, getTVShowByTitle, arg.LibraryID, arg.Title)
 	var i TvShow
 	err := row.Scan(
 		&i.ID,
@@ -949,13 +949,14 @@ WHERE s.library_id = $1
   AND (med.is_extra = false OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) ASC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type GetTVShowsWithCountsByLibraryPaginatedParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 type GetTVShowsWithCountsByLibraryPaginatedRow struct {
@@ -1030,13 +1031,14 @@ WHERE s.library_id = $1
   AND (med.is_extra = false OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) DESC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type GetTVShowsWithCountsByLibraryPaginatedDescParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 type GetTVShowsWithCountsByLibraryPaginatedDescRow struct {
@@ -1693,13 +1695,14 @@ SELECT id
 FROM tv_shows
 WHERE library_id = $1
 ORDER BY COALESCE(NULLIF(sort_title, ''), title) ASC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListTVShowIDsByLibraryPaginatedParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) ListTVShowIDsByLibraryPaginated(ctx context.Context, arg ListTVShowIDsByLibraryPaginatedParams) ([]int64, error) {
@@ -1730,13 +1733,14 @@ SELECT id
 FROM tv_shows
 WHERE library_id = $1
 ORDER BY COALESCE(NULLIF(sort_title, ''), title) DESC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListTVShowIDsByLibraryPaginatedDescParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) ListTVShowIDsByLibraryPaginatedDesc(ctx context.Context, arg ListTVShowIDsByLibraryPaginatedDescParams) ([]int64, error) {
@@ -1821,13 +1825,14 @@ const listTVShowsByLibraryPaginated = `-- name: ListTVShowsByLibraryPaginated :m
 SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
 WHERE library_id = $1
 ORDER BY COALESCE(NULLIF(sort_title, ''), title) ASC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListTVShowsByLibraryPaginatedParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) ListTVShowsByLibraryPaginated(ctx context.Context, arg ListTVShowsByLibraryPaginatedParams) ([]TvShow, error) {
@@ -1883,13 +1888,14 @@ const listTVShowsByLibraryPaginatedDesc = `-- name: ListTVShowsByLibraryPaginate
 SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at, directory, rating, rating_votes, tagline FROM tv_shows
 WHERE library_id = $1
 ORDER BY COALESCE(NULLIF(sort_title, ''), title) DESC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListTVShowsByLibraryPaginatedDescParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) ListTVShowsByLibraryPaginatedDesc(ctx context.Context, arg ListTVShowsByLibraryPaginatedDescParams) ([]TvShow, error) {
@@ -2198,15 +2204,16 @@ SELECT id, library_id, title, original_title, sort_title, year, first_air_date, 
 WHERE library_id = $1
   AND (title ILIKE $2 OR original_title ILIKE $3)
 ORDER BY COALESCE(NULLIF(sort_title, ''), title)
-LIMIT $4 OFFSET $5
+LIMIT $5::bigint OFFSET $4::bigint
 `
 
 type SearchTVShowsByTitlePaginatedParams struct {
 	LibraryID     int64          `json:"library_id"`
 	Title         string         `json:"title"`
 	OriginalTitle sql.NullString `json:"original_title"`
-	Limit         int32          `json:"limit"`
-	Offset        int32          `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) SearchTVShowsByTitlePaginated(ctx context.Context, arg SearchTVShowsByTitlePaginatedParams) ([]TvShow, error) {
@@ -2214,8 +2221,8 @@ func (q *Queries) SearchTVShowsByTitlePaginated(ctx context.Context, arg SearchT
 		arg.LibraryID,
 		arg.Title,
 		arg.OriginalTitle,
-		arg.Limit,
-		arg.Offset,
+
+		arg.Limit, arg.Offset,
 	)
 	if err != nil {
 		return nil, err
@@ -2274,13 +2281,13 @@ SELECT
 FROM tv_shows
 WHERE (title ILIKE $1 OR original_title ILIKE $2)
 ORDER BY COALESCE(NULLIF(sort_title, ''), title)
-LIMIT $3
+LIMIT $3::bigint
 `
 
 type SearchTVShowsGlobalParams struct {
 	Title         string         `json:"title"`
 	OriginalTitle sql.NullString `json:"original_title"`
-	Limit         int32          `json:"limit"`
+	Limit         int64          `json:"limit"`
 }
 
 type SearchTVShowsGlobalRow struct {
@@ -2343,15 +2350,16 @@ WHERE s.library_id = $1
   AND (med.is_extra = false OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) ASC
-LIMIT $4 OFFSET $5
+LIMIT $5::bigint OFFSET $4::bigint
 `
 
 type SearchTVShowsWithCountsByTitlePaginatedParams struct {
 	LibraryID     int64          `json:"library_id"`
 	Title         string         `json:"title"`
 	OriginalTitle sql.NullString `json:"original_title"`
-	Limit         int32          `json:"limit"`
-	Offset        int32          `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 type SearchTVShowsWithCountsByTitlePaginatedRow struct {
@@ -2374,8 +2382,8 @@ func (q *Queries) SearchTVShowsWithCountsByTitlePaginated(ctx context.Context, a
 		arg.LibraryID,
 		arg.Title,
 		arg.OriginalTitle,
-		arg.Limit,
-		arg.Offset,
+
+		arg.Limit, arg.Offset,
 	)
 	if err != nil {
 		return nil, err

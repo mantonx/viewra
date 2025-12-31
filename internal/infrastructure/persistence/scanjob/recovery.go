@@ -2,13 +2,10 @@ package scanjob
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/scanner"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
 )
 
 // RecoverStuckScans checks for scans stuck in "running" status and marks them as failed.
@@ -18,7 +15,7 @@ func (r *Repository) RecoverStuckScans(ctx context.Context, logger *slog.Logger)
 	// Find all scans in "running" status
 	runningScans, err := r.GetRunningScans(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get running scans: %w", err)
+		return err
 	}
 
 	if len(runningScans) == 0 {
@@ -61,44 +58,10 @@ func (r *Repository) RecoverStuckScans(ctx context.Context, logger *slog.Logger)
 
 // GetRunningScans returns all scans with "running" status
 func (r *Repository) GetRunningScans(ctx context.Context) ([]*scanner.ScanJob, error) {
-	result, err := r.router.Route(
-		func() (any, error) {
-			return r.postgres.ListRunningScanJobs(ctx)
-		},
-		func() (any, error) {
-			return r.sqlite.ListRunningScanJobs(ctx)
-		},
-	)
+	rows, err := r.Q().ListRunningScanJobs(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert results to domain scan jobs
-	if r.router.IsPostgresDB() {
-		pgJobs := result.([]sqlc_postgres.ScanJob)
-		return r.convertManyToScanJobs(pgJobs), nil
-	}
-
-	sqJobs := result.([]sqlc_sqlite.ScanJob)
-	return r.convertManyToScanJobs(sqJobs), nil
-}
-
-// convertManyToScanJobs converts a slice of database scan jobs to domain scan jobs
-func (r *Repository) convertManyToScanJobs(jobs any) []*scanner.ScanJob {
-	switch v := jobs.(type) {
-	case []sqlc_postgres.ScanJob:
-		result := make([]*scanner.ScanJob, 0, len(v))
-		for i := range v {
-			result = append(result, r.convertToScanJob(v[i]))
-		}
-		return result
-	case []sqlc_sqlite.ScanJob:
-		result := make([]*scanner.ScanJob, 0, len(v))
-		for i := range v {
-			result = append(result, r.convertToScanJob(v[i]))
-		}
-		return result
-	default:
-		return nil
-	}
+	return mapSlice(rows, convertToScanJob), nil
 }

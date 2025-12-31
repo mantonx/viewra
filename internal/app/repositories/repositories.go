@@ -84,13 +84,13 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	baseRepo := common.NewBaseRepository(db, driver)
 
 	// Create core repositories
-	libraryRepository := libraryRepo.NewRepository(db, driver)
-	mediaRepository := mediaRepo.NewRepository(db, driver)
-	progressRepository := progressRepo.NewRepository(db, driver)
-	scanJobRepository := scanJobRepo.NewRepository(db, driver)
-	checkpointRepository := scanJobRepo.NewCheckpointRepo(db, driver)
-	scanStateRepository := scanStateRepo.NewRepository(db, driver)
-	transcodeRepository := transcodeRepo.NewRepository(db, driver)
+	libraryRepository := libraryRepo.NewRepository(baseRepo)
+	mediaRepository := mediaRepo.NewRepository(baseRepo)
+	progressRepository := progressRepo.NewRepository(baseRepo)
+	scanJobRepository := scanJobRepo.NewRepository(baseRepo)
+	checkpointRepository := scanJobRepo.NewCheckpointRepo(baseRepo)
+	scanStateRepository := scanStateRepo.NewRepository(baseRepo)
+	transcodeRepository := transcodeRepo.NewRepository(baseRepo)
 
 	// Create media-type specific repositories (with dependencies)
 	movieRepository := movieRepo.NewRepository(baseRepo, mediaRepository)
@@ -101,22 +101,22 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	imageRepository := imageRepo.NewRepository(baseRepo)
 
 	// Create analytics repository
-	analyticsRepository := analyticsRepo.NewRepository(db, driver)
+	analyticsRepository := analyticsRepo.NewRepository(baseRepo)
 
 	// Create user repositories
-	userRepository := userRepo.NewUserRepository(db, driver)
-	sessionRepository := userRepo.NewSessionRepository(db, driver)
+	userRepository := userRepo.NewUserRepository(baseRepo)
+	sessionRepository := userRepo.NewSessionRepository(baseRepo)
 
 	// Create settings repositories
-	systemSettingsRepository := settingsRepo.NewSystemRepository(db, driver)
-	userSettingsRepository := settingsRepo.NewUserRepository(db, driver)
+	systemSettingsRepository := settingsRepo.NewSystemRepository(baseRepo)
+	userSettingsRepository := settingsRepo.NewUserRepository(baseRepo)
 
 	// Create enrichment repositories
-	enrichmentQueueRepository := enrichmentRepo.NewQueueRepository(db, driver)
-	enrichmentStatusRepository := enrichmentRepo.NewStatusRepository(db, driver)
-	enrichmentPipelineRepository := enrichmentRepo.NewPipelineRepository(db, driver)
-	enrichmentExternalIDRepository := enrichmentRepo.NewExternalIDRepository(db, driver)
-	enrichmentMetadataSourceRepository := enrichmentRepo.NewMetadataSourceRepository(db, driver)
+	enrichmentQueueRepository := enrichmentRepo.NewQueueRepository(baseRepo)
+	enrichmentStatusRepository := enrichmentRepo.NewStatusRepository(baseRepo)
+	enrichmentPipelineRepository := enrichmentRepo.NewPipelineRepository(baseRepo)
+	enrichmentExternalIDRepository := enrichmentRepo.NewExternalIDRepository(baseRepo)
+	enrichmentMetadataSourceRepository := enrichmentRepo.NewMetadataSourceRepository(baseRepo)
 
 	// Create people/credits repository
 	peopleRepository := peopleRepo.NewRepository(baseRepo)
@@ -131,11 +131,11 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	searchRepository := searchRepo.NewRepository(baseRepo)
 
 	// Create plugin repositories
-	pluginRepository := pluginRepo.NewRepository(db, driver)
+	pluginRepository := pluginRepo.NewRepository(baseRepo)
 	pluginMediaQuerier := querier.NewDBMediaQuerier(db, driver)
 
 	// Create transcode analytics repository
-	transcodeAnalyticsRepository := transcodeAnalyticsRepo.NewRepository(db, driver)
+	transcodeAnalyticsRepository := transcodeAnalyticsRepo.NewRepository(baseRepo)
 
 	// Create playback preferences repository
 	playbackPreferencesRepository := database.NewPlaybackPreferencesRepository(db)

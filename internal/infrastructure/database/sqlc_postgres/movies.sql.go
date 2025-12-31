@@ -305,13 +305,14 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
   AND med.is_extra = false
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListMovieIDsByLibraryPaginatedParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) ListMovieIDsByLibraryPaginated(ctx context.Context, arg ListMovieIDsByLibraryPaginatedParams) ([]int64, error) {
@@ -344,13 +345,14 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
   AND med.is_extra = false
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) DESC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListMovieIDsByLibraryPaginatedDescParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) ListMovieIDsByLibraryPaginatedDesc(ctx context.Context, arg ListMovieIDsByLibraryPaginatedDescParams) ([]int64, error) {
@@ -801,13 +803,14 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
   AND med.is_extra = false
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListMoviesByLibraryPaginatedParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 type ListMoviesByLibraryPaginatedRow struct {
@@ -996,13 +999,14 @@ JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
   AND med.is_extra = false
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) DESC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListMoviesByLibraryPaginatedDescParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 type ListMoviesByLibraryPaginatedDescRow struct {
@@ -1581,15 +1585,16 @@ WHERE med.library_id = $1
   AND med.is_extra = false
   AND (med.title ILIKE $2 OR m.original_title ILIKE $3)
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
-LIMIT $4 OFFSET $5
+LIMIT $5::bigint OFFSET $4::bigint
 `
 
 type SearchMoviesByTitlePaginatedParams struct {
 	LibraryID     int64          `json:"library_id"`
 	Title         string         `json:"title"`
 	OriginalTitle sql.NullString `json:"original_title"`
-	Limit         int32          `json:"limit"`
-	Offset        int32          `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 type SearchMoviesByTitlePaginatedRow struct {
@@ -1658,8 +1663,8 @@ func (q *Queries) SearchMoviesByTitlePaginated(ctx context.Context, arg SearchMo
 		arg.LibraryID,
 		arg.Title,
 		arg.OriginalTitle,
-		arg.Limit,
-		arg.Offset,
+
+		arg.Limit, arg.Offset,
 	)
 	if err != nil {
 		return nil, err
@@ -1754,13 +1759,13 @@ JOIN media med ON m.media_id = med.id
 WHERE med.is_extra = false
   AND (med.title ILIKE $1 OR m.original_title ILIKE $2)
 ORDER BY m.sort_title, med.title
-LIMIT $3
+LIMIT $3::bigint
 `
 
 type SearchMoviesGlobalParams struct {
 	Title         string         `json:"title"`
 	OriginalTitle sql.NullString `json:"original_title"`
-	Limit         int32          `json:"limit"`
+	Limit         int64          `json:"limit"`
 }
 
 type SearchMoviesGlobalRow struct {

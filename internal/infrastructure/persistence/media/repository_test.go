@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/mantonx/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -87,7 +88,7 @@ func TestRepository_Create(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(common.NewBaseRepository(db, "sqlite"))
 	ctx := context.Background()
 
 	m := &media.Media{
@@ -135,7 +136,7 @@ func TestRepository_GetByID(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(common.NewBaseRepository(db, "sqlite"))
 	ctx := context.Background()
 
 	// Create a media item first
@@ -175,7 +176,7 @@ func TestRepository_GetByFilePath(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(common.NewBaseRepository(db, "sqlite"))
 	ctx := context.Background()
 
 	// Create a media item first
@@ -212,7 +213,7 @@ func TestRepository_ListByLibrary(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(common.NewBaseRepository(db, "sqlite"))
 	ctx := context.Background()
 
 	// Create multiple media items
@@ -245,7 +246,7 @@ func TestRepository_Update(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(common.NewBaseRepository(db, "sqlite"))
 	ctx := context.Background()
 
 	// Create a media item first
@@ -292,7 +293,7 @@ func TestRepository_Delete(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(common.NewBaseRepository(db, "sqlite"))
 	ctx := context.Background()
 
 	// Create a media item first
@@ -329,7 +330,7 @@ func TestRepository_ExistsInLibrary(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(common.NewBaseRepository(db, "sqlite"))
 	ctx := context.Background()
 
 	// Create a media item first
@@ -368,7 +369,7 @@ func TestRepository_Count(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(common.NewBaseRepository(db, "sqlite"))
 	ctx := context.Background()
 
 	// Initially should be 0
@@ -409,7 +410,7 @@ func TestRepository_ListByType(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(common.NewBaseRepository(db, "sqlite"))
 	ctx := context.Background()
 
 	// Create media items of different types
@@ -483,7 +484,7 @@ func TestRepository_CountByType(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db, "sqlite")
+	repo := NewRepository(common.NewBaseRepository(db, "sqlite"))
 	ctx := context.Background()
 
 	// Create media items of different types
@@ -553,12 +554,12 @@ func TestRepository_PostgresDriver(t *testing.T) {
 	defer db.Close()
 
 	// Test with different SQLite driver names
-	sqliteRepo := NewRepository(db, "sqlite")
+	sqliteRepo := NewRepository(common.NewBaseRepository(db, "sqlite"))
 	if sqliteRepo == nil {
 		t.Error("Expected non-nil repository for sqlite driver")
 	}
 
-	sqlite3Repo := NewRepository(db, "sqlite3")
+	sqlite3Repo := NewRepository(common.NewBaseRepository(db, "sqlite3"))
 	if sqlite3Repo == nil {
 		t.Error("Expected non-nil repository for sqlite3 driver")
 	}
@@ -566,12 +567,12 @@ func TestRepository_PostgresDriver(t *testing.T) {
 	// Note: We can't test actual Postgres without a Postgres instance,
 	// but we can verify the repository is created
 	// This tests the postgres detection logic in NewRepository
-	postgresRepo := NewRepository(db, "postgres")
+	postgresRepo := NewRepository(common.NewBaseRepository(db, "postgres"))
 	if postgresRepo == nil {
 		t.Error("Expected non-nil repository for postgres driver")
 	}
 
-	postgresqlRepo := NewRepository(db, "postgresql")
+	postgresqlRepo := NewRepository(common.NewBaseRepository(db, "postgresql"))
 	if postgresqlRepo == nil {
 		t.Error("Expected non-nil repository for postgresql driver")
 	}

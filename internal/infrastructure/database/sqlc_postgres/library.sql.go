@@ -127,27 +127,27 @@ func (q *Queries) GetLibraryByPath(ctx context.Context, path string) (Library, e
 }
 
 const libraryExistsByID = `-- name: LibraryExistsByID :one
-SELECT COUNT(*) > 0 as exists
+SELECT (COUNT(*) > 0)::bigint as exists
 FROM libraries
 WHERE id = $1
 `
 
-func (q *Queries) LibraryExistsByID(ctx context.Context, id int64) (bool, error) {
+func (q *Queries) LibraryExistsByID(ctx context.Context, id int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, libraryExistsByID, id)
-	var exists bool
+	var exists int64
 	err := row.Scan(&exists)
 	return exists, err
 }
 
 const libraryExistsByPath = `-- name: LibraryExistsByPath :one
-SELECT COUNT(*) > 0 as exists
+SELECT (COUNT(*) > 0)::bigint as exists
 FROM libraries
 WHERE path = $1
 `
 
-func (q *Queries) LibraryExistsByPath(ctx context.Context, path string) (bool, error) {
+func (q *Queries) LibraryExistsByPath(ctx context.Context, path string) (int64, error) {
 	row := q.db.QueryRowContext(ctx, libraryExistsByPath, path)
-	var exists bool
+	var exists int64
 	err := row.Scan(&exists)
 	return exists, err
 }

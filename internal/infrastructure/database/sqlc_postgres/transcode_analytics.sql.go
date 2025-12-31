@@ -109,13 +109,14 @@ FROM playback_sessions p
 LEFT JOIN transcode_analytics t ON p.session_id = t.session_id
 WHERE p.media_id = $1
 ORDER BY p.start_time DESC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type GetCorrelatedAnalyticsParams struct {
 	MediaID int64 `json:"media_id"`
-	Limit   int32 `json:"limit"`
-	Offset  int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 type GetCorrelatedAnalyticsRow struct {
@@ -198,12 +199,12 @@ SELECT
 FROM playback_sessions p
 LEFT JOIN transcode_analytics t ON p.session_id = t.session_id
 ORDER BY p.start_time DESC
-LIMIT $1 OFFSET $2
+LIMIT $2::bigint OFFSET $1::bigint
 `
 
 type GetCorrelatedAnalyticsAllParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 type GetCorrelatedAnalyticsAllRow struct {
@@ -380,13 +381,14 @@ const listTranscodeAnalyticsByMediaID = `-- name: ListTranscodeAnalyticsByMediaI
 SELECT session_id, media_id, quality_profile, strategy, hw_accel, ffmpeg_start_ms, first_frame_ms, first_segment_ms, manifest_ready_ms, status, error_reason, total_duration_ms, segments_created, created_at, completed_at, strategy_reason, strategy_display FROM transcode_analytics
 WHERE media_id = $1
 ORDER BY created_at DESC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListTranscodeAnalyticsByMediaIDParams struct {
 	MediaID int64 `json:"media_id"`
-	Limit   int32 `json:"limit"`
-	Offset  int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) ListTranscodeAnalyticsByMediaID(ctx context.Context, arg ListTranscodeAnalyticsByMediaIDParams) ([]TranscodeAnalytic, error) {

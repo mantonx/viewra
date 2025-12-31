@@ -49,7 +49,7 @@ WHERE session_id = $1;
 SELECT * FROM playback_sessions
 WHERE media_id = $1
 ORDER BY start_time DESC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: ListQualitySwitchEventsBySessionID :many
 SELECT * FROM quality_switch_events

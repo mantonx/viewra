@@ -50,11 +50,11 @@ WHERE id = ?;
 -- name: GetScanCheckpointStats :one
 SELECT
     COUNT(*) as total_files,
-    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_files,
-    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_files,
-    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_files,
-    SUM(CASE WHEN status = 'warning' THEN 1 ELSE 0 END) as warning_files,
-    SUM(CASE WHEN status IN ('completed', 'failed', 'warning') THEN 1 ELSE 0 END) as processed_files,
+    CAST(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS INTEGER) as pending_files,
+    CAST(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS INTEGER) as completed_files,
+    CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_files,
+    CAST(SUM(CASE WHEN status = 'warning' THEN 1 ELSE 0 END) AS INTEGER) as warning_files,
+    CAST(SUM(CASE WHEN status IN ('completed', 'failed', 'warning') THEN 1 ELSE 0 END) AS INTEGER) as processed_files,
     MIN(CASE WHEN status IN ('completed', 'failed', 'warning') THEN processed_at END) as first_processed_at
 FROM scan_checkpoints
 WHERE scan_job_id = ?;
@@ -98,6 +98,6 @@ WHERE scan_job_id = ?;
 -- name: GetScanCheckpointProgress :one
 SELECT
     COUNT(*) as total,
-    SUM(CASE WHEN status IN ('completed', 'failed', 'warning') THEN 1 ELSE 0 END) as processed
+    CAST(SUM(CASE WHEN status IN ('completed', 'failed', 'warning') THEN 1 ELSE 0 END) AS INTEGER) as processed
 FROM scan_checkpoints
 WHERE scan_job_id = ?;

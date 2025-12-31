@@ -5,8 +5,7 @@ import (
 	"strings"
 
 	"github.com/mantonx/viewra/internal/domain/search"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
@@ -71,65 +70,30 @@ func (r *Repository) Search(ctx context.Context, req *search.Request) ([]search.
 }
 
 func (r *Repository) searchMovies(ctx context.Context, pattern string, limit int) ([]search.Result, error) {
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.SearchMoviesGlobalRow, error) {
-			return r.Postgres().SearchMoviesGlobal(ctx, sqlc_postgres.SearchMoviesGlobalParams{
-				Title:         pattern,
-				OriginalTitle: common.NullString(pattern),
-				Limit:         int32(limit),
-			})
-		},
-		func() ([]sqlc_sqlite.SearchMoviesGlobalRow, error) {
-			return r.SQLite().SearchMoviesGlobal(ctx, sqlc_sqlite.SearchMoviesGlobalParams{
-				Title:         pattern,
-				OriginalTitle: common.NullString(pattern),
-				Limit:         int64(limit),
-			})
-		},
-		postgresMovieRowToResult,
-		sqliteMovieRowToResult,
-	)
+	rows, err := r.Q().SearchMoviesGlobal(ctx, unified.SearchMoviesGlobalParams{
+		Title:         pattern,
+		OriginalTitle: common.NullString(pattern),
+		Limit:         int64(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, movieRowToResult), nil
 }
 
 func (r *Repository) searchTVShows(ctx context.Context, pattern string, limit int) ([]search.Result, error) {
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.SearchTVShowsGlobalRow, error) {
-			return r.Postgres().SearchTVShowsGlobal(ctx, sqlc_postgres.SearchTVShowsGlobalParams{
-				Title:         pattern,
-				OriginalTitle: common.NullString(pattern),
-				Limit:         int32(limit),
-			})
-		},
-		func() ([]sqlc_sqlite.SearchTVShowsGlobalRow, error) {
-			return r.SQLite().SearchTVShowsGlobal(ctx, sqlc_sqlite.SearchTVShowsGlobalParams{
-				Title:         pattern,
-				OriginalTitle: common.NullString(pattern),
-				Limit:         int64(limit),
-			})
-		},
-		postgresTVShowRowToResult,
-		sqliteTVShowRowToResult,
-	)
+	rows, err := r.Q().SearchTVShowsGlobal(ctx, unified.SearchTVShowsGlobalParams{
+		Title:         pattern,
+		OriginalTitle: common.NullString(pattern),
+		Limit:         int64(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, tvShowRowToResult), nil
 }
 
-func postgresMovieRowToResult(row sqlc_postgres.SearchMoviesGlobalRow) search.Result {
-	year := 0
-	if row.Year.Valid {
-		year = int(row.Year.Int64)
-	}
-	return search.Result{
-		ID:        int64(row.MediaID),
-		MediaType: "movie",
-		Title:     row.Title,
-		Year:      year,
-		LibraryID: int64(row.LibraryID),
-		Score:     1.0, // Will be recalculated
-	}
-}
-
-func sqliteMovieRowToResult(row sqlc_sqlite.SearchMoviesGlobalRow) search.Result {
+func movieRowToResult(row unified.SearchMoviesGlobalRow) search.Result {
 	year := 0
 	if row.Year.Valid {
 		year = int(row.Year.Int64)
@@ -144,22 +108,7 @@ func sqliteMovieRowToResult(row sqlc_sqlite.SearchMoviesGlobalRow) search.Result
 	}
 }
 
-func postgresTVShowRowToResult(row sqlc_postgres.SearchTVShowsGlobalRow) search.Result {
-	year := 0
-	if row.Year.Valid {
-		year = int(row.Year.Int64)
-	}
-	return search.Result{
-		ID:        int64(row.ID),
-		MediaType: "tv_show",
-		Title:     row.Title,
-		Year:      year,
-		LibraryID: int64(row.LibraryID),
-		Score:     1.0, // Will be recalculated
-	}
-}
-
-func sqliteTVShowRowToResult(row sqlc_sqlite.SearchTVShowsGlobalRow) search.Result {
+func tvShowRowToResult(row unified.SearchTVShowsGlobalRow) search.Result {
 	year := 0
 	if row.Year.Valid {
 		year = int(row.Year.Int64)
@@ -172,6 +121,14 @@ func sqliteTVShowRowToResult(row sqlc_sqlite.SearchTVShowsGlobalRow) search.Resu
 		LibraryID: row.LibraryID,
 		Score:     1.0, // Will be recalculated
 	}
+}
+
+func mapSlice[TFrom, TTo any](from []TFrom, mapper func(TFrom) TTo) []TTo {
+	result := make([]TTo, len(from))
+	for i, v := range from {
+		result[i] = mapper(v)
+	}
+	return result
 }
 
 func contains(slice []string, item string) bool {

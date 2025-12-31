@@ -4,8 +4,7 @@ import (
 	"context"
 
 	"github.com/mantonx/viewra/internal/domain/media"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
@@ -22,92 +21,48 @@ func NewRepository(base *common.BaseRepository) *Repository {
 // UpsertKeyword adds or updates a keyword for an entity.
 func (r *Repository) UpsertKeyword(mediaType string, entityID int64, keyword *media.Keyword) error {
 	ctx := context.Background()
-	isLocation := common.NullInt64FromBool(keyword.IsLocation)
-	return common.ExecuteCommand(
-		r.BaseRepository, ctx,
-		func() error {
-			return r.Postgres().InsertKeyword(ctx, sqlc_postgres.InsertKeywordParams{
-				MediaType:  mediaType,
-				EntityID:   entityID,
-				KeywordID:  int64(keyword.KeywordID),
-				Keyword:    keyword.Name,
-				IsLocation: isLocation,
-			})
-		},
-		func() error {
-			return r.SQLite().InsertKeyword(ctx, sqlc_sqlite.InsertKeywordParams{
-				MediaType:  mediaType,
-				EntityID:   entityID,
-				KeywordID:  int64(keyword.KeywordID),
-				Keyword:    keyword.Name,
-				IsLocation: isLocation,
-			})
-		},
-	)
+	return r.Q().InsertKeyword(ctx, unified.InsertKeywordParams{
+		MediaType:  mediaType,
+		EntityID:   entityID,
+		KeywordID:  int64(keyword.KeywordID),
+		Keyword:    keyword.Name,
+		IsLocation: common.NullInt64FromBool(keyword.IsLocation),
+	})
 }
 
 // GetKeywordsForEntity retrieves all keywords for a media entity.
 func (r *Repository) GetKeywordsForEntity(mediaType string, entityID int64) ([]*media.Keyword, error) {
 	ctx := context.Background()
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.GetKeywordsByEntityRow, error) {
-			return r.Postgres().GetKeywordsByEntity(ctx, sqlc_postgres.GetKeywordsByEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		func() ([]sqlc_sqlite.GetKeywordsByEntityRow, error) {
-			return r.SQLite().GetKeywordsByEntity(ctx, sqlc_sqlite.GetKeywordsByEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		postgresKeywordRowToDomain,
-		sqliteKeywordRowToDomain,
-	)
+	rows, err := r.Q().GetKeywordsByEntity(ctx, unified.GetKeywordsByEntityParams{
+		MediaType: mediaType,
+		EntityID:  entityID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, keywordRowToDomain), nil
 }
 
 // GetLocationKeywordsForEntity retrieves only location-related keywords.
 func (r *Repository) GetLocationKeywordsForEntity(mediaType string, entityID int64) ([]*media.Keyword, error) {
 	ctx := context.Background()
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.GetLocationKeywordsByEntityRow, error) {
-			return r.Postgres().GetLocationKeywordsByEntity(ctx, sqlc_postgres.GetLocationKeywordsByEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		func() ([]sqlc_sqlite.GetLocationKeywordsByEntityRow, error) {
-			return r.SQLite().GetLocationKeywordsByEntity(ctx, sqlc_sqlite.GetLocationKeywordsByEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		postgresLocationKeywordRowToDomain,
-		sqliteLocationKeywordRowToDomain,
-	)
+	rows, err := r.Q().GetLocationKeywordsByEntity(ctx, unified.GetLocationKeywordsByEntityParams{
+		MediaType: mediaType,
+		EntityID:  entityID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, locationKeywordRowToDomain), nil
 }
 
 // ClearKeywordsForEntity removes all keywords for a media entity.
 func (r *Repository) ClearKeywordsForEntity(mediaType string, entityID int64) error {
 	ctx := context.Background()
-	return common.ExecuteCommand(
-		r.BaseRepository, ctx,
-		func() error {
-			return r.Postgres().DeleteKeywordsByEntity(ctx, sqlc_postgres.DeleteKeywordsByEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-		func() error {
-			return r.SQLite().DeleteKeywordsByEntity(ctx, sqlc_sqlite.DeleteKeywordsByEntityParams{
-				MediaType: mediaType,
-				EntityID:  entityID,
-			})
-		},
-	)
+	return r.Q().DeleteKeywordsByEntity(ctx, unified.DeleteKeywordsByEntityParams{
+		MediaType: mediaType,
+		EntityID:  entityID,
+	})
 }
 
 // ReplaceKeywordsForEntity clears existing keywords and adds new ones.
@@ -125,6 +80,15 @@ func (r *Repository) ReplaceKeywordsForEntity(mediaType string, entityID int64, 
 	}
 
 	return nil
+}
+
+// mapSlice converts a slice of one type to another using the provided mapper function.
+func mapSlice[TFrom, TTo any](from []TFrom, mapper func(TFrom) TTo) []TTo {
+	result := make([]TTo, len(from))
+	for i, v := range from {
+		result[i] = mapper(v)
+	}
+	return result
 }
 
 // Ensure Repository implements media.KeywordRepository

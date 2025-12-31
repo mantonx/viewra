@@ -85,14 +85,14 @@ WHERE plugin_id = $1
   AND ($2 = '' OR key LIKE $3 || '%')
   AND (expires_at IS NULL OR expires_at > NOW())
 ORDER BY key
-LIMIT $4
+LIMIT $4::bigint
 `
 
 type PluginKVListParams struct {
 	PluginID string         `json:"plugin_id"`
 	Column2  interface{}    `json:"column_2"`
 	Column3  sql.NullString `json:"column_3"`
-	Limit    int32          `json:"limit"`
+	Limit    int64          `json:"limit"`
 }
 
 func (q *Queries) PluginKVList(ctx context.Context, arg PluginKVListParams) ([]string, error) {

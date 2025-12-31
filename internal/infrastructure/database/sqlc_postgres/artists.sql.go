@@ -299,13 +299,14 @@ LEFT JOIN music_tracks mt ON a.id = mt.artist_id
 WHERE a.library_id = $1
 GROUP BY a.id, a.library_id, a.name, a.sort_name, a.musicbrainz_artist_id, a.bio, a.country, a.formed_year, a.genre, a.image_path
 ORDER BY COALESCE(a.sort_name, a.name) ASC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type GetArtistsWithCountsByLibraryPaginatedParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 type GetArtistsWithCountsByLibraryPaginatedRow struct {
@@ -379,13 +380,14 @@ LEFT JOIN music_tracks mt ON a.id = mt.artist_id
 WHERE a.library_id = $1
 GROUP BY a.id, a.library_id, a.name, a.sort_name, a.musicbrainz_artist_id, a.bio, a.country, a.formed_year, a.genre, a.image_path
 ORDER BY COALESCE(a.sort_name, a.name) DESC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type GetArtistsWithCountsByLibraryPaginatedDescParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 type GetArtistsWithCountsByLibraryPaginatedDescRow struct {
@@ -487,15 +489,16 @@ SELECT id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, for
 WHERE library_id = $1
   AND (name ILIKE $2 OR sort_name ILIKE $3)
 ORDER BY sort_name, name
-LIMIT $4 OFFSET $5
+LIMIT $5::bigint OFFSET $4::bigint
 `
 
 type SearchArtistsByNameParams struct {
 	LibraryID int64          `json:"library_id"`
 	Name      string         `json:"name"`
 	SortName  sql.NullString `json:"sort_name"`
-	Limit     int32          `json:"limit"`
-	Offset    int32          `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) SearchArtistsByName(ctx context.Context, arg SearchArtistsByNameParams) ([]MusicArtist, error) {
@@ -503,8 +506,8 @@ func (q *Queries) SearchArtistsByName(ctx context.Context, arg SearchArtistsByNa
 		arg.LibraryID,
 		arg.Name,
 		arg.SortName,
-		arg.Limit,
-		arg.Offset,
+
+		arg.Limit, arg.Offset,
 	)
 	if err != nil {
 		return nil, err
@@ -562,15 +565,16 @@ WHERE a.library_id = $1
   AND (a.name ILIKE $2 OR a.sort_name ILIKE $3)
 GROUP BY a.id, a.library_id, a.name, a.sort_name, a.musicbrainz_artist_id, a.bio, a.country, a.formed_year, a.genre, a.image_path
 ORDER BY COALESCE(a.sort_name, a.name) ASC
-LIMIT $4 OFFSET $5
+LIMIT $5::bigint OFFSET $4::bigint
 `
 
 type SearchArtistsWithCountsByNamePaginatedParams struct {
 	LibraryID int64          `json:"library_id"`
 	Name      string         `json:"name"`
 	SortName  sql.NullString `json:"sort_name"`
-	Limit     int32          `json:"limit"`
-	Offset    int32          `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 type SearchArtistsWithCountsByNamePaginatedRow struct {
@@ -593,8 +597,8 @@ func (q *Queries) SearchArtistsWithCountsByNamePaginated(ctx context.Context, ar
 		arg.LibraryID,
 		arg.Name,
 		arg.SortName,
-		arg.Limit,
-		arg.Offset,
+
+		arg.Limit, arg.Offset,
 	)
 	if err != nil {
 		return nil, err

@@ -33,7 +33,7 @@ SELECT id, name, version, description, author, license, homepage,
        settings, settings_schema,
        installed_at, updated_at
 FROM plugins
-WHERE categories LIKE '%' || ? || '%'
+WHERE categories LIKE '%' || sqlc.narg('category') || '%'
 ORDER BY is_builtin DESC, name;
 
 -- name: CreatePlugin :exec

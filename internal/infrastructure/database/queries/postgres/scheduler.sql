@@ -78,7 +78,7 @@ DELETE FROM scheduled_tasks WHERE id = $1;
 DELETE FROM scheduled_tasks WHERE source_id = $1;
 
 -- name: ScheduledTaskExists :one
-SELECT EXISTS(SELECT 1 FROM scheduled_tasks WHERE id = $1) as task_exists;
+SELECT EXISTS(SELECT 1 FROM scheduled_tasks WHERE id = $1)::bigint as task_exists;
 
 -- Scheduler Executions Queries
 
@@ -116,7 +116,7 @@ FROM scheduler_executions
 WHERE (sqlc.narg('task_id')::TEXT IS NULL OR task_id = sqlc.narg('task_id'))
   AND (sqlc.narg('status')::TEXT IS NULL OR status = sqlc.narg('status'))
 ORDER BY created_at DESC
-LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: ListSchedulerExecutionsByTask :many
 SELECT id, task_id, status, scheduled_at, started_at, ended_at, duration_ms,
@@ -125,7 +125,7 @@ SELECT id, task_id, status, scheduled_at, started_at, ended_at, duration_ms,
 FROM scheduler_executions
 WHERE task_id = $1
 ORDER BY created_at DESC
-LIMIT $2;
+LIMIT sqlc.arg('limit')::bigint;
 
 -- name: GetLatestSchedulerExecution :one
 SELECT id, task_id, status, scheduled_at, started_at, ended_at, duration_ms,
@@ -197,7 +197,7 @@ DELETE FROM scheduler_locks WHERE lock_key = $1;
 UPDATE scheduler_locks SET expires_at = $1 WHERE lock_key = $2;
 
 -- name: SchedulerLockExists :one
-SELECT EXISTS(SELECT 1 FROM scheduler_locks WHERE lock_key = $1 AND expires_at > NOW()) as lock_exists;
+SELECT EXISTS(SELECT 1 FROM scheduler_locks WHERE lock_key = $1 AND expires_at > NOW())::bigint as lock_exists;
 
 -- name: CleanExpiredSchedulerLocks :execrows
 DELETE FROM scheduler_locks WHERE expires_at < NOW();

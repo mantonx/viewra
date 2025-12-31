@@ -360,13 +360,14 @@ JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 GROUP BY mt.album, mt.album_artist, mt.year
 ORDER BY mt.album_artist ASC, mt.album ASC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListAlbumsByLibraryPaginatedParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 type ListAlbumsByLibraryPaginatedRow struct {
@@ -418,13 +419,14 @@ JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 GROUP BY mt.album, mt.album_artist, mt.year
 ORDER BY mt.album_artist DESC, mt.album DESC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListAlbumsByLibraryPaginatedDescParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 type ListAlbumsByLibraryPaginatedDescRow struct {
@@ -471,13 +473,14 @@ JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 GROUP BY mt.artist
 ORDER BY COALESCE(mt.sort_artist, mt.artist) ASC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListArtistIDsByLibraryPaginatedParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) ListArtistIDsByLibraryPaginated(ctx context.Context, arg ListArtistIDsByLibraryPaginatedParams) ([]int64, error) {
@@ -510,13 +513,14 @@ JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 GROUP BY mt.artist
 ORDER BY COALESCE(mt.sort_artist, mt.artist) DESC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListArtistIDsByLibraryPaginatedDescParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) ListArtistIDsByLibraryPaginatedDesc(ctx context.Context, arg ListArtistIDsByLibraryPaginatedDescParams) ([]int64, error) {
@@ -1546,13 +1550,14 @@ FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 ORDER BY COALESCE(mt.sort_title, med.title) ASC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListMusicTracksByLibraryPaginatedParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 type ListMusicTracksByLibraryPaginatedRow struct {
@@ -1742,13 +1747,14 @@ FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 ORDER BY COALESCE(mt.sort_title, med.title) DESC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListMusicTracksByLibraryPaginatedDescParams struct {
 	LibraryID int64 `json:"library_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 type ListMusicTracksByLibraryPaginatedDescRow struct {

@@ -133,22 +133,23 @@ const getEnrichmentStatusByStage = `-- name: GetEnrichmentStatusByStage :many
 SELECT media_type, media_id, stage, status, plugin_id, completed_at, error_message, metadata_json FROM enrichment_status
 WHERE stage = $1 AND status = $2
 ORDER BY media_type, media_id
-LIMIT $3 OFFSET $4
+LIMIT $4::bigint OFFSET $3::bigint
 `
 
 type GetEnrichmentStatusByStageParams struct {
 	Stage  string         `json:"stage"`
 	Status sql.NullString `json:"status"`
-	Limit  int32          `json:"limit"`
-	Offset int32          `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) GetEnrichmentStatusByStage(ctx context.Context, arg GetEnrichmentStatusByStageParams) ([]EnrichmentStatus, error) {
 	rows, err := q.db.QueryContext(ctx, getEnrichmentStatusByStage,
 		arg.Stage,
 		arg.Status,
-		arg.Limit,
-		arg.Offset,
+
+		arg.Limit, arg.Offset,
 	)
 	if err != nil {
 		return nil, err

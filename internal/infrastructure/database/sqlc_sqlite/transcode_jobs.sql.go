@@ -26,16 +26,18 @@ const createTranscodeJob = `-- name: CreateTranscodeJob :one
 INSERT INTO transcode_jobs (
     media_id,
     quality,
+    type,
     status,
     progress,
     created_at
-) VALUES (?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?)
 RETURNING id, media_id, quality, type, status, progress, error, started_at, completed_at, created_at, file_path, file_size_bytes, last_accessed_at, access_count, start_position, codec, client_device_type, client_network_type, recommended_quality, streaming_strategy
 `
 
 type CreateTranscodeJobParams struct {
 	MediaID   int64         `json:"media_id"`
 	Quality   string        `json:"quality"`
+	Type      string        `json:"type"`
 	Status    string        `json:"status"`
 	Progress  sql.NullInt64 `json:"progress"`
 	CreatedAt sql.NullTime  `json:"created_at"`
@@ -45,6 +47,7 @@ func (q *Queries) CreateTranscodeJob(ctx context.Context, arg CreateTranscodeJob
 	row := q.db.QueryRowContext(ctx, createTranscodeJob,
 		arg.MediaID,
 		arg.Quality,
+		arg.Type,
 		arg.Status,
 		arg.Progress,
 		arg.CreatedAt,
@@ -489,19 +492,21 @@ SET status = ?,
     started_at = ?,
     completed_at = ?,
     file_path = ?,
-    file_size_bytes = ?
+    file_size_bytes = ?,
+    start_position = ?
 WHERE id = ?
 `
 
 type UpdateTranscodeJobParams struct {
-	Status        string         `json:"status"`
-	Progress      sql.NullInt64  `json:"progress"`
-	Error         sql.NullString `json:"error"`
-	StartedAt     sql.NullTime   `json:"started_at"`
-	CompletedAt   sql.NullTime   `json:"completed_at"`
-	FilePath      sql.NullString `json:"file_path"`
-	FileSizeBytes sql.NullInt64  `json:"file_size_bytes"`
-	ID            int64          `json:"id"`
+	Status        string          `json:"status"`
+	Progress      sql.NullInt64   `json:"progress"`
+	Error         sql.NullString  `json:"error"`
+	StartedAt     sql.NullTime    `json:"started_at"`
+	CompletedAt   sql.NullTime    `json:"completed_at"`
+	FilePath      sql.NullString  `json:"file_path"`
+	FileSizeBytes sql.NullInt64   `json:"file_size_bytes"`
+	StartPosition sql.NullFloat64 `json:"start_position"`
+	ID            int64           `json:"id"`
 }
 
 func (q *Queries) UpdateTranscodeJob(ctx context.Context, arg UpdateTranscodeJobParams) error {
@@ -513,6 +518,7 @@ func (q *Queries) UpdateTranscodeJob(ctx context.Context, arg UpdateTranscodeJob
 		arg.CompletedAt,
 		arg.FilePath,
 		arg.FileSizeBytes,
+		arg.StartPosition,
 		arg.ID,
 	)
 	return err

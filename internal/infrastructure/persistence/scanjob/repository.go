@@ -3,368 +3,181 @@ package scanjob
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 
 	"github.com/mantonx/viewra/internal/domain/scanner"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
-// NewRepository creates a new scan job repository with the appropriate database driver.
-// The driver parameter should be "sqlite", "sqlite3", "postgres", or "postgresql".
-func NewRepository(db *sql.DB, driver string) *Repository {
-	r := &Repository{
-		db:     db,
-		dbType: driver,
-		router: common.NewQueryRouter(driver),
+// NewRepository creates a new scan job repository with the unified querier pattern.
+func NewRepository(db *common.BaseRepository) *Repository {
+	return &Repository{
+		BaseRepository: db,
 	}
-
-	if common.IsPostgres(driver) {
-		r.postgres = sqlc_postgres.New(db)
-	} else {
-		r.sqlite = sqlc_sqlite.New(db)
-	}
-
-	return r
 }
 
 // Create creates a new scan job
 func (r *Repository) Create(ctx context.Context, job *scanner.ScanJob) error {
-	result, err := r.router.Route(
-		func() (any, error) {
-			return r.postgres.CreateScanJob(ctx, sqlc_postgres.CreateScanJobParams{
-				LibraryID:      job.LibraryID,
-				Status:         string(job.Status),
-				Progress:       sql.NullFloat64{Float64: job.Progress, Valid: true},
-				FilesFound:     sql.NullInt64{Int64: job.FilesFound, Valid: true},
-				FilesProcessed: sql.NullInt64{Int64: job.FilesProcessed, Valid: true},
-				BytesProcessed: sql.NullInt64{Int64: job.BytesProcessed, Valid: true},
-				ErrorCount:     sql.NullInt64{Int64: job.ErrorCount, Valid: true},
-				StartedAt:      common.NullTime(job.StartedAt),
-				Phase:          common.NullString(string(job.Phase)),
-				EstimatedTotal: sql.NullInt64{Int64: job.EstimatedTotal, Valid: true},
-				DiscoveryDone:  common.NullInt64FromBool(job.DiscoveryDone),
-			})
-		},
-		func() (any, error) {
-			return r.sqlite.CreateScanJob(ctx, sqlc_sqlite.CreateScanJobParams{
-				LibraryID:      job.LibraryID,
-				Status:         string(job.Status),
-				Progress:       sql.NullFloat64{Float64: job.Progress, Valid: true},
-				FilesFound:     sql.NullInt64{Int64: job.FilesFound, Valid: true},
-				FilesProcessed: sql.NullInt64{Int64: job.FilesProcessed, Valid: true},
-				BytesProcessed: sql.NullInt64{Int64: job.BytesProcessed, Valid: true},
-				ErrorCount:     sql.NullInt64{Int64: job.ErrorCount, Valid: true},
-				StartedAt:      common.NullTime(job.StartedAt),
-				Phase:          common.NullString(string(job.Phase)),
-				EstimatedTotal: sql.NullInt64{Int64: job.EstimatedTotal, Valid: true},
-				DiscoveryDone:  common.NullInt64FromBool(job.DiscoveryDone),
-			})
-		},
-	)
+	result, err := r.Q().CreateScanJob(ctx, unified.CreateScanJobParams{
+		LibraryID:      job.LibraryID,
+		Status:         string(job.Status),
+		Progress:       sql.NullFloat64{Float64: job.Progress, Valid: true},
+		FilesFound:     sql.NullInt64{Int64: job.FilesFound, Valid: true},
+		FilesProcessed: sql.NullInt64{Int64: job.FilesProcessed, Valid: true},
+		BytesProcessed: sql.NullInt64{Int64: job.BytesProcessed, Valid: true},
+		ErrorCount:     sql.NullInt64{Int64: job.ErrorCount, Valid: true},
+		StartedAt:      common.NullTime(job.StartedAt),
+		Phase:          common.NullString(string(job.Phase)),
+		EstimatedTotal: sql.NullInt64{Int64: job.EstimatedTotal, Valid: true},
+		DiscoveryDone:  common.NullInt64FromBool(job.DiscoveryDone),
+	})
 	if err != nil {
 		return err
 	}
 
-	// Convert result to update job ID
-	if r.router.IsPostgresDB() {
-		pgResult := result.(sqlc_postgres.ScanJob)
-		job.ID = int64(pgResult.ID)
-		job.CreatedAt = common.ParseNullTime(pgResult.CreatedAt)
-		job.UpdatedAt = common.ParseNullTime(pgResult.UpdatedAt)
-	} else {
-		sqResult := result.(sqlc_sqlite.ScanJob)
-		job.ID = sqResult.ID
-		job.CreatedAt = common.ParseNullTime(sqResult.CreatedAt)
-		job.UpdatedAt = common.ParseNullTime(sqResult.UpdatedAt)
-	}
+	job.ID = result.ID
+	job.CreatedAt = common.ParseNullTime(result.CreatedAt)
+	job.UpdatedAt = common.ParseNullTime(result.UpdatedAt)
 
 	return nil
 }
 
 // GetByID retrieves a scan job by its ID
 func (r *Repository) GetByID(ctx context.Context, id int64) (*scanner.ScanJob, error) {
-	result, err := r.router.Route(
-		func() (any, error) {
-			return r.postgres.GetScanJob(ctx, id)
-		},
-		func() (any, error) {
-			return r.sqlite.GetScanJob(ctx, id)
-		},
-	)
+	result, err := r.Q().GetScanJob(ctx, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if err == sql.ErrNoRows {
 			return nil, scanner.ErrNotFound
 		}
 		return nil, err
 	}
 
-	return r.convertToScanJob(result), nil
+	return convertToScanJob(result), nil
 }
 
 // GetLatestByLibrary retrieves the most recent scan job for a library
 func (r *Repository) GetLatestByLibrary(ctx context.Context, libraryID int64) (*scanner.ScanJob, error) {
-	result, err := r.router.Route(
-		func() (any, error) {
-			return r.postgres.GetLatestScanJobByLibrary(ctx, libraryID)
-		},
-		func() (any, error) {
-			return r.sqlite.GetLatestScanJobByLibrary(ctx, libraryID)
-		},
-	)
+	result, err := r.Q().GetLatestScanJobByLibrary(ctx, libraryID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if err == sql.ErrNoRows {
 			return nil, scanner.ErrNotFound
 		}
 		return nil, err
 	}
 
-	return r.convertToScanJob(result), nil
+	return convertToScanJob(result), nil
 }
 
 // ListByLibrary retrieves scan jobs for a library, ordered by creation date (newest first)
 func (r *Repository) ListByLibrary(ctx context.Context, libraryID int64, limit int32) ([]*scanner.ScanJob, error) {
-	result, err := r.router.Route(
-		func() (any, error) {
-			return r.postgres.ListScanJobsByLibrary(ctx, sqlc_postgres.ListScanJobsByLibraryParams{
-				LibraryID: libraryID,
-				Limit:     limit,
-			})
-		},
-		func() (any, error) {
-			return r.sqlite.ListScanJobsByLibrary(ctx, sqlc_sqlite.ListScanJobsByLibraryParams{
-				LibraryID: libraryID,
-				Limit:     int64(limit),
-			})
-		},
-	)
+	rows, err := r.Q().ListScanJobsByLibrary(ctx, unified.ListScanJobsByLibraryParams{
+		LibraryID: libraryID,
+		Limit:     int64(limit),
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	if r.router.IsPostgresDB() {
-		pgJobs := result.([]sqlc_postgres.ScanJob)
-		jobs := make([]*scanner.ScanJob, len(pgJobs))
-		for i, pgJob := range pgJobs {
-			jobs[i] = r.convertToScanJob(pgJob)
-		}
-		return jobs, nil
-	}
-
-	sqJobs := result.([]sqlc_sqlite.ScanJob)
-	jobs := make([]*scanner.ScanJob, len(sqJobs))
-	for i, sqJob := range sqJobs {
-		jobs[i] = r.convertToScanJob(sqJob)
-	}
-	return jobs, nil
+	return mapSlice(rows, convertToScanJob), nil
 }
 
 // ListRunning retrieves all currently running scan jobs
 func (r *Repository) ListRunning(ctx context.Context) ([]*scanner.ScanJob, error) {
-	result, err := r.router.Route(
-		func() (any, error) {
-			return r.postgres.ListRunningScanJobs(ctx)
-		},
-		func() (any, error) {
-			return r.sqlite.ListRunningScanJobs(ctx)
-		},
-	)
+	rows, err := r.Q().ListRunningScanJobs(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	if r.router.IsPostgresDB() {
-		pgJobs := result.([]sqlc_postgres.ScanJob)
-		jobs := make([]*scanner.ScanJob, len(pgJobs))
-		for i, pgJob := range pgJobs {
-			jobs[i] = r.convertToScanJob(pgJob)
-		}
-		return jobs, nil
-	}
-
-	sqJobs := result.([]sqlc_sqlite.ScanJob)
-	jobs := make([]*scanner.ScanJob, len(sqJobs))
-	for i, sqJob := range sqJobs {
-		jobs[i] = r.convertToScanJob(sqJob)
-	}
-	return jobs, nil
+	return mapSlice(rows, convertToScanJob), nil
 }
 
 // UpdateProgress updates the progress counters for a scan job
 func (r *Repository) UpdateProgress(ctx context.Context, id int64, progress *scanner.Progress) error {
-	_, err := r.router.Route(
-		func() (any, error) {
-			return nil, r.postgres.UpdateScanJobProgress(ctx, sqlc_postgres.UpdateScanJobProgressParams{
-				Progress:       sql.NullFloat64{Float64: progress.GetPercentage(), Valid: true},
-				FilesFound:     sql.NullInt64{Int64: progress.FilesFound, Valid: true},
-				FilesProcessed: sql.NullInt64{Int64: progress.FilesProcessed, Valid: true},
-				BytesProcessed: sql.NullInt64{Int64: progress.BytesProcessed, Valid: true},
-				ErrorCount:     sql.NullInt64{Int64: progress.ErrorCount, Valid: true},
-				WarningCount:   sql.NullInt64{Int64: progress.WarningCount, Valid: true},
-				Phase:          common.NullString(string(progress.Phase)),
-				EstimatedTotal: sql.NullInt64{Int64: progress.EstimatedTotal, Valid: true},
-				DiscoveryDone:  common.NullInt64FromBool(progress.DiscoveryDone),
-				ID:             id,
-			})
-		},
-		func() (any, error) {
-			return nil, r.sqlite.UpdateScanJobProgress(ctx, sqlc_sqlite.UpdateScanJobProgressParams{
-				Progress:       sql.NullFloat64{Float64: progress.GetPercentage(), Valid: true},
-				FilesFound:     sql.NullInt64{Int64: progress.FilesFound, Valid: true},
-				FilesProcessed: sql.NullInt64{Int64: progress.FilesProcessed, Valid: true},
-				BytesProcessed: sql.NullInt64{Int64: progress.BytesProcessed, Valid: true},
-				ErrorCount:     sql.NullInt64{Int64: progress.ErrorCount, Valid: true},
-				WarningCount:   sql.NullInt64{Int64: progress.WarningCount, Valid: true},
-				Phase:          common.NullString(string(progress.Phase)),
-				EstimatedTotal: sql.NullInt64{Int64: progress.EstimatedTotal, Valid: true},
-				DiscoveryDone:  common.NullInt64FromBool(progress.DiscoveryDone),
-				ID:             id,
-			})
-		},
-	)
-	return err
+	return r.Q().UpdateScanJobProgress(ctx, unified.UpdateScanJobProgressParams{
+		Progress:       sql.NullFloat64{Float64: progress.GetPercentage(), Valid: true},
+		FilesFound:     sql.NullInt64{Int64: progress.FilesFound, Valid: true},
+		FilesProcessed: sql.NullInt64{Int64: progress.FilesProcessed, Valid: true},
+		BytesProcessed: sql.NullInt64{Int64: progress.BytesProcessed, Valid: true},
+		ErrorCount:     sql.NullInt64{Int64: progress.ErrorCount, Valid: true},
+		WarningCount:   sql.NullInt64{Int64: progress.WarningCount, Valid: true},
+		Phase:          common.NullString(string(progress.Phase)),
+		EstimatedTotal: sql.NullInt64{Int64: progress.EstimatedTotal, Valid: true},
+		DiscoveryDone:  common.NullInt64FromBool(progress.DiscoveryDone),
+		ID:             id,
+	})
 }
 
 // UpdateStatus updates the status of a scan job
 func (r *Repository) UpdateStatus(ctx context.Context, id int64, status scanner.ScanStatus) error {
-	_, err := r.router.Route(
-		func() (any, error) {
-			return nil, r.postgres.UpdateScanJobStatus(ctx, sqlc_postgres.UpdateScanJobStatusParams{
-				Status: string(status),
-				ID:     id,
-			})
-		},
-		func() (any, error) {
-			return nil, r.sqlite.UpdateScanJobStatus(ctx, sqlc_sqlite.UpdateScanJobStatusParams{
-				Status: string(status),
-				ID:     id,
-			})
-		},
-	)
-	return err
+	return r.Q().UpdateScanJobStatus(ctx, unified.UpdateScanJobStatusParams{
+		Status: string(status),
+		ID:     id,
+	})
 }
 
 // Complete marks a scan job as completed or failed
 func (r *Repository) Complete(ctx context.Context, job *scanner.ScanJob) error {
-	_, err := r.router.Route(
-		func() (any, error) {
-			return nil, r.postgres.CompleteScanJob(ctx, sqlc_postgres.CompleteScanJobParams{
-				Status:         string(job.Status),
-				Progress:       sql.NullFloat64{Float64: job.Progress, Valid: true},
-				FilesFound:     sql.NullInt64{Int64: job.FilesFound, Valid: true},
-				FilesProcessed: sql.NullInt64{Int64: job.FilesProcessed, Valid: true},
-				BytesProcessed: sql.NullInt64{Int64: job.BytesProcessed, Valid: true},
-				ErrorCount:     sql.NullInt64{Int64: job.ErrorCount, Valid: true},
-				WarningCount:   sql.NullInt64{Int64: job.WarningCount, Valid: true},
-				CompletedAt:    common.NullTimePtr(job.CompletedAt),
-				ErrorMessage:   common.NullString(job.ErrorMessage),
-				Phase:          common.NullString(string(job.Phase)),
-				DiscoveryDone:  common.NullInt64FromBool(job.DiscoveryDone),
-				ID:             job.ID,
-			})
-		},
-		func() (any, error) {
-			return nil, r.sqlite.CompleteScanJob(ctx, sqlc_sqlite.CompleteScanJobParams{
-				Status:         string(job.Status),
-				Progress:       sql.NullFloat64{Float64: job.Progress, Valid: true},
-				FilesFound:     sql.NullInt64{Int64: job.FilesFound, Valid: true},
-				FilesProcessed: sql.NullInt64{Int64: job.FilesProcessed, Valid: true},
-				BytesProcessed: sql.NullInt64{Int64: job.BytesProcessed, Valid: true},
-				ErrorCount:     sql.NullInt64{Int64: job.ErrorCount, Valid: true},
-				WarningCount:   sql.NullInt64{Int64: job.WarningCount, Valid: true},
-				CompletedAt:    common.NullTimePtr(job.CompletedAt),
-				ErrorMessage:   common.NullString(job.ErrorMessage),
-				Phase:          common.NullString(string(job.Phase)),
-				DiscoveryDone:  common.NullInt64FromBool(job.DiscoveryDone),
-				ID:             job.ID,
-			})
-		},
-	)
-	return err
+	return r.Q().CompleteScanJob(ctx, unified.CompleteScanJobParams{
+		Status:         string(job.Status),
+		Progress:       sql.NullFloat64{Float64: job.Progress, Valid: true},
+		FilesFound:     sql.NullInt64{Int64: job.FilesFound, Valid: true},
+		FilesProcessed: sql.NullInt64{Int64: job.FilesProcessed, Valid: true},
+		BytesProcessed: sql.NullInt64{Int64: job.BytesProcessed, Valid: true},
+		ErrorCount:     sql.NullInt64{Int64: job.ErrorCount, Valid: true},
+		WarningCount:   sql.NullInt64{Int64: job.WarningCount, Valid: true},
+		CompletedAt:    common.NullTimePtr(job.CompletedAt),
+		ErrorMessage:   common.NullString(job.ErrorMessage),
+		Phase:          common.NullString(string(job.Phase)),
+		DiscoveryDone:  common.NullInt64FromBool(job.DiscoveryDone),
+		ID:             job.ID,
+	})
 }
 
 // Delete deletes a scan job
 func (r *Repository) Delete(ctx context.Context, id int64) error {
-	_, err := r.router.Route(
-		func() (any, error) {
-			return nil, r.postgres.DeleteScanJob(ctx, id)
-		},
-		func() (any, error) {
-			return nil, r.sqlite.DeleteScanJob(ctx, id)
-		},
-	)
-	return err
+	return r.Q().DeleteScanJob(ctx, id)
 }
 
 // DeleteOld deletes old completed/failed scan jobs for a library
 func (r *Repository) DeleteOld(ctx context.Context, libraryID int64, retentionMinutes int) error {
-	_, err := r.router.Route(
-		func() (any, error) {
-			// PostgreSQL: convert minutes to days for the interval
-			// Using float division to support sub-day retention
-			retentionDays := float64(retentionMinutes) / (24.0 * 60.0)
-			return nil, r.postgres.DeleteOldScanJobs(ctx, sqlc_postgres.DeleteOldScanJobsParams{
-				LibraryID:     libraryID,
-				RetentionDays: fmt.Sprintf("%.4f", retentionDays),
-			})
-		},
-		func() (any, error) {
-			// SQLite uses modifier syntax: '-30 minutes'
-			modifier := fmt.Sprintf("-%d minutes", retentionMinutes)
-			return nil, r.sqlite.DeleteOldScanJobs(ctx, sqlc_sqlite.DeleteOldScanJobsParams{
-				LibraryID: libraryID,
-				Datetime:  modifier,
-			})
-		},
-	)
-	return err
+	// The unified querier uses SQLite modifier format: '-N minutes'
+	// For PostgreSQL, the generated code handles the conversion internally
+	modifier := fmt.Sprintf("-%d minutes", retentionMinutes)
+	return r.Q().DeleteOldScanJobs(ctx, unified.DeleteOldScanJobsParams{
+		LibraryID:     libraryID,
+		RetentionDays: modifier,
+	})
 }
 
-// convertToScanJob converts sqlc result to domain ScanJob
-func (r *Repository) convertToScanJob(result any) *scanner.ScanJob {
-	if r.router.IsPostgresDB() {
-		pgJob := result.(sqlc_postgres.ScanJob)
-		return &scanner.ScanJob{
-			ID:             pgJob.ID,
-			LibraryID:      pgJob.LibraryID,
-			Status:         scanner.ScanStatus(pgJob.Status),
-			Progress:       pgJob.Progress.Float64,
-			FilesFound:     pgJob.FilesFound.Int64,
-			FilesProcessed: pgJob.FilesProcessed.Int64,
-			BytesProcessed: pgJob.BytesProcessed.Int64,
-			ErrorCount:     pgJob.ErrorCount.Int64,
-			WarningCount:   pgJob.WarningCount.Int64,
-			StartedAt:      common.ParseNullTime(pgJob.StartedAt),
-			CompletedAt:    common.ParseNullTimePtr(pgJob.CompletedAt),
-			ErrorMessage:   common.ParseNullString(pgJob.ErrorMessage),
-			CreatedAt:      common.ParseNullTime(pgJob.CreatedAt),
-			UpdatedAt:      common.ParseNullTime(pgJob.UpdatedAt),
-			Phase:          scanner.ScanPhase(common.ParseNullString(pgJob.Phase)),
-			EstimatedTotal: pgJob.EstimatedTotal.Int64,
-			DiscoveryDone:  pgJob.DiscoveryDone.Int64 != 0,
-		}
-	}
-
-	sqJob := result.(sqlc_sqlite.ScanJob)
+// convertToScanJob converts a unified ScanJob to domain ScanJob
+func convertToScanJob(row unified.ScanJob) *scanner.ScanJob {
 	return &scanner.ScanJob{
-		ID:             sqJob.ID,
-		LibraryID:      sqJob.LibraryID,
-		Status:         scanner.ScanStatus(sqJob.Status),
-		Progress:       sqJob.Progress.Float64,
-		FilesFound:     sqJob.FilesFound.Int64,
-		FilesProcessed: sqJob.FilesProcessed.Int64,
-		BytesProcessed: sqJob.BytesProcessed.Int64,
-		ErrorCount:     sqJob.ErrorCount.Int64,
-		WarningCount:   sqJob.WarningCount.Int64,
-		StartedAt:      common.ParseNullTime(sqJob.StartedAt),
-		CompletedAt:    common.ParseNullTimePtr(sqJob.CompletedAt),
-		ErrorMessage:   common.ParseNullString(sqJob.ErrorMessage),
-		CreatedAt:      common.ParseNullTime(sqJob.CreatedAt),
-		UpdatedAt:      common.ParseNullTime(sqJob.UpdatedAt),
-		Phase:          scanner.ScanPhase(common.ParseNullString(sqJob.Phase)),
-		EstimatedTotal: sqJob.EstimatedTotal.Int64,
-		DiscoveryDone:  sqJob.DiscoveryDone.Int64 != 0,
+		ID:             row.ID,
+		LibraryID:      row.LibraryID,
+		Status:         scanner.ScanStatus(row.Status),
+		Progress:       row.Progress.Float64,
+		FilesFound:     row.FilesFound.Int64,
+		FilesProcessed: row.FilesProcessed.Int64,
+		BytesProcessed: row.BytesProcessed.Int64,
+		ErrorCount:     row.ErrorCount.Int64,
+		WarningCount:   row.WarningCount.Int64,
+		StartedAt:      common.ParseNullTime(row.StartedAt),
+		CompletedAt:    common.ParseNullTimePtr(row.CompletedAt),
+		ErrorMessage:   common.ParseNullString(row.ErrorMessage),
+		CreatedAt:      common.ParseNullTime(row.CreatedAt),
+		UpdatedAt:      common.ParseNullTime(row.UpdatedAt),
+		Phase:          scanner.ScanPhase(common.ParseNullString(row.Phase)),
+		EstimatedTotal: row.EstimatedTotal.Int64,
+		DiscoveryDone:  row.DiscoveryDone.Int64 != 0,
 	}
+}
+
+// mapSlice converts a slice of one type to another using the provided mapper function.
+func mapSlice[TFrom, TTo any](from []TFrom, mapper func(TFrom) TTo) []TTo {
+	result := make([]TTo, len(from))
+	for i, v := range from {
+		result[i] = mapper(v)
+	}
+	return result
 }

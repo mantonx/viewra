@@ -53,7 +53,7 @@ WHERE session_id = $1;
 SELECT * FROM transcode_analytics
 WHERE media_id = $1
 ORDER BY created_at DESC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: GetTranscodeSummaryByMediaID :one
 SELECT
@@ -102,7 +102,7 @@ FROM playback_sessions p
 LEFT JOIN transcode_analytics t ON p.session_id = t.session_id
 WHERE p.media_id = $1
 ORDER BY p.start_time DESC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: GetCorrelatedAnalyticsAll :many
 SELECT
@@ -125,4 +125,4 @@ SELECT
 FROM playback_sessions p
 LEFT JOIN transcode_analytics t ON p.session_id = t.session_id
 ORDER BY p.start_time DESC
-LIMIT $1 OFFSET $2;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;

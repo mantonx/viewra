@@ -575,14 +575,14 @@ FROM scheduler_executions
 WHERE ($1::TEXT IS NULL OR task_id = $1)
   AND ($2::TEXT IS NULL OR status = $2)
 ORDER BY created_at DESC
-LIMIT $4 OFFSET $3
+LIMIT $4::bigint OFFSET $3::bigint
 `
 
 type ListSchedulerExecutionsParams struct {
 	TaskID sql.NullString `json:"task_id"`
 	Status sql.NullString `json:"status"`
-	Offset int32          `json:"offset"`
-	Limit  int32          `json:"limit"`
+	Offset int64          `json:"offset"`
+	Limit  int64          `json:"limit"`
 }
 
 func (q *Queries) ListSchedulerExecutions(ctx context.Context, arg ListSchedulerExecutionsParams) ([]SchedulerExecution, error) {
@@ -637,12 +637,12 @@ SELECT id, task_id, status, scheduled_at, started_at, ended_at, duration_ms,
 FROM scheduler_executions
 WHERE task_id = $1
 ORDER BY created_at DESC
-LIMIT $2
+LIMIT $2::bigint
 `
 
 type ListSchedulerExecutionsByTaskParams struct {
 	TaskID string `json:"task_id"`
-	Limit  int32  `json:"limit"`
+	Limit  int64  `json:"limit"`
 }
 
 func (q *Queries) ListSchedulerExecutionsByTask(ctx context.Context, arg ListSchedulerExecutionsByTaskParams) ([]SchedulerExecution, error) {
@@ -725,23 +725,23 @@ func (q *Queries) ReleaseSchedulerLock(ctx context.Context, lockKey string) erro
 }
 
 const scheduledTaskExists = `-- name: ScheduledTaskExists :one
-SELECT EXISTS(SELECT 1 FROM scheduled_tasks WHERE id = $1) as task_exists
+SELECT EXISTS(SELECT 1 FROM scheduled_tasks WHERE id = $1)::bigint as task_exists
 `
 
-func (q *Queries) ScheduledTaskExists(ctx context.Context, id string) (bool, error) {
+func (q *Queries) ScheduledTaskExists(ctx context.Context, id string) (int64, error) {
 	row := q.db.QueryRowContext(ctx, scheduledTaskExists, id)
-	var task_exists bool
+	var task_exists int64
 	err := row.Scan(&task_exists)
 	return task_exists, err
 }
 
 const schedulerLockExists = `-- name: SchedulerLockExists :one
-SELECT EXISTS(SELECT 1 FROM scheduler_locks WHERE lock_key = $1 AND expires_at > NOW()) as lock_exists
+SELECT EXISTS(SELECT 1 FROM scheduler_locks WHERE lock_key = $1 AND expires_at > NOW())::bigint as lock_exists
 `
 
-func (q *Queries) SchedulerLockExists(ctx context.Context, lockKey string) (bool, error) {
+func (q *Queries) SchedulerLockExists(ctx context.Context, lockKey string) (int64, error) {
 	row := q.db.QueryRowContext(ctx, schedulerLockExists, lockKey)
-	var lock_exists bool
+	var lock_exists int64
 	err := row.Scan(&lock_exists)
 	return lock_exists, err
 }

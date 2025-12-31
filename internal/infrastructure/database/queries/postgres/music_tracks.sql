@@ -381,7 +381,7 @@ JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 GROUP BY mt.album, mt.album_artist, mt.year
 ORDER BY mt.album_artist ASC, mt.album ASC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: ListAlbumsByLibraryPaginatedDesc :many
 SELECT DISTINCT
@@ -395,7 +395,7 @@ JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 GROUP BY mt.album, mt.album_artist, mt.year
 ORDER BY mt.album_artist DESC, mt.album DESC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: CountMusicTracksByLibrary :one
 SELECT COUNT(*)
@@ -445,7 +445,7 @@ FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 ORDER BY COALESCE(mt.sort_title, med.title) ASC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: ListMusicTracksByLibraryPaginatedDesc :many
 SELECT
@@ -489,7 +489,7 @@ FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 ORDER BY COALESCE(mt.sort_title, med.title) DESC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: ListArtistIDsByLibraryPaginated :many
 SELECT mt.media_id as id
@@ -498,7 +498,7 @@ JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 GROUP BY mt.artist
 ORDER BY COALESCE(mt.sort_artist, mt.artist) ASC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: ListArtistIDsByLibraryPaginatedDesc :many
 SELECT mt.media_id as id
@@ -507,5 +507,5 @@ JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1
 GROUP BY mt.artist
 ORDER BY COALESCE(mt.sort_artist, mt.artist) DESC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 

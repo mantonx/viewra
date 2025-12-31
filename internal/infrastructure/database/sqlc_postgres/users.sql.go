@@ -83,14 +83,14 @@ func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
 }
 
 const existsAnyUser = `-- name: ExistsAnyUser :one
-SELECT EXISTS(SELECT 1 FROM users)
+SELECT EXISTS(SELECT 1 FROM users)::bigint
 `
 
-func (q *Queries) ExistsAnyUser(ctx context.Context) (bool, error) {
+func (q *Queries) ExistsAnyUser(ctx context.Context) (int64, error) {
 	row := q.db.QueryRowContext(ctx, existsAnyUser)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
@@ -211,12 +211,12 @@ func (q *Queries) GetUserLocation(ctx context.Context, id int64) (GetUserLocatio
 const listUsers = `-- name: ListUsers :many
 SELECT id, public_id, username, display_name, password_hash, is_admin, is_disabled, created_at, updated_at, location_latitude, location_longitude, location_timezone, location_enabled, location_name FROM users
 ORDER BY username
-LIMIT $1 OFFSET $2
+LIMIT $2::bigint OFFSET $1::bigint
 `
 
 type ListUsersParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error) {

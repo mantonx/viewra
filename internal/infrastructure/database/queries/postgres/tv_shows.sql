@@ -39,7 +39,7 @@ WHERE id = $1;
 
 -- name: GetTVShowByTitle :one
 SELECT * FROM tv_shows
-WHERE library_id = $1 AND LOWER(title) = LOWER($2)
+WHERE library_id = sqlc.arg(library_id) AND LOWER(title) = LOWER(sqlc.arg(title))
 LIMIT 1;
 
 -- name: GetTVShowByDirectory :one
@@ -497,13 +497,13 @@ WHERE library_id = $1;
 SELECT * FROM tv_shows
 WHERE library_id = $1
 ORDER BY COALESCE(NULLIF(sort_title, ''), title) ASC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: ListTVShowsByLibraryPaginatedDesc :many
 SELECT * FROM tv_shows
 WHERE library_id = $1
 ORDER BY COALESCE(NULLIF(sort_title, ''), title) DESC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: GetTVShowsWithCountsByLibraryPaginated :many
 SELECT
@@ -526,7 +526,7 @@ WHERE s.library_id = $1
   AND (med.is_extra = false OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) ASC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: GetTVShowsWithCountsByLibraryPaginatedDesc :many
 SELECT
@@ -549,7 +549,7 @@ WHERE s.library_id = $1
   AND (med.is_extra = false OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) DESC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: CountSearchTVShowsByTitle :one
 SELECT COUNT(*)
@@ -562,7 +562,7 @@ SELECT * FROM tv_shows
 WHERE library_id = $1
   AND (title ILIKE $2 OR original_title ILIKE $3)
 ORDER BY COALESCE(NULLIF(sort_title, ''), title)
-LIMIT $4 OFFSET $5;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: SearchTVShowsWithCountsByTitlePaginated :many
 SELECT
@@ -586,21 +586,21 @@ WHERE s.library_id = $1
   AND (med.is_extra = false OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) ASC
-LIMIT $4 OFFSET $5;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: ListTVShowIDsByLibraryPaginated :many
 SELECT id
 FROM tv_shows
 WHERE library_id = $1
 ORDER BY COALESCE(NULLIF(sort_title, ''), title) ASC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: ListTVShowIDsByLibraryPaginatedDesc :many
 SELECT id
 FROM tv_shows
 WHERE library_id = $1
 ORDER BY COALESCE(NULLIF(sort_title, ''), title) DESC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: SearchTVShowsGlobal :many
 -- Searches TV shows across all libraries (for plugin use)
@@ -613,4 +613,4 @@ SELECT
 FROM tv_shows
 WHERE (title ILIKE $1 OR original_title ILIKE $2)
 ORDER BY COALESCE(NULLIF(sort_title, ''), title)
-LIMIT $3;
+LIMIT sqlc.arg('limit')::bigint;

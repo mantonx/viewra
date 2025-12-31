@@ -92,12 +92,12 @@ WHERE media_id = ANY($1::bigint[]) AND user_id = $2
 `
 
 type GetBatchWatchProgressByMediaIDsParams struct {
-	Column1 []int64       `json:"column_1"`
-	UserID  sql.NullInt64 `json:"user_id"`
+	MediaIds []int64       `json:"media_ids"`
+	UserID   sql.NullInt64 `json:"user_id"`
 }
 
 func (q *Queries) GetBatchWatchProgressByMediaIDs(ctx context.Context, arg GetBatchWatchProgressByMediaIDsParams) ([]WatchProgress, error) {
-	rows, err := q.db.QueryContext(ctx, getBatchWatchProgressByMediaIDs, pq.Array(arg.Column1), arg.UserID)
+	rows, err := q.db.QueryContext(ctx, getBatchWatchProgressByMediaIDs, pq.Array(arg.MediaIds), arg.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -220,13 +220,14 @@ WHERE user_id = $1
   AND watched = FALSE
   AND position > 0
 ORDER BY last_watched DESC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListInProgressByUserIDParams struct {
 	UserID sql.NullInt64 `json:"user_id"`
-	Limit  int32         `json:"limit"`
-	Offset int32         `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) ListInProgressByUserID(ctx context.Context, arg ListInProgressByUserIDParams) ([]WatchProgress, error) {
@@ -269,13 +270,14 @@ const listWatchProgressByUserID = `-- name: ListWatchProgressByUserID :many
 SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at, selected_quality, selected_audio_track, selected_subtitle_track FROM watch_progress
 WHERE user_id = $1
 ORDER BY last_watched DESC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListWatchProgressByUserIDParams struct {
 	UserID sql.NullInt64 `json:"user_id"`
-	Limit  int32         `json:"limit"`
-	Offset int32         `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) ListWatchProgressByUserID(ctx context.Context, arg ListWatchProgressByUserIDParams) ([]WatchProgress, error) {
@@ -319,13 +321,14 @@ SELECT id, media_id, user_id, position, duration, watched, last_watched, created
 WHERE user_id = $1
   AND watched = TRUE
 ORDER BY last_watched DESC
-LIMIT $2 OFFSET $3
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListWatchedByUserIDParams struct {
 	UserID sql.NullInt64 `json:"user_id"`
-	Limit  int32         `json:"limit"`
-	Offset int32         `json:"offset"`
+
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
 }
 
 func (q *Queries) ListWatchedByUserID(ctx context.Context, arg ListWatchedByUserIDParams) ([]WatchProgress, error) {

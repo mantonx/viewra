@@ -42,13 +42,13 @@ WHERE id = $1;
 -- name: ListUsers :many
 SELECT * FROM users
 ORDER BY username
-LIMIT $1 OFFSET $2;
+LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: CountUsers :one
 SELECT COUNT(*) FROM users;
 
 -- name: ExistsAnyUser :one
-SELECT EXISTS(SELECT 1 FROM users);
+SELECT EXISTS(SELECT 1 FROM users)::bigint;
 
 -- Location Preferences (stored in users table)
 

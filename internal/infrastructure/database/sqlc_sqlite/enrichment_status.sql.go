@@ -12,23 +12,23 @@ import (
 
 const countEnrichmentStatusByStage = `-- name: CountEnrichmentStatusByStage :one
 SELECT
-    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count,
-    SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing_count,
-    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_count,
-    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count,
-    SUM(CASE WHEN status = 'skipped' THEN 1 ELSE 0 END) as skipped_count,
+    CAST(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS INTEGER) as pending_count,
+    CAST(SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS INTEGER) as processing_count,
+    CAST(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS INTEGER) as completed_count,
+    CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_count,
+    CAST(SUM(CASE WHEN status = 'skipped' THEN 1 ELSE 0 END) AS INTEGER) as skipped_count,
     COUNT(*) as total_count
 FROM enrichment_status
 WHERE stage = ?
 `
 
 type CountEnrichmentStatusByStageRow struct {
-	PendingCount    sql.NullFloat64 `json:"pending_count"`
-	ProcessingCount sql.NullFloat64 `json:"processing_count"`
-	CompletedCount  sql.NullFloat64 `json:"completed_count"`
-	FailedCount     sql.NullFloat64 `json:"failed_count"`
-	SkippedCount    sql.NullFloat64 `json:"skipped_count"`
-	TotalCount      int64           `json:"total_count"`
+	PendingCount    int64 `json:"pending_count"`
+	ProcessingCount int64 `json:"processing_count"`
+	CompletedCount  int64 `json:"completed_count"`
+	FailedCount     int64 `json:"failed_count"`
+	SkippedCount    int64 `json:"skipped_count"`
+	TotalCount      int64 `json:"total_count"`
 }
 
 func (q *Queries) CountEnrichmentStatusByStage(ctx context.Context, stage string) (CountEnrichmentStatusByStageRow, error) {
@@ -185,18 +185,13 @@ SELECT
     -- Total unique media items in enrichment for this library
     (SELECT COUNT(DISTINCT eq.media_id || ':' || eq.media_type)
      FROM enrichment_queue eq
-     WHERE eq.library_id = ?) as total_items,
+     WHERE eq.library_id = ?1) as total_items,
     -- Items still pending/processing (not fully done)
     (SELECT COUNT(DISTINCT eq.media_id || ':' || eq.media_type)
      FROM enrichment_queue eq
-     WHERE eq.library_id = ?
+     WHERE eq.library_id = ?1
        AND eq.status IN ('pending', 'processing')) as remaining_items
 `
-
-type GetLibraryEnrichmentOverallProgressParams struct {
-	LibraryID   sql.NullInt64 `json:"library_id"`
-	LibraryID_2 sql.NullInt64 `json:"library_id_2"`
-}
 
 type GetLibraryEnrichmentOverallProgressRow struct {
 	TotalItems     int64 `json:"total_items"`
@@ -206,8 +201,8 @@ type GetLibraryEnrichmentOverallProgressRow struct {
 // Get overall enrichment progress for a library.
 // Returns: items that completed all stages / total unique items that entered enrichment.
 // "Fully enriched" means an item has completed the last stage in the pipeline.
-func (q *Queries) GetLibraryEnrichmentOverallProgress(ctx context.Context, arg GetLibraryEnrichmentOverallProgressParams) (GetLibraryEnrichmentOverallProgressRow, error) {
-	row := q.db.QueryRowContext(ctx, getLibraryEnrichmentOverallProgress, arg.LibraryID, arg.LibraryID_2)
+func (q *Queries) GetLibraryEnrichmentOverallProgress(ctx context.Context, libraryID sql.NullInt64) (GetLibraryEnrichmentOverallProgressRow, error) {
+	row := q.db.QueryRowContext(ctx, getLibraryEnrichmentOverallProgress, libraryID)
 	var i GetLibraryEnrichmentOverallProgressRow
 	err := row.Scan(&i.TotalItems, &i.RemainingItems)
 	return i, err
@@ -216,49 +211,35 @@ func (q *Queries) GetLibraryEnrichmentOverallProgress(ctx context.Context, arg G
 const getLibraryEnrichmentProgress = `-- name: GetLibraryEnrichmentProgress :many
 SELECT
     es.stage,
-    SUM(CASE WHEN es.status = 'completed' THEN 1 ELSE 0 END) as completed_count,
-    SUM(CASE WHEN es.status = 'pending' THEN 1 ELSE 0 END) as pending_count,
-    SUM(CASE WHEN es.status = 'processing' THEN 1 ELSE 0 END) as processing_count,
-    SUM(CASE WHEN es.status = 'failed' THEN 1 ELSE 0 END) as failed_count,
-    SUM(CASE WHEN es.status = 'skipped' THEN 1 ELSE 0 END) as skipped_count,
+    CAST(SUM(CASE WHEN es.status = 'completed' THEN 1 ELSE 0 END) AS INTEGER) as completed_count,
+    CAST(SUM(CASE WHEN es.status = 'pending' THEN 1 ELSE 0 END) AS INTEGER) as pending_count,
+    CAST(SUM(CASE WHEN es.status = 'processing' THEN 1 ELSE 0 END) AS INTEGER) as processing_count,
+    CAST(SUM(CASE WHEN es.status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_count,
+    CAST(SUM(CASE WHEN es.status = 'skipped' THEN 1 ELSE 0 END) AS INTEGER) as skipped_count,
     COUNT(*) as total_count
 FROM enrichment_status es
 WHERE (
-    (es.media_type IN ('movie', 'tv', 'music') AND EXISTS (SELECT 1 FROM media m WHERE m.id = es.media_id AND m.library_id = ?))
-    OR (es.media_type = 'tv_show' AND EXISTS (SELECT 1 FROM tv_shows ts WHERE ts.id = es.media_id AND ts.library_id = ?))
-    OR (es.media_type = 'tv_season' AND EXISTS (SELECT 1 FROM tv_seasons tsn JOIN tv_shows ts ON ts.id = tsn.show_id WHERE tsn.id = es.media_id AND ts.library_id = ?))
-    OR (es.media_type = 'music_album' AND EXISTS (SELECT 1 FROM music_albums ma WHERE ma.id = es.media_id AND ma.library_id = ?))
-    OR (es.media_type = 'music_artist' AND EXISTS (SELECT 1 FROM music_artists mart WHERE mart.id = es.media_id AND mart.library_id = ?))
+    (es.media_type IN ('movie', 'tv', 'music') AND EXISTS (SELECT 1 FROM media m WHERE m.id = es.media_id AND m.library_id = ?1))
+    OR (es.media_type = 'tv_show' AND EXISTS (SELECT 1 FROM tv_shows ts WHERE ts.id = es.media_id AND ts.library_id = ?1))
+    OR (es.media_type = 'tv_season' AND EXISTS (SELECT 1 FROM tv_seasons tsn JOIN tv_shows ts ON ts.id = tsn.show_id WHERE tsn.id = es.media_id AND ts.library_id = ?1))
+    OR (es.media_type = 'music_album' AND EXISTS (SELECT 1 FROM music_albums ma WHERE ma.id = es.media_id AND ma.library_id = ?1))
+    OR (es.media_type = 'music_artist' AND EXISTS (SELECT 1 FROM music_artists mart WHERE mart.id = es.media_id AND mart.library_id = ?1))
 )
 GROUP BY es.stage
 `
 
-type GetLibraryEnrichmentProgressParams struct {
-	LibraryID   int64 `json:"library_id"`
-	LibraryID_2 int64 `json:"library_id_2"`
-	LibraryID_3 int64 `json:"library_id_3"`
-	LibraryID_4 int64 `json:"library_id_4"`
-	LibraryID_5 int64 `json:"library_id_5"`
-}
-
 type GetLibraryEnrichmentProgressRow struct {
-	Stage           string          `json:"stage"`
-	CompletedCount  sql.NullFloat64 `json:"completed_count"`
-	PendingCount    sql.NullFloat64 `json:"pending_count"`
-	ProcessingCount sql.NullFloat64 `json:"processing_count"`
-	FailedCount     sql.NullFloat64 `json:"failed_count"`
-	SkippedCount    sql.NullFloat64 `json:"skipped_count"`
-	TotalCount      int64           `json:"total_count"`
+	Stage           string `json:"stage"`
+	CompletedCount  int64  `json:"completed_count"`
+	PendingCount    int64  `json:"pending_count"`
+	ProcessingCount int64  `json:"processing_count"`
+	FailedCount     int64  `json:"failed_count"`
+	SkippedCount    int64  `json:"skipped_count"`
+	TotalCount      int64  `json:"total_count"`
 }
 
-func (q *Queries) GetLibraryEnrichmentProgress(ctx context.Context, arg GetLibraryEnrichmentProgressParams) ([]GetLibraryEnrichmentProgressRow, error) {
-	rows, err := q.db.QueryContext(ctx, getLibraryEnrichmentProgress,
-		arg.LibraryID,
-		arg.LibraryID_2,
-		arg.LibraryID_3,
-		arg.LibraryID_4,
-		arg.LibraryID_5,
-	)
+func (q *Queries) GetLibraryEnrichmentProgress(ctx context.Context, libraryID int64) ([]GetLibraryEnrichmentProgressRow, error) {
+	rows, err := q.db.QueryContext(ctx, getLibraryEnrichmentProgress, libraryID)
 	if err != nil {
 		return nil, err
 	}

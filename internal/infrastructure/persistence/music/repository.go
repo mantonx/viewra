@@ -3,12 +3,10 @@ package music
 import (
 	"context"
 	"fmt"
-	"unsafe"
 
 	domainCommon "github.com/mantonx/viewra/internal/domain/common"
 	"github.com/mantonx/viewra/internal/domain/media"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/unified"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
@@ -36,66 +34,41 @@ func (r *Repository) CreateMusicTrack(ctx context.Context, track *media.MusicTra
 	}
 
 	// Then, create the music track-specific record
-	return common.ExecuteCommand(
-		r.BaseRepository, ctx,
-		func() error {
-			return r.Postgres().CreateMusicTrack(ctx, buildPostgresCreateMusicTrackParams(track))
-		},
-		func() error {
-			return r.SQLite().CreateMusicTrack(ctx, buildSQLiteCreateMusicTrackParams(track))
-		},
-	)
+	if err := r.Q().CreateMusicTrack(ctx, buildCreateMusicTrackParams(track)); err != nil {
+		return fmt.Errorf("failed to create music track record: %w", err)
+	}
+
+	return nil
 }
 
 // GetMusicTrackByID retrieves a music track by its media ID
 func (r *Repository) GetMusicTrackByID(ctx context.Context, id int64) (*media.MusicTrack, error) {
-	return common.QuerySingle(
-		r.BaseRepository, ctx,
-		func() (sqlc_postgres.GetMusicTrackByMediaIDRow, error) {
-			return r.Postgres().GetMusicTrackByMediaID(ctx, id)
-		},
-		func() (sqlc_sqlite.GetMusicTrackByMediaIDRow, error) {
-			return r.SQLite().GetMusicTrackByMediaID(ctx, id)
-		},
-		postgresMusicTrackToDomain,
-		sqliteMusicTrackToDomain,
-	)
+	row, err := r.Q().GetMusicTrackByMediaID(ctx, id)
+	if err != nil {
+		return nil, r.ConvertNotFoundError(err)
+	}
+	return musicTrackRowToDomain(row), nil
 }
 
 // ListMusicTracksByLibrary retrieves all music tracks in a specific library
 func (r *Repository) ListMusicTracksByLibrary(ctx context.Context, libraryID int64) ([]*media.MusicTrack, error) {
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.ListMusicTracksByLibraryRow, error) {
-			return r.Postgres().ListMusicTracksByLibrary(ctx, libraryID)
-		},
-		func() ([]sqlc_sqlite.ListMusicTracksByLibraryRow, error) {
-			return r.SQLite().ListMusicTracksByLibrary(ctx, libraryID)
-		},
-		postgresMusicTrackRowToDomain[sqlc_postgres.ListMusicTracksByLibraryRow],
-		sqliteGenericMusicTrackRowToDomain[sqlc_sqlite.ListMusicTracksByLibraryRow],
-	)
+	rows, err := r.Q().ListMusicTracksByLibrary(ctx, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, listMusicTrackRowToDomain), nil
 }
 
 // ListMusicTracksByAlbum retrieves all tracks from a specific album
 func (r *Repository) ListMusicTracksByAlbum(ctx context.Context, libraryID int64, album string) ([]*media.MusicTrack, error) {
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.ListMusicTracksByAlbumRow, error) {
-			return r.Postgres().ListMusicTracksByAlbum(ctx, sqlc_postgres.ListMusicTracksByAlbumParams{
-				LibraryID: libraryID,
-				Album:     common.NullString(album),
-			})
-		},
-		func() ([]sqlc_sqlite.ListMusicTracksByAlbumRow, error) {
-			return r.SQLite().ListMusicTracksByAlbum(ctx, sqlc_sqlite.ListMusicTracksByAlbumParams{
-				LibraryID: libraryID,
-				Album:     common.NullString(album),
-			})
-		},
-		postgresMusicTrackRowToDomain[sqlc_postgres.ListMusicTracksByAlbumRow],
-		sqliteGenericMusicTrackRowToDomain[sqlc_sqlite.ListMusicTracksByAlbumRow],
-	)
+	rows, err := r.Q().ListMusicTracksByAlbum(ctx, unified.ListMusicTracksByAlbumParams{
+		LibraryID: libraryID,
+		Album:     common.NullString(album),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, albumMusicTrackRowToDomain), nil
 }
 
 // ListMusicTracksByArtist retrieves all tracks by a specific artist
@@ -103,25 +76,15 @@ func (r *Repository) ListMusicTracksByArtist(ctx context.Context, libraryID int6
 	// Use LIKE pattern for artist search
 	searchPattern := "%" + artist + "%"
 
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.ListMusicTracksByArtistRow, error) {
-			return r.Postgres().ListMusicTracksByArtist(ctx, sqlc_postgres.ListMusicTracksByArtistParams{
-				LibraryID:   libraryID,
-				Artist:      common.NullString(searchPattern),
-				AlbumArtist: common.NullString(searchPattern),
-			})
-		},
-		func() ([]sqlc_sqlite.ListMusicTracksByArtistRow, error) {
-			return r.SQLite().ListMusicTracksByArtist(ctx, sqlc_sqlite.ListMusicTracksByArtistParams{
-				LibraryID:   libraryID,
-				Artist:      common.NullString(searchPattern),
-				AlbumArtist: common.NullString(searchPattern),
-			})
-		},
-		postgresMusicTrackRowToDomain[sqlc_postgres.ListMusicTracksByArtistRow],
-		sqliteGenericMusicTrackRowToDomain[sqlc_sqlite.ListMusicTracksByArtistRow],
-	)
+	rows, err := r.Q().ListMusicTracksByArtist(ctx, unified.ListMusicTracksByArtistParams{
+		LibraryID:   libraryID,
+		Artist:      common.NullString(searchPattern),
+		AlbumArtist: common.NullString(searchPattern),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, artistMusicTrackRowToDomain), nil
 }
 
 // UpdateMusicTrack modifies an existing music track
@@ -132,15 +95,11 @@ func (r *Repository) UpdateMusicTrack(ctx context.Context, track *media.MusicTra
 	}
 
 	// Then, update the music track-specific record
-	return common.ExecuteCommand(
-		r.BaseRepository, ctx,
-		func() error {
-			return r.Postgres().UpdateMusicTrack(ctx, buildPostgresUpdateMusicTrackParams(track))
-		},
-		func() error {
-			return r.SQLite().UpdateMusicTrack(ctx, buildSQLiteUpdateMusicTrackParams(track))
-		},
-	)
+	if err := r.Q().UpdateMusicTrack(ctx, buildUpdateMusicTrackParams(track)); err != nil {
+		return fmt.Errorf("failed to update music track record: %w", err)
+	}
+
+	return nil
 }
 
 // SearchMusicTracks searches for music tracks by title, artist, or album
@@ -148,112 +107,21 @@ func (r *Repository) SearchMusicTracks(ctx context.Context, libraryID int64, que
 	// Add wildcards for LIKE search
 	searchPattern := "%" + query + "%"
 
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.SearchMusicTracksRow, error) {
-			return r.Postgres().SearchMusicTracks(ctx, sqlc_postgres.SearchMusicTracksParams{
-				LibraryID: libraryID,
-				Title:     searchPattern,
-				Artist:    common.NullString(searchPattern),
-				Album:     common.NullString(searchPattern),
-			})
-		},
-		func() ([]sqlc_sqlite.SearchMusicTracksRow, error) {
-			return r.SQLite().SearchMusicTracks(ctx, sqlc_sqlite.SearchMusicTracksParams{
-				LibraryID: libraryID,
-				Title:     searchPattern,
-				Artist:    common.NullString(searchPattern),
-				Album:     common.NullString(searchPattern),
-			})
-		},
-		postgresMusicTrackRowToDomain[sqlc_postgres.SearchMusicTracksRow],
-		sqliteGenericMusicTrackRowToDomain[sqlc_sqlite.SearchMusicTracksRow],
-	)
-}
-
-// musicTrackRow is a generic interface for all music track query row types.
-// This allows us to write a single conversion function for all row types.
-type musicTrackRow interface {
-	sqlc_sqlite.ListMusicTracksByLibraryRow |
-		sqlc_sqlite.ListMusicTracksByAlbumRow |
-		sqlc_sqlite.ListMusicTracksByAlbumIDRow |
-		sqlc_sqlite.ListMusicTracksByArtistRow |
-		sqlc_sqlite.SearchMusicTracksRow |
-		sqlc_sqlite.ListMusicTracksByLibraryPaginatedRow |
-		sqlc_sqlite.ListMusicTracksByLibraryPaginatedDescRow
-}
-
-// extractMusicTrackFields extracts common fields from any music track row type.
-// All four row types have identical structures, so we consolidate the conversion logic
-// to eliminate duplication.
-func extractMusicTrackFields[T musicTrackRow](row T) musicTrackFields {
-	// All row types have identical structures, so we can convert to any one
-	// and use it. We convert to ListMusicTracksByLibraryRow arbitrarily.
-	var r sqlc_sqlite.ListMusicTracksByLibraryRow
-
-	switch typed := any(row).(type) {
-	case sqlc_sqlite.ListMusicTracksByLibraryRow:
-		r = typed
-	case sqlc_sqlite.ListMusicTracksByAlbumRow:
-		// Cast via unsafe - safe because structures are identical
-		r = *(*sqlc_sqlite.ListMusicTracksByLibraryRow)(unsafe.Pointer(&typed))
-	case sqlc_sqlite.ListMusicTracksByAlbumIDRow:
-		// Cast via unsafe - safe because structures are identical
-		r = *(*sqlc_sqlite.ListMusicTracksByLibraryRow)(unsafe.Pointer(&typed))
-	case sqlc_sqlite.ListMusicTracksByArtistRow:
-		// Cast via unsafe - safe because structures are identical
-		r = *(*sqlc_sqlite.ListMusicTracksByLibraryRow)(unsafe.Pointer(&typed))
-	case sqlc_sqlite.SearchMusicTracksRow:
-		// Cast via unsafe - safe because structures are identical
-		r = *(*sqlc_sqlite.ListMusicTracksByLibraryRow)(unsafe.Pointer(&typed))
-	case sqlc_sqlite.ListMusicTracksByLibraryPaginatedRow:
-		// Cast via unsafe - safe because structures are identical
-		r = *(*sqlc_sqlite.ListMusicTracksByLibraryRow)(unsafe.Pointer(&typed))
+	rows, err := r.Q().SearchMusicTracks(ctx, unified.SearchMusicTracksParams{
+		LibraryID: libraryID,
+		Title:     searchPattern,
+		Artist:    common.NullString(searchPattern),
+		Album:     common.NullString(searchPattern),
+	})
+	if err != nil {
+		return nil, err
 	}
-
-	return musicTrackFields{
-		MediaID:         r.MediaID,
-		Artist:          r.Artist,
-		Album:           r.Album,
-		AlbumArtist:     r.AlbumArtist,
-		TrackNumber:     r.TrackNumber,
-		DiscNumber:      r.DiscNumber,
-		Genre:           r.Genre,
-		Year:            r.Year,
-		Composer:        r.Composer,
-		AlbumID:         r.AlbumID,
-		ArtistID:        r.ArtistID,
-		MediaID2:        r.MediaID_2,
-		LibraryID:       r.LibraryID,
-		Title:           r.Title,
-		FilePath:        r.FilePath,
-		FileSize:        r.FileSize,
-		Duration:        r.Duration,
-		Width:           r.Width,
-		Height:          r.Height,
-		Codec:           r.Codec,
-		AudioCodec:      r.AudioCodec,
-		BitRate:         r.BitRate,
-		FrameRate:       r.FrameRate,
-		ContainerFormat: r.ContainerFormat,
-		Type:            r.Type,
-		IsExtra:         common.Int64ToBool(r.IsExtra),
-		CreatedAt:       r.CreatedAt,
-		UpdatedAt:       r.UpdatedAt,
-	}
+	return mapSlice(rows, searchMusicTrackRowToDomain), nil
 }
 
 // CountArtistsByLibrary returns the total count of artists in a library
 func (r *Repository) CountArtistsByLibrary(ctx context.Context, libraryID int64) (int64, error) {
-	return common.QueryScalar(
-		r.BaseRepository, ctx,
-		func() (int64, error) {
-			return r.Postgres().CountArtistsInLibrary(ctx, libraryID)
-		},
-		func() (int64, error) {
-			return r.SQLite().CountArtistsInLibrary(ctx, libraryID)
-		},
-	)
+	return r.Q().CountArtistsInLibrary(ctx, libraryID)
 }
 
 // ListArtistsByLibraryPaginated retrieves artists from music_artists table with pagination.
@@ -270,106 +138,31 @@ func (r *Repository) ListArtistsByLibraryPaginated(ctx context.Context, libraryI
 	}
 
 	if sortBy == "title_desc" {
-		return common.QueryMany(
-			r.BaseRepository, ctx,
-			func() ([]sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescRow, error) {
-				return r.Postgres().GetArtistsWithCountsByLibraryPaginatedDesc(ctx, sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescParams{
-					LibraryID: libraryID,
-					Limit:     int32(pagination.Limit),
-					Offset:    int32(pagination.Offset),
-				})
-			},
-			func() ([]sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedDescRow, error) {
-				return r.SQLite().GetArtistsWithCountsByLibraryPaginatedDesc(ctx, sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedDescParams{
-					LibraryID: libraryID,
-					Limit:     int64(pagination.Limit),
-					Offset:    int64(pagination.Offset),
-				})
-			},
-			postgresArtistRowToDomain[sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescRow],
-			sqliteArtistRowToDomain[sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedDescRow],
-		)
+		rows, err := r.Q().GetArtistsWithCountsByLibraryPaginatedDesc(ctx, unified.GetArtistsWithCountsByLibraryPaginatedDescParams{
+			LibraryID: libraryID,
+			Limit:     int64(pagination.Limit),
+			Offset:    int64(pagination.Offset),
+		})
+		if err != nil {
+			return nil, err
+		}
+		return mapSlice(rows, artistWithCountsDescRowToDomain), nil
 	}
 
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedRow, error) {
-			return r.Postgres().GetArtistsWithCountsByLibraryPaginated(ctx, sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedParams{
-				LibraryID: libraryID,
-				Limit:     int32(pagination.Limit),
-				Offset:    int32(pagination.Offset),
-			})
-		},
-		func() ([]sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedRow, error) {
-			return r.SQLite().GetArtistsWithCountsByLibraryPaginated(ctx, sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedParams{
-				LibraryID: libraryID,
-				Limit:     int64(pagination.Limit),
-				Offset:    int64(pagination.Offset),
-			})
-		},
-		postgresArtistRowToDomain[sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedRow],
-		sqliteArtistRowToDomain[sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedRow],
-	)
-}
-
-// Artist row conversion types for generic QueryMany
-type postgresArtistRow interface {
-	sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedRow | sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescRow
-}
-
-type sqliteArtistRow interface {
-	sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedRow | sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedDescRow
-}
-
-func postgresArtistRowToDomain[T postgresArtistRow](row T) media.MusicArtist {
-	// Use unsafe pointer to access fields since both types have the same structure
-	type artistFields struct {
-		ID         int64
-		LibraryID  int64
-		Name       string
-		AlbumCount int64
-		TrackCount int64
+	rows, err := r.Q().GetArtistsWithCountsByLibraryPaginated(ctx, unified.GetArtistsWithCountsByLibraryPaginatedParams{
+		LibraryID: libraryID,
+		Limit:     int64(pagination.Limit),
+		Offset:    int64(pagination.Offset),
+	})
+	if err != nil {
+		return nil, err
 	}
-	ptr := unsafe.Pointer(&row)
-	fields := (*artistFields)(ptr)
-	return media.MusicArtist{
-		RepresentativeID: fields.ID,
-		Artist:           fields.Name,
-		AlbumCount:       fields.AlbumCount,
-		TrackCount:       fields.TrackCount,
-	}
-}
-
-func sqliteArtistRowToDomain[T sqliteArtistRow](row T) media.MusicArtist {
-	// Use unsafe pointer to access fields since both types have the same structure
-	type artistFields struct {
-		ID         int64
-		LibraryID  int64
-		Name       string
-		AlbumCount int64
-		TrackCount int64
-	}
-	ptr := unsafe.Pointer(&row)
-	fields := (*artistFields)(ptr)
-	return media.MusicArtist{
-		RepresentativeID: fields.ID,
-		Artist:           fields.Name,
-		AlbumCount:       fields.AlbumCount,
-		TrackCount:       fields.TrackCount,
-	}
+	return mapSlice(rows, artistWithCountsRowToDomain), nil
 }
 
 // CountAlbumsByLibrary returns the total count of unique albums in a library
 func (r *Repository) CountAlbumsByLibrary(ctx context.Context, libraryID int64) (int64, error) {
-	return common.QueryScalar(
-		r.BaseRepository, ctx,
-		func() (int64, error) {
-			return r.Postgres().CountAlbumsByLibrary(ctx, libraryID)
-		},
-		func() (int64, error) {
-			return r.SQLite().CountAlbumsByLibrary(ctx, libraryID)
-		},
-	)
+	return r.Q().CountAlbumsByLibrary(ctx, libraryID)
 }
 
 // ListAlbumsByLibraryPaginated retrieves unique albums in a library with pagination
@@ -385,59 +178,31 @@ func (r *Repository) ListAlbumsByLibraryPaginated(ctx context.Context, libraryID
 	}
 
 	if sortBy == "title_desc" {
-		return common.QueryMany(
-			r.BaseRepository, ctx,
-			func() ([]sqlc_postgres.ListAlbumsByLibraryPaginatedDescRow, error) {
-				return r.Postgres().ListAlbumsByLibraryPaginatedDesc(ctx, sqlc_postgres.ListAlbumsByLibraryPaginatedDescParams{
-					LibraryID: libraryID,
-					Limit:     int32(pagination.Limit),
-					Offset:    int32(pagination.Offset),
-				})
-			},
-			func() ([]sqlc_sqlite.ListAlbumsByLibraryPaginatedDescRow, error) {
-				return r.SQLite().ListAlbumsByLibraryPaginatedDesc(ctx, sqlc_sqlite.ListAlbumsByLibraryPaginatedDescParams{
-					LibraryID: libraryID,
-					Limit:     int64(pagination.Limit),
-					Offset:    int64(pagination.Offset),
-				})
-			},
-			postgresAlbumRowToDomain[sqlc_postgres.ListAlbumsByLibraryPaginatedDescRow],
-			sqliteAlbumRowToDomain[sqlc_sqlite.ListAlbumsByLibraryPaginatedDescRow],
-		)
+		rows, err := r.Q().ListAlbumsByLibraryPaginatedDesc(ctx, unified.ListAlbumsByLibraryPaginatedDescParams{
+			LibraryID: libraryID,
+			Limit:     int64(pagination.Limit),
+			Offset:    int64(pagination.Offset),
+		})
+		if err != nil {
+			return nil, err
+		}
+		return mapSlice(rows, listAlbumDescRowToDomain), nil
 	}
 
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.ListAlbumsByLibraryPaginatedRow, error) {
-			return r.Postgres().ListAlbumsByLibraryPaginated(ctx, sqlc_postgres.ListAlbumsByLibraryPaginatedParams{
-				LibraryID: libraryID,
-				Limit:     int32(pagination.Limit),
-				Offset:    int32(pagination.Offset),
-			})
-		},
-		func() ([]sqlc_sqlite.ListAlbumsByLibraryPaginatedRow, error) {
-			return r.SQLite().ListAlbumsByLibraryPaginated(ctx, sqlc_sqlite.ListAlbumsByLibraryPaginatedParams{
-				LibraryID: libraryID,
-				Limit:     int64(pagination.Limit),
-				Offset:    int64(pagination.Offset),
-			})
-		},
-		postgresAlbumRowToDomain[sqlc_postgres.ListAlbumsByLibraryPaginatedRow],
-		sqliteAlbumRowToDomain[sqlc_sqlite.ListAlbumsByLibraryPaginatedRow],
-	)
+	rows, err := r.Q().ListAlbumsByLibraryPaginated(ctx, unified.ListAlbumsByLibraryPaginatedParams{
+		LibraryID: libraryID,
+		Limit:     int64(pagination.Limit),
+		Offset:    int64(pagination.Offset),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, listAlbumRowToDomain), nil
 }
 
 // CountMusicTracksByLibrary returns the total count of music tracks in a library
 func (r *Repository) CountMusicTracksByLibrary(ctx context.Context, libraryID int64) (int64, error) {
-	return common.QueryScalar(
-		r.BaseRepository, ctx,
-		func() (int64, error) {
-			return r.Postgres().CountMusicTracksByLibrary(ctx, libraryID)
-		},
-		func() (int64, error) {
-			return r.SQLite().CountMusicTracksByLibrary(ctx, libraryID)
-		},
-	)
+	return r.Q().CountMusicTracksByLibrary(ctx, libraryID)
 }
 
 // ListMusicTracksByLibraryPaginated retrieves music tracks in a library with pagination
@@ -453,46 +218,26 @@ func (r *Repository) ListMusicTracksByLibraryPaginated(ctx context.Context, libr
 	}
 
 	if sortBy == "title_desc" {
-		return common.QueryMany(
-			r.BaseRepository, ctx,
-			func() ([]sqlc_postgres.ListMusicTracksByLibraryPaginatedDescRow, error) {
-				return r.Postgres().ListMusicTracksByLibraryPaginatedDesc(ctx, sqlc_postgres.ListMusicTracksByLibraryPaginatedDescParams{
-					LibraryID: libraryID,
-					Limit:     int32(pagination.Limit),
-					Offset:    int32(pagination.Offset),
-				})
-			},
-			func() ([]sqlc_sqlite.ListMusicTracksByLibraryPaginatedDescRow, error) {
-				return r.SQLite().ListMusicTracksByLibraryPaginatedDesc(ctx, sqlc_sqlite.ListMusicTracksByLibraryPaginatedDescParams{
-					LibraryID: libraryID,
-					Limit:     int64(pagination.Limit),
-					Offset:    int64(pagination.Offset),
-				})
-			},
-			postgresMusicTrackRowToDomain[sqlc_postgres.ListMusicTracksByLibraryPaginatedDescRow],
-			sqliteGenericMusicTrackRowToDomain[sqlc_sqlite.ListMusicTracksByLibraryPaginatedDescRow],
-		)
+		rows, err := r.Q().ListMusicTracksByLibraryPaginatedDesc(ctx, unified.ListMusicTracksByLibraryPaginatedDescParams{
+			LibraryID: libraryID,
+			Limit:     int64(pagination.Limit),
+			Offset:    int64(pagination.Offset),
+		})
+		if err != nil {
+			return nil, err
+		}
+		return mapSlice(rows, paginatedDescMusicTrackRowToDomain), nil
 	}
 
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.ListMusicTracksByLibraryPaginatedRow, error) {
-			return r.Postgres().ListMusicTracksByLibraryPaginated(ctx, sqlc_postgres.ListMusicTracksByLibraryPaginatedParams{
-				LibraryID: libraryID,
-				Limit:     int32(pagination.Limit),
-				Offset:    int32(pagination.Offset),
-			})
-		},
-		func() ([]sqlc_sqlite.ListMusicTracksByLibraryPaginatedRow, error) {
-			return r.SQLite().ListMusicTracksByLibraryPaginated(ctx, sqlc_sqlite.ListMusicTracksByLibraryPaginatedParams{
-				LibraryID: libraryID,
-				Limit:     int64(pagination.Limit),
-				Offset:    int64(pagination.Offset),
-			})
-		},
-		postgresMusicTrackRowToDomain[sqlc_postgres.ListMusicTracksByLibraryPaginatedRow],
-		sqliteGenericMusicTrackRowToDomain[sqlc_sqlite.ListMusicTracksByLibraryPaginatedRow],
-	)
+	rows, err := r.Q().ListMusicTracksByLibraryPaginated(ctx, unified.ListMusicTracksByLibraryPaginatedParams{
+		LibraryID: libraryID,
+		Limit:     int64(pagination.Limit),
+		Offset:    int64(pagination.Offset),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, paginatedMusicTrackRowToDomain), nil
 }
 
 // ListArtistIDsByLibraryPaginated retrieves only artist representative IDs in a library with pagination
@@ -508,156 +253,73 @@ func (r *Repository) ListArtistIDsByLibraryPaginated(ctx context.Context, librar
 	}
 
 	if sortBy == "title_desc" {
-		pgResults, err := common.QueryMany(
-			r.BaseRepository, ctx,
-			func() ([]int64, error) {
-				return r.Postgres().ListArtistIDsByLibraryPaginatedDesc(ctx, sqlc_postgres.ListArtistIDsByLibraryPaginatedDescParams{
-					LibraryID: libraryID,
-					Limit:     int32(pagination.Limit),
-					Offset:    int32(pagination.Offset),
-				})
-			},
-			func() ([]int64, error) {
-				return r.SQLite().ListArtistIDsByLibraryPaginatedDesc(ctx, sqlc_sqlite.ListArtistIDsByLibraryPaginatedDescParams{
-					LibraryID: libraryID,
-					Limit:     int64(pagination.Limit),
-					Offset:    int64(pagination.Offset),
-				})
-			},
-			func(id int64) int64 { return id },
-			func(id int64) int64 { return id },
-		)
-		return pgResults, err
+		return r.Q().ListArtistIDsByLibraryPaginatedDesc(ctx, unified.ListArtistIDsByLibraryPaginatedDescParams{
+			LibraryID: libraryID,
+			Limit:     int64(pagination.Limit),
+			Offset:    int64(pagination.Offset),
+		})
 	}
 
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]int64, error) {
-			return r.Postgres().ListArtistIDsByLibraryPaginated(ctx, sqlc_postgres.ListArtistIDsByLibraryPaginatedParams{
-				LibraryID: libraryID,
-				Limit:     int32(pagination.Limit),
-				Offset:    int32(pagination.Offset),
-			})
-		},
-		func() ([]int64, error) {
-			return r.SQLite().ListArtistIDsByLibraryPaginated(ctx, sqlc_sqlite.ListArtistIDsByLibraryPaginatedParams{
-				LibraryID: libraryID,
-				Limit:     int64(pagination.Limit),
-				Offset:    int64(pagination.Offset),
-			})
-		},
-		func(id int64) int64 { return id },
-		func(id int64) int64 { return id },
-	)
+	return r.Q().ListArtistIDsByLibraryPaginated(ctx, unified.ListArtistIDsByLibraryPaginatedParams{
+		LibraryID: libraryID,
+		Limit:     int64(pagination.Limit),
+		Offset:    int64(pagination.Offset),
+	})
 }
 
 // CreateAlbum creates a new album entity
 func (r *Repository) CreateAlbum(ctx context.Context, album *media.Album) error {
-	pgAlbum, err := common.QuerySingle(
-		r.BaseRepository, ctx,
-		func() (sqlc_postgres.MusicAlbum, error) {
-			return r.Postgres().CreateAlbum(ctx, buildPostgresCreateAlbumParams(album))
-		},
-		func() (sqlc_sqlite.MusicAlbum, error) {
-			return r.SQLite().CreateAlbum(ctx, buildSQLiteCreateAlbumParams(album))
-		},
-		func(row sqlc_postgres.MusicAlbum) *media.Album {
-			album.ID = int64(row.ID)
-			return album
-		},
-		func(row sqlc_sqlite.MusicAlbum) *media.Album {
-			album.ID = row.ID
-			return album
-		},
-	)
+	createdAlbum, err := r.Q().CreateAlbum(ctx, buildCreateAlbumParams(album))
 	if err != nil {
 		return err
 	}
-	album.ID = pgAlbum.ID
+	album.ID = createdAlbum.ID
 	return nil
 }
 
 // GetAlbumByID retrieves an album by its ID
 func (r *Repository) GetAlbumByID(ctx context.Context, id int64) (*media.Album, error) {
-	album, err := common.QuerySingle(
-		r.BaseRepository, ctx,
-		func() (sqlc_postgres.MusicAlbum, error) {
-			return r.Postgres().GetAlbumByID(ctx, id)
-		},
-		func() (sqlc_sqlite.MusicAlbum, error) {
-			return r.SQLite().GetAlbumByID(ctx, id)
-		},
-		postgresAlbumToDomain,
-		sqliteAlbumToDomain,
-	)
-	return album, r.ConvertNotFoundError(err)
+	row, err := r.Q().GetAlbumByID(ctx, id)
+	if err != nil {
+		return nil, r.ConvertNotFoundError(err)
+	}
+	return albumToDomain(row), nil
 }
 
 // UpdateAlbum updates an existing album in the database
 func (r *Repository) UpdateAlbum(ctx context.Context, album *media.Album) error {
-	return common.ExecuteCommand(
-		r.BaseRepository, ctx,
-		func() error {
-			return r.Postgres().UpdateAlbum(ctx, buildPostgresUpdateAlbumParams(album))
-		},
-		func() error {
-			return r.SQLite().UpdateAlbum(ctx, buildSQLiteUpdateAlbumParams(album))
-		},
-	)
+	return r.Q().UpdateAlbum(ctx, buildUpdateAlbumParams(album))
 }
 
 // FindAlbumByTitle finds an album by library, title, and album artist
 func (r *Repository) FindAlbumByTitle(ctx context.Context, libraryID int64, title, albumArtist string) (*media.Album, error) {
-	album, err := common.QuerySingle(
-		r.BaseRepository, ctx,
-		func() (sqlc_postgres.MusicAlbum, error) {
-			return r.Postgres().FindAlbumByTitle(ctx, sqlc_postgres.FindAlbumByTitleParams{
-				LibraryID:   libraryID,
-				Title:       title,
-				AlbumArtist: common.NullString(albumArtist),
-			})
-		},
-		func() (sqlc_sqlite.MusicAlbum, error) {
-			return r.SQLite().FindAlbumByTitle(ctx, sqlc_sqlite.FindAlbumByTitleParams{
-				LibraryID:   libraryID,
-				Title:       title,
-				AlbumArtist: common.NullString(albumArtist),
-			})
-		},
-		postgresAlbumToDomain,
-		sqliteAlbumToDomain,
-	)
-	return album, r.ConvertNotFoundError(err)
+	row, err := r.Q().FindAlbumByTitle(ctx, unified.FindAlbumByTitleParams{
+		LibraryID:   libraryID,
+		Title:       title,
+		AlbumArtist: common.NullString(albumArtist),
+	})
+	if err != nil {
+		return nil, r.ConvertNotFoundError(err)
+	}
+	return albumToDomain(row), nil
 }
 
 // ListAlbumsByLibrary retrieves all albums in a library
 func (r *Repository) ListAlbumsByLibrary(ctx context.Context, libraryID int64) ([]*media.Album, error) {
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.MusicAlbum, error) {
-			return r.Postgres().ListAlbumsByLibrary(ctx, libraryID)
-		},
-		func() ([]sqlc_sqlite.MusicAlbum, error) {
-			return r.SQLite().ListAlbumsByLibrary(ctx, libraryID)
-		},
-		postgresAlbumToDomain,
-		sqliteAlbumToDomain,
-	)
+	rows, err := r.Q().ListAlbumsByLibrary(ctx, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, albumToDomain), nil
 }
 
 // ListMusicTracksByAlbumID retrieves all tracks for a specific album ID
 func (r *Repository) ListMusicTracksByAlbumID(ctx context.Context, albumID int64) ([]*media.MusicTrack, error) {
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.ListMusicTracksByAlbumIDRow, error) {
-			return r.Postgres().ListMusicTracksByAlbumID(ctx, common.NullInt64(albumID))
-		},
-		func() ([]sqlc_sqlite.ListMusicTracksByAlbumIDRow, error) {
-			return r.SQLite().ListMusicTracksByAlbumID(ctx, common.NullInt64(albumID))
-		},
-		postgresMusicTrackRowToDomain[sqlc_postgres.ListMusicTracksByAlbumIDRow],
-		sqliteGenericMusicTrackRowToDomain[sqlc_sqlite.ListMusicTracksByAlbumIDRow],
-	)
+	rows, err := r.Q().ListMusicTracksByAlbumID(ctx, common.NullInt64(albumID))
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, albumIDMusicTrackRowToDomain), nil
 }
 
 // ============================================================================
@@ -670,23 +332,7 @@ func (r *Repository) CreateArtist(ctx context.Context, artist *media.Artist) err
 		return err
 	}
 
-	createdArtist, err := common.QuerySingle(
-		r.BaseRepository, ctx,
-		func() (sqlc_postgres.MusicArtist, error) {
-			return r.Postgres().CreateArtist(ctx, buildPostgresCreateArtistParams(artist))
-		},
-		func() (sqlc_sqlite.MusicArtist, error) {
-			return r.SQLite().CreateArtist(ctx, buildSQLiteCreateArtistParams(artist))
-		},
-		func(row sqlc_postgres.MusicArtist) *media.Artist {
-			artist.ID = int64(row.ID)
-			return artist
-		},
-		func(row sqlc_sqlite.MusicArtist) *media.Artist {
-			artist.ID = row.ID
-			return artist
-		},
-	)
+	createdArtist, err := r.Q().CreateArtist(ctx, buildCreateArtistParams(artist))
 	if err != nil {
 		return err
 	}
@@ -696,66 +342,37 @@ func (r *Repository) CreateArtist(ctx context.Context, artist *media.Artist) err
 
 // GetArtistByID retrieves an artist by its ID
 func (r *Repository) GetArtistByID(ctx context.Context, id int64) (*media.Artist, error) {
-	return common.QuerySingle(
-		r.BaseRepository, ctx,
-		func() (sqlc_postgres.MusicArtist, error) {
-			return r.Postgres().GetArtistByID(ctx, id)
-		},
-		func() (sqlc_sqlite.MusicArtist, error) {
-			return r.SQLite().GetArtistByID(ctx, id)
-		},
-		postgresArtistToDomain,
-		sqliteArtistToDomain,
-	)
+	row, err := r.Q().GetArtistByID(ctx, id)
+	if err != nil {
+		return nil, r.ConvertNotFoundError(err)
+	}
+	return artistToDomain(row), nil
 }
 
 // UpdateArtist updates an existing artist in the database
 func (r *Repository) UpdateArtist(ctx context.Context, artist *media.Artist) error {
-	return common.ExecuteCommand(
-		r.BaseRepository, ctx,
-		func() error {
-			return r.Postgres().UpdateArtist(ctx, buildPostgresUpdateArtistParams(artist))
-		},
-		func() error {
-			return r.SQLite().UpdateArtist(ctx, buildSQLiteUpdateArtistParams(artist))
-		},
-	)
+	return r.Q().UpdateArtist(ctx, buildUpdateArtistParams(artist))
 }
 
 // FindArtistByName finds an artist by library and name
 func (r *Repository) FindArtistByName(ctx context.Context, libraryID int64, name string) (*media.Artist, error) {
-	return common.QuerySingle(
-		r.BaseRepository, ctx,
-		func() (sqlc_postgres.MusicArtist, error) {
-			return r.Postgres().FindArtistByName(ctx, sqlc_postgres.FindArtistByNameParams{
-				LibraryID: libraryID,
-				Name:      name,
-			})
-		},
-		func() (sqlc_sqlite.MusicArtist, error) {
-			return r.SQLite().FindArtistByName(ctx, sqlc_sqlite.FindArtistByNameParams{
-				LibraryID: libraryID,
-				Name:      name,
-			})
-		},
-		postgresArtistToDomain,
-		sqliteArtistToDomain,
-	)
+	row, err := r.Q().FindArtistByName(ctx, unified.FindArtistByNameParams{
+		LibraryID: libraryID,
+		Name:      name,
+	})
+	if err != nil {
+		return nil, r.ConvertNotFoundError(err)
+	}
+	return artistToDomain(row), nil
 }
 
 // ListArtistsByLibrary retrieves all artist entities in a library
 func (r *Repository) ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]*media.Artist, error) {
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.MusicArtist, error) {
-			return r.Postgres().ListArtistsByLibrary(ctx, libraryID)
-		},
-		func() ([]sqlc_sqlite.MusicArtist, error) {
-			return r.SQLite().ListArtistsByLibrary(ctx, libraryID)
-		},
-		postgresArtistToDomain,
-		sqliteArtistToDomain,
-	)
+	rows, err := r.Q().ListArtistsByLibrary(ctx, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, artistToDomain), nil
 }
 
 // SearchArtistsByName searches for artists by name with pagination
@@ -766,52 +383,28 @@ func (r *Repository) SearchArtistsByName(ctx context.Context, libraryID int64, q
 
 	searchPattern := "%" + query + "%"
 
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.MusicArtist, error) {
-			return r.Postgres().SearchArtistsByName(ctx, sqlc_postgres.SearchArtistsByNameParams{
-				LibraryID: libraryID,
-				Name:      searchPattern,
-				SortName:  common.NullString(searchPattern),
-				Limit:     int32(pagination.Limit),
-				Offset:    int32(pagination.Offset),
-			})
-		},
-		func() ([]sqlc_sqlite.MusicArtist, error) {
-			return r.SQLite().SearchArtistsByName(ctx, sqlc_sqlite.SearchArtistsByNameParams{
-				LibraryID: libraryID,
-				Name:      searchPattern,
-				SortName:  common.NullString(searchPattern),
-				Limit:     int64(pagination.Limit),
-				Offset:    int64(pagination.Offset),
-			})
-		},
-		postgresArtistToDomain,
-		sqliteArtistToDomain,
-	)
+	rows, err := r.Q().SearchArtistsByName(ctx, unified.SearchArtistsByNameParams{
+		LibraryID: libraryID,
+		Name:      searchPattern,
+		SortName:  common.NullString(searchPattern),
+		Limit:     int64(pagination.Limit),
+		Offset:    int64(pagination.Offset),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, artistToDomain), nil
 }
 
 // CountSearchArtistsByName returns the count of artists matching a search query
 func (r *Repository) CountSearchArtistsByName(ctx context.Context, libraryID int64, query string) (int64, error) {
 	searchPattern := "%" + query + "%"
 
-	return common.QueryScalar(
-		r.BaseRepository, ctx,
-		func() (int64, error) {
-			return r.Postgres().CountSearchArtistsByName(ctx, sqlc_postgres.CountSearchArtistsByNameParams{
-				LibraryID: libraryID,
-				Name:      searchPattern,
-				SortName:  common.NullString(searchPattern),
-			})
-		},
-		func() (int64, error) {
-			return r.SQLite().CountSearchArtistsByName(ctx, sqlc_sqlite.CountSearchArtistsByNameParams{
-				LibraryID: libraryID,
-				Name:      searchPattern,
-				SortName:  common.NullString(searchPattern),
-			})
-		},
-	)
+	return r.Q().CountSearchArtistsByName(ctx, unified.CountSearchArtistsByNameParams{
+		LibraryID: libraryID,
+		Name:      searchPattern,
+		SortName:  common.NullString(searchPattern),
+	})
 }
 
 // ArtistWithCounts represents an artist with album and track counts from the database
@@ -835,78 +428,26 @@ func (r *Repository) GetArtistsWithCountsByLibraryPaginated(ctx context.Context,
 	}
 
 	if sortBy == "title_desc" {
-		return common.QueryMany(
-			r.BaseRepository, ctx,
-			func() ([]sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescRow, error) {
-				return r.Postgres().GetArtistsWithCountsByLibraryPaginatedDesc(ctx, sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescParams{
-					LibraryID: libraryID,
-					Limit:     int32(pagination.Limit),
-					Offset:    int32(pagination.Offset),
-				})
-			},
-			func() ([]sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedDescRow, error) {
-				return r.SQLite().GetArtistsWithCountsByLibraryPaginatedDesc(ctx, sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedDescParams{
-					LibraryID: libraryID,
-					Limit:     int64(pagination.Limit),
-					Offset:    int64(pagination.Offset),
-				})
-			},
-			func(row sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescRow) ArtistWithCounts {
-				return ArtistWithCounts{
-					ID:         row.ID,
-					LibraryID:  row.LibraryID,
-					Name:       row.Name,
-					AlbumCount: int(row.AlbumCount),
-					TrackCount: int(row.TrackCount),
-				}
-			},
-			func(row sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedDescRow) ArtistWithCounts {
-				return ArtistWithCounts{
-					ID:         row.ID,
-					LibraryID:  row.LibraryID,
-					Name:       row.Name,
-					AlbumCount: int(row.AlbumCount),
-					TrackCount: int(row.TrackCount),
-				}
-			},
-		)
+		rows, err := r.Q().GetArtistsWithCountsByLibraryPaginatedDesc(ctx, unified.GetArtistsWithCountsByLibraryPaginatedDescParams{
+			LibraryID: libraryID,
+			Limit:     int64(pagination.Limit),
+			Offset:    int64(pagination.Offset),
+		})
+		if err != nil {
+			return nil, err
+		}
+		return mapSlice(rows, artistWithCountsDescToInternal), nil
 	}
 
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedRow, error) {
-			return r.Postgres().GetArtistsWithCountsByLibraryPaginated(ctx, sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedParams{
-				LibraryID: libraryID,
-				Limit:     int32(pagination.Limit),
-				Offset:    int32(pagination.Offset),
-			})
-		},
-		func() ([]sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedRow, error) {
-			return r.SQLite().GetArtistsWithCountsByLibraryPaginated(ctx, sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedParams{
-				LibraryID: libraryID,
-				Limit:     int64(pagination.Limit),
-				Offset:    int64(pagination.Offset),
-			})
-		},
-		func(row sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedRow) ArtistWithCounts {
-			return ArtistWithCounts{
-				ID:         row.ID,
-				LibraryID:  row.LibraryID,
-				Name:       row.Name,
-				AlbumCount: int(row.AlbumCount),
-				TrackCount: int(row.TrackCount),
-			}
-		},
-		func(row sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedRow) ArtistWithCounts {
-			return ArtistWithCounts{
-				ID:         row.ID,
-				LibraryID:  row.LibraryID,
-				Name:       row.Name,
-				AlbumCount: int(row.AlbumCount),
-				TrackCount: int(row.TrackCount),
-			}
-		},
-	)
+	rows, err := r.Q().GetArtistsWithCountsByLibraryPaginated(ctx, unified.GetArtistsWithCountsByLibraryPaginatedParams{
+		LibraryID: libraryID,
+		Limit:     int64(pagination.Limit),
+		Offset:    int64(pagination.Offset),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, artistWithCountsToInternal), nil
 }
 
 // SearchArtistsWithCountsByNamePaginated searches for artists by name and returns counts
@@ -917,45 +458,17 @@ func (r *Repository) SearchArtistsWithCountsByNamePaginated(ctx context.Context,
 
 	searchPattern := "%" + query + "%"
 
-	return common.QueryMany(
-		r.BaseRepository, ctx,
-		func() ([]sqlc_postgres.SearchArtistsWithCountsByNamePaginatedRow, error) {
-			return r.Postgres().SearchArtistsWithCountsByNamePaginated(ctx, sqlc_postgres.SearchArtistsWithCountsByNamePaginatedParams{
-				LibraryID: libraryID,
-				Name:      searchPattern,
-				SortName:  common.NullString(searchPattern),
-				Limit:     int32(pagination.Limit),
-				Offset:    int32(pagination.Offset),
-			})
-		},
-		func() ([]sqlc_sqlite.SearchArtistsWithCountsByNamePaginatedRow, error) {
-			return r.SQLite().SearchArtistsWithCountsByNamePaginated(ctx, sqlc_sqlite.SearchArtistsWithCountsByNamePaginatedParams{
-				LibraryID: libraryID,
-				Name:      searchPattern,
-				SortName:  common.NullString(searchPattern),
-				Limit:     int64(pagination.Limit),
-				Offset:    int64(pagination.Offset),
-			})
-		},
-		func(row sqlc_postgres.SearchArtistsWithCountsByNamePaginatedRow) ArtistWithCounts {
-			return ArtistWithCounts{
-				ID:         row.ID,
-				LibraryID:  row.LibraryID,
-				Name:       row.Name,
-				AlbumCount: int(row.AlbumCount),
-				TrackCount: int(row.TrackCount),
-			}
-		},
-		func(row sqlc_sqlite.SearchArtistsWithCountsByNamePaginatedRow) ArtistWithCounts {
-			return ArtistWithCounts{
-				ID:         row.ID,
-				LibraryID:  row.LibraryID,
-				Name:       row.Name,
-				AlbumCount: int(row.AlbumCount),
-				TrackCount: int(row.TrackCount),
-			}
-		},
-	)
+	rows, err := r.Q().SearchArtistsWithCountsByNamePaginated(ctx, unified.SearchArtistsWithCountsByNamePaginatedParams{
+		LibraryID: libraryID,
+		Name:      searchPattern,
+		SortName:  common.NullString(searchPattern),
+		Limit:     int64(pagination.Limit),
+		Offset:    int64(pagination.Offset),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, searchArtistWithCountsRowToDomain), nil
 }
 
 // CreateMusicTrackWithEntities atomically creates a music track along with artist and album entities if needed.
@@ -973,23 +486,13 @@ func (r *Repository) CreateMusicTrackWithEntities(ctx context.Context, track *me
 				track.ArtistID = existingArtist.ID
 			} else {
 				// Create new artist within transaction
-				if tx.IsPostgresDB() {
-					params := buildPostgresCreateArtistParams(artist)
-					createdArtist, err := tx.Postgres().CreateArtist(ctx, params)
-					if err != nil {
-						return fmt.Errorf("failed to create artist in transaction: %w", err)
-					}
-					artist.ID = int64(createdArtist.ID)
-					track.ArtistID = int64(createdArtist.ID)
-				} else {
-					params := buildSQLiteCreateArtistParams(artist)
-					createdArtist, err := tx.SQLite().CreateArtist(ctx, params)
-					if err != nil {
-						return fmt.Errorf("failed to create artist in transaction: %w", err)
-					}
-					artist.ID = createdArtist.ID
-					track.ArtistID = createdArtist.ID
+				params := buildCreateArtistParams(artist)
+				createdArtist, err := tx.Q().CreateArtist(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to create artist in transaction: %w", err)
 				}
+				artist.ID = createdArtist.ID
+				track.ArtistID = createdArtist.ID
 			}
 		}
 
@@ -1014,54 +517,28 @@ func (r *Repository) CreateMusicTrackWithEntities(ctx context.Context, track *me
 				}
 
 				// Create new album within transaction
-				if tx.IsPostgresDB() {
-					params := buildPostgresCreateAlbumParams(album)
-					createdAlbum, err := tx.Postgres().CreateAlbum(ctx, params)
-					if err != nil {
-						return fmt.Errorf("failed to create album in transaction: %w", err)
-					}
-					album.ID = int64(createdAlbum.ID)
-					track.AlbumID = int64(createdAlbum.ID)
-				} else {
-					params := buildSQLiteCreateAlbumParams(album)
-					createdAlbum, err := tx.SQLite().CreateAlbum(ctx, params)
-					if err != nil {
-						return fmt.Errorf("failed to create album in transaction: %w", err)
-					}
-					album.ID = createdAlbum.ID
-					track.AlbumID = createdAlbum.ID
+				params := buildCreateAlbumParams(album)
+				createdAlbum, err := tx.Q().CreateAlbum(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to create album in transaction: %w", err)
 				}
+				album.ID = createdAlbum.ID
+				track.AlbumID = createdAlbum.ID
 			}
 		}
 
 		// Step 3: Create base media record within transaction
-		if tx.IsPostgresDB() {
-			mediaParams := buildPostgresCreateMediaParams(&track.Media)
-			createdMedia, err := tx.Postgres().CreateMedia(ctx, mediaParams)
-			if err != nil {
-				return fmt.Errorf("failed to create media in transaction: %w", err)
-			}
-			track.Media.ID = int64(createdMedia.ID)
-		} else {
-			mediaParams := buildSQLiteCreateMediaParams(&track.Media)
-			createdMedia, err := tx.SQLite().CreateMedia(ctx, mediaParams)
-			if err != nil {
-				return fmt.Errorf("failed to create media in transaction: %w", err)
-			}
-			track.Media.ID = createdMedia.ID
+		mediaParams := buildCreateMediaParams(&track.Media)
+		createdMedia, err := tx.Q().CreateMedia(ctx, mediaParams)
+		if err != nil {
+			return fmt.Errorf("failed to create media in transaction: %w", err)
 		}
+		track.Media.ID = createdMedia.ID
 
 		// Step 4: Create music track record within transaction
-		if tx.IsPostgresDB() {
-			trackParams := buildPostgresCreateMusicTrackParams(track)
-			if err := tx.Postgres().CreateMusicTrack(ctx, trackParams); err != nil {
-				return fmt.Errorf("failed to create music track in transaction: %w", err)
-			}
-		} else {
-			trackParams := buildSQLiteCreateMusicTrackParams(track)
-			if err := tx.SQLite().CreateMusicTrack(ctx, trackParams); err != nil {
-				return fmt.Errorf("failed to create music track in transaction: %w", err)
-			}
+		trackParams := buildCreateMusicTrackParams(track)
+		if err := tx.Q().CreateMusicTrack(ctx, trackParams); err != nil {
+			return fmt.Errorf("failed to create music track in transaction: %w", err)
 		}
 
 		return nil

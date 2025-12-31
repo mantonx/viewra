@@ -352,7 +352,7 @@ SELECT DISTINCT
     mt.album_artist,
     mt.year,
     COUNT(*) as track_count,
-    SUM(med.duration) as total_duration
+    CAST(SUM(med.duration) AS INTEGER) as total_duration
 FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = ?
@@ -375,7 +375,7 @@ SELECT DISTINCT
     mt.album_artist,
     mt.year,
     COUNT(*) as track_count,
-    SUM(med.duration) as total_duration
+    CAST(SUM(med.duration) AS INTEGER) as total_duration
 FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = ?
@@ -389,7 +389,7 @@ SELECT DISTINCT
     mt.album_artist,
     mt.year,
     COUNT(*) as track_count,
-    SUM(med.duration) as total_duration
+    CAST(SUM(med.duration) AS INTEGER) as total_duration
 FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = ?

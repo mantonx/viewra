@@ -354,11 +354,11 @@ func (q *Queries) GetEnrichmentJobByMediaAndStage(ctx context.Context, arg GetEn
 const getEnrichmentQueueStats = `-- name: GetEnrichmentQueueStats :one
 SELECT
     stage,
-    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count,
-    SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing_count,
-    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_count,
-    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count,
-    SUM(CASE WHEN status = 'skipped' THEN 1 ELSE 0 END) as skipped_count,
+    CAST(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS INTEGER) as pending_count,
+    CAST(SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS INTEGER) as processing_count,
+    CAST(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS INTEGER) as completed_count,
+    CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_count,
+    CAST(SUM(CASE WHEN status = 'skipped' THEN 1 ELSE 0 END) AS INTEGER) as skipped_count,
     COUNT(*) as total_count
 FROM enrichment_queue
 WHERE stage = ?
@@ -366,13 +366,13 @@ GROUP BY stage
 `
 
 type GetEnrichmentQueueStatsRow struct {
-	Stage           string          `json:"stage"`
-	PendingCount    sql.NullFloat64 `json:"pending_count"`
-	ProcessingCount sql.NullFloat64 `json:"processing_count"`
-	CompletedCount  sql.NullFloat64 `json:"completed_count"`
-	FailedCount     sql.NullFloat64 `json:"failed_count"`
-	SkippedCount    sql.NullFloat64 `json:"skipped_count"`
-	TotalCount      int64           `json:"total_count"`
+	Stage           string `json:"stage"`
+	PendingCount    int64  `json:"pending_count"`
+	ProcessingCount int64  `json:"processing_count"`
+	CompletedCount  int64  `json:"completed_count"`
+	FailedCount     int64  `json:"failed_count"`
+	SkippedCount    int64  `json:"skipped_count"`
+	TotalCount      int64  `json:"total_count"`
 }
 
 func (q *Queries) GetEnrichmentQueueStats(ctx context.Context, stage string) (GetEnrichmentQueueStatsRow, error) {
@@ -781,26 +781,20 @@ func (q *Queries) SkipEnrichmentJob(ctx context.Context, id int64) error {
 
 const updatePriorityByMedia = `-- name: UpdatePriorityByMedia :exec
 UPDATE enrichment_queue
-SET priority = ?, updated_at = datetime('now')
-WHERE media_id = ? AND media_type = ? AND status IN ('pending', 'processing') AND priority < ?
+SET priority = ?1, updated_at = datetime('now')
+WHERE media_id = ?2 AND media_type = ?3 AND status IN ('pending', 'processing') AND priority < ?1
 `
 
 type UpdatePriorityByMediaParams struct {
-	Priority   sql.NullInt64 `json:"priority"`
-	MediaID    int64         `json:"media_id"`
-	MediaType  string        `json:"media_type"`
-	Priority_2 sql.NullInt64 `json:"priority_2"`
+	Priority  sql.NullInt64 `json:"priority"`
+	MediaID   int64         `json:"media_id"`
+	MediaType string        `json:"media_type"`
 }
 
 // Updates priority for all pending/processing jobs for a media item.
 // Used to boost priority after enrichment discovers actual release date.
 // Only upgrades priority (higher values), never downgrades - preserves "added recently" boost.
 func (q *Queries) UpdatePriorityByMedia(ctx context.Context, arg UpdatePriorityByMediaParams) error {
-	_, err := q.db.ExecContext(ctx, updatePriorityByMedia,
-		arg.Priority,
-		arg.MediaID,
-		arg.MediaType,
-		arg.Priority_2,
-	)
+	_, err := q.db.ExecContext(ctx, updatePriorityByMedia, arg.Priority, arg.MediaID, arg.MediaType)
 	return err
 }
