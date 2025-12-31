@@ -48,14 +48,14 @@ LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 -- name: ListWatchedByUserID :many
 SELECT * FROM watch_progress
 WHERE user_id = $1
-  AND watched = TRUE
+  AND watched = 1
 ORDER BY last_watched DESC
 LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: ListInProgressByUserID :many
 SELECT * FROM watch_progress
 WHERE user_id = $1
-  AND watched = FALSE
+  AND watched = 0
   AND position > 0
 ORDER BY last_watched DESC
 LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;

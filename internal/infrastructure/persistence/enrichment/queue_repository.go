@@ -106,9 +106,11 @@ func (r *QueueRepository) GetStats(ctx context.Context, stage string) (*enrichme
 // ReleaseStuck releases jobs that have been locked too long.
 func (r *QueueRepository) ReleaseStuck(ctx context.Context, maxLockSeconds int) error {
 	// Use appropriate interval format based on database type
+	// PostgreSQL: '600 seconds' (for interval concatenation)
+	// SQLite: '-600' (for datetime modifier)
 	var interval string
 	if common.IsPostgres(r.DBType()) {
-		interval = fmt.Sprintf("%d seconds", -maxLockSeconds)
+		interval = fmt.Sprintf("%d", maxLockSeconds)
 	} else {
 		interval = fmt.Sprintf("-%d", maxLockSeconds)
 	}

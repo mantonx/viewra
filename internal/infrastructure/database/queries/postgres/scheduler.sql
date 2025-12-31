@@ -19,7 +19,7 @@ SELECT id, name, description, schedule, enabled, source, source_id,
        depends_on, timeout_seconds, retry_count, retry_delay_seconds,
        concurrency_key, created_at, updated_at
 FROM scheduled_tasks
-WHERE enabled = TRUE
+WHERE enabled = 1
 ORDER BY source, name;
 
 -- name: ListScheduledTasksBySource :many
@@ -66,10 +66,10 @@ UPDATE scheduled_tasks SET
 WHERE id = sqlc.arg('id');
 
 -- name: EnableScheduledTask :exec
-UPDATE scheduled_tasks SET enabled = TRUE, updated_at = NOW() WHERE id = $1;
+UPDATE scheduled_tasks SET enabled = 1, updated_at = NOW() WHERE id = $1;
 
 -- name: DisableScheduledTask :exec
-UPDATE scheduled_tasks SET enabled = FALSE, updated_at = NOW() WHERE id = $1;
+UPDATE scheduled_tasks SET enabled = 0, updated_at = NOW() WHERE id = $1;
 
 -- name: DeleteScheduledTask :exec
 DELETE FROM scheduled_tasks WHERE id = $1;
@@ -78,7 +78,7 @@ DELETE FROM scheduled_tasks WHERE id = $1;
 DELETE FROM scheduled_tasks WHERE source_id = $1;
 
 -- name: ScheduledTaskExists :one
-SELECT EXISTS(SELECT 1 FROM scheduled_tasks WHERE id = $1)::bigint as task_exists;
+SELECT CASE WHEN EXISTS(SELECT 1 FROM scheduled_tasks WHERE id = $1) THEN 1::bigint ELSE 0::bigint END as task_exists;
 
 -- Scheduler Executions Queries
 
@@ -149,7 +149,7 @@ SELECT id, task_id, status, scheduled_at, started_at, ended_at, duration_ms,
        success, error, logs, attempt, parent_execution_id, triggered_by,
        dependency_exec_id, resumable, created_at
 FROM scheduler_executions
-WHERE status = 'interrupted' AND resumable = TRUE
+WHERE status = 'interrupted' AND resumable = 1
 ORDER BY created_at DESC;
 
 -- name: CountSchedulerExecutionsByTask :one
@@ -171,8 +171,8 @@ WHERE status IN ('pending', 'running');
 -- name: GetSchedulerExecutionStats :one
 SELECT
     COUNT(*) as total_executions,
-    SUM(CASE WHEN success = TRUE THEN 1 ELSE 0 END) as successful_executions,
-    SUM(CASE WHEN success = FALSE THEN 1 ELSE 0 END) as failed_executions,
+    SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful_executions,
+    SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failed_executions,
     AVG(duration_ms) as avg_duration_ms,
     MAX(started_at) as last_execution
 FROM scheduler_executions
@@ -197,7 +197,7 @@ DELETE FROM scheduler_locks WHERE lock_key = $1;
 UPDATE scheduler_locks SET expires_at = $1 WHERE lock_key = $2;
 
 -- name: SchedulerLockExists :one
-SELECT EXISTS(SELECT 1 FROM scheduler_locks WHERE lock_key = $1 AND expires_at > NOW())::bigint as lock_exists;
+SELECT CASE WHEN EXISTS(SELECT 1 FROM scheduler_locks WHERE lock_key = $1 AND expires_at > NOW()) THEN 1::bigint ELSE 0::bigint END as lock_exists;
 
 -- name: CleanExpiredSchedulerLocks :execrows
 DELETE FROM scheduler_locks WHERE expires_at < NOW();

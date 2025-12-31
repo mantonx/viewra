@@ -58,12 +58,12 @@ ORDER BY file_mtime DESC;
 
 -- name: GetLibraryWarnings :many
 SELECT * FROM scan_state
-WHERE library_id = $1 AND has_warning = TRUE
+WHERE library_id = $1 AND has_warning = 1
 ORDER BY file_path ASC;
 
 -- name: CountLibraryWarnings :one
 SELECT COUNT(*) FROM scan_state
-WHERE library_id = $1 AND has_warning = TRUE;
+WHERE library_id = $1 AND has_warning = 1;
 
 -- name: SetScanStateWarning :exec
 UPDATE scan_state
@@ -74,19 +74,19 @@ WHERE library_id = $4 AND file_path = $5;
 
 -- name: ClearScanStateWarning :exec
 UPDATE scan_state
-SET has_warning = FALSE,
+SET has_warning = 0,
     warning_message = NULL,
     warning_category = NULL
 WHERE library_id = $1 AND file_path = $2;
 
 -- name: GetLibraryErrors :many
 SELECT * FROM scan_state
-WHERE library_id = $1 AND has_error = TRUE
+WHERE library_id = $1 AND has_error = 1
 ORDER BY file_path ASC;
 
 -- name: CountLibraryErrors :one
 SELECT COUNT(*) FROM scan_state
-WHERE library_id = $1 AND has_error = TRUE;
+WHERE library_id = $1 AND has_error = 1;
 
 -- name: SetScanStateError :exec
 UPDATE scan_state
@@ -97,19 +97,19 @@ WHERE library_id = $4 AND file_path = $5;
 
 -- name: ClearScanStateError :exec
 UPDATE scan_state
-SET has_error = FALSE,
+SET has_error = 0,
     error_message = NULL,
     error_category = NULL
 WHERE library_id = $1 AND file_path = $2;
 
 -- name: GetLibraryIssues :many
 SELECT * FROM scan_state
-WHERE library_id = $1 AND (has_warning = TRUE OR has_error = TRUE)
+WHERE library_id = $1 AND (has_warning = 1 OR has_error = 1)
 ORDER BY has_error DESC, file_path ASC;
 
 -- name: CountLibraryIssues :one
 SELECT
-    COUNT(CASE WHEN has_error = TRUE THEN 1 END) as error_count,
-    COUNT(CASE WHEN has_warning = TRUE THEN 1 END) as warning_count
+    COUNT(CASE WHEN has_error = 1 THEN 1 END) as error_count,
+    COUNT(CASE WHEN has_warning = 1 THEN 1 END) as warning_count
 FROM scan_state
 WHERE library_id = $1;

@@ -64,5 +64,5 @@ RETURNING *;
 
 -- name: ListMonitoredLibraries :many
 SELECT * FROM libraries
-WHERE monitoring_enabled = TRUE
+WHERE monitoring_enabled = 1
 ORDER BY name;

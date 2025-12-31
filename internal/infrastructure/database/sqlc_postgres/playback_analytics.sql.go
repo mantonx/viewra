@@ -225,7 +225,7 @@ func (q *Queries) GetPlaybackSummaryByMediaID(ctx context.Context, mediaID int64
 const getQualitySwitchStats = `-- name: GetQualitySwitchStats :one
 SELECT
     COUNT(*) as total_switches,
-    SUM(CASE WHEN caused_stall = true THEN 1 ELSE 0 END) as switches_with_stall,
+    SUM(CASE WHEN caused_stall = 1 THEN 1 ELSE 0 END) as switches_with_stall,
     COUNT(DISTINCT session_id) as unique_sessions
 FROM quality_switch_events
 WHERE media_id = $1

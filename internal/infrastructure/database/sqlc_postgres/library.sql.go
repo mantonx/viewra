@@ -235,7 +235,7 @@ func (q *Queries) ListLibrariesByType(ctx context.Context, type_ string) ([]Libr
 
 const listMonitoredLibraries = `-- name: ListMonitoredLibraries :many
 SELECT id, name, path, type, created_at, updated_at, preferred_audio_lang, preferred_subtitle_lang, auto_enable_subtitles, monitoring_enabled, monitoring_config FROM libraries
-WHERE monitoring_enabled = TRUE
+WHERE monitoring_enabled = 1
 ORDER BY name
 `
 

@@ -13,7 +13,7 @@ import (
 
 const clearScanStateError = `-- name: ClearScanStateError :exec
 UPDATE scan_state
-SET has_error = FALSE,
+SET has_error = 0,
     error_message = NULL,
     error_category = NULL
 WHERE library_id = $1 AND file_path = $2
@@ -31,7 +31,7 @@ func (q *Queries) ClearScanStateError(ctx context.Context, arg ClearScanStateErr
 
 const clearScanStateWarning = `-- name: ClearScanStateWarning :exec
 UPDATE scan_state
-SET has_warning = FALSE,
+SET has_warning = 0,
     warning_message = NULL,
     warning_category = NULL
 WHERE library_id = $1 AND file_path = $2
@@ -49,7 +49,7 @@ func (q *Queries) ClearScanStateWarning(ctx context.Context, arg ClearScanStateW
 
 const countLibraryErrors = `-- name: CountLibraryErrors :one
 SELECT COUNT(*) FROM scan_state
-WHERE library_id = $1 AND has_error = TRUE
+WHERE library_id = $1 AND has_error = 1
 `
 
 func (q *Queries) CountLibraryErrors(ctx context.Context, libraryID int64) (int64, error) {
@@ -61,8 +61,8 @@ func (q *Queries) CountLibraryErrors(ctx context.Context, libraryID int64) (int6
 
 const countLibraryIssues = `-- name: CountLibraryIssues :one
 SELECT
-    COUNT(CASE WHEN has_error = TRUE THEN 1 END) as error_count,
-    COUNT(CASE WHEN has_warning = TRUE THEN 1 END) as warning_count
+    COUNT(CASE WHEN has_error = 1 THEN 1 END) as error_count,
+    COUNT(CASE WHEN has_warning = 1 THEN 1 END) as warning_count
 FROM scan_state
 WHERE library_id = $1
 `
@@ -93,7 +93,7 @@ func (q *Queries) CountLibraryScanState(ctx context.Context, libraryID int64) (i
 
 const countLibraryWarnings = `-- name: CountLibraryWarnings :one
 SELECT COUNT(*) FROM scan_state
-WHERE library_id = $1 AND has_warning = TRUE
+WHERE library_id = $1 AND has_warning = 1
 `
 
 func (q *Queries) CountLibraryWarnings(ctx context.Context, libraryID int64) (int64, error) {
@@ -130,7 +130,7 @@ func (q *Queries) DeleteScanStateByPath(ctx context.Context, arg DeleteScanState
 
 const getLibraryErrors = `-- name: GetLibraryErrors :many
 SELECT id, library_id, file_path, file_size, file_mtime, file_hash, media_id, last_scanned_at, scan_job_id, created_at, has_warning, warning_message, warning_category, has_error, error_message, error_category FROM scan_state
-WHERE library_id = $1 AND has_error = TRUE
+WHERE library_id = $1 AND has_error = 1
 ORDER BY file_path ASC
 `
 
@@ -176,7 +176,7 @@ func (q *Queries) GetLibraryErrors(ctx context.Context, libraryID int64) ([]Scan
 
 const getLibraryIssues = `-- name: GetLibraryIssues :many
 SELECT id, library_id, file_path, file_size, file_mtime, file_hash, media_id, last_scanned_at, scan_job_id, created_at, has_warning, warning_message, warning_category, has_error, error_message, error_category FROM scan_state
-WHERE library_id = $1 AND (has_warning = TRUE OR has_error = TRUE)
+WHERE library_id = $1 AND (has_warning = 1 OR has_error = 1)
 ORDER BY has_error DESC, file_path ASC
 `
 
@@ -268,7 +268,7 @@ func (q *Queries) GetLibraryScanState(ctx context.Context, libraryID int64) ([]S
 
 const getLibraryWarnings = `-- name: GetLibraryWarnings :many
 SELECT id, library_id, file_path, file_size, file_mtime, file_hash, media_id, last_scanned_at, scan_job_id, created_at, has_warning, warning_message, warning_category, has_error, error_message, error_category FROM scan_state
-WHERE library_id = $1 AND has_warning = TRUE
+WHERE library_id = $1 AND has_warning = 1
 ORDER BY file_path ASC
 `
 

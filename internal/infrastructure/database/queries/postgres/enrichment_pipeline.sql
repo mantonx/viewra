@@ -24,7 +24,7 @@ WHERE media_type = $1 AND stage_name = $2;
 
 -- name: GetEnabledPipelineStages :many
 SELECT * FROM enrichment_pipelines
-WHERE media_type = $1 AND enabled = TRUE
+WHERE media_type = $1 AND enabled = 1
 ORDER BY position ASC;
 
 -- name: GetAllPipelineStages :many
@@ -52,14 +52,14 @@ WHERE id = $2;
 -- name: EnablePipelineStage :exec
 UPDATE enrichment_pipelines
 SET
-    enabled = TRUE,
+    enabled = 1,
     updated_at = NOW()
 WHERE id = $1;
 
 -- name: DisablePipelineStage :exec
 UPDATE enrichment_pipelines
 SET
-    enabled = FALSE,
+    enabled = 0,
     updated_at = NOW()
 WHERE id = $1;
 
@@ -76,12 +76,12 @@ WHERE media_type = $1;
 
 -- name: GetFirstPipelineStage :one
 SELECT * FROM enrichment_pipelines
-WHERE media_type = $1 AND enabled = TRUE
+WHERE media_type = $1 AND enabled = 1
 ORDER BY position ASC
 LIMIT 1;
 
 -- name: GetNextPipelineStage :one
 SELECT * FROM enrichment_pipelines
-WHERE media_type = $1 AND enabled = TRUE AND position > $2
+WHERE media_type = $1 AND enabled = 1 AND position > $2
 ORDER BY position ASC
 LIMIT 1;

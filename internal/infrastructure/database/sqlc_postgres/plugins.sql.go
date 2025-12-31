@@ -58,7 +58,7 @@ func (q *Queries) CreatePlugin(ctx context.Context, arg CreatePluginParams) erro
 }
 
 const deletePlugin = `-- name: DeletePlugin :exec
-DELETE FROM plugins WHERE id = $1 AND is_builtin = FALSE
+DELETE FROM plugins WHERE id = $1 AND is_builtin = 0
 `
 
 func (q *Queries) DeletePlugin(ctx context.Context, id string) error {
@@ -67,7 +67,7 @@ func (q *Queries) DeletePlugin(ctx context.Context, id string) error {
 }
 
 const disablePlugin = `-- name: DisablePlugin :exec
-UPDATE plugins SET enabled = FALSE, updated_at = NOW() WHERE id = $1
+UPDATE plugins SET enabled = 0, updated_at = NOW() WHERE id = $1
 `
 
 func (q *Queries) DisablePlugin(ctx context.Context, id string) error {
@@ -76,7 +76,7 @@ func (q *Queries) DisablePlugin(ctx context.Context, id string) error {
 }
 
 const enablePlugin = `-- name: EnablePlugin :exec
-UPDATE plugins SET enabled = TRUE, updated_at = NOW() WHERE id = $1
+UPDATE plugins SET enabled = 1, updated_at = NOW() WHERE id = $1
 `
 
 func (q *Queries) EnablePlugin(ctx context.Context, id string) error {
@@ -171,7 +171,7 @@ SELECT id, name, version, description, author, license, homepage,
        settings, settings_schema,
        installed_at, updated_at
 FROM plugins
-WHERE enabled = TRUE
+WHERE enabled = 1
 ORDER BY is_builtin DESC, name
 `
 
@@ -386,7 +386,7 @@ func (q *Queries) ListPluginsByCategory(ctx context.Context, category sql.NullSt
 }
 
 const pluginExists = `-- name: PluginExists :one
-SELECT EXISTS(SELECT 1 FROM plugins WHERE id = $1)::bigint as plugin_exists
+SELECT CASE WHEN EXISTS(SELECT 1 FROM plugins WHERE id = $1) THEN 1::bigint ELSE 0::bigint END as plugin_exists
 `
 
 func (q *Queries) PluginExists(ctx context.Context, id string) (int64, error) {
@@ -507,7 +507,7 @@ INSERT INTO plugins (
     categories, is_builtin, enabled, path,
     health_status, restart_count,
     installed_at, updated_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE, TRUE, $9, 'unknown', 0, NOW(), NOW())
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, 1, $9, 'unknown', 0, NOW(), NOW())
 ON CONFLICT(id) DO UPDATE SET
     name = EXCLUDED.name,
     version = EXCLUDED.version,

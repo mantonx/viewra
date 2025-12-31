@@ -228,6 +228,8 @@ import (
 	}
 
 	fmt.Fprintf(&buf, `
+	"unsafe"
+
 	sqlc_sqlite %q
 	sqlc_postgres %q
 )
@@ -263,15 +265,21 @@ type DBTX interface {
 	QueryRowContext(context.Context, string, ...interface{}) *sql.Row
 }
 
-// castSlice converts between structurally identical slice types.
+// castSlice converts between structurally identical slice types using unsafe.
 // This is safe because PostgreSQL and SQLite types are guaranteed to have
-// identical layouts after sqlc postprocessing.
+// identical memory layouts after sqlc postprocessing normalizes field order
+// and types. The unsafe conversion avoids copying and type assertion overhead.
 func castSlice[TFrom, TTo any](from []TFrom) []TTo {
-	result := make([]TTo, len(from))
-	for i, v := range from {
-		result[i] = any(v).(TTo)
+	if len(from) == 0 {
+		return nil
 	}
-	return result
+	// Direct memory reinterpretation - safe because types have identical layouts
+	return *(*[]TTo)(unsafe.Pointer(&from))
+}
+
+// castValue converts between structurally identical types using unsafe.
+func castValue[TFrom, TTo any](from TFrom) TTo {
+	return *(*TTo)(unsafe.Pointer(&from))
 }
 
 `, sqliteImport, postgresImport)
@@ -367,6 +375,7 @@ func buildMethodBody(m Method) string {
 
 				if isLocalType(r.Type) {
 					sqliteType := prefixLocalType(r.Type, "sqlc_sqlite")
+					pgType := prefixLocalType(r.Type, "sqlc_postgres")
 					if strings.HasPrefix(r.Type, "[]") {
 						innerType := strings.TrimPrefix(r.Type, "[]")
 						sqliteInner := prefixLocalType(innerType, "sqlc_sqlite")
@@ -374,7 +383,8 @@ func buildMethodBody(m Method) string {
 						convertedVars = append(convertedVars,
 							fmt.Sprintf("castSlice[%s, %s](%s)", pgInner, sqliteInner, varName))
 					} else {
-						convertedVars = append(convertedVars, fmt.Sprintf("%s(%s)", sqliteType, varName))
+						convertedVars = append(convertedVars,
+							fmt.Sprintf("castValue[%s, %s](%s)", pgType, sqliteType, varName))
 					}
 				} else {
 					convertedVars = append(convertedVars, varName)

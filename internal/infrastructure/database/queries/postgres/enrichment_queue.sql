@@ -269,16 +269,16 @@ FROM enrichment_status es
 JOIN enrichment_pipelines ep
     ON ep.media_type = es.media_type
     AND ep.stage_name = es.stage
-    AND ep.enabled = true
+    AND ep.enabled = 1
 JOIN enrichment_pipelines next_ep
     ON next_ep.media_type = es.media_type
-    AND next_ep.enabled = true
+    AND next_ep.enabled = 1
     AND next_ep.position = (
         SELECT MIN(ep2.position)
         FROM enrichment_pipelines ep2
         WHERE ep2.media_type = es.media_type
         AND ep2.position > ep.position
-        AND ep2.enabled = true
+        AND ep2.enabled = 1
     )
 WHERE es.status = 'completed'
 AND NOT EXISTS (

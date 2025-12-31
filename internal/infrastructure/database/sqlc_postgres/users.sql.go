@@ -83,7 +83,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
 }
 
 const existsAnyUser = `-- name: ExistsAnyUser :one
-SELECT EXISTS(SELECT 1 FROM users)::bigint
+SELECT CASE WHEN EXISTS(SELECT 1 FROM users) THEN 1::bigint ELSE 0::bigint END
 `
 
 func (q *Queries) ExistsAnyUser(ctx context.Context) (int64, error) {

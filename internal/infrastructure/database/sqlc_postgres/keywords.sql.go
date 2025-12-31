@@ -69,7 +69,7 @@ func (q *Queries) GetKeywordsByEntity(ctx context.Context, arg GetKeywordsByEnti
 const getLocationKeywordsByEntity = `-- name: GetLocationKeywordsByEntity :many
 SELECT keyword_id, keyword
 FROM media_keywords
-WHERE media_type = $1 AND entity_id = $2 AND is_location = TRUE
+WHERE media_type = $1 AND entity_id = $2 AND is_location = 1
 ORDER BY keyword
 `
 
@@ -109,7 +109,7 @@ func (q *Queries) GetLocationKeywordsByEntity(ctx context.Context, arg GetLocati
 const getThemeKeywordsByEntity = `-- name: GetThemeKeywordsByEntity :many
 SELECT keyword_id, keyword
 FROM media_keywords
-WHERE media_type = $1 AND entity_id = $2 AND is_location = FALSE
+WHERE media_type = $1 AND entity_id = $2 AND is_location = 0
 ORDER BY keyword
 `
 
@@ -211,7 +211,7 @@ func (q *Queries) SearchByKeyword(ctx context.Context, keyword string) ([]Search
 const searchByLocationKeyword = `-- name: SearchByLocationKeyword :many
 SELECT DISTINCT media_type, entity_id
 FROM media_keywords
-WHERE keyword LIKE $1 AND is_location = TRUE
+WHERE keyword LIKE $1 AND is_location = 1
 ORDER BY entity_id
 `
 

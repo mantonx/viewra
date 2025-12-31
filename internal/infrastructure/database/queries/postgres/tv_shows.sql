@@ -252,7 +252,7 @@ SELECT
 FROM tv_episodes e
 JOIN media med ON e.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
 ORDER BY e.show_id, e.season_number, e.episode_number;
 
 -- name: ListTVEpisodesByShow :many
@@ -296,7 +296,7 @@ SELECT
 FROM tv_episodes e
 JOIN media med ON e.media_id = med.id
 WHERE e.show_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
 ORDER BY e.season_number, e.episode_number;
 
 -- name: ListTVEpisodesBySeason :many
@@ -340,7 +340,7 @@ SELECT
 FROM tv_episodes e
 JOIN media med ON e.media_id = med.id
 WHERE e.season_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
 ORDER BY e.episode_number;
 
 -- name: GetTVEpisodeByShowSeasonEpisode :one
@@ -455,7 +455,7 @@ FROM tv_episodes e
 JOIN media med ON e.media_id = med.id
 JOIN tv_shows s ON e.show_id = s.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
   AND (e.episode_title ILIKE $2 OR s.title ILIKE $3)
 ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title), e.season_number, e.episode_number;
 
@@ -480,7 +480,7 @@ FROM tv_shows s
 LEFT JOIN tv_episodes e ON s.id = e.show_id
 LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = $1
-  AND (med.is_extra = false OR med.is_extra IS NULL)
+  AND (med.is_extra = 0 OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id
 ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title);
 
@@ -523,7 +523,7 @@ FROM tv_shows s
 LEFT JOIN tv_episodes e ON s.id = e.show_id
 LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = $1
-  AND (med.is_extra = false OR med.is_extra IS NULL)
+  AND (med.is_extra = 0 OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) ASC
 LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
@@ -546,7 +546,7 @@ FROM tv_shows s
 LEFT JOIN tv_episodes e ON s.id = e.show_id
 LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = $1
-  AND (med.is_extra = false OR med.is_extra IS NULL)
+  AND (med.is_extra = 0 OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) DESC
 LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
@@ -583,7 +583,7 @@ LEFT JOIN tv_episodes e ON s.id = e.show_id
 LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = $1
   AND (s.title ILIKE $2 OR s.original_title ILIKE $3)
-  AND (med.is_extra = false OR med.is_extra IS NULL)
+  AND (med.is_extra = 0 OR med.is_extra IS NULL)
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id, s.created_at
 ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) ASC
 LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;

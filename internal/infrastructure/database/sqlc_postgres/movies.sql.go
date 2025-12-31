@@ -15,7 +15,7 @@ SELECT COUNT(*)
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
 `
 
 func (q *Queries) CountMoviesByLibrary(ctx context.Context, libraryID int64) (int64, error) {
@@ -30,7 +30,7 @@ SELECT COUNT(*)
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
   AND (med.title ILIKE $2 OR m.original_title ILIKE $3)
 `
 
@@ -303,7 +303,7 @@ SELECT med.id
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
 LIMIT $3::bigint OFFSET $2::bigint
 `
@@ -343,7 +343,7 @@ SELECT med.id
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) DESC
 LIMIT $3::bigint OFFSET $2::bigint
 `
@@ -419,7 +419,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
   AND m.genre ILIKE $2
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title)
 `
@@ -613,7 +613,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title)
 `
 
@@ -801,7 +801,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
 LIMIT $3::bigint OFFSET $2::bigint
 `
@@ -997,7 +997,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) DESC
 LIMIT $3::bigint OFFSET $2::bigint
 `
@@ -1193,7 +1193,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
   AND m.year = $2
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title)
 `
@@ -1387,7 +1387,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
   AND (med.title ILIKE $2 OR m.original_title ILIKE $3)
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title)
 `
@@ -1582,7 +1582,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
   AND (med.title ILIKE $2 OR m.original_title ILIKE $3)
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
 LIMIT $5::bigint OFFSET $4::bigint
@@ -1756,7 +1756,7 @@ SELECT
     m.original_title
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.is_extra = false
+WHERE med.is_extra = 0
   AND (med.title ILIKE $1 OR m.original_title ILIKE $2)
 ORDER BY m.sort_title, med.title
 LIMIT $3::bigint

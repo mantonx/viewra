@@ -96,7 +96,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title);
 
 -- name: UpdateMovie :exec
@@ -166,7 +166,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
   AND (med.title ILIKE $2 OR m.original_title ILIKE $3)
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title);
 
@@ -211,7 +211,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
   AND m.genre ILIKE $2
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title);
 
@@ -256,7 +256,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
   AND m.year = $2
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title);
 
@@ -305,7 +305,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
 LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
@@ -350,7 +350,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) DESC
 LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
@@ -359,14 +359,14 @@ SELECT COUNT(*)
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false;
+  AND med.is_extra = 0;
 
 -- name: CountSearchMoviesByTitle :one
 SELECT COUNT(*)
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
   AND (med.title ILIKE $2 OR m.original_title ILIKE $3);
 
 -- name: SearchMoviesByTitlePaginated :many
@@ -410,7 +410,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
   AND (med.title ILIKE $2 OR m.original_title ILIKE $3)
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
 LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
@@ -420,7 +420,7 @@ SELECT med.id
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
 LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
@@ -429,7 +429,7 @@ SELECT med.id
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
-  AND med.is_extra = false
+  AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) DESC
 LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
@@ -444,7 +444,7 @@ SELECT
     m.original_title
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.is_extra = false
+WHERE med.is_extra = 0
   AND (med.title ILIKE $1 OR m.original_title ILIKE $2)
 ORDER BY m.sort_title, med.title
 LIMIT sqlc.arg('limit')::bigint;

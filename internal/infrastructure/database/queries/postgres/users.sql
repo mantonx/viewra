@@ -48,7 +48,7 @@ LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 SELECT COUNT(*) FROM users;
 
 -- name: ExistsAnyUser :one
-SELECT EXISTS(SELECT 1 FROM users)::bigint;
+SELECT CASE WHEN EXISTS(SELECT 1 FROM users) THEN 1::bigint ELSE 0::bigint END;
 
 -- Location Preferences (stored in users table)
 

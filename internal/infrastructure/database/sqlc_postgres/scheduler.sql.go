@@ -117,7 +117,7 @@ func (q *Queries) DeleteScheduledTasksBySourceID(ctx context.Context, sourceID s
 }
 
 const disableScheduledTask = `-- name: DisableScheduledTask :exec
-UPDATE scheduled_tasks SET enabled = FALSE, updated_at = NOW() WHERE id = $1
+UPDATE scheduled_tasks SET enabled = 0, updated_at = NOW() WHERE id = $1
 `
 
 func (q *Queries) DisableScheduledTask(ctx context.Context, id string) error {
@@ -126,7 +126,7 @@ func (q *Queries) DisableScheduledTask(ctx context.Context, id string) error {
 }
 
 const enableScheduledTask = `-- name: EnableScheduledTask :exec
-UPDATE scheduled_tasks SET enabled = TRUE, updated_at = NOW() WHERE id = $1
+UPDATE scheduled_tasks SET enabled = 1, updated_at = NOW() WHERE id = $1
 `
 
 func (q *Queries) EnableScheduledTask(ctx context.Context, id string) error {
@@ -139,7 +139,7 @@ SELECT id, task_id, status, scheduled_at, started_at, ended_at, duration_ms,
        success, error, logs, attempt, parent_execution_id, triggered_by,
        dependency_exec_id, resumable, created_at
 FROM scheduler_executions
-WHERE status = 'interrupted' AND resumable = TRUE
+WHERE status = 'interrupted' AND resumable = 1
 ORDER BY created_at DESC
 `
 
@@ -333,8 +333,8 @@ func (q *Queries) GetSchedulerExecution(ctx context.Context, id string) (Schedul
 const getSchedulerExecutionStats = `-- name: GetSchedulerExecutionStats :one
 SELECT
     COUNT(*) as total_executions,
-    SUM(CASE WHEN success = TRUE THEN 1 ELSE 0 END) as successful_executions,
-    SUM(CASE WHEN success = FALSE THEN 1 ELSE 0 END) as failed_executions,
+    SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful_executions,
+    SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failed_executions,
     AVG(duration_ms) as avg_duration_ms,
     MAX(started_at) as last_execution
 FROM scheduler_executions
@@ -385,7 +385,7 @@ SELECT id, name, description, schedule, enabled, source, source_id,
        depends_on, timeout_seconds, retry_count, retry_delay_seconds,
        concurrency_key, created_at, updated_at
 FROM scheduled_tasks
-WHERE enabled = TRUE
+WHERE enabled = 1
 ORDER BY source, name
 `
 
@@ -725,7 +725,7 @@ func (q *Queries) ReleaseSchedulerLock(ctx context.Context, lockKey string) erro
 }
 
 const scheduledTaskExists = `-- name: ScheduledTaskExists :one
-SELECT EXISTS(SELECT 1 FROM scheduled_tasks WHERE id = $1)::bigint as task_exists
+SELECT CASE WHEN EXISTS(SELECT 1 FROM scheduled_tasks WHERE id = $1) THEN 1::bigint ELSE 0::bigint END as task_exists
 `
 
 func (q *Queries) ScheduledTaskExists(ctx context.Context, id string) (int64, error) {
@@ -736,7 +736,7 @@ func (q *Queries) ScheduledTaskExists(ctx context.Context, id string) (int64, er
 }
 
 const schedulerLockExists = `-- name: SchedulerLockExists :one
-SELECT EXISTS(SELECT 1 FROM scheduler_locks WHERE lock_key = $1 AND expires_at > NOW())::bigint as lock_exists
+SELECT CASE WHEN EXISTS(SELECT 1 FROM scheduler_locks WHERE lock_key = $1 AND expires_at > NOW()) THEN 1::bigint ELSE 0::bigint END as lock_exists
 `
 
 func (q *Queries) SchedulerLockExists(ctx context.Context, lockKey string) (int64, error) {

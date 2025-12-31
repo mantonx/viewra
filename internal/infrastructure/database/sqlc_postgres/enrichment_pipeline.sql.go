@@ -78,7 +78,7 @@ func (q *Queries) DeletePipelineStagesByMediaType(ctx context.Context, mediaType
 const disablePipelineStage = `-- name: DisablePipelineStage :exec
 UPDATE enrichment_pipelines
 SET
-    enabled = FALSE,
+    enabled = 0,
     updated_at = NOW()
 WHERE id = $1
 `
@@ -91,7 +91,7 @@ func (q *Queries) DisablePipelineStage(ctx context.Context, id int64) error {
 const enablePipelineStage = `-- name: EnablePipelineStage :exec
 UPDATE enrichment_pipelines
 SET
-    enabled = TRUE,
+    enabled = 1,
     updated_at = NOW()
 WHERE id = $1
 `
@@ -142,7 +142,7 @@ func (q *Queries) GetAllPipelineStages(ctx context.Context, mediaType string) ([
 
 const getEnabledPipelineStages = `-- name: GetEnabledPipelineStages :many
 SELECT id, media_type, plugin_id, stage_name, position, enabled, config_json, created_at, updated_at FROM enrichment_pipelines
-WHERE media_type = $1 AND enabled = TRUE
+WHERE media_type = $1 AND enabled = 1
 ORDER BY position ASC
 `
 
@@ -181,7 +181,7 @@ func (q *Queries) GetEnabledPipelineStages(ctx context.Context, mediaType string
 
 const getFirstPipelineStage = `-- name: GetFirstPipelineStage :one
 SELECT id, media_type, plugin_id, stage_name, position, enabled, config_json, created_at, updated_at FROM enrichment_pipelines
-WHERE media_type = $1 AND enabled = TRUE
+WHERE media_type = $1 AND enabled = 1
 ORDER BY position ASC
 LIMIT 1
 `
@@ -218,7 +218,7 @@ func (q *Queries) GetNextPipelinePosition(ctx context.Context, mediaType string)
 
 const getNextPipelineStage = `-- name: GetNextPipelineStage :one
 SELECT id, media_type, plugin_id, stage_name, position, enabled, config_json, created_at, updated_at FROM enrichment_pipelines
-WHERE media_type = $1 AND enabled = TRUE AND position > $2
+WHERE media_type = $1 AND enabled = 1 AND position > $2
 ORDER BY position ASC
 LIMIT 1
 `

@@ -217,7 +217,7 @@ func (q *Queries) GetWatchProgressByMediaIDAndUserID(ctx context.Context, arg Ge
 const listInProgressByUserID = `-- name: ListInProgressByUserID :many
 SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at, selected_quality, selected_audio_track, selected_subtitle_track FROM watch_progress
 WHERE user_id = $1
-  AND watched = FALSE
+  AND watched = 0
   AND position > 0
 ORDER BY last_watched DESC
 LIMIT $3::bigint OFFSET $2::bigint
@@ -319,7 +319,7 @@ func (q *Queries) ListWatchProgressByUserID(ctx context.Context, arg ListWatchPr
 const listWatchedByUserID = `-- name: ListWatchedByUserID :many
 SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at, selected_quality, selected_audio_track, selected_subtitle_track FROM watch_progress
 WHERE user_id = $1
-  AND watched = TRUE
+  AND watched = 1
 ORDER BY last_watched DESC
 LIMIT $3::bigint OFFSET $2::bigint
 `

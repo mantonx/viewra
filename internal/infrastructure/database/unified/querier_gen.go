@@ -18,6 +18,8 @@ import (
 	"database/sql"
 	"time"
 
+	"unsafe"
+
 	sqlc_sqlite "github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
 	sqlc_postgres "github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 )
@@ -53,15 +55,21 @@ type DBTX interface {
 	QueryRowContext(context.Context, string, ...interface{}) *sql.Row
 }
 
-// castSlice converts between structurally identical slice types.
+// castSlice converts between structurally identical slice types using unsafe.
 // This is safe because PostgreSQL and SQLite types are guaranteed to have
-// identical layouts after sqlc postprocessing.
+// identical memory layouts after sqlc postprocessing normalizes field order
+// and types. The unsafe conversion avoids copying and type assertion overhead.
 func castSlice[TFrom, TTo any](from []TFrom) []TTo {
-	result := make([]TTo, len(from))
-	for i, v := range from {
-		result[i] = any(v).(TTo)
+	if len(from) == 0 {
+		return nil
 	}
-	return result
+	// Direct memory reinterpretation - safe because types have identical layouts
+	return *(*[]TTo)(unsafe.Pointer(&from))
+}
+
+// castValue converts between structurally identical types using unsafe.
+func castValue[TFrom, TTo any](from TFrom) TTo {
+	return *(*TTo)(unsafe.Pointer(&from))
 }
 
 func (q *Querier) AddMediaStudio(ctx context.Context, arg sqlc_sqlite.AddMediaStudioParams) error {
@@ -166,7 +174,7 @@ func (q *Querier) CountCreditsForEntity(ctx context.Context, arg sqlc_sqlite.Cou
 func (q *Querier) CountEnrichmentStatusByStage(ctx context.Context, stage string) (sqlc_sqlite.CountEnrichmentStatusByStageRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CountEnrichmentStatusByStage(ctx, stage)
-		return sqlc_sqlite.CountEnrichmentStatusByStageRow(r0), err
+		return castValue[sqlc_postgres.CountEnrichmentStatusByStageRow, sqlc_sqlite.CountEnrichmentStatusByStageRow](r0), err
 	}
 	return q.sqlite.CountEnrichmentStatusByStage(ctx, stage)
 }
@@ -223,7 +231,7 @@ func (q *Querier) CountLibraryErrors(ctx context.Context, libraryID int64) (int6
 func (q *Querier) CountLibraryIssues(ctx context.Context, libraryID int64) (sqlc_sqlite.CountLibraryIssuesRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CountLibraryIssues(ctx, libraryID)
-		return sqlc_sqlite.CountLibraryIssuesRow(r0), err
+		return castValue[sqlc_postgres.CountLibraryIssuesRow, sqlc_sqlite.CountLibraryIssuesRow](r0), err
 	}
 	return q.sqlite.CountLibraryIssues(ctx, libraryID)
 }
@@ -364,7 +372,7 @@ func (q *Querier) CountUsers(ctx context.Context) (int64, error) {
 func (q *Querier) CreateAlbum(ctx context.Context, arg sqlc_sqlite.CreateAlbumParams) (sqlc_sqlite.MusicAlbum, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreateAlbum(ctx, sqlc_postgres.CreateAlbumParams(arg))
-		return sqlc_sqlite.MusicAlbum(r0), err
+		return castValue[sqlc_postgres.MusicAlbum, sqlc_sqlite.MusicAlbum](r0), err
 	}
 	return q.sqlite.CreateAlbum(ctx, arg)
 }
@@ -372,7 +380,7 @@ func (q *Querier) CreateAlbum(ctx context.Context, arg sqlc_sqlite.CreateAlbumPa
 func (q *Querier) CreateArtist(ctx context.Context, arg sqlc_sqlite.CreateArtistParams) (sqlc_sqlite.MusicArtist, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreateArtist(ctx, sqlc_postgres.CreateArtistParams(arg))
-		return sqlc_sqlite.MusicArtist(r0), err
+		return castValue[sqlc_postgres.MusicArtist, sqlc_sqlite.MusicArtist](r0), err
 	}
 	return q.sqlite.CreateArtist(ctx, arg)
 }
@@ -380,7 +388,7 @@ func (q *Querier) CreateArtist(ctx context.Context, arg sqlc_sqlite.CreateArtist
 func (q *Querier) CreateCredit(ctx context.Context, arg sqlc_sqlite.CreateCreditParams) (sqlc_sqlite.Credit, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreateCredit(ctx, sqlc_postgres.CreateCreditParams(arg))
-		return sqlc_sqlite.Credit(r0), err
+		return castValue[sqlc_postgres.Credit, sqlc_sqlite.Credit](r0), err
 	}
 	return q.sqlite.CreateCredit(ctx, arg)
 }
@@ -388,7 +396,7 @@ func (q *Querier) CreateCredit(ctx context.Context, arg sqlc_sqlite.CreateCredit
 func (q *Querier) CreateImage(ctx context.Context, arg sqlc_sqlite.CreateImageParams) (sqlc_sqlite.MediaImage, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreateImage(ctx, sqlc_postgres.CreateImageParams(arg))
-		return sqlc_sqlite.MediaImage(r0), err
+		return castValue[sqlc_postgres.MediaImage, sqlc_sqlite.MediaImage](r0), err
 	}
 	return q.sqlite.CreateImage(ctx, arg)
 }
@@ -396,7 +404,7 @@ func (q *Querier) CreateImage(ctx context.Context, arg sqlc_sqlite.CreateImagePa
 func (q *Querier) CreateLibrary(ctx context.Context, arg sqlc_sqlite.CreateLibraryParams) (sqlc_sqlite.Library, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreateLibrary(ctx, sqlc_postgres.CreateLibraryParams(arg))
-		return sqlc_sqlite.Library(r0), err
+		return castValue[sqlc_postgres.Library, sqlc_sqlite.Library](r0), err
 	}
 	return q.sqlite.CreateLibrary(ctx, arg)
 }
@@ -404,7 +412,7 @@ func (q *Querier) CreateLibrary(ctx context.Context, arg sqlc_sqlite.CreateLibra
 func (q *Querier) CreateMedia(ctx context.Context, arg sqlc_sqlite.CreateMediaParams) (sqlc_sqlite.Medium, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreateMedia(ctx, sqlc_postgres.CreateMediaParams(arg))
-		return sqlc_sqlite.Medium(r0), err
+		return castValue[sqlc_postgres.Medium, sqlc_sqlite.Medium](r0), err
 	}
 	return q.sqlite.CreateMedia(ctx, arg)
 }
@@ -426,7 +434,7 @@ func (q *Querier) CreateMusicTrack(ctx context.Context, arg sqlc_sqlite.CreateMu
 func (q *Querier) CreatePerson(ctx context.Context, arg sqlc_sqlite.CreatePersonParams) (sqlc_sqlite.Person, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreatePerson(ctx, sqlc_postgres.CreatePersonParams(arg))
-		return sqlc_sqlite.Person(r0), err
+		return castValue[sqlc_postgres.Person, sqlc_sqlite.Person](r0), err
 	}
 	return q.sqlite.CreatePerson(ctx, arg)
 }
@@ -434,7 +442,7 @@ func (q *Querier) CreatePerson(ctx context.Context, arg sqlc_sqlite.CreatePerson
 func (q *Querier) CreatePipelineStage(ctx context.Context, arg sqlc_sqlite.CreatePipelineStageParams) (sqlc_sqlite.EnrichmentPipeline, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreatePipelineStage(ctx, sqlc_postgres.CreatePipelineStageParams(arg))
-		return sqlc_sqlite.EnrichmentPipeline(r0), err
+		return castValue[sqlc_postgres.EnrichmentPipeline, sqlc_sqlite.EnrichmentPipeline](r0), err
 	}
 	return q.sqlite.CreatePipelineStage(ctx, arg)
 }
@@ -456,7 +464,7 @@ func (q *Querier) CreatePluginAPIKey(ctx context.Context, arg sqlc_sqlite.Create
 func (q *Querier) CreateQualitySwitchEvent(ctx context.Context, arg sqlc_sqlite.CreateQualitySwitchEventParams) (sqlc_sqlite.QualitySwitchEvent, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreateQualitySwitchEvent(ctx, sqlc_postgres.CreateQualitySwitchEventParams(arg))
-		return sqlc_sqlite.QualitySwitchEvent(r0), err
+		return castValue[sqlc_postgres.QualitySwitchEvent, sqlc_sqlite.QualitySwitchEvent](r0), err
 	}
 	return q.sqlite.CreateQualitySwitchEvent(ctx, arg)
 }
@@ -464,7 +472,7 @@ func (q *Querier) CreateQualitySwitchEvent(ctx context.Context, arg sqlc_sqlite.
 func (q *Querier) CreateScanCheckpoint(ctx context.Context, arg sqlc_sqlite.CreateScanCheckpointParams) (sqlc_sqlite.ScanCheckpoint, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreateScanCheckpoint(ctx, sqlc_postgres.CreateScanCheckpointParams(arg))
-		return sqlc_sqlite.ScanCheckpoint(r0), err
+		return castValue[sqlc_postgres.ScanCheckpoint, sqlc_sqlite.ScanCheckpoint](r0), err
 	}
 	return q.sqlite.CreateScanCheckpoint(ctx, arg)
 }
@@ -479,7 +487,7 @@ func (q *Querier) CreateScanCheckpointBatch(ctx context.Context, arg sqlc_sqlite
 func (q *Querier) CreateScanJob(ctx context.Context, arg sqlc_sqlite.CreateScanJobParams) (sqlc_sqlite.ScanJob, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreateScanJob(ctx, sqlc_postgres.CreateScanJobParams(arg))
-		return sqlc_sqlite.ScanJob(r0), err
+		return castValue[sqlc_postgres.ScanJob, sqlc_sqlite.ScanJob](r0), err
 	}
 	return q.sqlite.CreateScanJob(ctx, arg)
 }
@@ -494,7 +502,7 @@ func (q *Querier) CreateSchedulerExecution(ctx context.Context, arg sqlc_sqlite.
 func (q *Querier) CreateSession(ctx context.Context, arg sqlc_sqlite.CreateSessionParams) (sqlc_sqlite.Session, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreateSession(ctx, sqlc_postgres.CreateSessionParams(arg))
-		return sqlc_sqlite.Session(r0), err
+		return castValue[sqlc_postgres.Session, sqlc_sqlite.Session](r0), err
 	}
 	return q.sqlite.CreateSession(ctx, arg)
 }
@@ -502,7 +510,7 @@ func (q *Querier) CreateSession(ctx context.Context, arg sqlc_sqlite.CreateSessi
 func (q *Querier) CreateStudio(ctx context.Context, arg sqlc_sqlite.CreateStudioParams) (sqlc_sqlite.Studio, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreateStudio(ctx, sqlc_postgres.CreateStudioParams(arg))
-		return sqlc_sqlite.Studio(r0), err
+		return castValue[sqlc_postgres.Studio, sqlc_sqlite.Studio](r0), err
 	}
 	return q.sqlite.CreateStudio(ctx, arg)
 }
@@ -517,7 +525,7 @@ func (q *Querier) CreateTVEpisode(ctx context.Context, arg sqlc_sqlite.CreateTVE
 func (q *Querier) CreateTVSeason(ctx context.Context, arg sqlc_sqlite.CreateTVSeasonParams) (sqlc_sqlite.TvSeason, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreateTVSeason(ctx, sqlc_postgres.CreateTVSeasonParams(arg))
-		return sqlc_sqlite.TvSeason(r0), err
+		return castValue[sqlc_postgres.TvSeason, sqlc_sqlite.TvSeason](r0), err
 	}
 	return q.sqlite.CreateTVSeason(ctx, arg)
 }
@@ -525,7 +533,7 @@ func (q *Querier) CreateTVSeason(ctx context.Context, arg sqlc_sqlite.CreateTVSe
 func (q *Querier) CreateTVShow(ctx context.Context, arg sqlc_sqlite.CreateTVShowParams) (sqlc_sqlite.TvShow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreateTVShow(ctx, sqlc_postgres.CreateTVShowParams(arg))
-		return sqlc_sqlite.TvShow(r0), err
+		return castValue[sqlc_postgres.TvShow, sqlc_sqlite.TvShow](r0), err
 	}
 	return q.sqlite.CreateTVShow(ctx, arg)
 }
@@ -540,7 +548,7 @@ func (q *Querier) CreateTranscodeAnalytics(ctx context.Context, arg sqlc_sqlite.
 func (q *Querier) CreateTranscodeJob(ctx context.Context, arg sqlc_sqlite.CreateTranscodeJobParams) (sqlc_sqlite.TranscodeJob, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreateTranscodeJob(ctx, sqlc_postgres.CreateTranscodeJobParams(arg))
-		return sqlc_sqlite.TranscodeJob(r0), err
+		return castValue[sqlc_postgres.TranscodeJob, sqlc_sqlite.TranscodeJob](r0), err
 	}
 	return q.sqlite.CreateTranscodeJob(ctx, arg)
 }
@@ -548,7 +556,7 @@ func (q *Querier) CreateTranscodeJob(ctx context.Context, arg sqlc_sqlite.Create
 func (q *Querier) CreateUser(ctx context.Context, arg sqlc_sqlite.CreateUserParams) (sqlc_sqlite.User, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreateUser(ctx, sqlc_postgres.CreateUserParams(arg))
-		return sqlc_sqlite.User(r0), err
+		return castValue[sqlc_postgres.User, sqlc_sqlite.User](r0), err
 	}
 	return q.sqlite.CreateUser(ctx, arg)
 }
@@ -556,7 +564,7 @@ func (q *Querier) CreateUser(ctx context.Context, arg sqlc_sqlite.CreateUserPara
 func (q *Querier) CreateWatchProgress(ctx context.Context, arg sqlc_sqlite.CreateWatchProgressParams) (sqlc_sqlite.WatchProgress, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.CreateWatchProgress(ctx, sqlc_postgres.CreateWatchProgressParams(arg))
-		return sqlc_sqlite.WatchProgress(r0), err
+		return castValue[sqlc_postgres.WatchProgress, sqlc_sqlite.WatchProgress](r0), err
 	}
 	return q.sqlite.CreateWatchProgress(ctx, arg)
 }
@@ -1054,7 +1062,7 @@ func (q *Querier) EnableScheduledTask(ctx context.Context, id string) error {
 func (q *Querier) EnqueueEnrichmentJob(ctx context.Context, arg sqlc_sqlite.EnqueueEnrichmentJobParams) (sqlc_sqlite.EnrichmentQueue, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.EnqueueEnrichmentJob(ctx, sqlc_postgres.EnqueueEnrichmentJobParams(arg))
-		return sqlc_sqlite.EnrichmentQueue(r0), err
+		return castValue[sqlc_postgres.EnrichmentQueue, sqlc_sqlite.EnrichmentQueue](r0), err
 	}
 	return q.sqlite.EnqueueEnrichmentJob(ctx, arg)
 }
@@ -1083,7 +1091,7 @@ func (q *Querier) FailTranscodeAnalytics(ctx context.Context, arg sqlc_sqlite.Fa
 func (q *Querier) FindAlbumByTitle(ctx context.Context, arg sqlc_sqlite.FindAlbumByTitleParams) (sqlc_sqlite.MusicAlbum, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.FindAlbumByTitle(ctx, sqlc_postgres.FindAlbumByTitleParams(arg))
-		return sqlc_sqlite.MusicAlbum(r0), err
+		return castValue[sqlc_postgres.MusicAlbum, sqlc_sqlite.MusicAlbum](r0), err
 	}
 	return q.sqlite.FindAlbumByTitle(ctx, arg)
 }
@@ -1091,7 +1099,7 @@ func (q *Querier) FindAlbumByTitle(ctx context.Context, arg sqlc_sqlite.FindAlbu
 func (q *Querier) FindArtistByName(ctx context.Context, arg sqlc_sqlite.FindArtistByNameParams) (sqlc_sqlite.MusicArtist, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.FindArtistByName(ctx, sqlc_postgres.FindArtistByNameParams(arg))
-		return sqlc_sqlite.MusicArtist(r0), err
+		return castValue[sqlc_postgres.MusicArtist, sqlc_sqlite.MusicArtist](r0), err
 	}
 	return q.sqlite.FindArtistByName(ctx, arg)
 }
@@ -1099,7 +1107,7 @@ func (q *Querier) FindArtistByName(ctx context.Context, arg sqlc_sqlite.FindArti
 func (q *Querier) GetAlbumByID(ctx context.Context, id int64) (sqlc_sqlite.MusicAlbum, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetAlbumByID(ctx, id)
-		return sqlc_sqlite.MusicAlbum(r0), err
+		return castValue[sqlc_postgres.MusicAlbum, sqlc_sqlite.MusicAlbum](r0), err
 	}
 	return q.sqlite.GetAlbumByID(ctx, id)
 }
@@ -1107,7 +1115,7 @@ func (q *Querier) GetAlbumByID(ctx context.Context, id int64) (sqlc_sqlite.Music
 func (q *Querier) GetAlbumByMusicBrainzID(ctx context.Context, musicbrainzAlbumID sql.NullString) (sqlc_sqlite.MusicAlbum, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetAlbumByMusicBrainzID(ctx, musicbrainzAlbumID)
-		return sqlc_sqlite.MusicAlbum(r0), err
+		return castValue[sqlc_postgres.MusicAlbum, sqlc_sqlite.MusicAlbum](r0), err
 	}
 	return q.sqlite.GetAlbumByMusicBrainzID(ctx, musicbrainzAlbumID)
 }
@@ -1146,7 +1154,7 @@ func (q *Querier) GetAllUserSettings(ctx context.Context, userID string) ([]sqlc
 func (q *Querier) GetArtistByID(ctx context.Context, id int64) (sqlc_sqlite.MusicArtist, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetArtistByID(ctx, id)
-		return sqlc_sqlite.MusicArtist(r0), err
+		return castValue[sqlc_postgres.MusicArtist, sqlc_sqlite.MusicArtist](r0), err
 	}
 	return q.sqlite.GetArtistByID(ctx, id)
 }
@@ -1154,7 +1162,7 @@ func (q *Querier) GetArtistByID(ctx context.Context, id int64) (sqlc_sqlite.Musi
 func (q *Querier) GetArtistByMusicBrainzID(ctx context.Context, musicbrainzArtistID sql.NullString) (sqlc_sqlite.MusicArtist, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetArtistByMusicBrainzID(ctx, musicbrainzArtistID)
-		return sqlc_sqlite.MusicArtist(r0), err
+		return castValue[sqlc_postgres.MusicArtist, sqlc_sqlite.MusicArtist](r0), err
 	}
 	return q.sqlite.GetArtistByMusicBrainzID(ctx, musicbrainzArtistID)
 }
@@ -1258,7 +1266,7 @@ func (q *Querier) GetCreditsForPerson(ctx context.Context, personID int64) ([]sq
 func (q *Querier) GetCurrentEnrichmentItem(ctx context.Context, libraryID sql.NullInt64) (sqlc_sqlite.GetCurrentEnrichmentItemRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetCurrentEnrichmentItem(ctx, libraryID)
-		return sqlc_sqlite.GetCurrentEnrichmentItemRow(r0), err
+		return castValue[sqlc_postgres.GetCurrentEnrichmentItemRow, sqlc_sqlite.GetCurrentEnrichmentItemRow](r0), err
 	}
 	return q.sqlite.GetCurrentEnrichmentItem(ctx, libraryID)
 }
@@ -1290,7 +1298,7 @@ func (q *Querier) GetEnabledPipelineStages(ctx context.Context, mediaType string
 func (q *Querier) GetEnrichmentJob(ctx context.Context, id int64) (sqlc_sqlite.EnrichmentQueue, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetEnrichmentJob(ctx, id)
-		return sqlc_sqlite.EnrichmentQueue(r0), err
+		return castValue[sqlc_postgres.EnrichmentQueue, sqlc_sqlite.EnrichmentQueue](r0), err
 	}
 	return q.sqlite.GetEnrichmentJob(ctx, id)
 }
@@ -1298,7 +1306,7 @@ func (q *Querier) GetEnrichmentJob(ctx context.Context, id int64) (sqlc_sqlite.E
 func (q *Querier) GetEnrichmentJobByMediaAndStage(ctx context.Context, arg sqlc_sqlite.GetEnrichmentJobByMediaAndStageParams) (sqlc_sqlite.EnrichmentQueue, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetEnrichmentJobByMediaAndStage(ctx, sqlc_postgres.GetEnrichmentJobByMediaAndStageParams(arg))
-		return sqlc_sqlite.EnrichmentQueue(r0), err
+		return castValue[sqlc_postgres.EnrichmentQueue, sqlc_sqlite.EnrichmentQueue](r0), err
 	}
 	return q.sqlite.GetEnrichmentJobByMediaAndStage(ctx, arg)
 }
@@ -1306,7 +1314,7 @@ func (q *Querier) GetEnrichmentJobByMediaAndStage(ctx context.Context, arg sqlc_
 func (q *Querier) GetEnrichmentQueueStats(ctx context.Context, stage string) (sqlc_sqlite.GetEnrichmentQueueStatsRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetEnrichmentQueueStats(ctx, stage)
-		return sqlc_sqlite.GetEnrichmentQueueStatsRow(r0), err
+		return castValue[sqlc_postgres.GetEnrichmentQueueStatsRow, sqlc_sqlite.GetEnrichmentQueueStatsRow](r0), err
 	}
 	return q.sqlite.GetEnrichmentQueueStats(ctx, stage)
 }
@@ -1322,7 +1330,7 @@ func (q *Querier) GetEnrichmentQueueStatsByMedia(ctx context.Context, mediaID in
 func (q *Querier) GetEnrichmentStatus(ctx context.Context, arg sqlc_sqlite.GetEnrichmentStatusParams) (sqlc_sqlite.EnrichmentStatus, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetEnrichmentStatus(ctx, sqlc_postgres.GetEnrichmentStatusParams(arg))
-		return sqlc_sqlite.EnrichmentStatus(r0), err
+		return castValue[sqlc_postgres.EnrichmentStatus, sqlc_sqlite.EnrichmentStatus](r0), err
 	}
 	return q.sqlite.GetEnrichmentStatus(ctx, arg)
 }
@@ -1346,7 +1354,7 @@ func (q *Querier) GetEnrichmentStatusByStage(ctx context.Context, arg sqlc_sqlit
 func (q *Querier) GetEntityByExternalID(ctx context.Context, arg sqlc_sqlite.GetEntityByExternalIDParams) (sqlc_sqlite.GetEntityByExternalIDRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetEntityByExternalID(ctx, sqlc_postgres.GetEntityByExternalIDParams(arg))
-		return sqlc_sqlite.GetEntityByExternalIDRow(r0), err
+		return castValue[sqlc_postgres.GetEntityByExternalIDRow, sqlc_sqlite.GetEntityByExternalIDRow](r0), err
 	}
 	return q.sqlite.GetEntityByExternalID(ctx, arg)
 }
@@ -1354,7 +1362,7 @@ func (q *Querier) GetEntityByExternalID(ctx context.Context, arg sqlc_sqlite.Get
 func (q *Querier) GetEpisodeWithShowTitle(ctx context.Context, mediaID int64) (sqlc_sqlite.GetEpisodeWithShowTitleRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetEpisodeWithShowTitle(ctx, mediaID)
-		return sqlc_sqlite.GetEpisodeWithShowTitleRow(r0), err
+		return castValue[sqlc_postgres.GetEpisodeWithShowTitleRow, sqlc_sqlite.GetEpisodeWithShowTitleRow](r0), err
 	}
 	return q.sqlite.GetEpisodeWithShowTitle(ctx, mediaID)
 }
@@ -1362,7 +1370,7 @@ func (q *Querier) GetEpisodeWithShowTitle(ctx context.Context, mediaID int64) (s
 func (q *Querier) GetExternalID(ctx context.Context, arg sqlc_sqlite.GetExternalIDParams) (sqlc_sqlite.MediaExternalID, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetExternalID(ctx, sqlc_postgres.GetExternalIDParams(arg))
-		return sqlc_sqlite.MediaExternalID(r0), err
+		return castValue[sqlc_postgres.MediaExternalID, sqlc_sqlite.MediaExternalID](r0), err
 	}
 	return q.sqlite.GetExternalID(ctx, arg)
 }
@@ -1410,7 +1418,7 @@ func (q *Querier) GetFilePathCache(ctx context.Context, libraryID int64) ([]sqlc
 func (q *Querier) GetFirstPipelineStage(ctx context.Context, mediaType string) (sqlc_sqlite.EnrichmentPipeline, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetFirstPipelineStage(ctx, mediaType)
-		return sqlc_sqlite.EnrichmentPipeline(r0), err
+		return castValue[sqlc_postgres.EnrichmentPipeline, sqlc_sqlite.EnrichmentPipeline](r0), err
 	}
 	return q.sqlite.GetFirstPipelineStage(ctx, mediaType)
 }
@@ -1418,7 +1426,7 @@ func (q *Querier) GetFirstPipelineStage(ctx context.Context, mediaType string) (
 func (q *Querier) GetImageByExternalURL(ctx context.Context, arg sqlc_sqlite.GetImageByExternalURLParams) (sqlc_sqlite.MediaImage, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetImageByExternalURL(ctx, sqlc_postgres.GetImageByExternalURLParams(arg))
-		return sqlc_sqlite.MediaImage(r0), err
+		return castValue[sqlc_postgres.MediaImage, sqlc_sqlite.MediaImage](r0), err
 	}
 	return q.sqlite.GetImageByExternalURL(ctx, arg)
 }
@@ -1426,7 +1434,7 @@ func (q *Querier) GetImageByExternalURL(ctx context.Context, arg sqlc_sqlite.Get
 func (q *Querier) GetImageByFilePath(ctx context.Context, filePath sql.NullString) (sqlc_sqlite.MediaImage, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetImageByFilePath(ctx, filePath)
-		return sqlc_sqlite.MediaImage(r0), err
+		return castValue[sqlc_postgres.MediaImage, sqlc_sqlite.MediaImage](r0), err
 	}
 	return q.sqlite.GetImageByFilePath(ctx, filePath)
 }
@@ -1434,7 +1442,7 @@ func (q *Querier) GetImageByFilePath(ctx context.Context, filePath sql.NullStrin
 func (q *Querier) GetImageByID(ctx context.Context, id int64) (sqlc_sqlite.MediaImage, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetImageByID(ctx, id)
-		return sqlc_sqlite.MediaImage(r0), err
+		return castValue[sqlc_postgres.MediaImage, sqlc_sqlite.MediaImage](r0), err
 	}
 	return q.sqlite.GetImageByID(ctx, id)
 }
@@ -1442,7 +1450,7 @@ func (q *Querier) GetImageByID(ctx context.Context, id int64) (sqlc_sqlite.Media
 func (q *Querier) GetImageByTypeAndEntity(ctx context.Context, arg sqlc_sqlite.GetImageByTypeAndEntityParams) (sqlc_sqlite.MediaImage, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetImageByTypeAndEntity(ctx, sqlc_postgres.GetImageByTypeAndEntityParams(arg))
-		return sqlc_sqlite.MediaImage(r0), err
+		return castValue[sqlc_postgres.MediaImage, sqlc_sqlite.MediaImage](r0), err
 	}
 	return q.sqlite.GetImageByTypeAndEntity(ctx, arg)
 }
@@ -1450,7 +1458,7 @@ func (q *Querier) GetImageByTypeAndEntity(ctx context.Context, arg sqlc_sqlite.G
 func (q *Querier) GetImageByTypeAndMediaID(ctx context.Context, arg sqlc_sqlite.GetImageByTypeAndMediaIDParams) (sqlc_sqlite.MediaImage, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetImageByTypeAndMediaID(ctx, sqlc_postgres.GetImageByTypeAndMediaIDParams(arg))
-		return sqlc_sqlite.MediaImage(r0), err
+		return castValue[sqlc_postgres.MediaImage, sqlc_sqlite.MediaImage](r0), err
 	}
 	return q.sqlite.GetImageByTypeAndMediaID(ctx, arg)
 }
@@ -1482,7 +1490,7 @@ func (q *Querier) GetKeywordsByEntity(ctx context.Context, arg sqlc_sqlite.GetKe
 func (q *Querier) GetLatestScanJobByLibrary(ctx context.Context, libraryID int64) (sqlc_sqlite.ScanJob, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetLatestScanJobByLibrary(ctx, libraryID)
-		return sqlc_sqlite.ScanJob(r0), err
+		return castValue[sqlc_postgres.ScanJob, sqlc_sqlite.ScanJob](r0), err
 	}
 	return q.sqlite.GetLatestScanJobByLibrary(ctx, libraryID)
 }
@@ -1490,7 +1498,7 @@ func (q *Querier) GetLatestScanJobByLibrary(ctx context.Context, libraryID int64
 func (q *Querier) GetLatestSchedulerExecution(ctx context.Context, taskID string) (sqlc_sqlite.SchedulerExecution, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetLatestSchedulerExecution(ctx, taskID)
-		return sqlc_sqlite.SchedulerExecution(r0), err
+		return castValue[sqlc_postgres.SchedulerExecution, sqlc_sqlite.SchedulerExecution](r0), err
 	}
 	return q.sqlite.GetLatestSchedulerExecution(ctx, taskID)
 }
@@ -1498,7 +1506,7 @@ func (q *Querier) GetLatestSchedulerExecution(ctx context.Context, taskID string
 func (q *Querier) GetLibraryByID(ctx context.Context, id int64) (sqlc_sqlite.Library, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetLibraryByID(ctx, id)
-		return sqlc_sqlite.Library(r0), err
+		return castValue[sqlc_postgres.Library, sqlc_sqlite.Library](r0), err
 	}
 	return q.sqlite.GetLibraryByID(ctx, id)
 }
@@ -1506,7 +1514,7 @@ func (q *Querier) GetLibraryByID(ctx context.Context, id int64) (sqlc_sqlite.Lib
 func (q *Querier) GetLibraryByPath(ctx context.Context, path string) (sqlc_sqlite.Library, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetLibraryByPath(ctx, path)
-		return sqlc_sqlite.Library(r0), err
+		return castValue[sqlc_postgres.Library, sqlc_sqlite.Library](r0), err
 	}
 	return q.sqlite.GetLibraryByPath(ctx, path)
 }
@@ -1522,7 +1530,7 @@ func (q *Querier) GetLibraryEnrichmentFailures(ctx context.Context, arg sqlc_sql
 func (q *Querier) GetLibraryEnrichmentOverallProgress(ctx context.Context, libraryID sql.NullInt64) (sqlc_sqlite.GetLibraryEnrichmentOverallProgressRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetLibraryEnrichmentOverallProgress(ctx, libraryID)
-		return sqlc_sqlite.GetLibraryEnrichmentOverallProgressRow(r0), err
+		return castValue[sqlc_postgres.GetLibraryEnrichmentOverallProgressRow, sqlc_sqlite.GetLibraryEnrichmentOverallProgressRow](r0), err
 	}
 	return q.sqlite.GetLibraryEnrichmentOverallProgress(ctx, libraryID)
 }
@@ -1585,7 +1593,7 @@ func (q *Querier) GetMediaByExternalID(ctx context.Context, arg sqlc_sqlite.GetM
 func (q *Querier) GetMediaByFilePath(ctx context.Context, arg sqlc_sqlite.GetMediaByFilePathParams) (sqlc_sqlite.Medium, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetMediaByFilePath(ctx, sqlc_postgres.GetMediaByFilePathParams(arg))
-		return sqlc_sqlite.Medium(r0), err
+		return castValue[sqlc_postgres.Medium, sqlc_sqlite.Medium](r0), err
 	}
 	return q.sqlite.GetMediaByFilePath(ctx, arg)
 }
@@ -1593,7 +1601,7 @@ func (q *Querier) GetMediaByFilePath(ctx context.Context, arg sqlc_sqlite.GetMed
 func (q *Querier) GetMediaByID(ctx context.Context, id int64) (sqlc_sqlite.Medium, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetMediaByID(ctx, id)
-		return sqlc_sqlite.Medium(r0), err
+		return castValue[sqlc_postgres.Medium, sqlc_sqlite.Medium](r0), err
 	}
 	return q.sqlite.GetMediaByID(ctx, id)
 }
@@ -1601,7 +1609,7 @@ func (q *Querier) GetMediaByID(ctx context.Context, id int64) (sqlc_sqlite.Mediu
 func (q *Querier) GetMetadataSource(ctx context.Context, arg sqlc_sqlite.GetMetadataSourceParams) (sqlc_sqlite.MediaMetadataSource, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetMetadataSource(ctx, sqlc_postgres.GetMetadataSourceParams(arg))
-		return sqlc_sqlite.MediaMetadataSource(r0), err
+		return castValue[sqlc_postgres.MediaMetadataSource, sqlc_sqlite.MediaMetadataSource](r0), err
 	}
 	return q.sqlite.GetMetadataSource(ctx, arg)
 }
@@ -1625,7 +1633,7 @@ func (q *Querier) GetMetadataSourcesByMedia(ctx context.Context, mediaID int64) 
 func (q *Querier) GetMovieByMediaID(ctx context.Context, mediaID int64) (sqlc_sqlite.GetMovieByMediaIDRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetMovieByMediaID(ctx, mediaID)
-		return sqlc_sqlite.GetMovieByMediaIDRow(r0), err
+		return castValue[sqlc_postgres.GetMovieByMediaIDRow, sqlc_sqlite.GetMovieByMediaIDRow](r0), err
 	}
 	return q.sqlite.GetMovieByMediaID(ctx, mediaID)
 }
@@ -1633,7 +1641,7 @@ func (q *Querier) GetMovieByMediaID(ctx context.Context, mediaID int64) (sqlc_sq
 func (q *Querier) GetMusicTrackByMediaID(ctx context.Context, mediaID int64) (sqlc_sqlite.GetMusicTrackByMediaIDRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetMusicTrackByMediaID(ctx, mediaID)
-		return sqlc_sqlite.GetMusicTrackByMediaIDRow(r0), err
+		return castValue[sqlc_postgres.GetMusicTrackByMediaIDRow, sqlc_sqlite.GetMusicTrackByMediaIDRow](r0), err
 	}
 	return q.sqlite.GetMusicTrackByMediaID(ctx, mediaID)
 }
@@ -1648,7 +1656,7 @@ func (q *Querier) GetNextPipelinePosition(ctx context.Context, mediaType string)
 func (q *Querier) GetNextPipelineStage(ctx context.Context, arg sqlc_sqlite.GetNextPipelineStageParams) (sqlc_sqlite.EnrichmentPipeline, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetNextPipelineStage(ctx, sqlc_postgres.GetNextPipelineStageParams(arg))
-		return sqlc_sqlite.EnrichmentPipeline(r0), err
+		return castValue[sqlc_postgres.EnrichmentPipeline, sqlc_sqlite.EnrichmentPipeline](r0), err
 	}
 	return q.sqlite.GetNextPipelineStage(ctx, arg)
 }
@@ -1664,7 +1672,7 @@ func (q *Querier) GetOrphanedPipelineStates(ctx context.Context) ([]sqlc_sqlite.
 func (q *Querier) GetOverallPlaybackSummary(ctx context.Context) (sqlc_sqlite.GetOverallPlaybackSummaryRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetOverallPlaybackSummary(ctx)
-		return sqlc_sqlite.GetOverallPlaybackSummaryRow(r0), err
+		return castValue[sqlc_postgres.GetOverallPlaybackSummaryRow, sqlc_sqlite.GetOverallPlaybackSummaryRow](r0), err
 	}
 	return q.sqlite.GetOverallPlaybackSummary(ctx)
 }
@@ -1672,7 +1680,7 @@ func (q *Querier) GetOverallPlaybackSummary(ctx context.Context) (sqlc_sqlite.Ge
 func (q *Querier) GetOverallTranscodeSummary(ctx context.Context) (sqlc_sqlite.GetOverallTranscodeSummaryRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetOverallTranscodeSummary(ctx)
-		return sqlc_sqlite.GetOverallTranscodeSummaryRow(r0), err
+		return castValue[sqlc_postgres.GetOverallTranscodeSummaryRow, sqlc_sqlite.GetOverallTranscodeSummaryRow](r0), err
 	}
 	return q.sqlite.GetOverallTranscodeSummary(ctx)
 }
@@ -1695,7 +1703,7 @@ func (q *Querier) GetPersonByExternalID(ctx context.Context, arg sqlc_sqlite.Get
 func (q *Querier) GetPersonByID(ctx context.Context, id int64) (sqlc_sqlite.Person, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetPersonByID(ctx, id)
-		return sqlc_sqlite.Person(r0), err
+		return castValue[sqlc_postgres.Person, sqlc_sqlite.Person](r0), err
 	}
 	return q.sqlite.GetPersonByID(ctx, id)
 }
@@ -1703,7 +1711,7 @@ func (q *Querier) GetPersonByID(ctx context.Context, id int64) (sqlc_sqlite.Pers
 func (q *Querier) GetPersonByIMDbID(ctx context.Context, imdbID sql.NullString) (sqlc_sqlite.Person, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetPersonByIMDbID(ctx, imdbID)
-		return sqlc_sqlite.Person(r0), err
+		return castValue[sqlc_postgres.Person, sqlc_sqlite.Person](r0), err
 	}
 	return q.sqlite.GetPersonByIMDbID(ctx, imdbID)
 }
@@ -1711,7 +1719,7 @@ func (q *Querier) GetPersonByIMDbID(ctx context.Context, imdbID sql.NullString) 
 func (q *Querier) GetPersonByName(ctx context.Context, name string) (sqlc_sqlite.Person, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetPersonByName(ctx, name)
-		return sqlc_sqlite.Person(r0), err
+		return castValue[sqlc_postgres.Person, sqlc_sqlite.Person](r0), err
 	}
 	return q.sqlite.GetPersonByName(ctx, name)
 }
@@ -1719,7 +1727,7 @@ func (q *Querier) GetPersonByName(ctx context.Context, name string) (sqlc_sqlite
 func (q *Querier) GetPersonByTMDbID(ctx context.Context, tmdbID sql.NullInt64) (sqlc_sqlite.Person, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetPersonByTMDbID(ctx, tmdbID)
-		return sqlc_sqlite.Person(r0), err
+		return castValue[sqlc_postgres.Person, sqlc_sqlite.Person](r0), err
 	}
 	return q.sqlite.GetPersonByTMDbID(ctx, tmdbID)
 }
@@ -1735,7 +1743,7 @@ func (q *Querier) GetPersonExternalIDs(ctx context.Context, entityID int64) ([]s
 func (q *Querier) GetPipelineStage(ctx context.Context, id int64) (sqlc_sqlite.EnrichmentPipeline, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetPipelineStage(ctx, id)
-		return sqlc_sqlite.EnrichmentPipeline(r0), err
+		return castValue[sqlc_postgres.EnrichmentPipeline, sqlc_sqlite.EnrichmentPipeline](r0), err
 	}
 	return q.sqlite.GetPipelineStage(ctx, id)
 }
@@ -1743,7 +1751,7 @@ func (q *Querier) GetPipelineStage(ctx context.Context, id int64) (sqlc_sqlite.E
 func (q *Querier) GetPipelineStageByName(ctx context.Context, arg sqlc_sqlite.GetPipelineStageByNameParams) (sqlc_sqlite.EnrichmentPipeline, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetPipelineStageByName(ctx, sqlc_postgres.GetPipelineStageByNameParams(arg))
-		return sqlc_sqlite.EnrichmentPipeline(r0), err
+		return castValue[sqlc_postgres.EnrichmentPipeline, sqlc_sqlite.EnrichmentPipeline](r0), err
 	}
 	return q.sqlite.GetPipelineStageByName(ctx, arg)
 }
@@ -1751,7 +1759,7 @@ func (q *Querier) GetPipelineStageByName(ctx context.Context, arg sqlc_sqlite.Ge
 func (q *Querier) GetPipelineStageByPlugin(ctx context.Context, arg sqlc_sqlite.GetPipelineStageByPluginParams) (sqlc_sqlite.EnrichmentPipeline, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetPipelineStageByPlugin(ctx, sqlc_postgres.GetPipelineStageByPluginParams(arg))
-		return sqlc_sqlite.EnrichmentPipeline(r0), err
+		return castValue[sqlc_postgres.EnrichmentPipeline, sqlc_sqlite.EnrichmentPipeline](r0), err
 	}
 	return q.sqlite.GetPipelineStageByPlugin(ctx, arg)
 }
@@ -1759,7 +1767,7 @@ func (q *Querier) GetPipelineStageByPlugin(ctx context.Context, arg sqlc_sqlite.
 func (q *Querier) GetPlaybackPreferences(ctx context.Context, arg sqlc_sqlite.GetPlaybackPreferencesParams) (sqlc_sqlite.PlaybackPreference, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetPlaybackPreferences(ctx, sqlc_postgres.GetPlaybackPreferencesParams(arg))
-		return sqlc_sqlite.PlaybackPreference(r0), err
+		return castValue[sqlc_postgres.PlaybackPreference, sqlc_sqlite.PlaybackPreference](r0), err
 	}
 	return q.sqlite.GetPlaybackPreferences(ctx, arg)
 }
@@ -1767,7 +1775,7 @@ func (q *Querier) GetPlaybackPreferences(ctx context.Context, arg sqlc_sqlite.Ge
 func (q *Querier) GetPlaybackSessionByID(ctx context.Context, sessionID string) (sqlc_sqlite.PlaybackSession, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetPlaybackSessionByID(ctx, sessionID)
-		return sqlc_sqlite.PlaybackSession(r0), err
+		return castValue[sqlc_postgres.PlaybackSession, sqlc_sqlite.PlaybackSession](r0), err
 	}
 	return q.sqlite.GetPlaybackSessionByID(ctx, sessionID)
 }
@@ -1775,7 +1783,7 @@ func (q *Querier) GetPlaybackSessionByID(ctx context.Context, sessionID string) 
 func (q *Querier) GetPlaybackSummaryByMediaID(ctx context.Context, mediaID int64) (sqlc_sqlite.GetPlaybackSummaryByMediaIDRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetPlaybackSummaryByMediaID(ctx, mediaID)
-		return sqlc_sqlite.GetPlaybackSummaryByMediaIDRow(r0), err
+		return castValue[sqlc_postgres.GetPlaybackSummaryByMediaIDRow, sqlc_sqlite.GetPlaybackSummaryByMediaIDRow](r0), err
 	}
 	return q.sqlite.GetPlaybackSummaryByMediaID(ctx, mediaID)
 }
@@ -1783,7 +1791,7 @@ func (q *Querier) GetPlaybackSummaryByMediaID(ctx context.Context, mediaID int64
 func (q *Querier) GetPlugin(ctx context.Context, id string) (sqlc_sqlite.GetPluginRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetPlugin(ctx, id)
-		return sqlc_sqlite.GetPluginRow(r0), err
+		return castValue[sqlc_postgres.GetPluginRow, sqlc_sqlite.GetPluginRow](r0), err
 	}
 	return q.sqlite.GetPlugin(ctx, id)
 }
@@ -1791,7 +1799,7 @@ func (q *Querier) GetPlugin(ctx context.Context, id string) (sqlc_sqlite.GetPlug
 func (q *Querier) GetPluginAPIKey(ctx context.Context, id string) (sqlc_sqlite.PluginApiKey, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetPluginAPIKey(ctx, id)
-		return sqlc_sqlite.PluginApiKey(r0), err
+		return castValue[sqlc_postgres.PluginApiKey, sqlc_sqlite.PluginApiKey](r0), err
 	}
 	return q.sqlite.GetPluginAPIKey(ctx, id)
 }
@@ -1799,7 +1807,7 @@ func (q *Querier) GetPluginAPIKey(ctx context.Context, id string) (sqlc_sqlite.P
 func (q *Querier) GetPluginAPIKeyByHash(ctx context.Context, keyHash string) (sqlc_sqlite.PluginApiKey, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetPluginAPIKeyByHash(ctx, keyHash)
-		return sqlc_sqlite.PluginApiKey(r0), err
+		return castValue[sqlc_postgres.PluginApiKey, sqlc_sqlite.PluginApiKey](r0), err
 	}
 	return q.sqlite.GetPluginAPIKeyByHash(ctx, keyHash)
 }
@@ -1814,7 +1822,7 @@ func (q *Querier) GetPluginSettings(ctx context.Context, id string) (sql.NullStr
 func (q *Querier) GetPluginUserMetadata(ctx context.Context, arg sqlc_sqlite.GetPluginUserMetadataParams) (sqlc_sqlite.GetPluginUserMetadataRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetPluginUserMetadata(ctx, sqlc_postgres.GetPluginUserMetadataParams(arg))
-		return sqlc_sqlite.GetPluginUserMetadataRow(r0), err
+		return castValue[sqlc_postgres.GetPluginUserMetadataRow, sqlc_sqlite.GetPluginUserMetadataRow](r0), err
 	}
 	return q.sqlite.GetPluginUserMetadata(ctx, arg)
 }
@@ -1822,7 +1830,7 @@ func (q *Querier) GetPluginUserMetadata(ctx context.Context, arg sqlc_sqlite.Get
 func (q *Querier) GetQualitySwitchStats(ctx context.Context, mediaID int64) (sqlc_sqlite.GetQualitySwitchStatsRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetQualitySwitchStats(ctx, mediaID)
-		return sqlc_sqlite.GetQualitySwitchStatsRow(r0), err
+		return castValue[sqlc_postgres.GetQualitySwitchStatsRow, sqlc_sqlite.GetQualitySwitchStatsRow](r0), err
 	}
 	return q.sqlite.GetQualitySwitchStats(ctx, mediaID)
 }
@@ -1846,7 +1854,7 @@ func (q *Querier) GetRunningSchedulerExecutions(ctx context.Context) ([]sqlc_sql
 func (q *Querier) GetScanCheckpointByID(ctx context.Context, id int64) (sqlc_sqlite.ScanCheckpoint, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetScanCheckpointByID(ctx, id)
-		return sqlc_sqlite.ScanCheckpoint(r0), err
+		return castValue[sqlc_postgres.ScanCheckpoint, sqlc_sqlite.ScanCheckpoint](r0), err
 	}
 	return q.sqlite.GetScanCheckpointByID(ctx, id)
 }
@@ -1854,7 +1862,7 @@ func (q *Querier) GetScanCheckpointByID(ctx context.Context, id int64) (sqlc_sql
 func (q *Querier) GetScanCheckpointByPath(ctx context.Context, arg sqlc_sqlite.GetScanCheckpointByPathParams) (sqlc_sqlite.ScanCheckpoint, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetScanCheckpointByPath(ctx, sqlc_postgres.GetScanCheckpointByPathParams(arg))
-		return sqlc_sqlite.ScanCheckpoint(r0), err
+		return castValue[sqlc_postgres.ScanCheckpoint, sqlc_sqlite.ScanCheckpoint](r0), err
 	}
 	return q.sqlite.GetScanCheckpointByPath(ctx, arg)
 }
@@ -1870,7 +1878,7 @@ func (q *Querier) GetScanCheckpointErrorsByCategory(ctx context.Context, scanJob
 func (q *Querier) GetScanCheckpointProgress(ctx context.Context, scanJobID int64) (sqlc_sqlite.GetScanCheckpointProgressRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetScanCheckpointProgress(ctx, scanJobID)
-		return sqlc_sqlite.GetScanCheckpointProgressRow(r0), err
+		return castValue[sqlc_postgres.GetScanCheckpointProgressRow, sqlc_sqlite.GetScanCheckpointProgressRow](r0), err
 	}
 	return q.sqlite.GetScanCheckpointProgress(ctx, scanJobID)
 }
@@ -1878,7 +1886,7 @@ func (q *Querier) GetScanCheckpointProgress(ctx context.Context, scanJobID int64
 func (q *Querier) GetScanCheckpointStats(ctx context.Context, scanJobID int64) (sqlc_sqlite.GetScanCheckpointStatsRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetScanCheckpointStats(ctx, scanJobID)
-		return sqlc_sqlite.GetScanCheckpointStatsRow(r0), err
+		return castValue[sqlc_postgres.GetScanCheckpointStatsRow, sqlc_sqlite.GetScanCheckpointStatsRow](r0), err
 	}
 	return q.sqlite.GetScanCheckpointStats(ctx, scanJobID)
 }
@@ -1886,7 +1894,7 @@ func (q *Querier) GetScanCheckpointStats(ctx context.Context, scanJobID int64) (
 func (q *Querier) GetScanJob(ctx context.Context, id int64) (sqlc_sqlite.ScanJob, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetScanJob(ctx, id)
-		return sqlc_sqlite.ScanJob(r0), err
+		return castValue[sqlc_postgres.ScanJob, sqlc_sqlite.ScanJob](r0), err
 	}
 	return q.sqlite.GetScanJob(ctx, id)
 }
@@ -1894,7 +1902,7 @@ func (q *Querier) GetScanJob(ctx context.Context, id int64) (sqlc_sqlite.ScanJob
 func (q *Querier) GetScanJobStats(ctx context.Context, libraryID int64) (sqlc_sqlite.GetScanJobStatsRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetScanJobStats(ctx, libraryID)
-		return sqlc_sqlite.GetScanJobStatsRow(r0), err
+		return castValue[sqlc_postgres.GetScanJobStatsRow, sqlc_sqlite.GetScanJobStatsRow](r0), err
 	}
 	return q.sqlite.GetScanJobStats(ctx, libraryID)
 }
@@ -1902,7 +1910,7 @@ func (q *Querier) GetScanJobStats(ctx context.Context, libraryID int64) (sqlc_sq
 func (q *Querier) GetScanStateByPath(ctx context.Context, arg sqlc_sqlite.GetScanStateByPathParams) (sqlc_sqlite.ScanState, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetScanStateByPath(ctx, sqlc_postgres.GetScanStateByPathParams(arg))
-		return sqlc_sqlite.ScanState(r0), err
+		return castValue[sqlc_postgres.ScanState, sqlc_sqlite.ScanState](r0), err
 	}
 	return q.sqlite.GetScanStateByPath(ctx, arg)
 }
@@ -1918,7 +1926,7 @@ func (q *Querier) GetScanStateModifiedSince(ctx context.Context, arg sqlc_sqlite
 func (q *Querier) GetScheduledTask(ctx context.Context, id string) (sqlc_sqlite.ScheduledTask, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetScheduledTask(ctx, id)
-		return sqlc_sqlite.ScheduledTask(r0), err
+		return castValue[sqlc_postgres.ScheduledTask, sqlc_sqlite.ScheduledTask](r0), err
 	}
 	return q.sqlite.GetScheduledTask(ctx, id)
 }
@@ -1926,7 +1934,7 @@ func (q *Querier) GetScheduledTask(ctx context.Context, id string) (sqlc_sqlite.
 func (q *Querier) GetSchedulerExecution(ctx context.Context, id string) (sqlc_sqlite.SchedulerExecution, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetSchedulerExecution(ctx, id)
-		return sqlc_sqlite.SchedulerExecution(r0), err
+		return castValue[sqlc_postgres.SchedulerExecution, sqlc_sqlite.SchedulerExecution](r0), err
 	}
 	return q.sqlite.GetSchedulerExecution(ctx, id)
 }
@@ -1934,7 +1942,7 @@ func (q *Querier) GetSchedulerExecution(ctx context.Context, id string) (sqlc_sq
 func (q *Querier) GetSchedulerExecutionStats(ctx context.Context, taskID string) (sqlc_sqlite.GetSchedulerExecutionStatsRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetSchedulerExecutionStats(ctx, taskID)
-		return sqlc_sqlite.GetSchedulerExecutionStatsRow(r0), err
+		return castValue[sqlc_postgres.GetSchedulerExecutionStatsRow, sqlc_sqlite.GetSchedulerExecutionStatsRow](r0), err
 	}
 	return q.sqlite.GetSchedulerExecutionStats(ctx, taskID)
 }
@@ -1942,7 +1950,7 @@ func (q *Querier) GetSchedulerExecutionStats(ctx context.Context, taskID string)
 func (q *Querier) GetSchedulerLock(ctx context.Context, lockKey string) (sqlc_sqlite.SchedulerLock, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetSchedulerLock(ctx, lockKey)
-		return sqlc_sqlite.SchedulerLock(r0), err
+		return castValue[sqlc_postgres.SchedulerLock, sqlc_sqlite.SchedulerLock](r0), err
 	}
 	return q.sqlite.GetSchedulerLock(ctx, lockKey)
 }
@@ -1950,7 +1958,7 @@ func (q *Querier) GetSchedulerLock(ctx context.Context, lockKey string) (sqlc_sq
 func (q *Querier) GetSessionByID(ctx context.Context, id int64) (sqlc_sqlite.Session, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetSessionByID(ctx, id)
-		return sqlc_sqlite.Session(r0), err
+		return castValue[sqlc_postgres.Session, sqlc_sqlite.Session](r0), err
 	}
 	return q.sqlite.GetSessionByID(ctx, id)
 }
@@ -1958,7 +1966,7 @@ func (q *Querier) GetSessionByID(ctx context.Context, id int64) (sqlc_sqlite.Ses
 func (q *Querier) GetSessionByPublicID(ctx context.Context, publicID string) (sqlc_sqlite.Session, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetSessionByPublicID(ctx, publicID)
-		return sqlc_sqlite.Session(r0), err
+		return castValue[sqlc_postgres.Session, sqlc_sqlite.Session](r0), err
 	}
 	return q.sqlite.GetSessionByPublicID(ctx, publicID)
 }
@@ -1966,7 +1974,7 @@ func (q *Querier) GetSessionByPublicID(ctx context.Context, publicID string) (sq
 func (q *Querier) GetSessionByTokenHash(ctx context.Context, refreshTokenHash string) (sqlc_sqlite.Session, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetSessionByTokenHash(ctx, refreshTokenHash)
-		return sqlc_sqlite.Session(r0), err
+		return castValue[sqlc_postgres.Session, sqlc_sqlite.Session](r0), err
 	}
 	return q.sqlite.GetSessionByTokenHash(ctx, refreshTokenHash)
 }
@@ -1989,7 +1997,7 @@ func (q *Querier) GetStudioByExternalID(ctx context.Context, arg sqlc_sqlite.Get
 func (q *Querier) GetStudioByID(ctx context.Context, id int64) (sqlc_sqlite.Studio, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetStudioByID(ctx, id)
-		return sqlc_sqlite.Studio(r0), err
+		return castValue[sqlc_postgres.Studio, sqlc_sqlite.Studio](r0), err
 	}
 	return q.sqlite.GetStudioByID(ctx, id)
 }
@@ -1997,7 +2005,7 @@ func (q *Querier) GetStudioByID(ctx context.Context, id int64) (sqlc_sqlite.Stud
 func (q *Querier) GetStudioByName(ctx context.Context, name string) (sqlc_sqlite.Studio, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetStudioByName(ctx, name)
-		return sqlc_sqlite.Studio(r0), err
+		return castValue[sqlc_postgres.Studio, sqlc_sqlite.Studio](r0), err
 	}
 	return q.sqlite.GetStudioByName(ctx, name)
 }
@@ -2005,7 +2013,7 @@ func (q *Querier) GetStudioByName(ctx context.Context, name string) (sqlc_sqlite
 func (q *Querier) GetStudioByTMDbID(ctx context.Context, tmdbID sql.NullInt64) (sqlc_sqlite.Studio, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetStudioByTMDbID(ctx, tmdbID)
-		return sqlc_sqlite.Studio(r0), err
+		return castValue[sqlc_postgres.Studio, sqlc_sqlite.Studio](r0), err
 	}
 	return q.sqlite.GetStudioByTMDbID(ctx, tmdbID)
 }
@@ -2037,7 +2045,7 @@ func (q *Querier) GetSubtitleTracksByMediaID(ctx context.Context, mediaID int64)
 func (q *Querier) GetSystemSetting(ctx context.Context, key string) (sqlc_sqlite.SystemSetting, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetSystemSetting(ctx, key)
-		return sqlc_sqlite.SystemSetting(r0), err
+		return castValue[sqlc_postgres.SystemSetting, sqlc_sqlite.SystemSetting](r0), err
 	}
 	return q.sqlite.GetSystemSetting(ctx, key)
 }
@@ -2053,7 +2061,7 @@ func (q *Querier) GetSystemSettingsByCategory(ctx context.Context, category stri
 func (q *Querier) GetTVEpisodeByMediaID(ctx context.Context, mediaID int64) (sqlc_sqlite.GetTVEpisodeByMediaIDRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetTVEpisodeByMediaID(ctx, mediaID)
-		return sqlc_sqlite.GetTVEpisodeByMediaIDRow(r0), err
+		return castValue[sqlc_postgres.GetTVEpisodeByMediaIDRow, sqlc_sqlite.GetTVEpisodeByMediaIDRow](r0), err
 	}
 	return q.sqlite.GetTVEpisodeByMediaID(ctx, mediaID)
 }
@@ -2061,7 +2069,7 @@ func (q *Querier) GetTVEpisodeByMediaID(ctx context.Context, mediaID int64) (sql
 func (q *Querier) GetTVEpisodeByShowSeasonEpisode(ctx context.Context, arg sqlc_sqlite.GetTVEpisodeByShowSeasonEpisodeParams) (sqlc_sqlite.GetTVEpisodeByShowSeasonEpisodeRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetTVEpisodeByShowSeasonEpisode(ctx, sqlc_postgres.GetTVEpisodeByShowSeasonEpisodeParams(arg))
-		return sqlc_sqlite.GetTVEpisodeByShowSeasonEpisodeRow(r0), err
+		return castValue[sqlc_postgres.GetTVEpisodeByShowSeasonEpisodeRow, sqlc_sqlite.GetTVEpisodeByShowSeasonEpisodeRow](r0), err
 	}
 	return q.sqlite.GetTVEpisodeByShowSeasonEpisode(ctx, arg)
 }
@@ -2069,7 +2077,7 @@ func (q *Querier) GetTVEpisodeByShowSeasonEpisode(ctx context.Context, arg sqlc_
 func (q *Querier) GetTVSeasonByID(ctx context.Context, id int64) (sqlc_sqlite.TvSeason, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetTVSeasonByID(ctx, id)
-		return sqlc_sqlite.TvSeason(r0), err
+		return castValue[sqlc_postgres.TvSeason, sqlc_sqlite.TvSeason](r0), err
 	}
 	return q.sqlite.GetTVSeasonByID(ctx, id)
 }
@@ -2077,7 +2085,7 @@ func (q *Querier) GetTVSeasonByID(ctx context.Context, id int64) (sqlc_sqlite.Tv
 func (q *Querier) GetTVSeasonByShowAndNumber(ctx context.Context, arg sqlc_sqlite.GetTVSeasonByShowAndNumberParams) (sqlc_sqlite.TvSeason, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetTVSeasonByShowAndNumber(ctx, sqlc_postgres.GetTVSeasonByShowAndNumberParams(arg))
-		return sqlc_sqlite.TvSeason(r0), err
+		return castValue[sqlc_postgres.TvSeason, sqlc_sqlite.TvSeason](r0), err
 	}
 	return q.sqlite.GetTVSeasonByShowAndNumber(ctx, arg)
 }
@@ -2085,7 +2093,7 @@ func (q *Querier) GetTVSeasonByShowAndNumber(ctx context.Context, arg sqlc_sqlit
 func (q *Querier) GetTVShowByDirectory(ctx context.Context, arg sqlc_sqlite.GetTVShowByDirectoryParams) (sqlc_sqlite.TvShow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetTVShowByDirectory(ctx, sqlc_postgres.GetTVShowByDirectoryParams(arg))
-		return sqlc_sqlite.TvShow(r0), err
+		return castValue[sqlc_postgres.TvShow, sqlc_sqlite.TvShow](r0), err
 	}
 	return q.sqlite.GetTVShowByDirectory(ctx, arg)
 }
@@ -2093,7 +2101,7 @@ func (q *Querier) GetTVShowByDirectory(ctx context.Context, arg sqlc_sqlite.GetT
 func (q *Querier) GetTVShowByID(ctx context.Context, id int64) (sqlc_sqlite.TvShow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetTVShowByID(ctx, id)
-		return sqlc_sqlite.TvShow(r0), err
+		return castValue[sqlc_postgres.TvShow, sqlc_sqlite.TvShow](r0), err
 	}
 	return q.sqlite.GetTVShowByID(ctx, id)
 }
@@ -2101,7 +2109,7 @@ func (q *Querier) GetTVShowByID(ctx context.Context, id int64) (sqlc_sqlite.TvSh
 func (q *Querier) GetTVShowByTitle(ctx context.Context, arg sqlc_sqlite.GetTVShowByTitleParams) (sqlc_sqlite.TvShow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetTVShowByTitle(ctx, sqlc_postgres.GetTVShowByTitleParams(arg))
-		return sqlc_sqlite.TvShow(r0), err
+		return castValue[sqlc_postgres.TvShow, sqlc_sqlite.TvShow](r0), err
 	}
 	return q.sqlite.GetTVShowByTitle(ctx, arg)
 }
@@ -2148,7 +2156,7 @@ func (q *Querier) GetTotalTranscodeSize(ctx context.Context) (interface{}, error
 func (q *Querier) GetTranscodeAnalyticsBySessionID(ctx context.Context, sessionID string) (sqlc_sqlite.TranscodeAnalytic, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetTranscodeAnalyticsBySessionID(ctx, sessionID)
-		return sqlc_sqlite.TranscodeAnalytic(r0), err
+		return castValue[sqlc_postgres.TranscodeAnalytic, sqlc_sqlite.TranscodeAnalytic](r0), err
 	}
 	return q.sqlite.GetTranscodeAnalyticsBySessionID(ctx, sessionID)
 }
@@ -2156,7 +2164,7 @@ func (q *Querier) GetTranscodeAnalyticsBySessionID(ctx context.Context, sessionI
 func (q *Querier) GetTranscodeJobByID(ctx context.Context, id int64) (sqlc_sqlite.TranscodeJob, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetTranscodeJobByID(ctx, id)
-		return sqlc_sqlite.TranscodeJob(r0), err
+		return castValue[sqlc_postgres.TranscodeJob, sqlc_sqlite.TranscodeJob](r0), err
 	}
 	return q.sqlite.GetTranscodeJobByID(ctx, id)
 }
@@ -2164,7 +2172,7 @@ func (q *Querier) GetTranscodeJobByID(ctx context.Context, id int64) (sqlc_sqlit
 func (q *Querier) GetTranscodeJobByMediaIDAndQuality(ctx context.Context, arg sqlc_sqlite.GetTranscodeJobByMediaIDAndQualityParams) (sqlc_sqlite.TranscodeJob, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetTranscodeJobByMediaIDAndQuality(ctx, sqlc_postgres.GetTranscodeJobByMediaIDAndQualityParams(arg))
-		return sqlc_sqlite.TranscodeJob(r0), err
+		return castValue[sqlc_postgres.TranscodeJob, sqlc_sqlite.TranscodeJob](r0), err
 	}
 	return q.sqlite.GetTranscodeJobByMediaIDAndQuality(ctx, arg)
 }
@@ -2172,7 +2180,7 @@ func (q *Querier) GetTranscodeJobByMediaIDAndQuality(ctx context.Context, arg sq
 func (q *Querier) GetTranscodeSummaryByMediaID(ctx context.Context, mediaID int64) (sqlc_sqlite.GetTranscodeSummaryByMediaIDRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetTranscodeSummaryByMediaID(ctx, mediaID)
-		return sqlc_sqlite.GetTranscodeSummaryByMediaIDRow(r0), err
+		return castValue[sqlc_postgres.GetTranscodeSummaryByMediaIDRow, sqlc_sqlite.GetTranscodeSummaryByMediaIDRow](r0), err
 	}
 	return q.sqlite.GetTranscodeSummaryByMediaID(ctx, mediaID)
 }
@@ -2180,7 +2188,7 @@ func (q *Querier) GetTranscodeSummaryByMediaID(ctx context.Context, mediaID int6
 func (q *Querier) GetUserByID(ctx context.Context, id int64) (sqlc_sqlite.User, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetUserByID(ctx, id)
-		return sqlc_sqlite.User(r0), err
+		return castValue[sqlc_postgres.User, sqlc_sqlite.User](r0), err
 	}
 	return q.sqlite.GetUserByID(ctx, id)
 }
@@ -2188,7 +2196,7 @@ func (q *Querier) GetUserByID(ctx context.Context, id int64) (sqlc_sqlite.User, 
 func (q *Querier) GetUserByPublicID(ctx context.Context, publicID string) (sqlc_sqlite.User, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetUserByPublicID(ctx, publicID)
-		return sqlc_sqlite.User(r0), err
+		return castValue[sqlc_postgres.User, sqlc_sqlite.User](r0), err
 	}
 	return q.sqlite.GetUserByPublicID(ctx, publicID)
 }
@@ -2196,7 +2204,7 @@ func (q *Querier) GetUserByPublicID(ctx context.Context, publicID string) (sqlc_
 func (q *Querier) GetUserByUsername(ctx context.Context, lower string) (sqlc_sqlite.User, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetUserByUsername(ctx, lower)
-		return sqlc_sqlite.User(r0), err
+		return castValue[sqlc_postgres.User, sqlc_sqlite.User](r0), err
 	}
 	return q.sqlite.GetUserByUsername(ctx, lower)
 }
@@ -2204,7 +2212,7 @@ func (q *Querier) GetUserByUsername(ctx context.Context, lower string) (sqlc_sql
 func (q *Querier) GetUserLocation(ctx context.Context, id int64) (sqlc_sqlite.GetUserLocationRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetUserLocation(ctx, id)
-		return sqlc_sqlite.GetUserLocationRow(r0), err
+		return castValue[sqlc_postgres.GetUserLocationRow, sqlc_sqlite.GetUserLocationRow](r0), err
 	}
 	return q.sqlite.GetUserLocation(ctx, id)
 }
@@ -2212,7 +2220,7 @@ func (q *Querier) GetUserLocation(ctx context.Context, id int64) (sqlc_sqlite.Ge
 func (q *Querier) GetUserSetting(ctx context.Context, arg sqlc_sqlite.GetUserSettingParams) (sqlc_sqlite.UserSetting, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetUserSetting(ctx, sqlc_postgres.GetUserSettingParams(arg))
-		return sqlc_sqlite.UserSetting(r0), err
+		return castValue[sqlc_postgres.UserSetting, sqlc_sqlite.UserSetting](r0), err
 	}
 	return q.sqlite.GetUserSetting(ctx, arg)
 }
@@ -2220,7 +2228,7 @@ func (q *Querier) GetUserSetting(ctx context.Context, arg sqlc_sqlite.GetUserSet
 func (q *Querier) GetWatchProgressByID(ctx context.Context, id int64) (sqlc_sqlite.WatchProgress, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetWatchProgressByID(ctx, id)
-		return sqlc_sqlite.WatchProgress(r0), err
+		return castValue[sqlc_postgres.WatchProgress, sqlc_sqlite.WatchProgress](r0), err
 	}
 	return q.sqlite.GetWatchProgressByID(ctx, id)
 }
@@ -2228,7 +2236,7 @@ func (q *Querier) GetWatchProgressByID(ctx context.Context, id int64) (sqlc_sqli
 func (q *Querier) GetWatchProgressByMediaID(ctx context.Context, mediaID int64) (sqlc_sqlite.WatchProgress, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetWatchProgressByMediaID(ctx, mediaID)
-		return sqlc_sqlite.WatchProgress(r0), err
+		return castValue[sqlc_postgres.WatchProgress, sqlc_sqlite.WatchProgress](r0), err
 	}
 	return q.sqlite.GetWatchProgressByMediaID(ctx, mediaID)
 }
@@ -2236,7 +2244,7 @@ func (q *Querier) GetWatchProgressByMediaID(ctx context.Context, mediaID int64) 
 func (q *Querier) GetWatchProgressByMediaIDAndUserID(ctx context.Context, arg sqlc_sqlite.GetWatchProgressByMediaIDAndUserIDParams) (sqlc_sqlite.WatchProgress, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetWatchProgressByMediaIDAndUserID(ctx, sqlc_postgres.GetWatchProgressByMediaIDAndUserIDParams(arg))
-		return sqlc_sqlite.WatchProgress(r0), err
+		return castValue[sqlc_postgres.WatchProgress, sqlc_sqlite.WatchProgress](r0), err
 	}
 	return q.sqlite.GetWatchProgressByMediaIDAndUserID(ctx, arg)
 }
@@ -2266,7 +2274,7 @@ func (q *Querier) IncrementSeasonEpisodeCount(ctx context.Context, id int64) err
 func (q *Querier) InsertAudioTrack(ctx context.Context, arg sqlc_sqlite.InsertAudioTrackParams) (sqlc_sqlite.InsertAudioTrackRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.InsertAudioTrack(ctx, sqlc_postgres.InsertAudioTrackParams(arg))
-		return sqlc_sqlite.InsertAudioTrackRow(r0), err
+		return castValue[sqlc_postgres.InsertAudioTrackRow, sqlc_sqlite.InsertAudioTrackRow](r0), err
 	}
 	return q.sqlite.InsertAudioTrack(ctx, arg)
 }
@@ -2281,7 +2289,7 @@ func (q *Querier) InsertKeyword(ctx context.Context, arg sqlc_sqlite.InsertKeywo
 func (q *Querier) InsertSubtitleTrack(ctx context.Context, arg sqlc_sqlite.InsertSubtitleTrackParams) (sqlc_sqlite.InsertSubtitleTrackRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.InsertSubtitleTrack(ctx, sqlc_postgres.InsertSubtitleTrackParams(arg))
-		return sqlc_sqlite.InsertSubtitleTrackRow(r0), err
+		return castValue[sqlc_postgres.InsertSubtitleTrackRow, sqlc_sqlite.InsertSubtitleTrackRow](r0), err
 	}
 	return q.sqlite.InsertSubtitleTrack(ctx, arg)
 }
@@ -2926,7 +2934,7 @@ func (q *Querier) PluginKVDeleteExpired(ctx context.Context) error {
 func (q *Querier) PluginKVGet(ctx context.Context, arg sqlc_sqlite.PluginKVGetParams) (sqlc_sqlite.PluginKVGetRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.PluginKVGet(ctx, sqlc_postgres.PluginKVGetParams(arg))
-		return sqlc_sqlite.PluginKVGetRow(r0), err
+		return castValue[sqlc_postgres.PluginKVGetRow, sqlc_sqlite.PluginKVGetRow](r0), err
 	}
 	return q.sqlite.PluginKVGet(ctx, arg)
 }
@@ -3214,7 +3222,7 @@ func (q *Querier) UpdateImage(ctx context.Context, arg sqlc_sqlite.UpdateImagePa
 func (q *Querier) UpdateLibrary(ctx context.Context, arg sqlc_sqlite.UpdateLibraryParams) (sqlc_sqlite.Library, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.UpdateLibrary(ctx, sqlc_postgres.UpdateLibraryParams(arg))
-		return sqlc_sqlite.Library(r0), err
+		return castValue[sqlc_postgres.Library, sqlc_sqlite.Library](r0), err
 	}
 	return q.sqlite.UpdateLibrary(ctx, arg)
 }
@@ -3222,7 +3230,7 @@ func (q *Querier) UpdateLibrary(ctx context.Context, arg sqlc_sqlite.UpdateLibra
 func (q *Querier) UpdateLibraryMonitoring(ctx context.Context, arg sqlc_sqlite.UpdateLibraryMonitoringParams) (sqlc_sqlite.Library, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.UpdateLibraryMonitoring(ctx, sqlc_postgres.UpdateLibraryMonitoringParams(arg))
-		return sqlc_sqlite.Library(r0), err
+		return castValue[sqlc_postgres.Library, sqlc_sqlite.Library](r0), err
 	}
 	return q.sqlite.UpdateLibraryMonitoring(ctx, arg)
 }
@@ -3230,7 +3238,7 @@ func (q *Querier) UpdateLibraryMonitoring(ctx context.Context, arg sqlc_sqlite.U
 func (q *Querier) UpdateMedia(ctx context.Context, arg sqlc_sqlite.UpdateMediaParams) (sqlc_sqlite.Medium, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.UpdateMedia(ctx, sqlc_postgres.UpdateMediaParams(arg))
-		return sqlc_sqlite.Medium(r0), err
+		return castValue[sqlc_postgres.Medium, sqlc_sqlite.Medium](r0), err
 	}
 	return q.sqlite.UpdateMedia(ctx, arg)
 }
@@ -3434,7 +3442,7 @@ func (q *Querier) UpdateTranscodeSegmentCount(ctx context.Context, arg sqlc_sqli
 func (q *Querier) UpdateUser(ctx context.Context, arg sqlc_sqlite.UpdateUserParams) (sqlc_sqlite.User, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.UpdateUser(ctx, sqlc_postgres.UpdateUserParams(arg))
-		return sqlc_sqlite.User(r0), err
+		return castValue[sqlc_postgres.User, sqlc_sqlite.User](r0), err
 	}
 	return q.sqlite.UpdateUser(ctx, arg)
 }
@@ -3456,7 +3464,7 @@ func (q *Querier) UpdateUserPassword(ctx context.Context, arg sqlc_sqlite.Update
 func (q *Querier) UpdateWatchProgress(ctx context.Context, arg sqlc_sqlite.UpdateWatchProgressParams) (sqlc_sqlite.WatchProgress, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.UpdateWatchProgress(ctx, sqlc_postgres.UpdateWatchProgressParams(arg))
-		return sqlc_sqlite.WatchProgress(r0), err
+		return castValue[sqlc_postgres.WatchProgress, sqlc_sqlite.WatchProgress](r0), err
 	}
 	return q.sqlite.UpdateWatchProgress(ctx, arg)
 }
@@ -3485,7 +3493,7 @@ func (q *Querier) UpsertMetadataSource(ctx context.Context, arg sqlc_sqlite.Upse
 func (q *Querier) UpsertPlaybackPreferences(ctx context.Context, arg sqlc_sqlite.UpsertPlaybackPreferencesParams) (sqlc_sqlite.PlaybackPreference, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.UpsertPlaybackPreferences(ctx, sqlc_postgres.UpsertPlaybackPreferencesParams(arg))
-		return sqlc_sqlite.PlaybackPreference(r0), err
+		return castValue[sqlc_postgres.PlaybackPreference, sqlc_sqlite.PlaybackPreference](r0), err
 	}
 	return q.sqlite.UpsertPlaybackPreferences(ctx, arg)
 }
@@ -3493,7 +3501,7 @@ func (q *Querier) UpsertPlaybackPreferences(ctx context.Context, arg sqlc_sqlite
 func (q *Querier) UpsertPlaybackSession(ctx context.Context, arg sqlc_sqlite.UpsertPlaybackSessionParams) (sqlc_sqlite.PlaybackSession, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.UpsertPlaybackSession(ctx, sqlc_postgres.UpsertPlaybackSessionParams(arg))
-		return sqlc_sqlite.PlaybackSession(r0), err
+		return castValue[sqlc_postgres.PlaybackSession, sqlc_sqlite.PlaybackSession](r0), err
 	}
 	return q.sqlite.UpsertPlaybackSession(ctx, arg)
 }
@@ -3529,7 +3537,7 @@ func (q *Querier) UpsertSystemSetting(ctx context.Context, arg sqlc_sqlite.Upser
 func (q *Querier) UpsertTVShow(ctx context.Context, arg sqlc_sqlite.UpsertTVShowParams) (sqlc_sqlite.TvShow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.UpsertTVShow(ctx, sqlc_postgres.UpsertTVShowParams(arg))
-		return sqlc_sqlite.TvShow(r0), err
+		return castValue[sqlc_postgres.TvShow, sqlc_sqlite.TvShow](r0), err
 	}
 	return q.sqlite.UpsertTVShow(ctx, arg)
 }
@@ -3544,7 +3552,7 @@ func (q *Querier) UpsertUserSetting(ctx context.Context, arg sqlc_sqlite.UpsertU
 func (q *Querier) UpsertWatchProgress(ctx context.Context, arg sqlc_sqlite.UpsertWatchProgressParams) (sqlc_sqlite.WatchProgress, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.UpsertWatchProgress(ctx, sqlc_postgres.UpsertWatchProgressParams(arg))
-		return sqlc_sqlite.WatchProgress(r0), err
+		return castValue[sqlc_postgres.WatchProgress, sqlc_sqlite.WatchProgress](r0), err
 	}
 	return q.sqlite.UpsertWatchProgress(ctx, arg)
 }
