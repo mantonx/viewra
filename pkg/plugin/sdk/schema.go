@@ -127,6 +127,7 @@ type Schema struct {
 	required   []string
 	actions    []Action
 	sections   []Section
+	widgets    []Widget
 }
 
 // PluginMeta contains metadata for the plugin UI display.
@@ -241,6 +242,33 @@ func (s *Schema) Section(section *Section) *Schema {
 	return s
 }
 
+// Widgets adds widgets to the x-viewra-widgets extension.
+// Widgets are UI sections that the plugin provides for the home screen.
+// Each widget has a type, location, and configuration that clients use
+// to render the widget and fetch its data.
+//
+// Example:
+//
+//	schema.Widgets([]sdk.Widget{
+//	    {
+//	        ID:              "my-recommendations",
+//	        Type:            sdk.WidgetTypeMediaRow,
+//	        Location:        sdk.LocationHomepageSections,
+//	        ClientTypes:     []string{sdk.ClientTypeAll},
+//	        Priority:        80,
+//	        CacheTTLSeconds: 600,
+//	        Config: map[string]any{
+//	            "endpoint": "/recommendations",
+//	            "title":    "Recommended for You",
+//	        },
+//	        SettingsKey: "enabled",
+//	    },
+//	})
+func (s *Schema) Widgets(widgets []Widget) *Schema {
+	s.widgets = widgets
+	return s
+}
+
 // Build serializes the schema to JSON bytes.
 // Most plugins should use BuildSettingsSchema instead.
 func (s *Schema) Build() ([]byte, error) {
@@ -286,7 +314,45 @@ func (s *Schema) Build() ([]byte, error) {
 		schema["x-viewra-actions"] = actions
 	}
 
+	if len(s.widgets) > 0 {
+		widgets := make([]any, len(s.widgets))
+		for i, w := range s.widgets {
+			widgets[i] = buildWidget(w)
+		}
+		schema["x-viewra-widgets"] = widgets
+	}
+
 	return json.Marshal(schema)
+}
+
+// buildWidget converts a Widget to a map for JSON serialization.
+func buildWidget(w Widget) map[string]any {
+	widget := map[string]any{
+		"id":       w.ID,
+		"type":     w.Type,
+		"location": w.Location,
+	}
+
+	if len(w.ClientTypes) > 0 {
+		widget["client_types"] = w.ClientTypes
+	}
+	if w.Priority != 0 {
+		widget["priority"] = w.Priority
+	}
+	if w.CacheTTLSeconds != 0 {
+		widget["cache_ttl_seconds"] = w.CacheTTLSeconds
+	}
+	if len(w.Config) > 0 {
+		widget["config"] = w.Config
+	}
+	if w.RequiredCapability != "" {
+		widget["required_capability"] = w.RequiredCapability
+	}
+	if w.SettingsKey != "" {
+		widget["settings_key"] = w.SettingsKey
+	}
+
+	return widget
 }
 
 // BuildSettingsSchema builds and returns a SettingsSchema proto message.

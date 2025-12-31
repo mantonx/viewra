@@ -204,6 +204,8 @@ proto-gen: ## Generate Go code from protobuf definitions
 		api/proto/plugin/host_services.proto \
 		api/proto/plugin/plugin_core.proto \
 		api/proto/plugin/provider.proto \
+		api/proto/plugin/search_provider.proto \
+		api/proto/plugin/trending.proto \
 		api/proto/plugin/vector_search.proto
 	@echo "✓ Protobuf code generated"
 

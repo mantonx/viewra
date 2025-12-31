@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package viewra.plugin.v1;
+
+option go_package = "github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1";
+
+import "api/proto/plugin/common.proto";
+
+// TrendingProviderService is implemented by plugins that provide trending data.
+// Trending data is matched against the user's local library to show relevant items.
+service TrendingProviderService {
+  // GetTrending returns currently trending items from this provider.
+  rpc GetTrending(TrendingRequest) returns (TrendingResponse);
+
+  // GetProviderInfo returns metadata about this trending source.
+  rpc GetProviderInfo(Empty) returns (TrendingProviderInfo);
+}
+
+// TrendingRequest contains parameters for a trending request.
+message TrendingRequest {
+  // MediaType filters by media type: "movie", "tv", "all".
+  string media_type = 1;
+
+  // Window is the time window: "day", "week".
+  string window = 2;
+
+  // Limit is the maximum number of items to return.
+  int32 limit = 3;
+
+  // Region is an optional ISO 3166-1 country code.
+  string region = 4;
+}
+
+// TrendingResponse contains trending items from a provider.
+message TrendingResponse {
+  // Items is the list of trending items.
+  repeated TrendingItem items = 1;
+
+  // Window is the time window used.
+  string window = 2;
+
+  // Source is the provider that served this data.
+  string source = 3;
+
+  // CachedAt is the Unix timestamp when this data was fetched.
+  int64 cached_at = 4;
+}
+
+// TrendingItem represents a single trending item from an external source.
+message TrendingItem {
+  // ExternalID is the external identifier in format "source:id".
+  string external_id = 1;
+
+  // MediaType is "movie" or "tv".
+  string media_type = 2;
+
+  // Title is the display title.
+  string title = 3;
+
+  // Year is the release/air year.
+  int32 year = 4;
+
+  // Popularity is the provider-specific popularity score.
+  float popularity = 5;
+
+  // PosterPath is the external URL to the poster image.
+  string poster_path = 6;
+
+  // Overview is a brief description/plot summary.
+  string overview = 7;
+
+  // LocalID is the matched local library ID (filled by core service).
+  int64 local_id = 8;
+
+  // LocalMatched indicates whether matched to local library.
+  bool local_matched = 9;
+}
+
+// TrendingProviderInfo contains metadata about a trending provider.
+message TrendingProviderInfo {
+  // ID is a unique identifier for this provider.
+  string id = 1;
+
+  // Name is the human-readable name.
+  string name = 2;
+
+  // Description describes what this provider offers.
+  string description = 3;
+
+  // Windows lists supported time windows.
+  repeated string windows = 4;
+
+  // MediaTypes lists supported media types.
+  repeated string media_types = 5;
+
+  // UpdateFreq describes how often data is updated.
+  string update_freq = 6;
+}

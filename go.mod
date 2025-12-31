@@ -5,6 +5,7 @@ go 1.25.4
 require (
 	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/chai2010/webp v1.4.0
+	github.com/mantonx/viewra/pkg/plugin/sdk v0.0.0
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
 	github.com/disintegration/imaging v1.6.2
 	github.com/fsnotify/fsnotify v1.9.0
@@ -111,3 +112,6 @@ require (
 
 // Use local proto package during development
 replace github.com/mantonx/viewra/api/proto/plugin => ./api/proto/plugin
+
+// Use local SDK package
+replace github.com/mantonx/viewra/pkg/plugin/sdk => ./pkg/plugin/sdk
