@@ -84,6 +84,9 @@ func (s *StorageServer) ExecuteSQL(ctx context.Context, req *pluginv1.SQLRequest
 		return nil, fmt.Errorf("failed to rewrite SQL: %w", err)
 	}
 
+	// Adapt SQL syntax for the target database
+	rewrittenSQL = s.adaptSQL(rewrittenSQL)
+
 	// Convert args
 	args, err := sqlValuesToArgs(req.Args)
 	if err != nil {
@@ -133,6 +136,9 @@ func (s *StorageServer) QuerySQL(ctx context.Context, req *pluginv1.SQLRequest) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to rewrite SQL: %w", err)
 	}
+
+	// Adapt SQL syntax for the target database
+	rewrittenSQL = s.adaptSQL(rewrittenSQL)
 
 	// Convert args
 	args, err := sqlValuesToArgs(req.Args)
@@ -206,6 +212,43 @@ func validateSQL(sqlStr string) error {
 		}
 	}
 	return nil
+}
+
+// Pre-compiled regexes for SQL adaptation
+var (
+	// Match INTEGER PRIMARY KEY (SQLite auto-increment syntax)
+	integerPrimaryKeyRe = regexp.MustCompile(`(?i)\bINTEGER\s+PRIMARY\s+KEY\b`)
+	// Match ? placeholders for PostgreSQL conversion
+	placeholderRe = regexp.MustCompile(`\?`)
+	// Match CURRENT_TIMESTAMP for PostgreSQL
+	currentTimestampRe = regexp.MustCompile(`(?i)\bCURRENT_TIMESTAMP\b`)
+)
+
+// adaptSQL converts SQLite-style SQL to PostgreSQL syntax when needed.
+// This allows plugins to write portable SQL that works with both databases.
+func (s *StorageServer) adaptSQL(sqlStr string) string {
+	if s.dbType != "postgres" && s.dbType != "postgresql" {
+		return sqlStr
+	}
+
+	result := sqlStr
+
+	// Convert INTEGER PRIMARY KEY to BIGSERIAL PRIMARY KEY for PostgreSQL
+	// SQLite uses INTEGER PRIMARY KEY for auto-increment
+	// PostgreSQL uses SERIAL/BIGSERIAL
+	result = integerPrimaryKeyRe.ReplaceAllString(result, "BIGSERIAL PRIMARY KEY")
+
+	// Convert ? placeholders to $1, $2, etc. for PostgreSQL
+	counter := 0
+	result = placeholderRe.ReplaceAllStringFunc(result, func(_ string) string {
+		counter++
+		return fmt.Sprintf("$%d", counter)
+	})
+
+	// CURRENT_TIMESTAMP works in both, but PostgreSQL prefers NOW()
+	// Keep CURRENT_TIMESTAMP as it works in both
+
+	return result
 }
 
 // sanitizePluginID converts plugin ID to a safe table prefix
