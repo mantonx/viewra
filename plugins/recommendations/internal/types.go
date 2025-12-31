@@ -1,0 +1,65 @@
+package internal
+
+import "time"
+
+// Rating represents a user's rating for a media item.
+type Rating struct {
+	UserID     string    `json:"user_id"`
+	EntityType string    `json:"entity_type"`
+	EntityID   int64     `json:"entity_id"`
+	Rating     string    `json:"rating"` // "up", "down", "favorite"
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+// RatingType constants
+const (
+	RatingUp       = "up"
+	RatingDown     = "down"
+	RatingFavorite = "favorite"
+)
+
+// Config holds the plugin configuration.
+type Config struct {
+	// Enabled controls whether recommendations are shown
+	Enabled bool `yaml:"enabled" json:"enabled"`
+
+	// MaxRecommendations is the max items per recommendation row
+	MaxRecommendations int `yaml:"max_recommendations" json:"max_recommendations"`
+
+	// SimilarWeight is the weight for similar item recommendations (0-100)
+	SimilarWeight int `yaml:"similar_weight" json:"similar_weight"`
+
+	// FavoriteWeight is the weight for favorite-based recommendations (0-100)
+	FavoriteWeight int `yaml:"favorite_weight" json:"favorite_weight"`
+}
+
+// DefaultConfig returns the default configuration.
+func DefaultConfig() Config {
+	return Config{
+		Enabled:            true,
+		MaxRecommendations: 20,
+		SimilarWeight:      50,
+		FavoriteWeight:     50,
+	}
+}
+
+// Recommendation represents a recommended item.
+type Recommendation struct {
+	EntityType string  `json:"entity_type"`
+	EntityID   int64   `json:"entity_id"`
+	Title      string  `json:"title"`
+	Year       int     `json:"year,omitempty"`
+	Poster     string  `json:"poster,omitempty"`
+	Reason     string  `json:"reason,omitempty"`
+	Score      float32 `json:"score,omitempty"`
+}
+
+// RecommendationRow represents a row of recommendations for the home screen.
+type RecommendationRow struct {
+	ID        string           `json:"id"`
+	Title     string           `json:"title"`
+	Subtitle  string           `json:"subtitle,omitempty"`
+	Items     []Recommendation `json:"items"`
+	SeeAllURL string           `json:"see_all_url,omitempty"`
+}
