@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, Loading } from '@/components/ui'
 import { useGetApiSystemInfo } from '@/lib/api/generated/system/system'
 import { cn } from '@/lib/utils'
 import { text } from '@/styles/semantic'
-import { Cpu, HardDrive, MemoryStick, MonitorPlay } from 'lucide-react'
+import { Cpu, Database, HardDrive, MemoryStick, MonitorPlay } from 'lucide-react'
 
 /**
  * Card displaying detected system hardware information.
@@ -30,6 +30,7 @@ export const SystemInfoCard = () => {
   const cpuInfo = info.cpu
   const memoryInfo = info.memory
   const gpuInfo = info.gpu
+  const databaseInfo = info.database
 
   return (
     <Card variant="glass" className="relative overflow-hidden">
@@ -54,7 +55,7 @@ export const SystemInfoCard = () => {
       </CardHeader>
 
       <CardContent className="relative">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 py-2">
           {/* CPU Info */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
@@ -123,6 +124,28 @@ export const SystemInfoCard = () => {
                   <p className={cn('text-sm font-medium', text.primary)}>No GPU Detected</p>
                   <p className={cn('text-xs', text.tertiary)}>Software encoding only</p>
                 </>
+              )}
+            </div>
+          </div>
+
+          {/* Database Info */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Database className={cn('w-4 h-4', text.secondary)} />
+              <span className={cn('text-sm font-medium', text.secondary)}>Database</span>
+            </div>
+            <div className="space-y-1">
+              <p className={cn('text-sm font-medium', text.primary)}>
+                {databaseInfo?.driver === 'postgres' ? 'PostgreSQL' : 'SQLite'}
+              </p>
+              {databaseInfo?.driver === 'postgres' ? (
+                <p className={cn('text-xs', text.tertiary)}>
+                  {databaseInfo.host}:{databaseInfo.port}/{databaseInfo.databaseName}
+                </p>
+              ) : (
+                <p className={cn('text-xs', text.tertiary)}>
+                  {databaseInfo?.databaseName || 'viewra.db'}
+                </p>
               )}
             </div>
           </div>

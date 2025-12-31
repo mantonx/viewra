@@ -148,6 +148,17 @@ func BuildHandlers(
 	var locationSettingsHandler *handlers.LocationSettingsHandler
 	if svcs.Settings != nil {
 		settingsHandler = handlers.NewSettingsHandler(svcs.Settings, infra.Repos.User)
+		// Add database info for system info endpoint
+		if infra.Config != nil {
+			settingsHandler.SetDatabaseInfo(&handlers.DatabaseInfo{
+				Driver:   infra.Config.Database.Driver,
+				Host:     infra.Config.Database.Host,
+				Port:     infra.Config.Database.Port,
+				DBName:   infra.Config.Database.DBName,
+				SSLMode:  infra.Config.Database.SSLMode,
+				PoolSize: infra.Config.Database.Pool.MaxOpenConns,
+			})
+		}
 	}
 
 	// Location settings handler (for weather context)
@@ -206,7 +217,14 @@ func BuildHandlers(
 	// System handler (requires lifecycle manager)
 	var systemHandler *handlers.SystemHandler
 	if infra.LifecycleMgr != nil {
-		systemHandler = handlers.NewSystemHandler(infra.LifecycleMgr)
+		systemHandler = handlers.NewSystemHandler(infra.LifecycleMgr, infra.DB)
+		// Wire maintenance manager to health handler for readiness checks
+		healthHandler.SetMaintenanceManager(systemHandler.GetMaintenanceManager())
+		// Wire migration service with database info and config saver
+		if infra.DB != nil && infra.Config != nil {
+			configSaver := createConfigSaver(infra.Config.DataDir)
+			systemHandler.SetMigrationService(infra.DB, infra.Config.Database.Driver, configSaver)
+		}
 	}
 
 	return &api.Handlers{
@@ -237,5 +255,22 @@ func BuildHandlers(
 		PluginProxy:      pluginProxy,
 		Search:           searchHandler,
 		AuthValidator:    authService,
+	}
+}
+
+// createConfigSaver creates a function that saves database configuration after migration.
+func createConfigSaver(dataDir string) func(driver string, pgHost string, pgPort int, pgUser, pgDatabase, pgSSLMode string) error {
+	return func(driver string, pgHost string, pgPort int, pgUser, pgDatabase, pgSSLMode string) error {
+		var fileConfig *config.FileConfig
+		switch driver {
+		case "postgres", "postgresql":
+			fileConfig = config.GenerateConfigForDatabase("postgres", "", pgHost, pgPort, pgUser, pgDatabase, pgSSLMode)
+		case "sqlite", "sqlite3":
+			// For SQLite, pgDatabase is actually the path
+			fileConfig = config.GenerateConfigForDatabase("sqlite", pgDatabase, "", 0, "", "", "")
+		default:
+			return nil
+		}
+		return config.SaveConfigFile(dataDir, fileConfig)
 	}
 }

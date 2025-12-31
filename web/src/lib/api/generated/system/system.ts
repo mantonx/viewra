@@ -22,8 +22,17 @@ import type {
 } from '@tanstack/react-query'
 
 import type {
+  GithubComMantonxViewraInternalApplicationSystemMigrationConnectionTestResult,
+  GithubComMantonxViewraInternalApplicationSystemMigrationEstimateRequest,
+  GithubComMantonxViewraInternalApplicationSystemMigrationEstimateResponse,
+  GithubComMantonxViewraInternalApplicationSystemMigrationMigrationRequest,
+  GithubComMantonxViewraInternalApplicationSystemMigrationMigrationStartResponse,
+  GithubComMantonxViewraInternalApplicationSystemMigrationState,
+  GithubComMantonxViewraInternalApplicationSystemMigrationTargetConfig,
   InternalApiHandlersAPIError,
   InternalApiHandlersAdminStatusEvent,
+  InternalApiHandlersMaintenanceRequest,
+  InternalApiHandlersMaintenanceStateResponse,
   InternalApiHandlersRestartRequest,
   InternalApiHandlersRestartResponse,
   InternalApiHandlersSystemInfoResponse,
@@ -191,6 +200,847 @@ export function useGetApiAdminStatusStream<
   return query
 }
 
+/**
+ * Estimates migration time and data size
+ * @summary Estimate migration
+ */
+export type postApiAdminSystemDatabaseEstimateResponse200 = {
+  data: GithubComMantonxViewraInternalApplicationSystemMigrationEstimateResponse
+  status: 200
+}
+
+export type postApiAdminSystemDatabaseEstimateResponse400 = {
+  data: InternalApiHandlersAPIError
+  status: 400
+}
+
+export type postApiAdminSystemDatabaseEstimateResponse401 = {
+  data: InternalApiHandlersAPIError
+  status: 401
+}
+
+export type postApiAdminSystemDatabaseEstimateResponse403 = {
+  data: InternalApiHandlersAPIError
+  status: 403
+}
+
+export type postApiAdminSystemDatabaseEstimateResponseSuccess =
+  postApiAdminSystemDatabaseEstimateResponse200 & {
+    headers: Headers
+  }
+export type postApiAdminSystemDatabaseEstimateResponseError = (
+  | postApiAdminSystemDatabaseEstimateResponse400
+  | postApiAdminSystemDatabaseEstimateResponse401
+  | postApiAdminSystemDatabaseEstimateResponse403
+) & {
+  headers: Headers
+}
+
+export type postApiAdminSystemDatabaseEstimateResponse =
+  | postApiAdminSystemDatabaseEstimateResponseSuccess
+  | postApiAdminSystemDatabaseEstimateResponseError
+
+export const getPostApiAdminSystemDatabaseEstimateUrl = () => {
+  return `/api/admin/system/database/estimate`
+}
+
+export const postApiAdminSystemDatabaseEstimate = async (
+  githubComMantonxViewraInternalApplicationSystemMigrationEstimateRequest: GithubComMantonxViewraInternalApplicationSystemMigrationEstimateRequest,
+  options?: RequestInit
+): Promise<postApiAdminSystemDatabaseEstimateResponse> => {
+  return customInstance<postApiAdminSystemDatabaseEstimateResponse>(
+    getPostApiAdminSystemDatabaseEstimateUrl(),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(githubComMantonxViewraInternalApplicationSystemMigrationEstimateRequest),
+    }
+  )
+}
+
+export const getPostApiAdminSystemDatabaseEstimateMutationOptions = <
+  TError = InternalApiHandlersAPIError,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiAdminSystemDatabaseEstimate>>,
+    TError,
+    { data: GithubComMantonxViewraInternalApplicationSystemMigrationEstimateRequest },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiAdminSystemDatabaseEstimate>>,
+  TError,
+  { data: GithubComMantonxViewraInternalApplicationSystemMigrationEstimateRequest },
+  TContext
+> => {
+  const mutationKey = ['postApiAdminSystemDatabaseEstimate']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiAdminSystemDatabaseEstimate>>,
+    { data: GithubComMantonxViewraInternalApplicationSystemMigrationEstimateRequest }
+  > = (props) => {
+    const { data } = props ?? {}
+
+    return postApiAdminSystemDatabaseEstimate(data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiAdminSystemDatabaseEstimateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiAdminSystemDatabaseEstimate>>
+>
+export type PostApiAdminSystemDatabaseEstimateMutationBody =
+  GithubComMantonxViewraInternalApplicationSystemMigrationEstimateRequest
+export type PostApiAdminSystemDatabaseEstimateMutationError = InternalApiHandlersAPIError
+
+/**
+ * @summary Estimate migration
+ */
+export const usePostApiAdminSystemDatabaseEstimate = <
+  TError = InternalApiHandlersAPIError,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiAdminSystemDatabaseEstimate>>,
+      TError,
+      { data: GithubComMantonxViewraInternalApplicationSystemMigrationEstimateRequest },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiAdminSystemDatabaseEstimate>>,
+  TError,
+  { data: GithubComMantonxViewraInternalApplicationSystemMigrationEstimateRequest },
+  TContext
+> => {
+  const mutationOptions = getPostApiAdminSystemDatabaseEstimateMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Returns the current migration status
+ * @summary Get migration status
+ */
+export type getApiAdminSystemDatabaseMigrateResponse200 = {
+  data: GithubComMantonxViewraInternalApplicationSystemMigrationState
+  status: 200
+}
+
+export type getApiAdminSystemDatabaseMigrateResponse401 = {
+  data: InternalApiHandlersAPIError
+  status: 401
+}
+
+export type getApiAdminSystemDatabaseMigrateResponse403 = {
+  data: InternalApiHandlersAPIError
+  status: 403
+}
+
+export type getApiAdminSystemDatabaseMigrateResponseSuccess =
+  getApiAdminSystemDatabaseMigrateResponse200 & {
+    headers: Headers
+  }
+export type getApiAdminSystemDatabaseMigrateResponseError = (
+  | getApiAdminSystemDatabaseMigrateResponse401
+  | getApiAdminSystemDatabaseMigrateResponse403
+) & {
+  headers: Headers
+}
+
+export type getApiAdminSystemDatabaseMigrateResponse =
+  | getApiAdminSystemDatabaseMigrateResponseSuccess
+  | getApiAdminSystemDatabaseMigrateResponseError
+
+export const getGetApiAdminSystemDatabaseMigrateUrl = () => {
+  return `/api/admin/system/database/migrate`
+}
+
+export const getApiAdminSystemDatabaseMigrate = async (
+  options?: RequestInit
+): Promise<getApiAdminSystemDatabaseMigrateResponse> => {
+  return customInstance<getApiAdminSystemDatabaseMigrateResponse>(
+    getGetApiAdminSystemDatabaseMigrateUrl(),
+    {
+      ...options,
+      method: 'GET',
+    }
+  )
+}
+
+export const getGetApiAdminSystemDatabaseMigrateQueryKey = () => {
+  return [`/api/admin/system/database/migrate`] as const
+}
+
+export const getGetApiAdminSystemDatabaseMigrateQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiAdminSystemDatabaseMigrate>>,
+  TError = InternalApiHandlersAPIError,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSystemDatabaseMigrate>>, TError, TData>
+  >
+  request?: SecondParameter<typeof customInstance>
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiAdminSystemDatabaseMigrateQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiAdminSystemDatabaseMigrate>>> = ({
+    signal,
+  }) => getApiAdminSystemDatabaseMigrate({ signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiAdminSystemDatabaseMigrate>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiAdminSystemDatabaseMigrateQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiAdminSystemDatabaseMigrate>>
+>
+export type GetApiAdminSystemDatabaseMigrateQueryError = InternalApiHandlersAPIError
+
+export function useGetApiAdminSystemDatabaseMigrate<
+  TData = Awaited<ReturnType<typeof getApiAdminSystemDatabaseMigrate>>,
+  TError = InternalApiHandlersAPIError,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSystemDatabaseMigrate>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminSystemDatabaseMigrate>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminSystemDatabaseMigrate>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminSystemDatabaseMigrate<
+  TData = Awaited<ReturnType<typeof getApiAdminSystemDatabaseMigrate>>,
+  TError = InternalApiHandlersAPIError,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSystemDatabaseMigrate>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminSystemDatabaseMigrate>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminSystemDatabaseMigrate>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminSystemDatabaseMigrate<
+  TData = Awaited<ReturnType<typeof getApiAdminSystemDatabaseMigrate>>,
+  TError = InternalApiHandlersAPIError,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSystemDatabaseMigrate>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get migration status
+ */
+
+export function useGetApiAdminSystemDatabaseMigrate<
+  TData = Awaited<ReturnType<typeof getApiAdminSystemDatabaseMigrate>>,
+  TError = InternalApiHandlersAPIError,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSystemDatabaseMigrate>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiAdminSystemDatabaseMigrateQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Starts a database migration to a new target
+ * @summary Start database migration
+ */
+export type postApiAdminSystemDatabaseMigrateResponse200 = {
+  data: GithubComMantonxViewraInternalApplicationSystemMigrationMigrationStartResponse
+  status: 200
+}
+
+export type postApiAdminSystemDatabaseMigrateResponse400 = {
+  data: InternalApiHandlersAPIError
+  status: 400
+}
+
+export type postApiAdminSystemDatabaseMigrateResponse401 = {
+  data: InternalApiHandlersAPIError
+  status: 401
+}
+
+export type postApiAdminSystemDatabaseMigrateResponse403 = {
+  data: InternalApiHandlersAPIError
+  status: 403
+}
+
+export type postApiAdminSystemDatabaseMigrateResponseSuccess =
+  postApiAdminSystemDatabaseMigrateResponse200 & {
+    headers: Headers
+  }
+export type postApiAdminSystemDatabaseMigrateResponseError = (
+  | postApiAdminSystemDatabaseMigrateResponse400
+  | postApiAdminSystemDatabaseMigrateResponse401
+  | postApiAdminSystemDatabaseMigrateResponse403
+) & {
+  headers: Headers
+}
+
+export type postApiAdminSystemDatabaseMigrateResponse =
+  | postApiAdminSystemDatabaseMigrateResponseSuccess
+  | postApiAdminSystemDatabaseMigrateResponseError
+
+export const getPostApiAdminSystemDatabaseMigrateUrl = () => {
+  return `/api/admin/system/database/migrate`
+}
+
+export const postApiAdminSystemDatabaseMigrate = async (
+  githubComMantonxViewraInternalApplicationSystemMigrationMigrationRequest: GithubComMantonxViewraInternalApplicationSystemMigrationMigrationRequest,
+  options?: RequestInit
+): Promise<postApiAdminSystemDatabaseMigrateResponse> => {
+  return customInstance<postApiAdminSystemDatabaseMigrateResponse>(
+    getPostApiAdminSystemDatabaseMigrateUrl(),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(
+        githubComMantonxViewraInternalApplicationSystemMigrationMigrationRequest
+      ),
+    }
+  )
+}
+
+export const getPostApiAdminSystemDatabaseMigrateMutationOptions = <
+  TError = InternalApiHandlersAPIError,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiAdminSystemDatabaseMigrate>>,
+    TError,
+    { data: GithubComMantonxViewraInternalApplicationSystemMigrationMigrationRequest },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiAdminSystemDatabaseMigrate>>,
+  TError,
+  { data: GithubComMantonxViewraInternalApplicationSystemMigrationMigrationRequest },
+  TContext
+> => {
+  const mutationKey = ['postApiAdminSystemDatabaseMigrate']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiAdminSystemDatabaseMigrate>>,
+    { data: GithubComMantonxViewraInternalApplicationSystemMigrationMigrationRequest }
+  > = (props) => {
+    const { data } = props ?? {}
+
+    return postApiAdminSystemDatabaseMigrate(data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiAdminSystemDatabaseMigrateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiAdminSystemDatabaseMigrate>>
+>
+export type PostApiAdminSystemDatabaseMigrateMutationBody =
+  GithubComMantonxViewraInternalApplicationSystemMigrationMigrationRequest
+export type PostApiAdminSystemDatabaseMigrateMutationError = InternalApiHandlersAPIError
+
+/**
+ * @summary Start database migration
+ */
+export const usePostApiAdminSystemDatabaseMigrate = <
+  TError = InternalApiHandlersAPIError,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiAdminSystemDatabaseMigrate>>,
+      TError,
+      { data: GithubComMantonxViewraInternalApplicationSystemMigrationMigrationRequest },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiAdminSystemDatabaseMigrate>>,
+  TError,
+  { data: GithubComMantonxViewraInternalApplicationSystemMigrationMigrationRequest },
+  TContext
+> => {
+  const mutationOptions = getPostApiAdminSystemDatabaseMigrateMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Tests connection to a target database for migration
+ * @summary Test database connection
+ */
+export type postApiAdminSystemDatabaseTestConnectionResponse200 = {
+  data: GithubComMantonxViewraInternalApplicationSystemMigrationConnectionTestResult
+  status: 200
+}
+
+export type postApiAdminSystemDatabaseTestConnectionResponse400 = {
+  data: InternalApiHandlersAPIError
+  status: 400
+}
+
+export type postApiAdminSystemDatabaseTestConnectionResponse401 = {
+  data: InternalApiHandlersAPIError
+  status: 401
+}
+
+export type postApiAdminSystemDatabaseTestConnectionResponse403 = {
+  data: InternalApiHandlersAPIError
+  status: 403
+}
+
+export type postApiAdminSystemDatabaseTestConnectionResponseSuccess =
+  postApiAdminSystemDatabaseTestConnectionResponse200 & {
+    headers: Headers
+  }
+export type postApiAdminSystemDatabaseTestConnectionResponseError = (
+  | postApiAdminSystemDatabaseTestConnectionResponse400
+  | postApiAdminSystemDatabaseTestConnectionResponse401
+  | postApiAdminSystemDatabaseTestConnectionResponse403
+) & {
+  headers: Headers
+}
+
+export type postApiAdminSystemDatabaseTestConnectionResponse =
+  | postApiAdminSystemDatabaseTestConnectionResponseSuccess
+  | postApiAdminSystemDatabaseTestConnectionResponseError
+
+export const getPostApiAdminSystemDatabaseTestConnectionUrl = () => {
+  return `/api/admin/system/database/test-connection`
+}
+
+export const postApiAdminSystemDatabaseTestConnection = async (
+  githubComMantonxViewraInternalApplicationSystemMigrationTargetConfig: GithubComMantonxViewraInternalApplicationSystemMigrationTargetConfig,
+  options?: RequestInit
+): Promise<postApiAdminSystemDatabaseTestConnectionResponse> => {
+  return customInstance<postApiAdminSystemDatabaseTestConnectionResponse>(
+    getPostApiAdminSystemDatabaseTestConnectionUrl(),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(githubComMantonxViewraInternalApplicationSystemMigrationTargetConfig),
+    }
+  )
+}
+
+export const getPostApiAdminSystemDatabaseTestConnectionMutationOptions = <
+  TError = InternalApiHandlersAPIError,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiAdminSystemDatabaseTestConnection>>,
+    TError,
+    { data: GithubComMantonxViewraInternalApplicationSystemMigrationTargetConfig },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiAdminSystemDatabaseTestConnection>>,
+  TError,
+  { data: GithubComMantonxViewraInternalApplicationSystemMigrationTargetConfig },
+  TContext
+> => {
+  const mutationKey = ['postApiAdminSystemDatabaseTestConnection']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiAdminSystemDatabaseTestConnection>>,
+    { data: GithubComMantonxViewraInternalApplicationSystemMigrationTargetConfig }
+  > = (props) => {
+    const { data } = props ?? {}
+
+    return postApiAdminSystemDatabaseTestConnection(data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiAdminSystemDatabaseTestConnectionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiAdminSystemDatabaseTestConnection>>
+>
+export type PostApiAdminSystemDatabaseTestConnectionMutationBody =
+  GithubComMantonxViewraInternalApplicationSystemMigrationTargetConfig
+export type PostApiAdminSystemDatabaseTestConnectionMutationError = InternalApiHandlersAPIError
+
+/**
+ * @summary Test database connection
+ */
+export const usePostApiAdminSystemDatabaseTestConnection = <
+  TError = InternalApiHandlersAPIError,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiAdminSystemDatabaseTestConnection>>,
+      TError,
+      { data: GithubComMantonxViewraInternalApplicationSystemMigrationTargetConfig },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiAdminSystemDatabaseTestConnection>>,
+  TError,
+  { data: GithubComMantonxViewraInternalApplicationSystemMigrationTargetConfig },
+  TContext
+> => {
+  const mutationOptions = getPostApiAdminSystemDatabaseTestConnectionMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Returns the current maintenance mode status
+ * @summary Get maintenance mode status
+ */
+export type getApiAdminSystemMaintenanceResponse200 = {
+  data: InternalApiHandlersMaintenanceStateResponse
+  status: 200
+}
+
+export type getApiAdminSystemMaintenanceResponse401 = {
+  data: InternalApiHandlersAPIError
+  status: 401
+}
+
+export type getApiAdminSystemMaintenanceResponse403 = {
+  data: InternalApiHandlersAPIError
+  status: 403
+}
+
+export type getApiAdminSystemMaintenanceResponseSuccess =
+  getApiAdminSystemMaintenanceResponse200 & {
+    headers: Headers
+  }
+export type getApiAdminSystemMaintenanceResponseError = (
+  | getApiAdminSystemMaintenanceResponse401
+  | getApiAdminSystemMaintenanceResponse403
+) & {
+  headers: Headers
+}
+
+export type getApiAdminSystemMaintenanceResponse =
+  | getApiAdminSystemMaintenanceResponseSuccess
+  | getApiAdminSystemMaintenanceResponseError
+
+export const getGetApiAdminSystemMaintenanceUrl = () => {
+  return `/api/admin/system/maintenance`
+}
+
+export const getApiAdminSystemMaintenance = async (
+  options?: RequestInit
+): Promise<getApiAdminSystemMaintenanceResponse> => {
+  return customInstance<getApiAdminSystemMaintenanceResponse>(
+    getGetApiAdminSystemMaintenanceUrl(),
+    {
+      ...options,
+      method: 'GET',
+    }
+  )
+}
+
+export const getGetApiAdminSystemMaintenanceQueryKey = () => {
+  return [`/api/admin/system/maintenance`] as const
+}
+
+export const getGetApiAdminSystemMaintenanceQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiAdminSystemMaintenance>>,
+  TError = InternalApiHandlersAPIError,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSystemMaintenance>>, TError, TData>
+  >
+  request?: SecondParameter<typeof customInstance>
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiAdminSystemMaintenanceQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiAdminSystemMaintenance>>> = ({
+    signal,
+  }) => getApiAdminSystemMaintenance({ signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiAdminSystemMaintenance>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiAdminSystemMaintenanceQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiAdminSystemMaintenance>>
+>
+export type GetApiAdminSystemMaintenanceQueryError = InternalApiHandlersAPIError
+
+export function useGetApiAdminSystemMaintenance<
+  TData = Awaited<ReturnType<typeof getApiAdminSystemMaintenance>>,
+  TError = InternalApiHandlersAPIError,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSystemMaintenance>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminSystemMaintenance>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminSystemMaintenance>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminSystemMaintenance<
+  TData = Awaited<ReturnType<typeof getApiAdminSystemMaintenance>>,
+  TError = InternalApiHandlersAPIError,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSystemMaintenance>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiAdminSystemMaintenance>>,
+          TError,
+          Awaited<ReturnType<typeof getApiAdminSystemMaintenance>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiAdminSystemMaintenance<
+  TData = Awaited<ReturnType<typeof getApiAdminSystemMaintenance>>,
+  TError = InternalApiHandlersAPIError,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSystemMaintenance>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get maintenance mode status
+ */
+
+export function useGetApiAdminSystemMaintenance<
+  TData = Awaited<ReturnType<typeof getApiAdminSystemMaintenance>>,
+  TError = InternalApiHandlersAPIError,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiAdminSystemMaintenance>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiAdminSystemMaintenanceQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Enables or disables maintenance mode (admin only)
+ * @summary Enable or disable maintenance mode
+ */
+export type postApiAdminSystemMaintenanceResponse200 = {
+  data: InternalApiHandlersMaintenanceStateResponse
+  status: 200
+}
+
+export type postApiAdminSystemMaintenanceResponse400 = {
+  data: InternalApiHandlersAPIError
+  status: 400
+}
+
+export type postApiAdminSystemMaintenanceResponse401 = {
+  data: InternalApiHandlersAPIError
+  status: 401
+}
+
+export type postApiAdminSystemMaintenanceResponse403 = {
+  data: InternalApiHandlersAPIError
+  status: 403
+}
+
+export type postApiAdminSystemMaintenanceResponseSuccess =
+  postApiAdminSystemMaintenanceResponse200 & {
+    headers: Headers
+  }
+export type postApiAdminSystemMaintenanceResponseError = (
+  | postApiAdminSystemMaintenanceResponse400
+  | postApiAdminSystemMaintenanceResponse401
+  | postApiAdminSystemMaintenanceResponse403
+) & {
+  headers: Headers
+}
+
+export type postApiAdminSystemMaintenanceResponse =
+  | postApiAdminSystemMaintenanceResponseSuccess
+  | postApiAdminSystemMaintenanceResponseError
+
+export const getPostApiAdminSystemMaintenanceUrl = () => {
+  return `/api/admin/system/maintenance`
+}
+
+export const postApiAdminSystemMaintenance = async (
+  internalApiHandlersMaintenanceRequest: InternalApiHandlersMaintenanceRequest,
+  options?: RequestInit
+): Promise<postApiAdminSystemMaintenanceResponse> => {
+  return customInstance<postApiAdminSystemMaintenanceResponse>(
+    getPostApiAdminSystemMaintenanceUrl(),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(internalApiHandlersMaintenanceRequest),
+    }
+  )
+}
+
+export const getPostApiAdminSystemMaintenanceMutationOptions = <
+  TError = InternalApiHandlersAPIError,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiAdminSystemMaintenance>>,
+    TError,
+    { data: InternalApiHandlersMaintenanceRequest },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiAdminSystemMaintenance>>,
+  TError,
+  { data: InternalApiHandlersMaintenanceRequest },
+  TContext
+> => {
+  const mutationKey = ['postApiAdminSystemMaintenance']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiAdminSystemMaintenance>>,
+    { data: InternalApiHandlersMaintenanceRequest }
+  > = (props) => {
+    const { data } = props ?? {}
+
+    return postApiAdminSystemMaintenance(data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiAdminSystemMaintenanceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiAdminSystemMaintenance>>
+>
+export type PostApiAdminSystemMaintenanceMutationBody = InternalApiHandlersMaintenanceRequest
+export type PostApiAdminSystemMaintenanceMutationError = InternalApiHandlersAPIError
+
+/**
+ * @summary Enable or disable maintenance mode
+ */
+export const usePostApiAdminSystemMaintenance = <
+  TError = InternalApiHandlersAPIError,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiAdminSystemMaintenance>>,
+      TError,
+      { data: InternalApiHandlersMaintenanceRequest },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiAdminSystemMaintenance>>,
+  TError,
+  { data: InternalApiHandlersMaintenanceRequest },
+  TContext
+> => {
+  const mutationOptions = getPostApiAdminSystemMaintenanceMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
 /**
  * Returns the current restart status including pending settings
  * @summary Get restart status

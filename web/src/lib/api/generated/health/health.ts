@@ -18,7 +18,7 @@ import type {
   UseQueryResult,
 } from '@tanstack/react-query'
 
-import type { InternalApiHandlersHealthResponse } from '.././models'
+import type { InternalApiHandlersCheck, InternalApiHandlersHealthResponse } from '.././models'
 
 import { customInstance } from '../../mutator/index'
 
@@ -147,6 +147,263 @@ export function useGetHealth<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetHealthQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Kubernetes liveness probe - checks if the process is running
+ * @summary Liveness probe endpoint
+ */
+export type getHealthLiveResponse200 = {
+  data: InternalApiHandlersCheck
+  status: 200
+}
+
+export type getHealthLiveResponseSuccess = getHealthLiveResponse200 & {
+  headers: Headers
+}
+export type getHealthLiveResponse = getHealthLiveResponseSuccess
+
+export const getGetHealthLiveUrl = () => {
+  return `/health/live`
+}
+
+export const getHealthLive = async (options?: RequestInit): Promise<getHealthLiveResponse> => {
+  return customInstance<getHealthLiveResponse>(getGetHealthLiveUrl(), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetHealthLiveQueryKey = () => {
+  return [`/health/live`] as const
+}
+
+export const getGetHealthLiveQueryOptions = <
+  TData = Awaited<ReturnType<typeof getHealthLive>>,
+  TError = unknown,
+>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealthLive>>, TError, TData>>
+  request?: SecondParameter<typeof customInstance>
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetHealthLiveQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getHealthLive>>> = ({ signal }) =>
+    getHealthLive({ signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getHealthLive>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetHealthLiveQueryResult = NonNullable<Awaited<ReturnType<typeof getHealthLive>>>
+export type GetHealthLiveQueryError = unknown
+
+export function useGetHealthLive<
+  TData = Awaited<ReturnType<typeof getHealthLive>>,
+  TError = unknown,
+>(
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealthLive>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getHealthLive>>,
+          TError,
+          Awaited<ReturnType<typeof getHealthLive>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetHealthLive<
+  TData = Awaited<ReturnType<typeof getHealthLive>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealthLive>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getHealthLive>>,
+          TError,
+          Awaited<ReturnType<typeof getHealthLive>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetHealthLive<
+  TData = Awaited<ReturnType<typeof getHealthLive>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealthLive>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Liveness probe endpoint
+ */
+
+export function useGetHealthLive<
+  TData = Awaited<ReturnType<typeof getHealthLive>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealthLive>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetHealthLiveQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Kubernetes readiness probe - checks if the service can accept traffic
+ * @summary Readiness probe endpoint
+ */
+export type getHealthReadyResponse200 = {
+  data: InternalApiHandlersCheck
+  status: 200
+}
+
+export type getHealthReadyResponse503 = {
+  data: InternalApiHandlersCheck
+  status: 503
+}
+
+export type getHealthReadyResponseSuccess = getHealthReadyResponse200 & {
+  headers: Headers
+}
+export type getHealthReadyResponseError = getHealthReadyResponse503 & {
+  headers: Headers
+}
+
+export type getHealthReadyResponse = getHealthReadyResponseSuccess | getHealthReadyResponseError
+
+export const getGetHealthReadyUrl = () => {
+  return `/health/ready`
+}
+
+export const getHealthReady = async (options?: RequestInit): Promise<getHealthReadyResponse> => {
+  return customInstance<getHealthReadyResponse>(getGetHealthReadyUrl(), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetHealthReadyQueryKey = () => {
+  return [`/health/ready`] as const
+}
+
+export const getGetHealthReadyQueryOptions = <
+  TData = Awaited<ReturnType<typeof getHealthReady>>,
+  TError = InternalApiHandlersCheck,
+>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealthReady>>, TError, TData>>
+  request?: SecondParameter<typeof customInstance>
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetHealthReadyQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getHealthReady>>> = ({ signal }) =>
+    getHealthReady({ signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getHealthReady>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetHealthReadyQueryResult = NonNullable<Awaited<ReturnType<typeof getHealthReady>>>
+export type GetHealthReadyQueryError = InternalApiHandlersCheck
+
+export function useGetHealthReady<
+  TData = Awaited<ReturnType<typeof getHealthReady>>,
+  TError = InternalApiHandlersCheck,
+>(
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealthReady>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getHealthReady>>,
+          TError,
+          Awaited<ReturnType<typeof getHealthReady>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetHealthReady<
+  TData = Awaited<ReturnType<typeof getHealthReady>>,
+  TError = InternalApiHandlersCheck,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealthReady>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getHealthReady>>,
+          TError,
+          Awaited<ReturnType<typeof getHealthReady>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetHealthReady<
+  TData = Awaited<ReturnType<typeof getHealthReady>>,
+  TError = InternalApiHandlersCheck,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealthReady>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Readiness probe endpoint
+ */
+
+export function useGetHealthReady<
+  TData = Awaited<ReturnType<typeof getHealthReady>>,
+  TError = InternalApiHandlersCheck,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealthReady>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetHealthReadyQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>

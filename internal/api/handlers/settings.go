@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/api/middleware"
 	"github.com/mantonx/viewra/internal/application/settings"
+	"github.com/mantonx/viewra/internal/application/system"
 	settingsDomain "github.com/mantonx/viewra/internal/domain/settings"
 	"github.com/mantonx/viewra/internal/infrastructure/auth"
 )
@@ -18,15 +19,31 @@ type UserLookup interface {
 	GetPublicIDByInternalID(ctx context.Context, id int64) (string, error)
 }
 
+// DatabaseInfo holds database connection information for display.
+type DatabaseInfo struct {
+	Driver   string
+	Host     string
+	Port     string
+	DBName   string
+	SSLMode  string
+	PoolSize int
+}
+
 // SettingsHandler handles settings HTTP requests.
 type SettingsHandler struct {
-	service    *settings.Service
-	userLookup UserLookup
+	service      *settings.Service
+	userLookup   UserLookup
+	databaseInfo *DatabaseInfo
 }
 
 // NewSettingsHandler creates a new settings handler.
 func NewSettingsHandler(service *settings.Service, userLookup UserLookup) *SettingsHandler {
 	return &SettingsHandler{service: service, userLookup: userLookup}
+}
+
+// SetDatabaseInfo sets the database information for system info endpoint.
+func (h *SettingsHandler) SetDatabaseInfo(info *DatabaseInfo) {
+	h.databaseInfo = info
 }
 
 // GetAllSystem handles GET /api/settings/system
@@ -376,6 +393,14 @@ func (h *SettingsHandler) GetAllSystemEffective(c *gin.Context) {
 // @Router /api/system/info [get]
 func (h *SettingsHandler) GetSystemInfo(c *gin.Context) {
 	profile := h.service.GetSystemProfile()
+
+	// Build database info
+	dbInfo := h.buildDatabaseInfoResponse()
+
+	// Build environment info and warnings
+	envInfo := h.buildEnvironmentInfo()
+	warnings := h.buildWarnings()
+
 	if profile == nil {
 		c.JSON(http.StatusOK, SystemInfoResponse{
 			CPU: CPUInfoResponse{
@@ -392,6 +417,9 @@ func (h *SettingsHandler) GetSystemInfo(c *gin.Context) {
 				Type:        "none",
 				DeviceNames: []string{},
 			},
+			Database:    dbInfo,
+			Environment: envInfo,
+			Warnings:    warnings,
 		})
 		return
 	}
@@ -422,6 +450,9 @@ func (h *SettingsHandler) GetSystemInfo(c *gin.Context) {
 			HasOpenCL:     profile.GPU.HasOpenCL,
 			HasVulkan:     profile.GPU.HasVulkan,
 		},
+		Database:    dbInfo,
+		Environment: envInfo,
+		Warnings:    warnings,
 	}
 
 	// Include storage if available
@@ -434,6 +465,63 @@ func (h *SettingsHandler) GetSystemInfo(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+// buildEnvironmentInfo builds the environment info response.
+func (h *SettingsHandler) buildEnvironmentInfo() EnvironmentInfoResponse {
+	env := system.DetectEnvironment()
+	return EnvironmentInfoResponse{
+		IsContainer:  env.IsContainer,
+		IsKubernetes: env.IsKubernetes,
+		InstanceID:   env.InstanceID,
+	}
+}
+
+// buildWarnings builds warnings based on current environment and configuration.
+func (h *SettingsHandler) buildWarnings() []WarningResponse {
+	dbDriver := ""
+	if h.databaseInfo != nil {
+		dbDriver = h.databaseInfo.Driver
+	}
+
+	warnings := system.GetEnvironmentWarnings(dbDriver)
+	result := make([]WarningResponse, len(warnings))
+	for i, w := range warnings {
+		result[i] = WarningResponse{
+			Code:     w.Code,
+			Message:  w.Message,
+			Severity: w.Severity,
+		}
+	}
+	return result
+}
+
+// buildDatabaseInfoResponse builds the database info for the response.
+func (h *SettingsHandler) buildDatabaseInfoResponse() DatabaseInfoResponse {
+	if h.databaseInfo == nil {
+		return DatabaseInfoResponse{
+			Driver:       "unknown",
+			DatabaseName: "unknown",
+		}
+	}
+
+	info := h.databaseInfo
+	resp := DatabaseInfoResponse{
+		Driver:       info.Driver,
+		DatabaseName: info.DBName,
+	}
+
+	// Add PostgreSQL-specific info
+	if info.Driver == "postgres" || info.Driver == "postgresql" {
+		resp.Host = info.Host
+		resp.Port = info.Port
+		resp.SSLMode = info.SSLMode
+		resp.Pool = DatabasePoolStatus{
+			MaxOpen: info.PoolSize,
+		}
+	}
+
+	return resp
 }
 
 // formatMemory formats bytes into human-readable format
@@ -598,10 +686,43 @@ type EffectiveSettingsResponse struct {
 
 // SystemInfoResponse represents system information (read-only display).
 type SystemInfoResponse struct {
-	CPU     CPUInfoResponse     `json:"cpu"`
-	Memory  MemoryInfoResponse  `json:"memory"`
-	GPU     GPUInfoResponse     `json:"gpu"`
-	Storage StorageInfoResponse `json:"storage,omitempty"`
+	CPU         CPUInfoResponse         `json:"cpu"`
+	Memory      MemoryInfoResponse      `json:"memory"`
+	GPU         GPUInfoResponse         `json:"gpu"`
+	Storage     StorageInfoResponse     `json:"storage,omitempty"`
+	Database    DatabaseInfoResponse    `json:"database"`
+	Environment EnvironmentInfoResponse `json:"environment,omitempty"`
+	Warnings    []WarningResponse       `json:"warnings,omitempty"`
+}
+
+// EnvironmentInfoResponse represents runtime environment information.
+type EnvironmentInfoResponse struct {
+	IsContainer  bool   `json:"isContainer"`
+	IsKubernetes bool   `json:"isKubernetes"`
+	InstanceID   string `json:"instanceId"`
+}
+
+// WarningResponse represents a system warning.
+type WarningResponse struct {
+	Code     string `json:"code"`
+	Message  string `json:"message"`
+	Severity string `json:"severity"`
+}
+
+// DatabaseInfoResponse represents database connection information.
+type DatabaseInfoResponse struct {
+	Driver       string             `json:"driver"`
+	Host         string             `json:"host,omitempty"`
+	Port         string             `json:"port,omitempty"`
+	DatabaseName string             `json:"databaseName"`
+	SSLMode      string             `json:"sslMode,omitempty"`
+	Pool         DatabasePoolStatus `json:"pool,omitempty"`
+}
+
+// DatabasePoolStatus represents connection pool status.
+type DatabasePoolStatus struct {
+	MaxOpen int `json:"maxOpen"`
+	// Note: Active/Idle counts require access to sql.DB.Stats() which we can add later
 }
 
 // CPUInfoResponse represents CPU information.

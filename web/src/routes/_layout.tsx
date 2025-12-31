@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { AudioPlayerProvider, useAudioPlayer } from '@/lib/contexts/AudioPlayerContext'
 import { AudioPlayer } from '@/components/music'
 import { ErrorBoundary } from '@/components/common'
+import { MaintenanceBanner } from '@/components/settings'
 import { useAuth } from '@/contexts'
 import { Home, Library, Film, Tv, Music, Clock, Eye, LogOut, User, Users, KeyRound, Settings2, SlidersHorizontal, Puzzle } from 'lucide-react'
 
@@ -55,6 +56,9 @@ const Layout = () => {
 
   return (
     <AudioPlayerProvider>
+      {/* Maintenance mode banner - shows at top when active */}
+      <MaintenanceBanner />
+
       <div className="flex h-screen app-background">
         {/* Sidebar */}
         <aside className="w-64 glass-sidebar text-neutral-900 dark:text-white flex flex-col relative overflow-hidden">

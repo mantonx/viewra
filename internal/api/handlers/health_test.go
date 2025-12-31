@@ -117,3 +117,97 @@ func TestHealthCheck_DatabaseDown(t *testing.T) {
 		t.Errorf("Expected database status 'fail', got '%s'", dbCheck.Status)
 	}
 }
+
+func TestHealthLive(t *testing.T) {
+	// Create in-memory database
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	handler := NewHealthHandler(db, nil, nil)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/health/live", handler.Live)
+
+	req := httptest.NewRequest(http.MethodGet, "/health/live", http.NoBody)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response Check
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if response.Status != "pass" {
+		t.Errorf("Expected status 'pass', got '%s'", response.Status)
+	}
+}
+
+func TestHealthReady_DatabaseOK(t *testing.T) {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	handler := NewHealthHandler(db, nil, nil)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/health/ready", handler.Ready)
+
+	req := httptest.NewRequest(http.MethodGet, "/health/ready", http.NoBody)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response Check
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if response.Status != "pass" {
+		t.Errorf("Expected status 'pass', got '%s'", response.Status)
+	}
+}
+
+func TestHealthReady_DatabaseDown(t *testing.T) {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	db.Close() // Close to simulate failure
+
+	handler := NewHealthHandler(db, nil, nil)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/health/ready", handler.Ready)
+
+	req := httptest.NewRequest(http.MethodGet, "/health/ready", http.NoBody)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("Expected status 503, got %d", w.Code)
+	}
+
+	var response Check
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if response.Status != "fail" {
+		t.Errorf("Expected status 'fail', got '%s'", response.Status)
+	}
+}

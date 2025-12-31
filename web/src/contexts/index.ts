@@ -2,3 +2,5 @@ export { ThemeProvider, ThemeContext, type ThemeContextType } from './ThemeConte
 export { useTheme } from './useTheme'
 export { AuthProvider, useAuth } from './AuthContext'
 export type { User, AuthTokens, AuthState, AuthContextValue } from './AuthContext'
+export { ServerStatusProvider, useServerStatus } from './ServerStatusContext'
+export type { ServerStatus, ServerStatusContextValue } from './ServerStatusContext'

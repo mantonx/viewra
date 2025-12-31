@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { Card, CardHeader, CardContent, Button } from '@/components/ui'
 import { useToast } from '@/lib/hooks/useToast'
+import { useServerStatus } from '@/contexts'
 import { usePostApiAdminSystemRestartNow } from '@/lib/api/generated/system/system'
-import { useSSE } from '@/lib/hooks/useSSE'
 import { text } from '@/styles/semantic'
 import { cn } from '@/lib/utils'
 import { Power, RotateCcw } from 'lucide-react'
-import type { InternalApiHandlersAdminStatusEvent } from '@/lib/api/generated/models'
 
 /**
  * Card for managing server restarts with pending changes display.
@@ -14,22 +13,17 @@ import type { InternalApiHandlersAdminStatusEvent } from '@/lib/api/generated/mo
  */
 export const ServerRestartCard = () => {
   const toast = useToast()
+  const { setRestarting, restartPending, pendingSettings } = useServerStatus()
   const [showConfirm, setShowConfirm] = useState(false)
-
-  const { lastEvent } = useSSE<InternalApiHandlersAdminStatusEvent>('/api/admin/status/stream', {
-    enabled: true,
-    eventTypes: ['status', 'shutdown'],
-  })
 
   const restartMutation = usePostApiAdminSystemRestartNow()
 
-  const isPending = lastEvent?.restart_pending ?? false
-  const pendingSettings = lastEvent?.pending_settings ?? []
+  const isPending = restartPending
 
   const handleRestart = async () => {
     try {
+      setRestarting() // Trigger full-screen overlay
       await restartMutation.mutateAsync()
-      toast.success('Server is restarting...')
       setShowConfirm(false)
     } catch {
       toast.error('Failed to restart server')
@@ -57,17 +51,7 @@ export const ServerRestartCard = () => {
               </p>
             </div>
           </div>
-          {isPending && (
-            <div
-              className={cn(
-                'flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium',
-                'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400'
-              )}
-            >
-              <RotateCcw className="w-3 h-3" />
-              Restart needed
-            </div>
-          )}
+
         </div>
       </CardHeader>
 

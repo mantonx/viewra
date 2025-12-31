@@ -7,7 +7,11 @@
  */
 
 export interface InternalApiHandlersAdminStatusEvent {
+  /** Server is in maintenance mode */
+  maintenance?: boolean
   pending_settings?: string[]
+  /** Server is fully operational (db connected, not in maintenance) */
+  ready?: boolean
   reason?: string
   restart_pending?: boolean
   timestamp?: string

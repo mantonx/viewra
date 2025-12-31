@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	appscheduler "github.com/mantonx/viewra/internal/application/scheduler"
+	"github.com/mantonx/viewra/internal/application/system"
 	"github.com/mantonx/viewra/internal/application/transcode"
 	"github.com/mantonx/viewra/internal/version"
 )
@@ -21,6 +22,7 @@ type HealthHandler struct {
 	db             *sql.DB
 	scheduler      *appscheduler.Service
 	transcodeQueue *transcode.Queue
+	maintenanceMgr *system.MaintenanceManager
 	startTime      time.Time
 }
 
@@ -32,6 +34,11 @@ func NewHealthHandler(db *sql.DB, scheduler *appscheduler.Service, transcodeQueu
 		transcodeQueue: transcodeQueue,
 		startTime:      time.Now(),
 	}
+}
+
+// SetMaintenanceManager sets the maintenance manager for health checks.
+func (h *HealthHandler) SetMaintenanceManager(mgr *system.MaintenanceManager) {
+	h.maintenanceMgr = mgr
 }
 
 // HealthResponse represents the health check response
@@ -61,6 +68,56 @@ type SystemInfo struct {
 type DatabaseHealth struct {
 	Status string `json:"status"`
 	Ping   string `json:"ping,omitempty"`
+}
+
+// Live godoc
+// @Summary Liveness probe endpoint
+// @Description Kubernetes liveness probe - checks if the process is running
+// @Tags health
+// @Produce json
+// @Success 200 {object} Check
+// @Router /health/live [get]
+func (h *HealthHandler) Live(c *gin.Context) {
+	c.JSON(http.StatusOK, Check{
+		Status:  "pass",
+		Message: "alive",
+	})
+}
+
+// Ready godoc
+// @Summary Readiness probe endpoint
+// @Description Kubernetes readiness probe - checks if the service can accept traffic
+// @Tags health
+// @Produce json
+// @Success 200 {object} Check
+// @Failure 503 {object} Check
+// @Router /health/ready [get]
+func (h *HealthHandler) Ready(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+	defer cancel()
+
+	// Check maintenance mode - don't accept traffic during maintenance
+	if h.maintenanceMgr != nil && h.maintenanceMgr.IsEnabled() {
+		c.JSON(http.StatusServiceUnavailable, Check{
+			Status:  "fail",
+			Message: "Maintenance mode enabled",
+		})
+		return
+	}
+
+	// Check database - critical for accepting traffic
+	if err := h.db.PingContext(ctx); err != nil {
+		c.JSON(http.StatusServiceUnavailable, Check{
+			Status:  "fail",
+			Message: "Database unreachable",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, Check{
+		Status:  "pass",
+		Message: "ready",
+	})
 }
 
 // Check godoc

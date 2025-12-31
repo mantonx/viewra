@@ -23,16 +23,18 @@ const (
 
 // Config holds all application configuration
 type Config struct {
-	Environment   string
-	DataDir       string // Base directory for all data (default: "./data")
-	Database      DatabaseConfig
-	Server        ServerConfig
-	Media         MediaConfig
-	Transcode     TranscodeConfig
-	Images        ImagesConfig
-	Plugins       PluginsConfig
-	Auth          AuthConfig
-	SystemProfile *system.Profile // Detected system profile for auto-tuning
+	Environment     string
+	DataDir         string // Base directory for all data (default: "./data")
+	Database        DatabaseConfig
+	Server          ServerConfig
+	Media           MediaConfig
+	Transcode       TranscodeConfig
+	Images          ImagesConfig
+	Plugins         PluginsConfig
+	Auth            AuthConfig
+	SystemProfile   *system.Profile // Detected system profile for auto-tuning
+	ShutdownTimeout time.Duration   // Graceful shutdown timeout
+	FileConfig      *FileConfig     // Loaded from config.yaml (may be nil)
 }
 
 // DataPath returns the full path for a data subdirectory.
@@ -60,6 +62,7 @@ type DatabaseConfig struct {
 	DBName     string // Database name (or SQLite file path)
 	SSLMode    string // PostgreSQL SSL mode
 	Migrations MigrationConfig
+	Pool       PoolConfig // Connection pool settings
 }
 
 // MigrationConfig controls database schema migrations.
@@ -135,7 +138,8 @@ type PluginsConfig struct {
 	Enabled bool
 }
 
-// Load reads configuration from environment variables with sensible defaults
+// Load reads configuration from environment variables with sensible defaults.
+// Load order: Environment variables → Config file → Defaults
 func Load() (*Config, error) {
 	env := getEnv("ENVIRONMENT", "development")
 	logger := pkgLogger.DefaultIfNil(nil)
@@ -143,21 +147,34 @@ func Load() (*Config, error) {
 	// Load DataDir first as other configs depend on it
 	dataDir := loadDataDir(logger)
 
-	config := &Config{
-		Environment: env,
-		DataDir:     dataDir,
-		Database:    loadDatabaseConfig(dataDir),
-		Server:      loadServerConfig(logger),
-		Media:       loadMediaConfig(logger, dataDir),
-		Transcode:   loadTranscodeConfig(logger),
-		Images:      loadImagesConfig(dataDir),
-		Plugins:     loadPluginsConfig(dataDir),
-		Auth:        loadAuthConfig(logger),
-	}
-
-	// Ensure data directory exists
+	// Ensure data directory exists before loading config file
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create data directory %q: %w", dataDir, err)
+	}
+
+	// Load config file (if it exists)
+	fileConfig, err := LoadConfigFile(dataDir)
+	if err != nil {
+		logger.Warn("Failed to load config file, using defaults", "error", err)
+	}
+
+	// Merge with environment variables (env vars take precedence)
+	if fileConfig != nil {
+		fileConfig.MergeWithEnv()
+	}
+
+	config := &Config{
+		Environment:     env,
+		DataDir:         dataDir,
+		Database:        loadDatabaseConfig(dataDir, fileConfig),
+		Server:          loadServerConfig(logger),
+		Media:           loadMediaConfig(logger, dataDir),
+		Transcode:       loadTranscodeConfig(logger),
+		Images:          loadImagesConfig(dataDir),
+		Plugins:         loadPluginsConfig(dataDir),
+		Auth:            loadAuthConfig(logger),
+		ShutdownTimeout: loadShutdownTimeout(fileConfig),
+		FileConfig:      fileConfig,
 	}
 
 	// Validate configuration
@@ -166,6 +183,24 @@ func Load() (*Config, error) {
 	}
 
 	return config, nil
+}
+
+// loadShutdownTimeout loads the graceful shutdown timeout.
+func loadShutdownTimeout(fileConfig *FileConfig) time.Duration {
+	// Check environment variable first
+	if envTimeout := os.Getenv("SHUTDOWN_TIMEOUT"); envTimeout != "" {
+		if d, err := time.ParseDuration(envTimeout); err == nil {
+			return d
+		}
+	}
+
+	// Check file config
+	if fileConfig != nil {
+		return fileConfig.GetShutdownTimeout()
+	}
+
+	// Default
+	return 30 * time.Second
 }
 
 // loadDataDir loads the base data directory from environment.
@@ -275,28 +310,124 @@ func (c *Config) IsProduction() bool {
 	return c.Environment == "production"
 }
 
-// loadDatabaseConfig loads database configuration from environment.
-// For SQLite, if DB_PATH is not explicitly set, it derives the path from dataDir.
-func loadDatabaseConfig(dataDir string) DatabaseConfig {
-	// Delegate to existing database package
-	dbConfig := database.LoadConfigFromEnv()
+// loadDatabaseConfig loads database configuration.
+// Load order: Environment variables → Config file → Defaults
+func loadDatabaseConfig(dataDir string, fileConfig *FileConfig) DatabaseConfig {
 	migrationConfig := database.LoadMigrationConfigFromEnv()
 
-	// For SQLite, use dataDir if DB_PATH not explicitly set
-	if dbConfig.Driver == "sqlite" || dbConfig.Driver == "sqlite3" {
-		if os.Getenv("DB_PATH") == "" {
-			dbConfig.DBName = filepath.Join(dataDir, "viewra.db")
+	// Start with defaults
+	driver := "sqlite"
+	host := "localhost"
+	port := "5432"
+	user := "viewra"
+	password := ""
+	dbName := filepath.Join(dataDir, "viewra.db")
+	sslMode := "disable"
+	pool := DefaultPoolConfig()
+
+	// Layer 1: Apply file config if present
+	if fileConfig != nil {
+		if fileConfig.Database.Driver != "" {
+			driver = fileConfig.Database.Driver
+		}
+
+		if driver == "sqlite" || driver == "sqlite3" {
+			if fileConfig.Database.SQLite.Path != "" {
+				path := fileConfig.Database.SQLite.Path
+				// Make relative paths relative to dataDir
+				if !filepath.IsAbs(path) {
+					path = filepath.Join(dataDir, path)
+				}
+				dbName = path
+			}
+		} else if driver == "postgres" || driver == "postgresql" {
+			pg := fileConfig.Database.Postgres
+			if pg.Host != "" {
+				host = pg.Host
+			}
+			if pg.Port > 0 {
+				port = strconv.Itoa(pg.Port)
+			}
+			if pg.User != "" {
+				user = pg.User
+			}
+			if pg.Database != "" {
+				dbName = pg.Database
+			}
+			if pg.SSLMode != "" {
+				sslMode = pg.SSLMode
+			}
+			// Pool settings from file
+			pool = fileConfig.GetPoolConfig()
+		}
+
+		// Auto-migrate from file config
+		if fileConfig.Database.AutoMigrate != nil {
+			migrationConfig.AutoMigrate = *fileConfig.Database.AutoMigrate
+		}
+	}
+
+	// Layer 2: Apply environment variables (highest priority)
+	if envDriver := os.Getenv("DB_DRIVER"); envDriver != "" {
+		driver = envDriver
+	}
+
+	if driver == "sqlite" || driver == "sqlite3" {
+		if envPath := os.Getenv("DB_PATH"); envPath != "" {
+			dbName = envPath
+		}
+	} else if driver == "postgres" || driver == "postgresql" {
+		if envHost := os.Getenv("DB_HOST"); envHost != "" {
+			host = envHost
+		}
+		if envPort := os.Getenv("DB_PORT"); envPort != "" {
+			port = envPort
+		}
+		if envUser := os.Getenv("DB_USER"); envUser != "" {
+			user = envUser
+		}
+		if envName := os.Getenv("DB_NAME"); envName != "" {
+			dbName = envName
+		}
+		if envSSL := os.Getenv("DB_SSL_MODE"); envSSL != "" {
+			sslMode = envSSL
+		}
+	}
+
+	// Password always from environment (never stored in file)
+	password = os.Getenv("DB_PASSWORD")
+
+	// Pool settings from environment
+	if envMaxOpen := os.Getenv("DB_MAX_OPEN_CONNS"); envMaxOpen != "" {
+		if v := getEnvInt("DB_MAX_OPEN_CONNS", 0); v > 0 {
+			pool.MaxOpenConns = v
+		}
+	}
+	if envMaxIdle := os.Getenv("DB_MAX_IDLE_CONNS"); envMaxIdle != "" {
+		if v := getEnvInt("DB_MAX_IDLE_CONNS", 0); v > 0 {
+			pool.MaxIdleConns = v
+		}
+	}
+	if envLifetime := os.Getenv("DB_CONN_MAX_LIFETIME"); envLifetime != "" {
+		if d, err := time.ParseDuration(envLifetime); err == nil {
+			pool.ConnMaxLifetime = d
+		}
+	}
+	if envIdleTime := os.Getenv("DB_CONN_MAX_IDLE_TIME"); envIdleTime != "" {
+		if d, err := time.ParseDuration(envIdleTime); err == nil {
+			pool.ConnMaxIdleTime = d
 		}
 	}
 
 	return DatabaseConfig{
-		Driver:   dbConfig.Driver,
-		Host:     dbConfig.Host,
-		Port:     dbConfig.Port,
-		User:     dbConfig.User,
-		Password: dbConfig.Password,
-		DBName:   dbConfig.DBName,
-		SSLMode:  dbConfig.SSLMode,
+		Driver:   driver,
+		Host:     host,
+		Port:     port,
+		User:     user,
+		Password: password,
+		DBName:   dbName,
+		SSLMode:  sslMode,
+		Pool:     pool,
 		Migrations: MigrationConfig{
 			Enabled:   migrationConfig.AutoMigrate,
 			SourceDir: migrationConfig.MigrationsPath,

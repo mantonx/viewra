@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	sqlite_vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
 	_ "github.com/lib/pq"           // PostgreSQL driver
@@ -27,6 +28,12 @@ type Config struct {
 	Password string // PostgreSQL password
 	DBName   string // Database name (or SQLite file path)
 	SSLMode  string // PostgreSQL SSL mode (disable, require, verify-ca, verify-full)
+
+	// Connection pool settings
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
 }
 
 // LoadConfigFromEnv loads database configuration from environment variables
@@ -158,10 +165,28 @@ func Connect(config *Config) (*sql.DB, error) {
 	}
 
 	// Set connection pool settings
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(5)
+	maxOpen := config.MaxOpenConns
+	if maxOpen <= 0 {
+		maxOpen = 25 // Default
+	}
+	maxIdle := config.MaxIdleConns
+	if maxIdle <= 0 {
+		maxIdle = 5 // Default
+	}
+	db.SetMaxOpenConns(maxOpen)
+	db.SetMaxIdleConns(maxIdle)
 
-	slog.Info("successfully connected to database", "driver", config.Driver)
+	if config.ConnMaxLifetime > 0 {
+		db.SetConnMaxLifetime(config.ConnMaxLifetime)
+	}
+	if config.ConnMaxIdleTime > 0 {
+		db.SetConnMaxIdleTime(config.ConnMaxIdleTime)
+	}
+
+	slog.Info("successfully connected to database",
+		"driver", config.Driver,
+		"max_open_conns", maxOpen,
+		"max_idle_conns", maxIdle)
 	return db, nil
 }
 

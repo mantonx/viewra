@@ -156,8 +156,10 @@ func NewServer(config ServerConfig, logger *slog.Logger, h *Handlers) *Server {
 func (s *Server) setupRoutes() {
 	h := s.handlers
 
-	// Health check (public)
+	// Health checks (public)
 	s.router.GET("/health", h.Health.Check)
+	s.router.GET("/health/live", h.Health.Live)
+	s.router.GET("/health/ready", h.Health.Ready)
 
 	// API v1 routes
 	api := s.router.Group("/api")

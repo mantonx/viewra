@@ -6,6 +6,9 @@ import {
   SettingRow,
   SystemInfoCard,
   ServerRestartCard,
+  MaintenanceCard,
+  DatabaseWarningBanner,
+  DatabaseCard,
   getCategoryConfig,
 } from '@/components/settings'
 import { useToast } from '@/lib/hooks/useToast'
@@ -198,12 +201,21 @@ export const SystemSettings = () => {
         </div>
       )}
 
+      {/* Database warnings (SQLite in K8s, etc.) */}
+      <DatabaseWarningBanner />
+
       {/* Hardware/System Info Card */}
       <SystemInfoCard />
 
-      {/* Server Restart Card */}
+      {/* Database Card */}
       <div className="mt-6">
+        <DatabaseCard />
+      </div>
+
+      {/* Server Control Cards */}
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ServerRestartCard />
+        <MaintenanceCard />
       </div>
 
       {/* Category Groups */}

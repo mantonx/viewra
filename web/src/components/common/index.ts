@@ -17,3 +17,4 @@ export {
   type SettingsPageCardProps,
   type SettingsPageListProps,
 } from './Page'
+export { ServerStatusOverlay } from './ServerStatusOverlay'

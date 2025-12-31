@@ -13,7 +13,7 @@ func RegisterSystemRoutes(admin *gin.RouterGroup, h *handlers.SystemHandler, aut
 		return
 	}
 
-	// System group for restart endpoints
+	// System group for restart and maintenance endpoints
 	system := admin.Group("/system")
 	{
 		// Restart management (admin only)
@@ -21,6 +21,19 @@ func RegisterSystemRoutes(admin *gin.RouterGroup, h *handlers.SystemHandler, aut
 		system.POST("/restart", h.RequestRestart)
 		system.DELETE("/restart", h.CancelRestart)
 		system.POST("/restart/now", h.ExecuteRestart)
+
+		// Maintenance mode (admin only)
+		system.GET("/maintenance", h.GetMaintenance)
+		system.POST("/maintenance", h.SetMaintenance)
+
+		// Database migration (admin only)
+		database := system.Group("/database")
+		{
+			database.POST("/test-connection", h.TestDatabaseConnection)
+			database.POST("/estimate", h.EstimateMigration)
+			database.POST("/migrate", h.StartMigration)
+			database.GET("/migrate", h.GetMigrationStatus)
+		}
 	}
 
 	// Admin status stream (SSE)

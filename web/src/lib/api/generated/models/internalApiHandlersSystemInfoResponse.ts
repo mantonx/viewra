@@ -6,13 +6,19 @@
  * OpenAPI spec version: 0.0.1
  */
 import type { InternalApiHandlersCPUInfoResponse } from './internalApiHandlersCPUInfoResponse'
+import type { InternalApiHandlersDatabaseInfoResponse } from './internalApiHandlersDatabaseInfoResponse'
+import type { InternalApiHandlersEnvironmentInfoResponse } from './internalApiHandlersEnvironmentInfoResponse'
 import type { InternalApiHandlersGPUInfoResponse } from './internalApiHandlersGPUInfoResponse'
 import type { InternalApiHandlersMemoryInfoResponse } from './internalApiHandlersMemoryInfoResponse'
 import type { InternalApiHandlersStorageInfoResponse } from './internalApiHandlersStorageInfoResponse'
+import type { InternalApiHandlersWarningResponse } from './internalApiHandlersWarningResponse'
 
 export interface InternalApiHandlersSystemInfoResponse {
   cpu?: InternalApiHandlersCPUInfoResponse
+  database?: InternalApiHandlersDatabaseInfoResponse
+  environment?: InternalApiHandlersEnvironmentInfoResponse
   gpu?: InternalApiHandlersGPUInfoResponse
   memory?: InternalApiHandlersMemoryInfoResponse
   storage?: InternalApiHandlersStorageInfoResponse
+  warnings?: InternalApiHandlersWarningResponse[]
 }

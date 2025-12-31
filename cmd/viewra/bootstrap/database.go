@@ -47,13 +47,17 @@ func (dc *DatabaseConnection) Close(logger *slog.Logger) {
 func InitializeDatabaseFromConfig(cfg *appconfig.DatabaseConfig, logger *slog.Logger) (*DatabaseConnection, error) {
 	// Convert to database.Config for connection
 	dbConfig := &database.Config{
-		Driver:   cfg.Driver,
-		Host:     cfg.Host,
-		Port:     cfg.Port,
-		User:     cfg.User,
-		Password: cfg.Password,
-		DBName:   cfg.DBName,
-		SSLMode:  cfg.SSLMode,
+		Driver:          cfg.Driver,
+		Host:            cfg.Host,
+		Port:            cfg.Port,
+		User:            cfg.User,
+		Password:        cfg.Password,
+		DBName:          cfg.DBName,
+		SSLMode:         cfg.SSLMode,
+		MaxOpenConns:    cfg.Pool.MaxOpenConns,
+		MaxIdleConns:    cfg.Pool.MaxIdleConns,
+		ConnMaxLifetime: cfg.Pool.ConnMaxLifetime,
+		ConnMaxIdleTime: cfg.Pool.ConnMaxIdleTime,
 	}
 
 	// Validate configuration
