@@ -144,6 +144,10 @@ func (a *Application) Run() error {
 		}
 	}()
 
+	// Start background services AFTER HTTP server is listening
+	// This ensures the UI is accessible even while heavy tasks run
+	go a.Container.StartBackgroundServices(context.Background())
+
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

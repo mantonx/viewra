@@ -38,6 +38,9 @@ type Container struct {
 
 	// Lifecycle manager for server restart
 	LifecycleMgr *lifecycle.Manager
+
+	// Logger for background service startup
+	logger *slog.Logger
 }
 
 // NewContainer creates and wires up all application dependencies
@@ -98,40 +101,14 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 	// Create HTTP server
 	server := api.NewServer(cfg.Server.ToAPIServerConfig(), logger, handlers)
 
-	// Load and register external plugins before starting the pipeline
+	// Load and register external plugins (but don't start pipeline yet)
 	if svcs.PluginManager != nil && svcs.PipelineManager != nil {
 		loadExternalPlugins(context.Background(), svcs, repos, logger)
 	}
 
-	// Start the enrichment pipeline manager (background workers)
-	if svcs.PipelineManager != nil {
-		if err := svcs.PipelineManager.Start(context.Background()); err != nil {
-			logger.Error("Failed to start enrichment pipeline", "error", err)
-		} else {
-			logger.Info("Enrichment pipeline manager started")
-		}
-	}
-
-	// Start the enqueue buffer (batches enrichment requests during scans)
-	if svcs.EnqueueBuffer != nil {
-		svcs.EnqueueBuffer.Start(context.Background())
-		logger.Info("Enrichment enqueue buffer started")
-	}
-
-	// Start transcode analytics service (event bus subscription)
-	if cases.TranscodeAnalytics != nil {
-		cases.TranscodeAnalytics.Start()
-		logger.Info("Transcode analytics service started")
-	}
-
-	// Start file system monitor (real-time library monitoring)
-	if svcs.FileMonitor != nil {
-		if err := svcs.FileMonitor.Start(context.Background()); err != nil {
-			logger.Error("Failed to start file monitor service", "error", err)
-		} else {
-			logger.Info("File monitor service started")
-		}
-	}
+	// NOTE: Background services (enrichment pipeline, file monitor, etc.) are
+	// started later via StartBackgroundServices() to ensure the HTTP server
+	// is listening first. This prevents slow startup from blocking the UI.
 
 	return &Container{
 		Server:           server,
@@ -140,6 +117,42 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 		Services:         svcs,
 		UseCases:         cases,
 		LifecycleMgr:     lifecycleMgr,
+		logger:           logger,
+	}
+}
+
+// StartBackgroundServices starts all background services after the HTTP server
+// is listening. This ensures the UI is accessible even while heavy background
+// tasks (like enrichment pipeline catchup) are running.
+func (c *Container) StartBackgroundServices(ctx context.Context) {
+	// Start the enrichment pipeline manager (background workers)
+	if c.Services.PipelineManager != nil {
+		if err := c.Services.PipelineManager.Start(ctx); err != nil {
+			c.logger.Error("Failed to start enrichment pipeline", "error", err)
+		} else {
+			c.logger.Info("Enrichment pipeline manager started")
+		}
+	}
+
+	// Start the enqueue buffer (batches enrichment requests during scans)
+	if c.Services.EnqueueBuffer != nil {
+		c.Services.EnqueueBuffer.Start(ctx)
+		c.logger.Info("Enrichment enqueue buffer started")
+	}
+
+	// Start transcode analytics service (event bus subscription)
+	if c.UseCases.TranscodeAnalytics != nil {
+		c.UseCases.TranscodeAnalytics.Start()
+		c.logger.Info("Transcode analytics service started")
+	}
+
+	// Start file system monitor (real-time library monitoring)
+	if c.Services.FileMonitor != nil {
+		if err := c.Services.FileMonitor.Start(ctx); err != nil {
+			c.logger.Error("Failed to start file monitor service", "error", err)
+		} else {
+			c.logger.Info("File monitor service started")
+		}
 	}
 }
 
