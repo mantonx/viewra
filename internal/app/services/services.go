@@ -326,10 +326,14 @@ func initEnrichmentPipeline(
 ) (*pipeline.Manager, *pipeline.EnqueueBuffer, *enrichment.Registry) {
 	pipelineLogger := logger.With("component", "enrichment-pipeline")
 
-	// Create image downloader and metadata extractor
+	// Create image downloader and metadata extractor.
+	// Rate limit is set higher (20/sec) because image CDNs (e.g., BunnyCDN for TMDB)
+	// can handle high request rates. Burst of 20 allows processing multiple images
+	// per job without rate limiter context timeouts.
 	imageDownloader := infraimages.NewDownloader(infraimages.DownloaderConfig{
 		CacheDir:  cfg.Images.CacheDir,
-		RateLimit: 5.0,
+		RateLimit: 20.0,
+		RateBurst: 20,
 		Logger:    logger.With("component", "image-downloader"),
 	})
 	metadataExtractor := infraimages.NewMetadataExtractor()

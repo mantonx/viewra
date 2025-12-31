@@ -34,6 +34,10 @@ type DownloaderConfig struct {
 	// RateLimit is requests per second (0 = unlimited).
 	RateLimit float64
 
+	// RateBurst is the maximum burst size for the rate limiter.
+	// Defaults to 10 if not set.
+	RateBurst int
+
 	// Logger for structured logging.
 	Logger *slog.Logger
 }
@@ -46,10 +50,13 @@ func NewDownloader(cfg DownloaderConfig) *Downloader {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
+	if cfg.RateBurst == 0 {
+		cfg.RateBurst = 10 // Default burst allows queuing multiple images
+	}
 
 	var limiter *rate.Limiter
 	if cfg.RateLimit > 0 {
-		limiter = rate.NewLimiter(rate.Limit(cfg.RateLimit), 1)
+		limiter = rate.NewLimiter(rate.Limit(cfg.RateLimit), cfg.RateBurst)
 	}
 
 	return &Downloader{
