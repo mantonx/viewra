@@ -151,6 +151,43 @@ func (c *Client) FindByIMDbID(ctx context.Context, imdbID string) (*FindByExtern
 	return &result, nil
 }
 
+// GetTrending fetches trending movies and/or TV shows.
+// mediaType can be "movie", "tv", or "all".
+// window can be "day" or "week".
+func (c *Client) GetTrending(ctx context.Context, mediaType, window string) (*TrendingResponse, error) {
+	// Validate and default parameters
+	if mediaType == "" {
+		mediaType = "all"
+	}
+	if window == "" {
+		window = "week"
+	}
+
+	// Validate mediaType
+	switch mediaType {
+	case "movie", "tv", "all":
+		// Valid
+	default:
+		return nil, fmt.Errorf("invalid media_type: %s (must be 'movie', 'tv', or 'all')", mediaType)
+	}
+
+	// Validate window
+	switch window {
+	case "day", "week":
+		// Valid
+	default:
+		return nil, fmt.Errorf("invalid window: %s (must be 'day' or 'week')", window)
+	}
+
+	path := fmt.Sprintf("/trending/%s/%s", mediaType, window)
+
+	var result TrendingResponse
+	if err := c.get(ctx, path, nil, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // ImageURL returns the full URL for an image path.
 func ImageURL(path string, size string) string {
 	if path == "" {

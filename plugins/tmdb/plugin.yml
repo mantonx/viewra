@@ -3,8 +3,8 @@
 
 id: tmdb
 name: TMDb Enricher
-version: 1.0.0
-description: Fetches movie and TV metadata from The Movie Database (TMDb)
+version: 1.1.0
+description: Fetches movie and TV metadata from The Movie Database (TMDb), including trending content
 
 author: ViewRA Team
 license: MIT
@@ -16,6 +16,7 @@ min_host_version: "0.1.0"
 # Plugin capabilities
 categories:
   - enricher
+  - trending  # Provides trending data for home screen
 
 # What this enricher provides
 capabilities:
@@ -27,6 +28,7 @@ capabilities:
     - metadata
     - artwork
     - external_ids
+    - trending  # Trending movies and TV shows
   is_local: false
   rate_limit: 40  # requests per 10 seconds
 

@@ -210,3 +210,36 @@ type FindByExternalIDResponse struct {
 	MovieResults []MovieSearchResult `json:"movie_results"`
 	TVResults    []TVSearchResult    `json:"tv_results"`
 }
+
+// TrendingResult represents an item from the TMDb trending endpoint.
+// This is a union type that can be either a movie or TV show.
+type TrendingResult struct {
+	// Common fields
+	ID               int     `json:"id"`
+	MediaType        string  `json:"media_type"` // "movie" or "tv"
+	Overview         string  `json:"overview"`
+	PosterPath       string  `json:"poster_path"`
+	BackdropPath     string  `json:"backdrop_path"`
+	VoteAverage      float64 `json:"vote_average"`
+	VoteCount        int     `json:"vote_count"`
+	OriginalLanguage string  `json:"original_language"`
+	Popularity       float64 `json:"popularity"`
+
+	// Movie-specific fields
+	Title         string `json:"title,omitempty"`
+	OriginalTitle string `json:"original_title,omitempty"`
+	ReleaseDate   string `json:"release_date,omitempty"`
+
+	// TV-specific fields
+	Name         string `json:"name,omitempty"`
+	OriginalName string `json:"original_name,omitempty"`
+	FirstAirDate string `json:"first_air_date,omitempty"`
+}
+
+// TrendingResponse is the response from TMDb trending endpoint.
+type TrendingResponse struct {
+	Page         int              `json:"page"`
+	TotalPages   int              `json:"total_pages"`
+	TotalResults int              `json:"total_results"`
+	Results      []TrendingResult `json:"results"`
+}

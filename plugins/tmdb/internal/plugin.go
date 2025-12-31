@@ -248,6 +248,18 @@ func (p *TMDbPlugin) GetRoutes() []sdk.Route {
 			AdminOnly:   false,
 			Description: "Look up a title on TMDB without enriching",
 		},
+		{
+			Path:        "/trending",
+			Methods:     []string{"GET"},
+			AdminOnly:   false,
+			Description: "Get trending movies and TV shows from TMDb",
+		},
+		{
+			Path:        "/trending/info",
+			Methods:     []string{"GET"},
+			AdminOnly:   false,
+			Description: "Get trending provider metadata",
+		},
 	}
 }
 
@@ -259,6 +271,10 @@ func (p *TMDbPlugin) HandleHTTP(ctx context.Context, req *sdk.HTTPRequest) (*sdk
 		return p.handleEnrich(ctx, req)
 	case "/lookup":
 		return p.handleLookup(ctx, req)
+	case "/trending":
+		return p.handleTrending(ctx, req)
+	case "/trending/info":
+		return p.handleTrendingInfo(ctx, req)
 	default:
 		return sdk.JSONError(http.StatusNotFound, "route not found: "+req.Path)
 	}
