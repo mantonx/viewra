@@ -1,8 +1,8 @@
 # Semantic Search Plugin Manifest
 id: semantic-search
 name: Semantic Search
-version: 1.0.0
-description: AI-powered semantic search for media
+version: 1.1.0
+description: AI-powered semantic search for media with contextual suggestions
 
 author: ViewRA Team
 license: MIT
@@ -15,11 +15,13 @@ min_host_version: "0.1.0"
 categories:
   - enricher
   - ai
+  - search_provider  # Provides search for home screen
 
 # What capabilities this plugin provides to other plugins
 # Other plugins can depend on these via their 'requires' field
 provides:
   - search
+  - search_provider  # Home screen search hero provider
 
 # What capabilities this plugin requires from other plugins
 # The host will check that at least one enabled plugin provides each capability

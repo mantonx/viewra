@@ -55,5 +55,38 @@ func SettingsSchema() *sdk.Schema {
 			Properties("default_limit", "min_similarity")).
 		Section(sdk.NewSection("features").
 			Title("Features").
-			Properties("mood_tags_enabled"))
+			Properties("mood_tags_enabled")).
+		// Home screen widgets
+		Widgets([]sdk.Widget{
+			// Search hero for web/iOS/Android - interactive search with AI suggestions
+			{
+				ID:              "search-hero",
+				Type:            sdk.WidgetTypeSearchHero,
+				Location:        sdk.LocationHomepageTop,
+				ClientTypes:     []string{sdk.ClientTypeWeb, sdk.ClientTypeIOS, sdk.ClientTypeAndroid},
+				Priority:        100,
+				CacheTTLSeconds: 60, // Suggestions change with context
+				Config: map[string]any{
+					"endpoint":         "/suggestions",
+					"search_endpoint":  "/search",
+					"placeholder":      "Search your library with AI...",
+					"show_suggestions": true,
+				},
+				RequiredCapability: "search_provider",
+			},
+			// Featured row for Roku/FireTV/SmartTV - simpler interface without search input
+			{
+				ID:              "featured-suggestions",
+				Type:            sdk.WidgetTypeFeaturedRow,
+				Location:        sdk.LocationHomepageTop,
+				ClientTypes:     []string{sdk.ClientTypeRoku, sdk.ClientTypeFireTV, sdk.ClientTypeSmartTV},
+				Priority:        100,
+				CacheTTLSeconds: 300, // Less frequent updates for TV clients
+				Config: map[string]any{
+					"endpoint": "/suggestions",
+					"title":    "Discover",
+				},
+				RequiredCapability: "search_provider",
+			},
+		})
 }

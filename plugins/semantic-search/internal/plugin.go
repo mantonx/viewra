@@ -494,6 +494,18 @@ func (p *SemanticSearchPlugin) GetRoutes() []sdk.Route {
 			Description: "Get current indexing status and stats",
 		},
 		{
+			Path:        "/suggestions",
+			Methods:     []string{"GET"},
+			AdminOnly:   false,
+			Description: "Get contextual search suggestions for the search hero",
+		},
+		{
+			Path:        "/search/info",
+			Methods:     []string{"GET"},
+			AdminOnly:   false,
+			Description: "Get search provider metadata",
+		},
+		{
 			Path:        "/index",
 			Methods:     []string{"POST"},
 			AdminOnly:   true,
@@ -549,6 +561,10 @@ func (p *SemanticSearchPlugin) HandleHTTP(ctx context.Context, req *sdk.HTTPRequ
 		return p.handleSimilar(ctx, req)
 	case "/status":
 		return p.handleStatus(ctx, req)
+	case "/suggestions":
+		return p.handleSuggestions(ctx, req)
+	case "/search/info":
+		return p.handleSearchInfo(ctx, req)
 	case "/index":
 		return p.handleIndex(ctx, req)
 	case "/index/cancel":
