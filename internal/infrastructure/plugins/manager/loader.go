@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"github.com/mantonx/viewra/internal/infrastructure/plugins/logging"
 	"github.com/mantonx/viewra/internal/infrastructure/plugins/manifest"
 	"github.com/mantonx/viewra/internal/infrastructure/plugins/types"
+	"github.com/mantonx/viewra/pkg/plugin/sdk"
 )
 
 // LoadPlugin loads a single plugin from the given path.
@@ -353,6 +355,9 @@ func (m *Manager) registerPluginServices(ctx context.Context, instance *types.In
 			"capabilities", mf.Provides)
 	}
 
+	// Register widgets from plugin's settings schema
+	m.registerPluginWidgets(ctx, instance, mf.ID)
+
 	// Publish plugin.loaded event
 	if m.publisher != nil {
 		m.publisher.Publish(domainevents.NewEvent(domainevents.EventPluginLoaded, "plugin-manager").
@@ -440,10 +445,13 @@ func (m *Manager) UnloadPlugin(ctx context.Context, pluginID string) error {
 	// Kill the plugin process
 	instance.Client.Kill()
 
-	// Unregister routes, capabilities, and providers
+	// Unregister routes, capabilities, providers, and widgets
 	m.routeRegistry.UnregisterRoutes(pluginID)
 	m.capabilityRegistry.Unregister(pluginID)
 	m.providerRegistry.Unregister(pluginID)
+	if m.widgetRegistry != nil {
+		m.widgetRegistry.UnregisterPlugin(pluginID)
+	}
 	if m.hostPluginsServer != nil {
 		m.hostPluginsServer.UnregisterPlugin(pluginID)
 	}
@@ -459,4 +467,120 @@ func (m *Manager) UnloadPlugin(ctx context.Context, pluginID string) error {
 	}
 
 	return nil
+}
+
+// registerPluginWidgets extracts widgets from a plugin's settings schema and registers them.
+func (m *Manager) registerPluginWidgets(ctx context.Context, instance *types.Instance, pluginID string) {
+	if instance.CoreClient == nil || m.widgetRegistry == nil {
+		return
+	}
+
+	// Fetch settings schema with timeout
+	schemaCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	schemaResp, err := instance.CoreClient.GetSettingsSchema(schemaCtx, &pluginv1.Empty{})
+	if err != nil {
+		m.logger.Debug("failed to get settings schema for widget registration",
+			"plugin", pluginID,
+			"error", err)
+		return
+	}
+
+	if len(schemaResp.JsonSchema) == 0 {
+		return
+	}
+
+	// Parse the schema to extract x-viewra-widgets
+	var schema map[string]any
+	if err := json.Unmarshal(schemaResp.JsonSchema, &schema); err != nil {
+		m.logger.Debug("failed to parse settings schema",
+			"plugin", pluginID,
+			"error", err)
+		return
+	}
+
+	widgetsRaw, ok := schema["x-viewra-widgets"]
+	if !ok {
+		return
+	}
+
+	widgetsList, ok := widgetsRaw.([]any)
+	if !ok {
+		m.logger.Debug("x-viewra-widgets is not an array",
+			"plugin", pluginID)
+		return
+	}
+
+	// Convert to SDK Widget types and register
+	var widgets []sdk.Widget
+	for _, w := range widgetsList {
+		widgetMap, ok := w.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		widget := sdk.Widget{
+			ID:                 getStringFromMap(widgetMap, "id"),
+			Type:               getStringFromMap(widgetMap, "type"),
+			Location:           getStringFromMap(widgetMap, "location"),
+			Priority:           getIntFromMap(widgetMap, "priority"),
+			CacheTTLSeconds:    getIntFromMap(widgetMap, "cache_ttl_seconds"),
+			RequiredCapability: getStringFromMap(widgetMap, "required_capability"),
+			SettingsKey:        getStringFromMap(widgetMap, "settings_key"),
+			ClientTypes:        getStringSliceFromMap(widgetMap, "client_types"),
+		}
+
+		// Parse config map
+		if configRaw, ok := widgetMap["config"].(map[string]any); ok {
+			widget.Config = configRaw
+		}
+
+		if widget.ID != "" && widget.Type != "" {
+			widgets = append(widgets, widget)
+		}
+	}
+
+	if len(widgets) > 0 {
+		m.widgetRegistry.RegisterAll(pluginID, widgets)
+		m.logger.Debug("registered plugin widgets",
+			"plugin", pluginID,
+			"count", len(widgets))
+	}
+}
+
+// getStringFromMap extracts a string value from a map.
+func getStringFromMap(m map[string]any, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
+}
+
+// getIntFromMap extracts an int value from a map.
+func getIntFromMap(m map[string]any, key string) int {
+	switch v := m[key].(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	case int64:
+		return int(v)
+	}
+	return 0
+}
+
+// getStringSliceFromMap extracts a string slice from a map.
+func getStringSliceFromMap(m map[string]any, key string) []string {
+	raw, ok := m[key].([]any)
+	if !ok {
+		return nil
+	}
+	result := make([]string, 0, len(raw))
+	for _, v := range raw {
+		if s, ok := v.(string); ok {
+			result = append(result, s)
+		}
+	}
+	return result
 }
