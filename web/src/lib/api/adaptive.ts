@@ -23,7 +23,7 @@ export const adaptiveApi = {
   ): Promise<InternalApiHandlersQualityRecommendationResponse> => {
     const response = await postApiAdaptiveRecommend(request)
     if (response.status !== 200) {
-      throw new Error('error' in response.data ? response.data.error : 'Failed to get recommendation')
+      throw new Error('error' in response.data ? String(response.data.error) : 'Failed to get recommendation')
     }
     return response.data
   },
@@ -36,7 +36,7 @@ export const adaptiveApi = {
   ): Promise<InternalApiHandlersAdaptiveLadderResponse> => {
     const response = await postApiAdaptiveLadder(request)
     if (response.status !== 200) {
-      throw new Error('error' in response.data ? response.data.error : 'Failed to get ladder')
+      throw new Error('error' in response.data ? String(response.data.error) : 'Failed to get ladder')
     }
     return response.data
   },

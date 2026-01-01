@@ -2,8 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Film, Tv, Music, Library, Play } from 'lucide-react'
 import { getGetApiLibrariesQueryOptions } from '@/lib/api'
-import { ContinueWatching, SearchHero, MediaRow, WidgetType } from '@/components/home'
-import type { HomeSection, MediaRowData } from '@/components/home'
+import { ContinueWatching, SearchHero, WidgetSection, WidgetLocation } from '@/components/home'
 import { useSearchHeroData, useHomeSections } from '@/lib/hooks'
 
 /**
@@ -29,10 +28,8 @@ export const Home = () => {
   const tvCount = libraries.filter((l) => l.type === 'tv').length
   const musicCount = libraries.filter((l) => l.type === 'music').length
 
-  // Filter widget sections by type (media-row widgets for content area)
-  const mediaRowSections = (homeSections?.sections ?? [])
-    .filter((section): section is HomeSection => section.type === WidgetType.MediaRow)
-    .sort((a, b) => b.priority - a.priority)
+  // Sections for the main content area
+  const sections = homeSections?.sections ?? []
 
   return (
     <div className="h-full overflow-auto">
@@ -51,9 +48,7 @@ export const Home = () => {
           <ContinueWatching />
 
           {/* Plugin-provided widget sections */}
-          {mediaRowSections.map((section) => (
-            <MediaRow key={section.id} data={section.data as MediaRowData} />
-          ))}
+          <WidgetSection sections={sections} location={WidgetLocation.HomepageSections} />
 
           <QuickActions />
         </div>

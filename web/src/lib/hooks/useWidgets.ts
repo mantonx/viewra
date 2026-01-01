@@ -1,10 +1,26 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { customInstance } from '@/lib/api/mutator'
 import type {
   HomeResponse,
   SuggestionsResponse,
   SearchProviderInfo,
 } from '@/components/home/widgets/widget.types'
+
+/**
+ * Widget preference for reordering/hiding
+ */
+export interface WidgetPreference {
+  id: string
+  position: number
+  hidden: boolean
+}
+
+/**
+ * Preferences update request
+ */
+export interface PreferencesUpdateRequest {
+  sections: WidgetPreference[]
+}
 
 /**
  * Helper to build URL with query params
@@ -136,4 +152,83 @@ export const useSearchHeroData = () => {
     isLoading,
     error,
   }
+}
+
+/**
+ * Fetch widget preferences
+ */
+const fetchWidgetPreferences = async (): Promise<WidgetPreference[]> => {
+  const response = await customInstance<{ data: WidgetPreference[] }>({
+    url: '/api/home/preferences',
+    method: 'GET',
+  })
+  return response.data
+}
+
+/**
+ * Update widget preferences
+ */
+const updateWidgetPreferences = async (request: PreferencesUpdateRequest): Promise<void> => {
+  await customInstance({
+    url: '/api/home/preferences',
+    method: 'PUT',
+    data: request,
+  })
+}
+
+/**
+ * Reset widget preferences to defaults
+ */
+const resetWidgetPreferences = async (): Promise<void> => {
+  await customInstance({
+    url: '/api/home/preferences',
+    method: 'DELETE',
+  })
+}
+
+/**
+ * Query options for widget preferences
+ */
+export const getWidgetPreferencesQueryOptions = () => ({
+  queryKey: ['home', 'preferences'],
+  queryFn: fetchWidgetPreferences,
+  staleTime: 5 * 60 * 1000, // 5 minutes
+  gcTime: 30 * 60 * 1000, // 30 minutes
+})
+
+/**
+ * Hook to fetch widget preferences
+ */
+export const useWidgetPreferences = () => {
+  return useQuery(getWidgetPreferencesQueryOptions())
+}
+
+/**
+ * Hook to update widget preferences
+ */
+export const useUpdateWidgetPreferences = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: updateWidgetPreferences,
+    onSuccess: () => {
+      // Invalidate both preferences and home sections
+      queryClient.invalidateQueries({ queryKey: ['home'] })
+    },
+  })
+}
+
+/**
+ * Hook to reset widget preferences
+ */
+export const useResetWidgetPreferences = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: resetWidgetPreferences,
+    onSuccess: () => {
+      // Invalidate both preferences and home sections
+      queryClient.invalidateQueries({ queryKey: ['home'] })
+    },
+  })
 }
