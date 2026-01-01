@@ -2,8 +2,9 @@ import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Film, Tv, Music, Library, Play } from 'lucide-react'
 import { getGetApiLibrariesQueryOptions } from '@/lib/api'
-import { ContinueWatching, SearchHero } from '@/components/home'
-import { useSearchHeroData } from '@/lib/hooks'
+import { ContinueWatching, SearchHero, MediaRow, WidgetType } from '@/components/home'
+import type { HomeSection, MediaRowData } from '@/components/home'
+import { useSearchHeroData, useHomeSections } from '@/lib/hooks'
 
 /**
  * Home - Main landing page with search, stats, and content rows
@@ -17,6 +18,7 @@ import { useSearchHeroData } from '@/lib/hooks'
 export const Home = () => {
   const { data: librariesData } = useQuery(getGetApiLibrariesQueryOptions())
   const { data: searchHeroData, isLoading: isLoadingSearch } = useSearchHeroData()
+  const { data: homeSections } = useHomeSections()
 
   // Calculate library stats
   const libraries =
@@ -26,6 +28,11 @@ export const Home = () => {
   const movieCount = libraries.filter((l) => l.type === 'movie').length
   const tvCount = libraries.filter((l) => l.type === 'tv').length
   const musicCount = libraries.filter((l) => l.type === 'music').length
+
+  // Filter widget sections by type (media-row widgets for content area)
+  const mediaRowSections = (homeSections?.sections ?? [])
+    .filter((section): section is HomeSection => section.type === WidgetType.MediaRow)
+    .sort((a, b) => b.priority - a.priority)
 
   return (
     <div className="h-full overflow-auto">
@@ -42,6 +49,12 @@ export const Home = () => {
         {/* Content Sections */}
         <div className="p-8 pt-6 space-y-10">
           <ContinueWatching />
+
+          {/* Plugin-provided widget sections */}
+          {mediaRowSections.map((section) => (
+            <MediaRow key={section.id} data={section.data as MediaRowData} />
+          ))}
+
           <QuickActions />
         </div>
       </div>
