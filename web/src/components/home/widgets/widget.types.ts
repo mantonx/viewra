@@ -71,27 +71,6 @@ export interface SuggestionAction {
 }
 
 /**
- * Media item in widget data
- */
-export interface MediaItem {
-  entity_type: string
-  entity_id: number
-  title: string
-  year?: number
-  poster?: string
-  backdrop?: string
-  reason?: string
-  progress?: MediaProgress
-  rating?: 'up' | 'down' | 'favorite' | null
-}
-
-export interface MediaProgress {
-  percent: number
-  position_seconds: number
-  duration_seconds: number
-}
-
-/**
  * Trending item from TMDb or other provider
  */
 export interface TrendingItem {
@@ -118,7 +97,10 @@ export interface SearchHeroData {
 export interface MediaRowData {
   title: string
   subtitle?: string
-  items: MediaItem[]
+  /** Movie data for rendering */
+  movies?: import('@/lib/types/movies').Movie[]
+  /** TV show data for rendering */
+  shows?: import('@/lib/types/tv').TVShowSummary[]
   see_all_url?: string
 }
 

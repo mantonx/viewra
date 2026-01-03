@@ -5,6 +5,7 @@ package viewra.plugin.v1;
 option go_package = "github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1";
 
 import "api/proto/plugin/common.proto";
+import "api/proto/plugin/vector_search.proto";
 
 // HostData provides read-only access to ViewRA's media data.
 // Plugins use this to query media information.
@@ -30,6 +31,10 @@ service HostData {
 
   // GetFilePath returns the full file path for a media item.
   rpc GetFilePath(MediaId) returns (FilePath);
+
+  // ListMediaByGenre lists media items matching a genre pattern.
+  // Used for genre-based recommendations when semantic search is unavailable.
+  rpc ListMediaByGenre(ListMediaByGenreRequest) returns (MediaList);
 }
 
 // HostStorage provides plugin-scoped storage.
@@ -132,6 +137,24 @@ service HostWeather {
   rpc GetCurrentWeather(WeatherRequest) returns (WeatherResponse);
 }
 
+// HostRatings provides read-only access to user ratings data.
+// Plugins use this to query user preferences (favorites, likes, dislikes)
+// for generating personalized recommendations.
+service HostRatings {
+  // ListRatings returns all ratings for a user, optionally filtered by entity type and rating type.
+  rpc ListRatings(ListRatingsRequest) returns (ListRatingsResponse);
+
+  // GetRatedEntityIDs returns entity IDs with a specific rating type (favorite, up, down).
+  rpc GetRatedEntityIDs(GetRatedEntityIDsRequest) returns (EntityIDsResponse);
+
+  // GetPositivelyRatedIDs returns entity IDs the user has rated positively (favorite OR up).
+  // This is a convenience method for recommendations that treats both as positive signals.
+  rpc GetPositivelyRatedIDs(GetPositivelyRatedIDsRequest) returns (EntityIDsResponse);
+
+  // HasRatings returns whether a user has any ratings.
+  rpc HasRatings(HasRatingsRequest) returns (HasRatingsResponse);
+}
+
 // HostPlugins provides plugin discovery and capability-based routing.
 // Plugins use this to discover and connect to other plugins that provide
 // specific capabilities (e.g., "embedding", "chat").
@@ -170,6 +193,11 @@ service HostPlugins {
   // DescribeCapability returns metadata about a capability's available methods.
   // Useful for discovering what methods a capability supports.
   rpc DescribeCapability(DescribeCapabilityRequest) returns (DescribeCapabilityResponse);
+
+  // InvokeVectorSearch forwards a vector search request to a plugin providing vector_search capability.
+  // Used for plugin-to-plugin semantic search operations (e.g., recommendations → semantic-search).
+  // Unlike InvokeCapability which uses generic bytes, this uses typed messages for vector search.
+  rpc InvokeVectorSearch(VectorSearchInvokeRequest) returns (VectorSearchInvokeResponse);
 }
 
 // HostData messages
@@ -627,4 +655,89 @@ message DescribeCapabilityProviderInfo {
   bool enabled = 3;
   bool configured = 4;
   bool is_preferred = 5;              // Currently the preferred provider
+}
+
+// HostRatings messages
+
+// ListRatingsRequest filters ratings for a user.
+message ListRatingsRequest {
+  string user_id = 1;                 // Required: the user ID
+  string entity_type = 2;             // Optional: filter by entity type (movie, tv_show, tv_episode)
+  string rating_type = 3;             // Optional: filter by rating type (favorite, up, down)
+}
+
+// ListRatingsResponse contains the user's ratings.
+message ListRatingsResponse {
+  repeated UserRating ratings = 1;
+}
+
+// UserRating represents a single user rating.
+message UserRating {
+  int64 id = 1;
+  string user_id = 2;
+  string entity_type = 3;             // movie, tv_show, tv_episode
+  int64 entity_id = 4;
+  string rating = 5;                  // favorite, up, down
+  int64 created_at = 6;               // Unix timestamp
+  int64 updated_at = 7;               // Unix timestamp
+}
+
+// GetRatedEntityIDsRequest retrieves entity IDs with a specific rating.
+message GetRatedEntityIDsRequest {
+  string user_id = 1;                 // Required: the user ID
+  string entity_type = 2;             // Optional: filter by entity type (movie, tv_show, tv_episode)
+  string rating = 3;                  // Required: rating type (favorite, up, down)
+  int32 limit = 4;                    // Optional: max results (default: 100)
+}
+
+// GetPositivelyRatedIDsRequest retrieves entity IDs with positive ratings (favorite or up).
+message GetPositivelyRatedIDsRequest {
+  string user_id = 1;                 // Required: the user ID
+  string entity_type = 2;             // Optional: filter by entity type (movie, tv_show, tv_episode)
+  int32 limit = 3;                    // Optional: max results (default: 100)
+}
+
+// EntityIDsResponse contains a list of entity IDs.
+message EntityIDsResponse {
+  repeated int64 entity_ids = 1;
+}
+
+// HasRatingsRequest checks if a user has any ratings.
+message HasRatingsRequest {
+  string user_id = 1;
+}
+
+// HasRatingsResponse indicates whether the user has ratings.
+message HasRatingsResponse {
+  bool has_ratings = 1;
+}
+
+// --- VectorSearch Invocation Messages ---
+
+// VectorSearchInvokeRequest requests a vector search operation on a plugin providing vector_search capability.
+message VectorSearchInvokeRequest {
+  string method = 1;              // "FindSimilar" or "Search"
+  string preferred_plugin = 2;    // Optional: specific plugin ID to use
+
+  // Request payload (one of) - uses types from vector_search.proto
+  FindSimilarRequest find_similar = 10;
+  SemanticSearchRequest search = 11;
+}
+
+// VectorSearchInvokeResponse contains the result of a vector search operation.
+message VectorSearchInvokeResponse {
+  string provider_plugin = 1;     // Which plugin handled the request
+  SemanticSearchResponse response = 2;
+  CapabilityError error = 3;      // Structured error (null if success)
+}
+
+// --- ListMediaByGenre Messages ---
+
+// ListMediaByGenreRequest requests media items matching a genre.
+message ListMediaByGenreRequest {
+  string media_type = 1;          // "movie" or "tv_show"
+  string genre = 2;               // Genre to match (e.g., "Action", "Comedy")
+  int32 limit = 3;                // Max results (default: 20)
+  repeated int64 exclude_ids = 4; // Entity IDs to exclude from results
+  int64 library_id = 5;           // Optional: 0 means all libraries
 }

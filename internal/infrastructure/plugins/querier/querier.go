@@ -53,6 +53,22 @@ func (q *DBMediaQuerier) GetMediaByExternalID(ctx context.Context, provider, ext
 	return q.GetMediaByID(ctx, entityID)
 }
 
+// FindByExternalID finds a local media item by external source and ID.
+// Returns the local ID or nil if not found. Implements trending.MediaMatcher.
+func (q *DBMediaQuerier) FindByExternalID(ctx context.Context, source, externalID, mediaType string) (*int64, error) {
+	entityID, err := q.querier.GetMediaByExternalID(ctx, unified.GetMediaByExternalIDParams{
+		Provider:   source,
+		ExternalID: externalID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &entityID, nil
+}
+
 // SearchMedia searches for media by title and optional year.
 func (q *DBMediaQuerier) SearchMedia(ctx context.Context, title string, year int, mediaType string, limit int) ([]*MediaInfo, error) {
 	// Use title search pattern
@@ -290,4 +306,97 @@ func (q *DBMediaQuerier) ListMediaByLibrary(ctx context.Context, libraryID int64
 // isPostgres returns true if using PostgreSQL database.
 func (q *DBMediaQuerier) isPostgres() bool {
 	return common.IsPostgres(q.dbType)
+}
+
+// ListMediaByGenre returns media items matching a genre pattern.
+// mediaType should be "movie" or "tv_show".
+// libraryID=0 means all libraries.
+// excludeIDs are entity IDs to exclude from results.
+func (q *DBMediaQuerier) ListMediaByGenre(ctx context.Context, mediaType, genre string, libraryID int64, excludeIDs []int64, limit int) ([]*MediaInfo, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	switch mediaType {
+	case "movie":
+		return q.listMoviesByGenre(ctx, genre, libraryID, excludeIDs, limit)
+	case "tv_show":
+		return q.listTVShowsByGenre(ctx, genre, libraryID, excludeIDs, limit)
+	default:
+		return nil, errors.New("unsupported media type for genre search: " + mediaType)
+	}
+}
+
+// listMoviesByGenre returns movies matching a genre pattern.
+func (q *DBMediaQuerier) listMoviesByGenre(ctx context.Context, genre string, libraryID int64, excludeIDs []int64, limit int) ([]*MediaInfo, error) {
+	// If no exclude IDs, use an empty slice (NOT nil - sqlc.slice needs a non-nil slice)
+	if excludeIDs == nil {
+		excludeIDs = []int64{}
+	}
+
+	rows, err := q.querier.ListMoviesByGenre(ctx, unified.ListMoviesByGenreParams{
+		LibraryID:  libraryID,
+		Genre:      sql.NullString{String: genre, Valid: true},
+		ExcludeIds: excludeIDs,
+		Limit:      int64(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*MediaInfo, len(rows))
+	for i, row := range rows {
+		year := 0
+		if row.Year.Valid {
+			year = int(row.Year.Int64)
+		}
+		result[i] = &MediaInfo{
+			ID:        row.MediaID,
+			MediaType: "movie",
+			Title:     row.Title,
+			Year:      year,
+			LibraryID: row.LibraryID,
+			FilePath:  row.FilePath,
+		}
+	}
+
+	return result, nil
+}
+
+// listTVShowsByGenre returns TV shows matching a genre pattern.
+func (q *DBMediaQuerier) listTVShowsByGenre(ctx context.Context, genre string, libraryID int64, excludeIDs []int64, limit int) ([]*MediaInfo, error) {
+	// If no exclude IDs, use an empty slice (NOT nil - sqlc.slice needs a non-nil slice)
+	if excludeIDs == nil {
+		excludeIDs = []int64{}
+	}
+
+	rows, err := q.querier.ListTVShowsByGenre(ctx, unified.ListTVShowsByGenreParams{
+		LibraryID:  libraryID,
+		Genre:      sql.NullString{String: genre, Valid: true},
+		ExcludeIds: excludeIDs,
+		Limit:      int64(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*MediaInfo, len(rows))
+	for i, row := range rows {
+		year := 0
+		if row.Year.Valid {
+			year = int(row.Year.Int64)
+		}
+		result[i] = &MediaInfo{
+			ID:        row.ID,
+			MediaType: "tv_show",
+			Title:     row.Title,
+			Year:      year,
+			LibraryID: row.LibraryID,
+		}
+	}
+
+	return result, nil
 }

@@ -432,6 +432,9 @@ func initPluginManager(
 
 	hostWeatherServer := plugins.NewHostWeatherServer(locationRepo, weatherService, logger.With("component", "host-weather"))
 
+	// Create host ratings server for user preferences access
+	hostRatingsServer := plugins.NewHostRatingsServer(repos.Ratings, logger.With("component", "host-ratings"))
+
 	// Create host data server for media querying
 	var hostDataServer *plugins.HostDataServer
 	if repos.PluginMediaQuerier != nil {
@@ -445,6 +448,7 @@ func initPluginManager(
 		HostVersion:       version.Version,
 		HostStorageServer: hostStorageServer,
 		HostWeatherServer: hostWeatherServer,
+		HostRatingsServer: hostRatingsServer,
 	}, pluginLogger)
 	if err != nil {
 		logger.Warn("Failed to create plugin manager", "error", err)

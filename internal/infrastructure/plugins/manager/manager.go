@@ -46,6 +46,9 @@ type HostStorageServer interface{}
 // HostWeatherServer is an interface for the host weather server functionality.
 type HostWeatherServer interface{}
 
+// HostRatingsServer is an interface for the host ratings server functionality.
+type HostRatingsServer interface{}
+
 // Manager manages plugin lifecycle and provides access to plugin services.
 type Manager struct {
 	// plugins maps plugin ID to instance.
@@ -80,6 +83,9 @@ type Manager struct {
 
 	// hostWeatherServer provides weather context for plugins.
 	hostWeatherServer HostWeatherServer
+
+	// hostRatingsServer provides user ratings access for plugins.
+	hostRatingsServer HostRatingsServer
 
 	// hostPluginsServer provides capability-based plugin discovery.
 	hostPluginsServer HostPluginsServer
@@ -144,6 +150,10 @@ type ManagerConfig struct {
 	// HostWeatherServer provides weather context for plugins.
 	// If nil, plugins will not receive weather-based context enrichment.
 	HostWeatherServer HostWeatherServer
+
+	// HostRatingsServer provides user ratings access for plugins.
+	// If nil, plugins will not be able to access user ratings.
+	HostRatingsServer HostRatingsServer
 }
 
 // NewManager creates a new plugin manager.
@@ -188,6 +198,7 @@ func NewManager(cfg ManagerConfig, logger *slog.Logger) (*Manager, error) {
 		maxRestarts:              cfg.MaxRestarts,
 		hostStorageServer:        cfg.HostStorageServer,
 		hostWeatherServer:        cfg.HostWeatherServer,
+		hostRatingsServer:        cfg.HostRatingsServer,
 		routeRegistry:            routeRegistry,
 		capabilityRegistry:       capabilityRegistry,
 		providerRegistry:         providerRegistry,
@@ -526,6 +537,11 @@ func (m *Manager) GetHostStorageServer() HostStorageServer {
 // GetHostWeatherServer returns the host weather server.
 func (m *Manager) GetHostWeatherServer() HostWeatherServer {
 	return m.hostWeatherServer
+}
+
+// GetHostRatingsServer returns the host ratings server.
+func (m *Manager) GetHostRatingsServer() HostRatingsServer {
+	return m.hostRatingsServer
 }
 
 // GetRateLimiter returns the rate limiter.

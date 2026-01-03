@@ -566,6 +566,134 @@ func (s *PluginsServer) DescribeCapability(ctx context.Context, req *pluginv1.De
 	}, nil
 }
 
+// InvokeVectorSearch forwards a vector search request to a plugin providing vector_search capability.
+// This enables plugin-to-plugin semantic search operations (e.g., recommendations → semantic-search).
+func (s *PluginsServer) InvokeVectorSearch(ctx context.Context, req *pluginv1.VectorSearchInvokeRequest) (*pluginv1.VectorSearchInvokeResponse, error) {
+	// Resolve provider for vector_search capability
+	provider, instance, err := s.resolveVectorSearchProvider(req.PreferredPlugin)
+	if err != nil {
+		return &pluginv1.VectorSearchInvokeResponse{
+			Error: &pluginv1.CapabilityError{
+				Code:    pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_NOT_FOUND,
+				Message: err.Error(),
+			},
+		}, nil
+	}
+
+	s.logger.Debug("invoking vector search",
+		"method", req.Method,
+		"provider", provider.PluginID)
+
+	var resp *pluginv1.SemanticSearchResponse
+
+	switch req.Method {
+	case "FindSimilar":
+		if req.FindSimilar == nil {
+			return &pluginv1.VectorSearchInvokeResponse{
+				Error: &pluginv1.CapabilityError{
+					Code:    pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_INVALID_REQUEST,
+					Message: "FindSimilar request is required for method FindSimilar",
+				},
+			}, nil
+		}
+		resp, err = instance.VectorSearchClient.FindSimilar(ctx, req.FindSimilar)
+
+	case "Search":
+		if req.Search == nil {
+			return &pluginv1.VectorSearchInvokeResponse{
+				Error: &pluginv1.CapabilityError{
+					Code:    pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_INVALID_REQUEST,
+					Message: "Search request is required for method Search",
+				},
+			}, nil
+		}
+		resp, err = instance.VectorSearchClient.Search(ctx, req.Search)
+
+	default:
+		return &pluginv1.VectorSearchInvokeResponse{
+			Error: &pluginv1.CapabilityError{
+				Code:    pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_METHOD_NOT_FOUND,
+				Message: fmt.Sprintf("unknown vector search method: %s", req.Method),
+			},
+		}, nil
+	}
+
+	if err != nil {
+		s.logger.Error("vector search failed",
+			"method", req.Method,
+			"provider", provider.PluginID,
+			"error", err)
+		return &pluginv1.VectorSearchInvokeResponse{
+			Error: &pluginv1.CapabilityError{
+				Code:      pluginv1.CapabilityErrorCode_CAPABILITY_ERROR_PROVIDER_ERROR,
+				Message:   err.Error(),
+				Retryable: true,
+			},
+		}, nil
+	}
+
+	return &pluginv1.VectorSearchInvokeResponse{
+		ProviderPlugin: provider.PluginID,
+		Response:       resp,
+	}, nil
+}
+
+// resolveVectorSearchProvider finds an available provider for vector_search capability.
+// Unlike resolveProvider, this specifically looks for plugins with VectorSearchClient.
+func (s *PluginsServer) resolveVectorSearchProvider(preferredPlugin string) (*CapabilityProvider, *types.Instance, error) {
+	const capability = "vector_search"
+
+	s.mu.RLock()
+	providers := s.capabilities[capability]
+	configuredPreference := s.preferences[capability]
+	s.mu.RUnlock()
+
+	if len(providers) == 0 {
+		return nil, nil, fmt.Errorf("no provider found for capability: %s", capability)
+	}
+
+	// 1. If preferred plugin is specified in request, try it first
+	if preferredPlugin != "" {
+		for _, p := range providers {
+			if p.PluginID == preferredPlugin && p.Enabled && p.Configured {
+				instance, ok := s.pluginLookup.GetPlugin(p.PluginID)
+				if ok && instance.VectorSearchClient != nil {
+					return p, instance, nil
+				}
+			}
+		}
+		// Fall through if preferred plugin not available
+	}
+
+	// 2. Check configured preference
+	if configuredPreference != "" {
+		for _, p := range providers {
+			if p.PluginID == configuredPreference && p.Enabled && p.Configured {
+				instance, ok := s.pluginLookup.GetPlugin(p.PluginID)
+				if ok && instance.VectorSearchClient != nil {
+					s.logger.Debug("using configured preference for vector_search",
+						"preferred_plugin", configuredPreference)
+					return p, instance, nil
+				}
+			}
+		}
+		s.logger.Debug("configured preference not available for vector_search, falling back",
+			"preferred_plugin", configuredPreference)
+	}
+
+	// 3. Find the first enabled and configured provider with VectorSearchClient
+	for _, p := range providers {
+		if p.Enabled && p.Configured {
+			instance, ok := s.pluginLookup.GetPlugin(p.PluginID)
+			if ok && instance.VectorSearchClient != nil {
+				return p, instance, nil
+			}
+		}
+	}
+
+	return nil, nil, fmt.Errorf("no enabled provider with VectorSearchClient for capability: %s", capability)
+}
+
 // mapProviderErrorCode converts a provider error code string to a CapabilityErrorCode.
 func mapProviderErrorCode(code string) pluginv1.CapabilityErrorCode {
 	switch code {

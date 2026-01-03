@@ -42,6 +42,11 @@ package sdk
 
 import (
 	"context"
+
+	"github.com/hashicorp/go-plugin"
+	"google.golang.org/grpc"
+
+	pluginv1 "github.com/mantonx/viewra/api/proto/plugin"
 )
 
 // TrendingProvider is the interface that trending provider plugins must implement.
@@ -100,34 +105,34 @@ type TrendingResponse struct {
 type TrendingItem struct {
 	// ExternalID is the external identifier in format "source:id".
 	// Example: "tmdb:12345", "imdb:tt1234567"
-	ExternalID string
+	ExternalID string `json:"external_id"`
 
 	// MediaType is "movie" or "tv".
-	MediaType string
+	MediaType string `json:"media_type"`
 
 	// Title is the display title.
-	Title string
+	Title string `json:"title"`
 
 	// Year is the release/air year.
-	Year int
+	Year int `json:"year"`
 
 	// Popularity is the provider-specific popularity score.
 	// Higher is more popular. Scale varies by provider.
-	Popularity float32
+	Popularity float32 `json:"popularity"`
 
 	// PosterPath is the external URL to the poster image.
 	// Example: "https://image.tmdb.org/t/p/w500/abc123.jpg"
-	PosterPath string
+	PosterPath string `json:"poster_path,omitempty"`
 
 	// Overview is a brief description/plot summary.
-	Overview string
+	Overview string `json:"overview,omitempty"`
 
 	// LocalID is the matched local library ID (filled in by the core service).
 	// Nil if not matched to local library.
-	LocalID *int64
+	LocalID *int64 `json:"local_id,omitempty"`
 
 	// LocalMatched indicates whether this item was matched to the local library.
-	LocalMatched bool
+	LocalMatched bool `json:"local_matched"`
 }
 
 // TrendingProviderInfo contains metadata about a trending provider.
@@ -174,4 +179,85 @@ type TrendingResult struct {
 
 	// TotalTrending is the total trending items from the provider.
 	TotalTrending int
+}
+
+// --- gRPC Server Implementation ---
+
+// trendingProviderGRPCServer wraps a TrendingProvider to implement the gRPC service.
+type trendingProviderGRPCServer struct {
+	pluginv1.UnimplementedTrendingProviderServiceServer
+	impl TrendingProvider
+}
+
+func (s *trendingProviderGRPCServer) GetTrending(ctx context.Context, req *pluginv1.TrendingRequest) (*pluginv1.TrendingResponse, error) {
+	sdkReq := &TrendingRequest{
+		MediaType: req.MediaType,
+		Window:    req.Window,
+		Limit:     int(req.Limit),
+		Region:    req.Region,
+	}
+
+	resp, err := s.impl.GetTrending(ctx, sdkReq)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert SDK response to proto
+	items := make([]*pluginv1.TrendingItem, 0, len(resp.Items))
+	for _, item := range resp.Items {
+		protoItem := &pluginv1.TrendingItem{
+			ExternalId:   item.ExternalID,
+			MediaType:    item.MediaType,
+			Title:        item.Title,
+			Year:         int32(item.Year),
+			Popularity:   item.Popularity,
+			PosterPath:   item.PosterPath,
+			Overview:     item.Overview,
+			LocalMatched: item.LocalMatched,
+		}
+		if item.LocalID != nil {
+			protoItem.LocalId = *item.LocalID
+		}
+		items = append(items, protoItem)
+	}
+
+	return &pluginv1.TrendingResponse{
+		Items:    items,
+		Window:   resp.Window,
+		Source:   resp.Source,
+		CachedAt: resp.CachedAt,
+	}, nil
+}
+
+func (s *trendingProviderGRPCServer) GetProviderInfo(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.TrendingProviderInfo, error) {
+	info, err := s.impl.GetTrendingProviderInfo(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pluginv1.TrendingProviderInfo{
+		Id:          info.ID,
+		Name:        info.Name,
+		Description: info.Description,
+		Windows:     info.Windows,
+		MediaTypes:  info.MediaTypes,
+		UpdateFreq:  info.UpdateFreq,
+	}, nil
+}
+
+// --- go-plugin integration ---
+
+// TrendingProviderGRPCPlugin is the go-plugin for TrendingProviderService.
+type TrendingProviderGRPCPlugin struct {
+	plugin.Plugin
+	Impl TrendingProvider
+}
+
+func (p *TrendingProviderGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
+	pluginv1.RegisterTrendingProviderServiceServer(s, &trendingProviderGRPCServer{impl: p.Impl})
+	return nil
+}
+
+func (p *TrendingProviderGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+	return pluginv1.NewTrendingProviderServiceClient(c), nil
 }

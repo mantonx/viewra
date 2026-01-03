@@ -20,13 +20,11 @@ type RecommendationsPlugin struct {
 	config Config
 
 	// Host service clients
-	storage *sdk.StorageClient
-	sql     *sdk.SQLClient
 	data    *sdk.DataClient
 	plugins *sdk.PluginsClient
+	ratings *sdk.RatingsClient
 
 	// Services
-	ratingsService         *RatingsService
 	recommendationsService *RecommendationsService
 
 	mu sync.RWMutex
@@ -63,16 +61,8 @@ func (p *RecommendationsPlugin) Initialize(ctx context.Context, dataDir string, 
 	// Store host service clients
 	if services != nil {
 		p.plugins = services.Plugins
-		if services.Storage != nil {
-			p.storage = services.Storage
-			p.sql = services.Storage.SQL()
-		}
 		p.data = services.Data
-	}
-
-	// Run database migrations
-	if err := p.runMigrations(ctx); err != nil {
-		return fmt.Errorf("failed to run migrations: %w", err)
+		p.ratings = services.Ratings
 	}
 
 	// Initialize services
@@ -83,51 +73,12 @@ func (p *RecommendationsPlugin) Initialize(ctx context.Context, dataDir string, 
 	return nil
 }
 
-// runMigrations creates the ratings table if it doesn't exist.
-func (p *RecommendationsPlugin) runMigrations(ctx context.Context) error {
-	if p.sql == nil {
-		p.Log().Warn("SQL client not available, skipping migrations")
-		return nil
-	}
-
-	migrations := []sdk.Migration{
-		{
-			Version: 1,
-			SQL: `CREATE TABLE IF NOT EXISTS user_ratings (
-				id INTEGER PRIMARY KEY,
-				user_id TEXT NOT NULL,
-				entity_type TEXT NOT NULL,
-				entity_id INTEGER NOT NULL,
-				rating TEXT NOT NULL,
-				created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-				updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-				UNIQUE(user_id, entity_type, entity_id)
-			);
-			CREATE INDEX IF NOT EXISTS idx_user_ratings_user ON user_ratings(user_id);
-			CREATE INDEX IF NOT EXISTS idx_user_ratings_entity ON user_ratings(entity_type, entity_id);
-			CREATE INDEX IF NOT EXISTS idx_user_ratings_rating ON user_ratings(user_id, rating)`,
-		},
-	}
-
-	if err := p.sql.Migrate(ctx, migrations); err != nil {
-		return fmt.Errorf("migrate user_ratings: %w", err)
-	}
-
-	p.Log().Debug("database migrations completed")
-	return nil
-}
-
 // initializeServices creates the internal service instances.
 func (p *RecommendationsPlugin) initializeServices() {
-	// Create ratings service
-	if p.sql != nil {
-		p.ratingsService = NewRatingsService(p.sql, p.Log())
-	}
-
 	// Create recommendations service
-	if p.data != nil && p.ratingsService != nil {
+	if p.data != nil && p.ratings != nil {
 		p.recommendationsService = NewRecommendationsService(
-			p.ratingsService,
+			p.ratings,
 			p.data,
 			p.plugins,
 			p.config,
@@ -183,23 +134,14 @@ func (p *RecommendationsPlugin) Shutdown(ctx context.Context) error {
 }
 
 // GetRoutes returns the HTTP routes this plugin provides.
+// Note: Ratings CRUD is handled by core's /api/ratings endpoints.
 func (p *RecommendationsPlugin) GetRoutes() []sdk.Route {
 	return []sdk.Route{
-		// Ratings CRUD
+		// Read-only ratings access (for UI compatibility during transition)
 		{
 			Path:        "/ratings",
 			Methods:     []string{"GET"},
-			Description: "Get user's ratings",
-		},
-		{
-			Path:        "/ratings",
-			Methods:     []string{"POST"},
-			Description: "Create or update a rating",
-		},
-		{
-			Path:        "/ratings/:entity_type/:entity_id",
-			Methods:     []string{"DELETE"},
-			Description: "Delete a rating",
+			Description: "Get user's ratings (read-only, use core /api/ratings for writes)",
 		},
 		// Recommendations
 		{
@@ -212,11 +154,6 @@ func (p *RecommendationsPlugin) GetRoutes() []sdk.Route {
 			Methods:     []string{"GET"},
 			Description: "Get recommendations based on favorites",
 		},
-		{
-			Path:        "/favorites",
-			Methods:     []string{"GET"},
-			Description: "Get user's favorited items",
-		},
 	}
 }
 
@@ -227,16 +164,10 @@ func (p *RecommendationsPlugin) HandleHTTP(ctx context.Context, req *sdk.HTTPReq
 	switch {
 	case req.Path == "/ratings" && req.Method == "GET":
 		return p.handleGetRatings(ctx, req)
-	case req.Path == "/ratings" && req.Method == "POST":
-		return p.handleSetRating(ctx, req)
-	case req.Path == "/ratings" && req.Method == "DELETE":
-		return p.handleDeleteRating(ctx, req)
 	case req.Path == "/recommendations/for-you":
 		return p.handleForYou(ctx, req)
 	case req.Path == "/recommendations/because-you-liked":
 		return p.handleBecauseYouLiked(ctx, req)
-	case req.Path == "/favorites":
-		return p.handleFavorites(ctx, req)
 	default:
 		return jsonResponse(http.StatusNotFound, map[string]string{
 			"error": "route not found",
@@ -251,10 +182,10 @@ func (p *RecommendationsPlugin) HandleHTTP(ctx context.Context, req *sdk.HTTPReq
 
 func (p *RecommendationsPlugin) handleGetRatings(ctx context.Context, req *sdk.HTTPRequest) (*sdk.HTTPResponse, error) {
 	p.mu.RLock()
-	ratingsService := p.ratingsService
+	ratingsClient := p.ratings
 	p.mu.RUnlock()
 
-	if ratingsService == nil {
+	if ratingsClient == nil {
 		return jsonResponse(http.StatusServiceUnavailable, map[string]string{"error": "ratings service not available"})
 	}
 
@@ -262,7 +193,7 @@ func (p *RecommendationsPlugin) handleGetRatings(ctx context.Context, req *sdk.H
 	entityType := req.Query["entity_type"]
 	ratingType := req.Query["rating"]
 
-	ratings, err := ratingsService.GetRatings(ctx, req.UserID, entityType, ratingType)
+	ratings, err := ratingsClient.ListRatings(ctx, req.UserID, entityType, ratingType)
 	if err != nil {
 		return jsonResponse(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
@@ -271,67 +202,6 @@ func (p *RecommendationsPlugin) handleGetRatings(ctx context.Context, req *sdk.H
 		"ratings": ratings,
 		"total":   len(ratings),
 	})
-}
-
-func (p *RecommendationsPlugin) handleSetRating(ctx context.Context, req *sdk.HTTPRequest) (*sdk.HTTPResponse, error) {
-	p.mu.RLock()
-	ratingsService := p.ratingsService
-	p.mu.RUnlock()
-
-	if ratingsService == nil {
-		return jsonResponse(http.StatusServiceUnavailable, map[string]string{"error": "ratings service not available"})
-	}
-
-	var ratingReq struct {
-		EntityType string `json:"entity_type"`
-		EntityID   int64  `json:"entity_id"`
-		Rating     string `json:"rating"` // "up", "down", "favorite"
-	}
-	if err := json.Unmarshal(req.Body, &ratingReq); err != nil {
-		return jsonResponse(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-	}
-
-	// Validate rating type
-	if ratingReq.Rating != RatingUp && ratingReq.Rating != RatingDown && ratingReq.Rating != RatingFavorite {
-		return jsonResponse(http.StatusBadRequest, map[string]string{
-			"error": "invalid rating type, must be 'up', 'down', or 'favorite'",
-		})
-	}
-
-	if err := ratingsService.SetRating(ctx, req.UserID, ratingReq.EntityType, ratingReq.EntityID, ratingReq.Rating); err != nil {
-		return jsonResponse(http.StatusInternalServerError, map[string]string{"error": err.Error()})
-	}
-
-	return jsonResponse(http.StatusOK, map[string]string{"status": "ok"})
-}
-
-func (p *RecommendationsPlugin) handleDeleteRating(ctx context.Context, req *sdk.HTTPRequest) (*sdk.HTTPResponse, error) {
-	p.mu.RLock()
-	ratingsService := p.ratingsService
-	p.mu.RUnlock()
-
-	if ratingsService == nil {
-		return jsonResponse(http.StatusServiceUnavailable, map[string]string{"error": "ratings service not available"})
-	}
-
-	// Parse entity from query params (since path params aren't parsed by the proxy)
-	entityType := req.Query["entity_type"]
-	entityIDStr := req.Query["entity_id"]
-
-	if entityType == "" || entityIDStr == "" {
-		return jsonResponse(http.StatusBadRequest, map[string]string{"error": "entity_type and entity_id are required"})
-	}
-
-	entityID, err := strconv.ParseInt(entityIDStr, 10, 64)
-	if err != nil {
-		return jsonResponse(http.StatusBadRequest, map[string]string{"error": "invalid entity_id"})
-	}
-
-	if err := ratingsService.DeleteRating(ctx, req.UserID, entityType, entityID); err != nil {
-		return jsonResponse(http.StatusInternalServerError, map[string]string{"error": err.Error()})
-	}
-
-	return jsonResponse(http.StatusOK, map[string]string{"status": "deleted"})
 }
 
 func (p *RecommendationsPlugin) handleForYou(ctx context.Context, req *sdk.HTTPRequest) (*sdk.HTTPResponse, error) {
@@ -405,34 +275,6 @@ func (p *RecommendationsPlugin) handleBecauseYouLiked(ctx context.Context, req *
 	}
 
 	return jsonResponse(http.StatusOK, row)
-}
-
-func (p *RecommendationsPlugin) handleFavorites(ctx context.Context, req *sdk.HTTPRequest) (*sdk.HTTPResponse, error) {
-	p.mu.RLock()
-	recService := p.recommendationsService
-	p.mu.RUnlock()
-
-	if recService == nil {
-		return jsonResponse(http.StatusServiceUnavailable, map[string]string{"error": "recommendations service not available"})
-	}
-
-	limit := 20
-	if limitStr := req.Query["limit"]; limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 50 {
-			limit = l
-		}
-	}
-
-	items, err := recService.GetFavorites(ctx, req.UserID, limit)
-	if err != nil {
-		p.Log().Warn("failed to get favorites", "error", err)
-		items = []sdk.MediaItem{}
-	}
-
-	return jsonResponse(http.StatusOK, map[string]any{
-		"title": "Your Favorites",
-		"items": items,
-	})
 }
 
 // =============================================================================

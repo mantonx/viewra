@@ -42,13 +42,13 @@ type TVShowDetailResponse struct {
 // TVEpisodeResponse represents a TV episode with all its metadata
 type TVEpisodeResponse struct {
 	// Base Media fields
-	ID        int64     `json:"id"`
-	LibraryID int64     `json:"library_id"`
-	Title     string    `json:"title"` // filename
-	FilePath  string    `json:"file_path"`
-	FileSize  int64     `json:"file_size"`
-	Duration  int       `json:"duration"` // in seconds
-	IsExtra   bool      `json:"is_extra"`
+	ID        int64  `json:"id"`
+	LibraryID int64  `json:"library_id"`
+	Title     string `json:"title"` // filename
+	FilePath  string `json:"file_path"`
+	FileSize  int64  `json:"file_size"`
+	Duration  int    `json:"duration"` // in seconds
+	IsExtra   bool   `json:"is_extra"`
 
 	// Technical metadata
 	Width           int     `json:"width,omitempty"`
@@ -161,3 +161,39 @@ func ToListTVEpisodesResponse(episodes []*media.TVEpisode) ListTVEpisodesRespons
 // ListIDsResponse is now defined in application/common package to eliminate duplication
 // Kept as type alias for backwards compatibility
 type ListIDsResponse = appcommon.ListIDsResponse
+
+// ToTVShowSummary converts a domain TVShow to a TVShowSummary DTO
+func ToTVShowSummary(show *media.TVShow) TVShowSummary {
+	return TVShowSummary{
+		ID:            show.ID,
+		LibraryID:     show.LibraryID,
+		Title:         show.Title,
+		Year:          show.Year,
+		Genre:         show.Genre,
+		Plot:          show.Plot,
+		IMDbID:        show.IMDbID,
+		TMDbID:        show.TMDbID,
+		ContentRating: show.ContentRating,
+		SeasonCount:   0, // Not available from TVShow, only from TVShowWithCounts
+		EpisodeCount:  0,
+		CreatedAt:     show.CreatedAt,
+	}
+}
+
+// ToTVShowSummaryWithCounts converts a domain TVShowWithCounts to a TVShowSummary DTO
+func ToTVShowSummaryWithCounts(show *media.TVShowWithCounts) TVShowSummary {
+	return TVShowSummary{
+		ID:            show.ID,
+		LibraryID:     show.LibraryID,
+		Title:         show.Title,
+		Year:          show.Year,
+		Genre:         show.Genre,
+		Plot:          show.Plot,
+		IMDbID:        show.IMDbID,
+		TMDbID:        show.TMDbID,
+		ContentRating: show.ContentRating,
+		SeasonCount:   int(show.SeasonCount),
+		EpisodeCount:  int(show.EpisodeCount),
+		CreatedAt:     show.CreatedAt,
+	}
+}

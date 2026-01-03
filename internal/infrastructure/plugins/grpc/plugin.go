@@ -346,3 +346,80 @@ func (p *HostPluginsPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCB
 type HostPluginsBrokerInfo struct {
 	BrokerID uint32
 }
+
+// HostRatingsPlugin is the go-plugin implementation for the HostRatings service.
+// On the host side, this starts a gRPC server on a broker ID that the plugin can connect to.
+// This provides read-only access to user ratings for recommendations.
+type HostRatingsPlugin struct {
+	plugin.Plugin
+	Impl   pluginv1.HostRatingsServer
+	Logger *slog.Logger
+}
+
+func (p *HostRatingsPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
+	// Plugin side - we don't serve, the host does
+	return nil
+}
+
+func (p *HostRatingsPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+	// Host side - start a server on a broker ID that the plugin can connect to
+	if p.Impl == nil {
+		// No implementation provided - return nil (ratings not available)
+		return (*HostRatingsBrokerInfo)(nil), nil
+	}
+
+	// Get a unique broker ID
+	brokerID := broker.NextId()
+
+	// Start the ratings server on this broker ID with logging interceptor
+	go broker.AcceptAndServe(brokerID, func(opts []grpc.ServerOption) *grpc.Server {
+		if p.Logger != nil {
+			opts = append(opts,
+				grpc.UnaryInterceptor(LoggingInterceptor(p.Logger)),
+				grpc.StreamInterceptor(LoggingStreamInterceptor(p.Logger)),
+			)
+		}
+		s := grpc.NewServer(opts...)
+		pluginv1.RegisterHostRatingsServer(s, p.Impl)
+		return s
+	})
+
+	return &HostRatingsBrokerInfo{BrokerID: brokerID}, nil
+}
+
+// HostRatingsBrokerInfo contains the broker ID for connecting to the host ratings service.
+type HostRatingsBrokerInfo struct {
+	BrokerID uint32
+}
+
+// VectorSearchPlugin is the go-plugin implementation for the VectorSearch service.
+// On the host side, this is used to dispense a client for calling the plugin's VectorSearch methods.
+// The plugin serves this service; the host is a client only.
+type VectorSearchPlugin struct {
+	plugin.Plugin
+}
+
+func (p *VectorSearchPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
+	// Plugin side serves this - host doesn't
+	return nil
+}
+
+func (p *VectorSearchPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+	return pluginv1.NewVectorSearchClient(c), nil
+}
+
+// TrendingProviderPlugin is the go-plugin implementation for the TrendingProviderService.
+// On the host side, this is used to dispense a client for calling the plugin's trending methods.
+// The plugin serves this service; the host is a client only.
+type TrendingProviderPlugin struct {
+	plugin.Plugin
+}
+
+func (p *TrendingProviderPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
+	// Plugin side serves this - host doesn't
+	return nil
+}
+
+func (p *TrendingProviderPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+	return pluginv1.NewTrendingProviderServiceClient(c), nil
+}

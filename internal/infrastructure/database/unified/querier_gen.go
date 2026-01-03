@@ -362,6 +362,13 @@ func (q *Querier) CountTranscodeJobsByStatus(ctx context.Context, status string)
 	return q.sqlite.CountTranscodeJobsByStatus(ctx, status)
 }
 
+func (q *Querier) CountUserRatingsByRating(ctx context.Context, arg sqlc_sqlite.CountUserRatingsByRatingParams) (int64, error) {
+	if q.isPostgres {
+		return q.postgres.CountUserRatingsByRating(ctx, sqlc_postgres.CountUserRatingsByRatingParams(arg))
+	}
+	return q.sqlite.CountUserRatingsByRating(ctx, arg)
+}
+
 func (q *Querier) CountUsers(ctx context.Context) (int64, error) {
 	if q.isPostgres {
 		return q.postgres.CountUsers(ctx)
@@ -574,6 +581,13 @@ func (q *Querier) DeleteAlbum(ctx context.Context, id int64) error {
 		return q.postgres.DeleteAlbum(ctx, id)
 	}
 	return q.sqlite.DeleteAlbum(ctx, id)
+}
+
+func (q *Querier) DeleteAllUserRatings(ctx context.Context, userID string) error {
+	if q.isPostgres {
+		return q.postgres.DeleteAllUserRatings(ctx, userID)
+	}
+	return q.sqlite.DeleteAllUserRatings(ctx, userID)
 }
 
 func (q *Querier) DeleteAllUserSettings(ctx context.Context, userID string) error {
@@ -994,6 +1008,13 @@ func (q *Querier) DeleteUser(ctx context.Context, id int64) error {
 		return q.postgres.DeleteUser(ctx, id)
 	}
 	return q.sqlite.DeleteUser(ctx, id)
+}
+
+func (q *Querier) DeleteUserRating(ctx context.Context, arg sqlc_sqlite.DeleteUserRatingParams) error {
+	if q.isPostgres {
+		return q.postgres.DeleteUserRating(ctx, sqlc_postgres.DeleteUserRatingParams(arg))
+	}
+	return q.sqlite.DeleteUserRating(ctx, arg)
 }
 
 func (q *Querier) DeleteUserSetting(ctx context.Context, arg sqlc_sqlite.DeleteUserSettingParams) error {
@@ -2217,6 +2238,14 @@ func (q *Querier) GetUserLocation(ctx context.Context, id int64) (sqlc_sqlite.Ge
 	return q.sqlite.GetUserLocation(ctx, id)
 }
 
+func (q *Querier) GetUserRating(ctx context.Context, arg sqlc_sqlite.GetUserRatingParams) (sqlc_sqlite.UserRating, error) {
+	if q.isPostgres {
+		r0, err := q.postgres.GetUserRating(ctx, sqlc_postgres.GetUserRatingParams(arg))
+		return castValue[sqlc_postgres.UserRating, sqlc_sqlite.UserRating](r0), err
+	}
+	return q.sqlite.GetUserRating(ctx, arg)
+}
+
 func (q *Querier) GetUserSetting(ctx context.Context, arg sqlc_sqlite.GetUserSettingParams) (sqlc_sqlite.UserSetting, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetUserSetting(ctx, sqlc_postgres.GetUserSettingParams(arg))
@@ -2255,6 +2284,13 @@ func (q *Querier) GetWritersForEntity(ctx context.Context, arg sqlc_sqlite.GetWr
 		return castSlice[sqlc_postgres.GetWritersForEntityRow, sqlc_sqlite.GetWritersForEntityRow](r0), err
 	}
 	return q.sqlite.GetWritersForEntity(ctx, arg)
+}
+
+func (q *Querier) HasUserRatings(ctx context.Context, userID string) (int64, error) {
+	if q.isPostgres {
+		return q.postgres.HasUserRatings(ctx, userID)
+	}
+	return q.sqlite.HasUserRatings(ctx, userID)
 }
 
 func (q *Querier) IncrementPluginRestartCount(ctx context.Context, id string) error {
@@ -2386,6 +2422,13 @@ func (q *Querier) ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]
 	return q.sqlite.ListArtistsByLibrary(ctx, libraryID)
 }
 
+func (q *Querier) ListDistinctMovieGenres(ctx context.Context, limit int64) ([]string, error) {
+	if q.isPostgres {
+		return q.postgres.ListDistinctMovieGenres(ctx, limit)
+	}
+	return q.sqlite.ListDistinctMovieGenres(ctx, limit)
+}
+
 func (q *Querier) ListEnabledPlugins(ctx context.Context) ([]sqlc_sqlite.ListEnabledPluginsRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.ListEnabledPlugins(ctx)
@@ -2400,6 +2443,34 @@ func (q *Querier) ListEnabledScheduledTasks(ctx context.Context) ([]sqlc_sqlite.
 		return castSlice[sqlc_postgres.ScheduledTask, sqlc_sqlite.ScheduledTask](r0), err
 	}
 	return q.sqlite.ListEnabledScheduledTasks(ctx)
+}
+
+func (q *Querier) ListEntityIDsByPositiveRating(ctx context.Context, arg sqlc_sqlite.ListEntityIDsByPositiveRatingParams) ([]int64, error) {
+	if q.isPostgres {
+		return q.postgres.ListEntityIDsByPositiveRating(ctx, sqlc_postgres.ListEntityIDsByPositiveRatingParams(arg))
+	}
+	return q.sqlite.ListEntityIDsByPositiveRating(ctx, arg)
+}
+
+func (q *Querier) ListEntityIDsByRating(ctx context.Context, arg sqlc_sqlite.ListEntityIDsByRatingParams) ([]int64, error) {
+	if q.isPostgres {
+		return q.postgres.ListEntityIDsByRating(ctx, sqlc_postgres.ListEntityIDsByRatingParams(arg))
+	}
+	return q.sqlite.ListEntityIDsByRating(ctx, arg)
+}
+
+func (q *Querier) ListEntityIDsByTypeAndPositiveRating(ctx context.Context, arg sqlc_sqlite.ListEntityIDsByTypeAndPositiveRatingParams) ([]int64, error) {
+	if q.isPostgres {
+		return q.postgres.ListEntityIDsByTypeAndPositiveRating(ctx, sqlc_postgres.ListEntityIDsByTypeAndPositiveRatingParams(arg))
+	}
+	return q.sqlite.ListEntityIDsByTypeAndPositiveRating(ctx, arg)
+}
+
+func (q *Querier) ListEntityIDsByTypeAndRating(ctx context.Context, arg sqlc_sqlite.ListEntityIDsByTypeAndRatingParams) ([]int64, error) {
+	if q.isPostgres {
+		return q.postgres.ListEntityIDsByTypeAndRating(ctx, sqlc_postgres.ListEntityIDsByTypeAndRatingParams(arg))
+	}
+	return q.sqlite.ListEntityIDsByTypeAndRating(ctx, arg)
 }
 
 func (q *Querier) ListFailedScanCheckpoints(ctx context.Context, arg sqlc_sqlite.ListFailedScanCheckpointsParams) ([]sqlc_sqlite.ScanCheckpoint, error) {
@@ -2671,6 +2742,22 @@ func (q *Querier) ListQueuedTranscodeJobs(ctx context.Context, limit int64) ([]s
 	return q.sqlite.ListQueuedTranscodeJobs(ctx, limit)
 }
 
+func (q *Querier) ListRecentlyAddedMovies(ctx context.Context, limit int64) ([]sqlc_sqlite.ListRecentlyAddedMoviesRow, error) {
+	if q.isPostgres {
+		r0, err := q.postgres.ListRecentlyAddedMovies(ctx, limit)
+		return castSlice[sqlc_postgres.ListRecentlyAddedMoviesRow, sqlc_sqlite.ListRecentlyAddedMoviesRow](r0), err
+	}
+	return q.sqlite.ListRecentlyAddedMovies(ctx, limit)
+}
+
+func (q *Querier) ListRecentlyAddedTVShows(ctx context.Context, limit int64) ([]sqlc_sqlite.ListRecentlyAddedTVShowsRow, error) {
+	if q.isPostgres {
+		r0, err := q.postgres.ListRecentlyAddedTVShows(ctx, limit)
+		return castSlice[sqlc_postgres.ListRecentlyAddedTVShowsRow, sqlc_sqlite.ListRecentlyAddedTVShowsRow](r0), err
+	}
+	return q.sqlite.ListRecentlyAddedTVShows(ctx, limit)
+}
+
 func (q *Querier) ListRunningScanJobs(ctx context.Context) ([]sqlc_sqlite.ScanJob, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.ListRunningScanJobs(ctx)
@@ -2781,6 +2868,14 @@ func (q *Querier) ListTVShowIDsByLibraryPaginatedDesc(ctx context.Context, arg s
 	return q.sqlite.ListTVShowIDsByLibraryPaginatedDesc(ctx, arg)
 }
 
+func (q *Querier) ListTVShowsByGenre(ctx context.Context, arg sqlc_sqlite.ListTVShowsByGenreParams) ([]sqlc_sqlite.TvShow, error) {
+	if q.isPostgres {
+		r0, err := q.postgres.ListTVShowsByGenre(ctx, sqlc_postgres.ListTVShowsByGenreParams(arg))
+		return castSlice[sqlc_postgres.TvShow, sqlc_sqlite.TvShow](r0), err
+	}
+	return q.sqlite.ListTVShowsByGenre(ctx, arg)
+}
+
 func (q *Querier) ListTVShowsByLibrary(ctx context.Context, libraryID int64) ([]sqlc_sqlite.TvShow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.ListTVShowsByLibrary(ctx, libraryID)
@@ -2835,6 +2930,38 @@ func (q *Querier) ListTranscodeJobsByStatus(ctx context.Context, status string) 
 		return castSlice[sqlc_postgres.TranscodeJob, sqlc_sqlite.TranscodeJob](r0), err
 	}
 	return q.sqlite.ListTranscodeJobsByStatus(ctx, status)
+}
+
+func (q *Querier) ListUserRatings(ctx context.Context, userID string) ([]sqlc_sqlite.UserRating, error) {
+	if q.isPostgres {
+		r0, err := q.postgres.ListUserRatings(ctx, userID)
+		return castSlice[sqlc_postgres.UserRating, sqlc_sqlite.UserRating](r0), err
+	}
+	return q.sqlite.ListUserRatings(ctx, userID)
+}
+
+func (q *Querier) ListUserRatingsByRating(ctx context.Context, arg sqlc_sqlite.ListUserRatingsByRatingParams) ([]sqlc_sqlite.UserRating, error) {
+	if q.isPostgres {
+		r0, err := q.postgres.ListUserRatingsByRating(ctx, sqlc_postgres.ListUserRatingsByRatingParams(arg))
+		return castSlice[sqlc_postgres.UserRating, sqlc_sqlite.UserRating](r0), err
+	}
+	return q.sqlite.ListUserRatingsByRating(ctx, arg)
+}
+
+func (q *Querier) ListUserRatingsByType(ctx context.Context, arg sqlc_sqlite.ListUserRatingsByTypeParams) ([]sqlc_sqlite.UserRating, error) {
+	if q.isPostgres {
+		r0, err := q.postgres.ListUserRatingsByType(ctx, sqlc_postgres.ListUserRatingsByTypeParams(arg))
+		return castSlice[sqlc_postgres.UserRating, sqlc_sqlite.UserRating](r0), err
+	}
+	return q.sqlite.ListUserRatingsByType(ctx, arg)
+}
+
+func (q *Querier) ListUserRatingsByTypeAndRating(ctx context.Context, arg sqlc_sqlite.ListUserRatingsByTypeAndRatingParams) ([]sqlc_sqlite.UserRating, error) {
+	if q.isPostgres {
+		r0, err := q.postgres.ListUserRatingsByTypeAndRating(ctx, sqlc_postgres.ListUserRatingsByTypeAndRatingParams(arg))
+		return castSlice[sqlc_postgres.UserRating, sqlc_sqlite.UserRating](r0), err
+	}
+	return q.sqlite.ListUserRatingsByTypeAndRating(ctx, arg)
 }
 
 func (q *Querier) ListUsers(ctx context.Context, arg sqlc_sqlite.ListUsersParams) ([]sqlc_sqlite.User, error) {
@@ -3554,6 +3681,14 @@ func (q *Querier) UpsertTVShow(ctx context.Context, arg sqlc_sqlite.UpsertTVShow
 		return castValue[sqlc_postgres.TvShow, sqlc_sqlite.TvShow](r0), err
 	}
 	return q.sqlite.UpsertTVShow(ctx, arg)
+}
+
+func (q *Querier) UpsertUserRating(ctx context.Context, arg sqlc_sqlite.UpsertUserRatingParams) (sqlc_sqlite.UserRating, error) {
+	if q.isPostgres {
+		r0, err := q.postgres.UpsertUserRating(ctx, sqlc_postgres.UpsertUserRatingParams(arg))
+		return castValue[sqlc_postgres.UserRating, sqlc_sqlite.UserRating](r0), err
+	}
+	return q.sqlite.UpsertUserRating(ctx, arg)
 }
 
 func (q *Querier) UpsertUserSetting(ctx context.Context, arg sqlc_sqlite.UpsertUserSettingParams) error {

@@ -22,6 +22,7 @@ categories:
 provides:
   - search
   - search_provider  # Home screen search hero provider
+  - vector_search    # Allows other plugins to call FindSimilar/Search via InvokeVectorSearch
 
 # What capabilities this plugin requires from other plugins
 # The host will check that at least one enabled plugin provides each capability

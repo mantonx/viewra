@@ -31,6 +31,15 @@ type PluginFactory interface {
 	// NewHostPluginsGRPCPlugin creates a new HostPluginsGRPCPlugin.
 	NewHostPluginsGRPCPlugin(impl HostPluginsServer, logger *slog.Logger) plugin.Plugin
 
+	// NewHostRatingsGRPCPlugin creates a new HostRatingsGRPCPlugin.
+	NewHostRatingsGRPCPlugin(impl HostRatingsServer, logger *slog.Logger) plugin.Plugin
+
+	// NewVectorSearchGRPCPlugin creates a new VectorSearchGRPCPlugin for client-side dispensing.
+	NewVectorSearchGRPCPlugin() plugin.Plugin
+
+	// NewTrendingProviderGRPCPlugin creates a new TrendingProviderGRPCPlugin for client-side dispensing.
+	NewTrendingProviderGRPCPlugin() plugin.Plugin
+
 	// GetBrokerID extracts the broker ID from a dispensed broker info struct.
 	GetBrokerID(brokerInfo interface{}) uint32
 }

@@ -16,4 +16,9 @@ export interface MediaMetadataProps {
   // For TV shows
   seasonCount?: number
   episodeCount?: number
+  // For rating controls
+  rating?: {
+    entityType: 'movie' | 'tv_show' | 'tv_episode'
+    entityId: number
+  }
 }

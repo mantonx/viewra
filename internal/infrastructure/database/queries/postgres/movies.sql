@@ -171,6 +171,11 @@ WHERE med.library_id = $1
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title);
 
 -- name: ListMoviesByGenre :many
+-- Lists movies matching a genre pattern with optional library filter and exclusion list.
+-- library_id: 0 means all libraries
+-- genre: genre pattern to match (will be wrapped in % for ILIKE)
+-- exclude_ids: array of media IDs to exclude
+-- limit: maximum number of results
 SELECT
     m.*,
     med.id as media_id,
@@ -210,10 +215,12 @@ SELECT
     med.updated_at
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = $1
-  AND med.is_extra = 0
-  AND m.genre ILIKE $2
-ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title);
+WHERE (med.library_id = sqlc.arg('library_id')::bigint OR sqlc.arg('library_id')::bigint = 0)
+  AND med.is_extra = false
+  AND m.genre ILIKE '%' || sqlc.arg('genre') || '%'
+  AND med.id NOT IN (sqlc.slice('exclude_ids'))
+ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title)
+LIMIT sqlc.arg('limit')::bigint;
 
 -- name: ListMoviesByYear :many
 SELECT
@@ -448,3 +455,61 @@ WHERE med.is_extra = 0
   AND (med.title ILIKE $1 OR m.original_title ILIKE $2)
 ORDER BY m.sort_title, med.title
 LIMIT sqlc.arg('limit')::bigint;
+
+-- name: ListRecentlyAddedMovies :many
+-- Returns recently added movies across all libraries, ordered by creation date
+SELECT
+    m.*,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.is_extra = 0
+ORDER BY med.created_at DESC
+LIMIT $1::bigint;
+
+-- name: ListDistinctMovieGenres :many
+-- Returns distinct genres from all movies (genres are comma-separated in the genre column)
+SELECT DISTINCT TRIM(g.genre) as genre
+FROM movies m
+JOIN media med ON m.media_id = med.id
+CROSS JOIN LATERAL unnest(string_to_array(m.genre, ', ')) AS g(genre)
+WHERE med.is_extra = 0
+  AND m.genre IS NOT NULL
+  AND m.genre != ''
+  AND TRIM(g.genre) != ''
+ORDER BY TRIM(g.genre)
+LIMIT $1::bigint;

@@ -165,6 +165,17 @@ func (s *widgetGRPCServer) connectHostServices(req *pluginv1.InitRequest) {
 			logger.Debug("connected to host plugins service")
 		}
 	}
+
+	// Ratings service (for user ratings access)
+	if req.HostRatingsBrokerId > 0 {
+		conn, err := s.broker.Dial(req.HostRatingsBrokerId)
+		if err != nil {
+			logger.Error("failed to dial host ratings", "error", err)
+		} else {
+			s.services.Ratings = NewRatingsClient(conn)
+			logger.Debug("connected to host ratings service")
+		}
+	}
 }
 
 func (s *widgetGRPCServer) Shutdown(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.Empty, error) {

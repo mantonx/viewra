@@ -8,6 +8,7 @@ package sqlc_postgres
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 const countSearchTVShowsByTitle = `-- name: CountSearchTVShowsByTitle :one
@@ -1104,6 +1105,84 @@ func (q *Queries) IncrementSeasonEpisodeCount(ctx context.Context, id int64) err
 	return err
 }
 
+const listRecentlyAddedTVShows = `-- name: ListRecentlyAddedTVShows :many
+SELECT
+    s.id,
+    s.library_id,
+    s.title,
+    s.original_title,
+    s.sort_title,
+    s.year,
+    s.genre,
+    s.plot,
+    s.content_rating,
+    s.imdb_id,
+    s.tmdb_id,
+    s.created_at,
+    MAX(med.created_at) as latest_episode_added
+FROM tv_shows s
+JOIN tv_episodes e ON s.id = e.show_id
+JOIN media med ON e.media_id = med.id
+WHERE med.is_extra = 0
+GROUP BY s.id
+ORDER BY latest_episode_added DESC
+LIMIT $1::bigint
+`
+
+type ListRecentlyAddedTVShowsRow struct {
+	ID                 int64          `json:"id"`
+	LibraryID          int64          `json:"library_id"`
+	Title              string         `json:"title"`
+	OriginalTitle      sql.NullString `json:"original_title"`
+	SortTitle          sql.NullString `json:"sort_title"`
+	Year               sql.NullInt64  `json:"year"`
+	Genre              sql.NullString `json:"genre"`
+	Plot               sql.NullString `json:"plot"`
+	ContentRating      sql.NullString `json:"content_rating"`
+	ImdbID             sql.NullString `json:"imdb_id"`
+	TmdbID             sql.NullInt64  `json:"tmdb_id"`
+	CreatedAt          sql.NullTime   `json:"created_at"`
+	LatestEpisodeAdded interface{}    `json:"latest_episode_added"`
+}
+
+// Returns recently added TV shows across all libraries, ordered by newest episode date
+func (q *Queries) ListRecentlyAddedTVShows(ctx context.Context, limit int64) ([]ListRecentlyAddedTVShowsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRecentlyAddedTVShows, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecentlyAddedTVShowsRow{}
+	for rows.Next() {
+		var i ListRecentlyAddedTVShowsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.Title,
+			&i.OriginalTitle,
+			&i.SortTitle,
+			&i.Year,
+			&i.Genre,
+			&i.Plot,
+			&i.ContentRating,
+			&i.ImdbID,
+			&i.TmdbID,
+			&i.CreatedAt,
+			&i.LatestEpisodeAdded,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTVEpisodesByLibrary = `-- name: ListTVEpisodesByLibrary :many
 SELECT
     e.media_id, e.show_id, e.season_id, e.season_number, e.episode_number, e.absolute_number, e.dvd_season, e.dvd_episode, e.episode_title, e.original_title, e.air_date, e.plot, e.content_rating, e.maturity_rating, e.imdb_id, e.tmdb_id, e.tvdb_id, e.rating, e.rating_votes, e.runtime_minutes,
@@ -1756,6 +1835,91 @@ func (q *Queries) ListTVShowIDsByLibraryPaginatedDesc(ctx context.Context, arg L
 			return nil, err
 		}
 		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTVShowsByGenre = `-- name: ListTVShowsByGenre :many
+SELECT
+    s.id, s.library_id, s.title, s.original_title, s.sort_title, s.year, s.first_air_date, s.last_air_date, s.genre, s.plot, s.status, s.content_rating, s.maturity_rating, s.network, s.original_language, s.country_of_origin, s.imdb_id, s.tmdb_id, s.tvdb_id, s.created_at, s.updated_at, s.directory, s.rating, s.rating_votes, s.tagline
+FROM tv_shows s
+WHERE (s.library_id = $1::bigint OR $1::bigint = 0)
+  AND s.genre ILIKE '%' || $2 || '%'
+  AND s.id NOT IN ($3)
+ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title)
+LIMIT $4::bigint
+`
+
+type ListTVShowsByGenreParams struct {
+	LibraryID  int64          `json:"library_id"`
+	Genre      sql.NullString `json:"genre"`
+	ExcludeIds []int64        `json:"exclude_ids"`
+	Limit      int64          `json:"limit"`
+}
+
+// Lists TV shows matching a genre pattern with optional library filter and exclusion list.
+// library_id: 0 means all libraries
+// genre: genre pattern to match (will be wrapped in % for ILIKE)
+// exclude_ids: array of show IDs to exclude
+// limit: maximum number of results
+func (q *Queries) ListTVShowsByGenre(ctx context.Context, arg ListTVShowsByGenreParams) ([]TvShow, error) {
+	query := listTVShowsByGenre
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.LibraryID)
+	queryParams = append(queryParams, arg.Genre)
+	if len(arg.ExcludeIds) > 0 {
+		for _, v := range arg.ExcludeIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:exclude_ids*/?", strings.Repeat(",?", len(arg.ExcludeIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:exclude_ids*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TvShow{}
+	for rows.Next() {
+		var i TvShow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.Title,
+			&i.OriginalTitle,
+			&i.SortTitle,
+			&i.Year,
+			&i.FirstAirDate,
+			&i.LastAirDate,
+			&i.Genre,
+			&i.Plot,
+			&i.Status,
+			&i.ContentRating,
+			&i.MaturityRating,
+			&i.Network,
+			&i.OriginalLanguage,
+			&i.CountryOfOrigin,
+			&i.ImdbID,
+			&i.TmdbID,
+			&i.TvdbID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Directory,
+			&i.Rating,
+			&i.RatingVotes,
+			&i.Tagline,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

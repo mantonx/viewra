@@ -17,6 +17,7 @@ import (
 	peopleRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/people"
 	pluginRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/plugins"
 	progressRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/progress"
+	ratingsRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/ratings"
 	scanJobRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/scanjob"
 	scanStateRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/scanstate"
 	searchRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/search"
@@ -79,6 +80,9 @@ type Repositories struct {
 
 	// Home screen preferences
 	HomePreferences *homeRepo.PreferencesRepository
+
+	// User ratings (favorites, likes, dislikes)
+	Ratings *ratingsRepo.Repository
 }
 
 // BuildRepositories creates and wires all repository instances using the provided database connection.
@@ -147,6 +151,9 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	// Create home preferences repository
 	homePreferencesRepository := homeRepo.NewPreferencesRepository(db, driver)
 
+	// Create ratings repository
+	ratingsRepository := ratingsRepo.NewRepository(db, driver)
+
 	return &Repositories{
 		Library:                  libraryRepository,
 		Media:                    mediaRepository,
@@ -178,5 +185,6 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 		PluginMediaQuerier:       pluginMediaQuerier,
 		TranscodeAnalytics:       transcodeAnalyticsRepository,
 		HomePreferences:          homePreferencesRepository,
+		Ratings:                  ratingsRepository,
 	}
 }

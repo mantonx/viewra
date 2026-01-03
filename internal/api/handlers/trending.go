@@ -14,6 +14,18 @@ type TrendingHandler struct {
 	trendingService *trending.Service
 }
 
+// TrendingProviderResponse represents a trending provider in API responses.
+type TrendingProviderResponse struct {
+	PluginID    string   `json:"plugin_id"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Windows     []string `json:"windows"`
+	MediaTypes  []string `json:"media_types"`
+	UpdateFreq  string   `json:"update_freq"`
+	Enabled     bool     `json:"enabled"`
+}
+
 // NewTrendingHandler creates a new trending handler.
 func NewTrendingHandler(trendingService *trending.Service) *TrendingHandler {
 	return &TrendingHandler{
@@ -72,23 +84,22 @@ func (h *TrendingHandler) GetTrending(c *gin.Context) {
 // @Description Returns available trending data providers
 // @Tags trending
 // @Produce json
-// @Success 200 {array} registry.RegisteredTrendingProvider
+// @Success 200 {array} TrendingProviderResponse
 // @Router /api/trending/providers [get]
 func (h *TrendingHandler) GetProviders(c *gin.Context) {
 	providers := h.trendingService.GetProviders()
 
-	// Convert to a simpler response format
-	result := make([]map[string]any, 0, len(providers))
+	result := make([]TrendingProviderResponse, 0, len(providers))
 	for _, p := range providers {
-		result = append(result, map[string]any{
-			"plugin_id":   p.PluginID,
-			"id":          p.Info.ID,
-			"name":        p.Info.Name,
-			"description": p.Info.Description,
-			"windows":     p.Info.Windows,
-			"media_types": p.Info.MediaTypes,
-			"update_freq": p.Info.UpdateFreq,
-			"enabled":     p.Enabled,
+		result = append(result, TrendingProviderResponse{
+			PluginID:    p.PluginID,
+			ID:          p.Info.ID,
+			Name:        p.Info.Name,
+			Description: p.Info.Description,
+			Windows:     p.Info.Windows,
+			MediaTypes:  p.Info.MediaTypes,
+			UpdateFreq:  p.Info.UpdateFreq,
+			Enabled:     p.Enabled,
 		})
 	}
 

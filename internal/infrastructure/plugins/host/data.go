@@ -45,6 +45,12 @@ type MediaQuerier interface {
 
 	// GetLibrary returns library information by ID.
 	GetLibrary(ctx context.Context, id int64) (*LibraryInfo, error)
+
+	// ListMediaByGenre returns media items matching a genre pattern.
+	// mediaType should be "movie" or "tv_show".
+	// libraryID=0 means all libraries.
+	// excludeIDs are entity IDs to exclude from results.
+	ListMediaByGenre(ctx context.Context, mediaType, genre string, libraryID int64, excludeIDs []int64, limit int) ([]*MediaInfo, error)
 }
 
 // DataServer implements the HostData gRPC service.
@@ -294,4 +300,49 @@ func mediaInfoToProto(m *MediaInfo) *pluginv1.Media {
 		LibraryId:   m.LibraryID,
 		ExternalIds: m.ExternalIDs,
 	}
+}
+
+// ListMediaByGenre lists media items matching a genre pattern.
+// Used for genre-based recommendations when semantic search is unavailable.
+func (s *DataServer) ListMediaByGenre(ctx context.Context, req *pluginv1.ListMediaByGenreRequest) (*pluginv1.MediaList, error) {
+	if req.MediaType == "" {
+		return nil, errors.New("media_type is required")
+	}
+	if req.Genre == "" {
+		return nil, errors.New("genre is required")
+	}
+
+	// Validate media type
+	if req.MediaType != "movie" && req.MediaType != "tv_show" {
+		return nil, errors.New("media_type must be 'movie' or 'tv_show'")
+	}
+
+	limit := int(req.Limit)
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	s.logger.Debug("ListMediaByGenre called",
+		"media_type", req.MediaType,
+		"genre", req.Genre,
+		"library_id", req.LibraryId,
+		"exclude_ids_count", len(req.ExcludeIds),
+		"limit", limit,
+	)
+
+	items, err := s.querier.ListMediaByGenre(ctx, req.MediaType, req.Genre, req.LibraryId, req.ExcludeIds, limit)
+	if err != nil {
+		s.logger.Error("failed to list media by genre",
+			"media_type", req.MediaType,
+			"genre", req.Genre,
+			"error", err)
+		return nil, err
+	}
+
+	protoItems := make([]*pluginv1.Media, len(items))
+	for i, item := range items {
+		protoItems[i] = mediaInfoToProto(item)
+	}
+
+	return &pluginv1.MediaList{Items: protoItems}, nil
 }

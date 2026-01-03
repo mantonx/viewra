@@ -12,6 +12,7 @@
 //   - HostStorage: Plugin-scoped key-value, SQL, and vector storage
 //   - HostPlugins: Capability-based plugin discovery and inter-plugin communication
 //   - HostWeather: Weather and time context for search queries
+//   - HostRatings: User ratings (favorites, likes, dislikes) for recommendations
 //
 // # AI Capabilities
 //
@@ -116,6 +117,41 @@ func (c *DataClient) GetLibrary(ctx context.Context, libraryID int64) (*Library,
 		Path:      resp.Path,
 		MediaType: resp.MediaType,
 	}, nil
+}
+
+// ListMediaByGenre returns media items matching a genre pattern.
+// Used for genre-based recommendations when semantic search is unavailable.
+//
+// Parameters:
+//   - mediaType: "movie" or "tv_show"
+//   - genre: genre pattern to match (e.g., "Action", "Comedy")
+//   - libraryID: library to filter by (0 = all libraries)
+//   - excludeIDs: entity IDs to exclude from results
+//   - limit: maximum results (default: 20, max: 100)
+//
+// Example:
+//
+//	items, err := data.ListMediaByGenre(ctx, "movie", "Action", 0, []int64{1, 2}, 20)
+//	for _, item := range items {
+//	    fmt.Printf("Found: %s (%d)\n", item.Title, item.Year)
+//	}
+func (c *DataClient) ListMediaByGenre(ctx context.Context, mediaType, genre string, libraryID int64, excludeIDs []int64, limit int) ([]*Media, error) {
+	resp, err := c.client.ListMediaByGenre(ctx, &pluginv1.ListMediaByGenreRequest{
+		MediaType:  mediaType,
+		Genre:      genre,
+		LibraryId:  libraryID,
+		ExcludeIds: excludeIDs,
+		Limit:      int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]*Media, len(resp.Items))
+	for i, item := range resp.Items {
+		items[i] = protoToMedia(item)
+	}
+	return items, nil
 }
 
 // Library represents a media library.

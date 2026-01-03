@@ -4130,11 +4130,683 @@ func (x *DescribeCapabilityProviderInfo) GetIsPreferred() bool {
 	return false
 }
 
+// ListRatingsRequest filters ratings for a user.
+type ListRatingsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`             // Required: the user ID
+	EntityType    string                 `protobuf:"bytes,2,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"` // Optional: filter by entity type (movie, tv_show, tv_episode)
+	RatingType    string                 `protobuf:"bytes,3,opt,name=rating_type,json=ratingType,proto3" json:"rating_type,omitempty"` // Optional: filter by rating type (favorite, up, down)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRatingsRequest) Reset() {
+	*x = ListRatingsRequest{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRatingsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRatingsRequest) ProtoMessage() {}
+
+func (x *ListRatingsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRatingsRequest.ProtoReflect.Descriptor instead.
+func (*ListRatingsRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *ListRatingsRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ListRatingsRequest) GetEntityType() string {
+	if x != nil {
+		return x.EntityType
+	}
+	return ""
+}
+
+func (x *ListRatingsRequest) GetRatingType() string {
+	if x != nil {
+		return x.RatingType
+	}
+	return ""
+}
+
+// ListRatingsResponse contains the user's ratings.
+type ListRatingsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ratings       []*UserRating          `protobuf:"bytes,1,rep,name=ratings,proto3" json:"ratings,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRatingsResponse) Reset() {
+	*x = ListRatingsResponse{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRatingsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRatingsResponse) ProtoMessage() {}
+
+func (x *ListRatingsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRatingsResponse.ProtoReflect.Descriptor instead.
+func (*ListRatingsResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *ListRatingsResponse) GetRatings() []*UserRating {
+	if x != nil {
+		return x.Ratings
+	}
+	return nil
+}
+
+// UserRating represents a single user rating.
+type UserRating struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	EntityType    string                 `protobuf:"bytes,3,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"` // movie, tv_show, tv_episode
+	EntityId      int64                  `protobuf:"varint,4,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
+	Rating        string                 `protobuf:"bytes,5,opt,name=rating,proto3" json:"rating,omitempty"`                         // favorite, up, down
+	CreatedAt     int64                  `protobuf:"varint,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // Unix timestamp
+	UpdatedAt     int64                  `protobuf:"varint,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"` // Unix timestamp
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UserRating) Reset() {
+	*x = UserRating{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UserRating) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UserRating) ProtoMessage() {}
+
+func (x *UserRating) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserRating.ProtoReflect.Descriptor instead.
+func (*UserRating) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *UserRating) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *UserRating) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *UserRating) GetEntityType() string {
+	if x != nil {
+		return x.EntityType
+	}
+	return ""
+}
+
+func (x *UserRating) GetEntityId() int64 {
+	if x != nil {
+		return x.EntityId
+	}
+	return 0
+}
+
+func (x *UserRating) GetRating() string {
+	if x != nil {
+		return x.Rating
+	}
+	return ""
+}
+
+func (x *UserRating) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+func (x *UserRating) GetUpdatedAt() int64 {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return 0
+}
+
+// GetRatedEntityIDsRequest retrieves entity IDs with a specific rating.
+type GetRatedEntityIDsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`             // Required: the user ID
+	EntityType    string                 `protobuf:"bytes,2,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"` // Optional: filter by entity type (movie, tv_show, tv_episode)
+	Rating        string                 `protobuf:"bytes,3,opt,name=rating,proto3" json:"rating,omitempty"`                           // Required: rating type (favorite, up, down)
+	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`                            // Optional: max results (default: 100)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRatedEntityIDsRequest) Reset() {
+	*x = GetRatedEntityIDsRequest{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRatedEntityIDsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRatedEntityIDsRequest) ProtoMessage() {}
+
+func (x *GetRatedEntityIDsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRatedEntityIDsRequest.ProtoReflect.Descriptor instead.
+func (*GetRatedEntityIDsRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *GetRatedEntityIDsRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *GetRatedEntityIDsRequest) GetEntityType() string {
+	if x != nil {
+		return x.EntityType
+	}
+	return ""
+}
+
+func (x *GetRatedEntityIDsRequest) GetRating() string {
+	if x != nil {
+		return x.Rating
+	}
+	return ""
+}
+
+func (x *GetRatedEntityIDsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+// GetPositivelyRatedIDsRequest retrieves entity IDs with positive ratings (favorite or up).
+type GetPositivelyRatedIDsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`             // Required: the user ID
+	EntityType    string                 `protobuf:"bytes,2,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"` // Optional: filter by entity type (movie, tv_show, tv_episode)
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`                            // Optional: max results (default: 100)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPositivelyRatedIDsRequest) Reset() {
+	*x = GetPositivelyRatedIDsRequest{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPositivelyRatedIDsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPositivelyRatedIDsRequest) ProtoMessage() {}
+
+func (x *GetPositivelyRatedIDsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPositivelyRatedIDsRequest.ProtoReflect.Descriptor instead.
+func (*GetPositivelyRatedIDsRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *GetPositivelyRatedIDsRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *GetPositivelyRatedIDsRequest) GetEntityType() string {
+	if x != nil {
+		return x.EntityType
+	}
+	return ""
+}
+
+func (x *GetPositivelyRatedIDsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+// EntityIDsResponse contains a list of entity IDs.
+type EntityIDsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EntityIds     []int64                `protobuf:"varint,1,rep,packed,name=entity_ids,json=entityIds,proto3" json:"entity_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EntityIDsResponse) Reset() {
+	*x = EntityIDsResponse{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[69]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EntityIDsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EntityIDsResponse) ProtoMessage() {}
+
+func (x *EntityIDsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[69]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EntityIDsResponse.ProtoReflect.Descriptor instead.
+func (*EntityIDsResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{69}
+}
+
+func (x *EntityIDsResponse) GetEntityIds() []int64 {
+	if x != nil {
+		return x.EntityIds
+	}
+	return nil
+}
+
+// HasRatingsRequest checks if a user has any ratings.
+type HasRatingsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HasRatingsRequest) Reset() {
+	*x = HasRatingsRequest{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[70]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HasRatingsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HasRatingsRequest) ProtoMessage() {}
+
+func (x *HasRatingsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[70]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HasRatingsRequest.ProtoReflect.Descriptor instead.
+func (*HasRatingsRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{70}
+}
+
+func (x *HasRatingsRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+// HasRatingsResponse indicates whether the user has ratings.
+type HasRatingsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	HasRatings    bool                   `protobuf:"varint,1,opt,name=has_ratings,json=hasRatings,proto3" json:"has_ratings,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HasRatingsResponse) Reset() {
+	*x = HasRatingsResponse{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[71]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HasRatingsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HasRatingsResponse) ProtoMessage() {}
+
+func (x *HasRatingsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[71]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HasRatingsResponse.ProtoReflect.Descriptor instead.
+func (*HasRatingsResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{71}
+}
+
+func (x *HasRatingsResponse) GetHasRatings() bool {
+	if x != nil {
+		return x.HasRatings
+	}
+	return false
+}
+
+// VectorSearchInvokeRequest requests a vector search operation on a plugin providing vector_search capability.
+type VectorSearchInvokeRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Method          string                 `protobuf:"bytes,1,opt,name=method,proto3" json:"method,omitempty"`                                          // "FindSimilar" or "Search"
+	PreferredPlugin string                 `protobuf:"bytes,2,opt,name=preferred_plugin,json=preferredPlugin,proto3" json:"preferred_plugin,omitempty"` // Optional: specific plugin ID to use
+	// Request payload (one of) - uses types from vector_search.proto
+	FindSimilar   *FindSimilarRequest    `protobuf:"bytes,10,opt,name=find_similar,json=findSimilar,proto3" json:"find_similar,omitempty"`
+	Search        *SemanticSearchRequest `protobuf:"bytes,11,opt,name=search,proto3" json:"search,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VectorSearchInvokeRequest) Reset() {
+	*x = VectorSearchInvokeRequest{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[72]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VectorSearchInvokeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VectorSearchInvokeRequest) ProtoMessage() {}
+
+func (x *VectorSearchInvokeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[72]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VectorSearchInvokeRequest.ProtoReflect.Descriptor instead.
+func (*VectorSearchInvokeRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{72}
+}
+
+func (x *VectorSearchInvokeRequest) GetMethod() string {
+	if x != nil {
+		return x.Method
+	}
+	return ""
+}
+
+func (x *VectorSearchInvokeRequest) GetPreferredPlugin() string {
+	if x != nil {
+		return x.PreferredPlugin
+	}
+	return ""
+}
+
+func (x *VectorSearchInvokeRequest) GetFindSimilar() *FindSimilarRequest {
+	if x != nil {
+		return x.FindSimilar
+	}
+	return nil
+}
+
+func (x *VectorSearchInvokeRequest) GetSearch() *SemanticSearchRequest {
+	if x != nil {
+		return x.Search
+	}
+	return nil
+}
+
+// VectorSearchInvokeResponse contains the result of a vector search operation.
+type VectorSearchInvokeResponse struct {
+	state          protoimpl.MessageState  `protogen:"open.v1"`
+	ProviderPlugin string                  `protobuf:"bytes,1,opt,name=provider_plugin,json=providerPlugin,proto3" json:"provider_plugin,omitempty"` // Which plugin handled the request
+	Response       *SemanticSearchResponse `protobuf:"bytes,2,opt,name=response,proto3" json:"response,omitempty"`
+	Error          *CapabilityError        `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"` // Structured error (null if success)
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *VectorSearchInvokeResponse) Reset() {
+	*x = VectorSearchInvokeResponse{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[73]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VectorSearchInvokeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VectorSearchInvokeResponse) ProtoMessage() {}
+
+func (x *VectorSearchInvokeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[73]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VectorSearchInvokeResponse.ProtoReflect.Descriptor instead.
+func (*VectorSearchInvokeResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{73}
+}
+
+func (x *VectorSearchInvokeResponse) GetProviderPlugin() string {
+	if x != nil {
+		return x.ProviderPlugin
+	}
+	return ""
+}
+
+func (x *VectorSearchInvokeResponse) GetResponse() *SemanticSearchResponse {
+	if x != nil {
+		return x.Response
+	}
+	return nil
+}
+
+func (x *VectorSearchInvokeResponse) GetError() *CapabilityError {
+	if x != nil {
+		return x.Error
+	}
+	return nil
+}
+
+// ListMediaByGenreRequest requests media items matching a genre.
+type ListMediaByGenreRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MediaType     string                 `protobuf:"bytes,1,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`            // "movie" or "tv_show"
+	Genre         string                 `protobuf:"bytes,2,opt,name=genre,proto3" json:"genre,omitempty"`                                     // Genre to match (e.g., "Action", "Comedy")
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`                                    // Max results (default: 20)
+	ExcludeIds    []int64                `protobuf:"varint,4,rep,packed,name=exclude_ids,json=excludeIds,proto3" json:"exclude_ids,omitempty"` // Entity IDs to exclude from results
+	LibraryId     int64                  `protobuf:"varint,5,opt,name=library_id,json=libraryId,proto3" json:"library_id,omitempty"`           // Optional: 0 means all libraries
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListMediaByGenreRequest) Reset() {
+	*x = ListMediaByGenreRequest{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[74]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListMediaByGenreRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListMediaByGenreRequest) ProtoMessage() {}
+
+func (x *ListMediaByGenreRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[74]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListMediaByGenreRequest.ProtoReflect.Descriptor instead.
+func (*ListMediaByGenreRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{74}
+}
+
+func (x *ListMediaByGenreRequest) GetMediaType() string {
+	if x != nil {
+		return x.MediaType
+	}
+	return ""
+}
+
+func (x *ListMediaByGenreRequest) GetGenre() string {
+	if x != nil {
+		return x.Genre
+	}
+	return ""
+}
+
+func (x *ListMediaByGenreRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListMediaByGenreRequest) GetExcludeIds() []int64 {
+	if x != nil {
+		return x.ExcludeIds
+	}
+	return nil
+}
+
+func (x *ListMediaByGenreRequest) GetLibraryId() int64 {
+	if x != nil {
+		return x.LibraryId
+	}
+	return 0
+}
+
 var File_api_proto_plugin_host_services_proto protoreflect.FileDescriptor
 
 const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\n" +
-	"$api/proto/plugin/host_services.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"F\n" +
+	"$api/proto/plugin/host_services.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\x1a$api/proto/plugin/vector_search.proto\"F\n" +
 	"\n" +
 	"MediaQuery\x12\x19\n" +
 	"\bmedia_id\x18\x01 \x01(\x03R\amediaId\x12\x1d\n" +
@@ -4478,7 +5150,65 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\n" +
 	"configured\x18\x04 \x01(\bR\n" +
 	"configured\x12!\n" +
-	"\fis_preferred\x18\x05 \x01(\bR\visPreferred*\xd6\x02\n" +
+	"\fis_preferred\x18\x05 \x01(\bR\visPreferred\"o\n" +
+	"\x12ListRatingsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1f\n" +
+	"\ventity_type\x18\x02 \x01(\tR\n" +
+	"entityType\x12\x1f\n" +
+	"\vrating_type\x18\x03 \x01(\tR\n" +
+	"ratingType\"M\n" +
+	"\x13ListRatingsResponse\x126\n" +
+	"\aratings\x18\x01 \x03(\v2\x1c.viewra.plugin.v1.UserRatingR\aratings\"\xc9\x01\n" +
+	"\n" +
+	"UserRating\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1f\n" +
+	"\ventity_type\x18\x03 \x01(\tR\n" +
+	"entityType\x12\x1b\n" +
+	"\tentity_id\x18\x04 \x01(\x03R\bentityId\x12\x16\n" +
+	"\x06rating\x18\x05 \x01(\tR\x06rating\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x06 \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\a \x01(\x03R\tupdatedAt\"\x82\x01\n" +
+	"\x18GetRatedEntityIDsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1f\n" +
+	"\ventity_type\x18\x02 \x01(\tR\n" +
+	"entityType\x12\x16\n" +
+	"\x06rating\x18\x03 \x01(\tR\x06rating\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\"n\n" +
+	"\x1cGetPositivelyRatedIDsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1f\n" +
+	"\ventity_type\x18\x02 \x01(\tR\n" +
+	"entityType\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\"2\n" +
+	"\x11EntityIDsResponse\x12\x1d\n" +
+	"\n" +
+	"entity_ids\x18\x01 \x03(\x03R\tentityIds\",\n" +
+	"\x11HasRatingsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"5\n" +
+	"\x12HasRatingsResponse\x12\x1f\n" +
+	"\vhas_ratings\x18\x01 \x01(\bR\n" +
+	"hasRatings\"\xe8\x01\n" +
+	"\x19VectorSearchInvokeRequest\x12\x16\n" +
+	"\x06method\x18\x01 \x01(\tR\x06method\x12)\n" +
+	"\x10preferred_plugin\x18\x02 \x01(\tR\x0fpreferredPlugin\x12G\n" +
+	"\ffind_similar\x18\n" +
+	" \x01(\v2$.viewra.plugin.v1.FindSimilarRequestR\vfindSimilar\x12?\n" +
+	"\x06search\x18\v \x01(\v2'.viewra.plugin.v1.SemanticSearchRequestR\x06search\"\xc4\x01\n" +
+	"\x1aVectorSearchInvokeResponse\x12'\n" +
+	"\x0fprovider_plugin\x18\x01 \x01(\tR\x0eproviderPlugin\x12D\n" +
+	"\bresponse\x18\x02 \x01(\v2(.viewra.plugin.v1.SemanticSearchResponseR\bresponse\x127\n" +
+	"\x05error\x18\x03 \x01(\v2!.viewra.plugin.v1.CapabilityErrorR\x05error\"\xa4\x01\n" +
+	"\x17ListMediaByGenreRequest\x12\x1d\n" +
+	"\n" +
+	"media_type\x18\x01 \x01(\tR\tmediaType\x12\x14\n" +
+	"\x05genre\x18\x02 \x01(\tR\x05genre\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x1f\n" +
+	"\vexclude_ids\x18\x04 \x03(\x03R\n" +
+	"excludeIds\x12\x1d\n" +
+	"\n" +
+	"library_id\x18\x05 \x01(\x03R\tlibraryId*\xd6\x02\n" +
 	"\x13CapabilityErrorCode\x12 \n" +
 	"\x1cCAPABILITY_ERROR_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aCAPABILITY_ERROR_NOT_FOUND\x10\x01\x12%\n" +
@@ -4488,7 +5218,7 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\x18CAPABILITY_ERROR_TIMEOUT\x10\x05\x12!\n" +
 	"\x1dCAPABILITY_ERROR_RATE_LIMITED\x10\x06\x12#\n" +
 	"\x1fCAPABILITY_ERROR_NOT_CONFIGURED\x10\a\x12%\n" +
-	"!CAPABILITY_ERROR_VERSION_MISMATCH\x10\b2\xa7\x04\n" +
+	"!CAPABILITY_ERROR_VERSION_MISMATCH\x10\b2\x83\x05\n" +
 	"\bHostData\x12A\n" +
 	"\bGetMedia\x12\x1c.viewra.plugin.v1.MediaQuery\x1a\x17.viewra.plugin.v1.Media\x12O\n" +
 	"\x0fGetMediaDetails\x12\x1c.viewra.plugin.v1.MediaQuery\x1a\x1e.viewra.plugin.v1.MediaDetails\x12R\n" +
@@ -4497,7 +5227,8 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\x12ListMediaByLibrary\x12\".viewra.plugin.v1.ListMediaRequest\x1a\".viewra.plugin.v1.MediaDetailsList\x12D\n" +
 	"\n" +
 	"GetLibrary\x12\x1b.viewra.plugin.v1.LibraryId\x1a\x19.viewra.plugin.v1.Library\x12D\n" +
-	"\vGetFilePath\x12\x19.viewra.plugin.v1.MediaId\x1a\x1a.viewra.plugin.v1.FilePath2\xd4\n" +
+	"\vGetFilePath\x12\x19.viewra.plugin.v1.MediaId\x1a\x1a.viewra.plugin.v1.FilePath\x12Z\n" +
+	"\x10ListMediaByGenre\x12).viewra.plugin.v1.ListMediaByGenreRequest\x1a\x1b.viewra.plugin.v1.MediaList2\xd4\n" +
 	"\n" +
 	"\vHostStorage\x12;\n" +
 	"\x05KVGet\x12\x17.viewra.plugin.v1.KVKey\x1a\x19.viewra.plugin.v1.KVValue\x12;\n" +
@@ -4527,7 +5258,13 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\bParseNFO\x12!.viewra.plugin.v1.ParseNFORequest\x1a\x1d.viewra.plugin.v1.NFOMetadata\x12h\n" +
 	"\x15ExtractEmbeddedImages\x12&.viewra.plugin.v1.ExtractImagesRequest\x1a'.viewra.plugin.v1.ExtractImagesResponse2g\n" +
 	"\vHostWeather\x12X\n" +
-	"\x11GetCurrentWeather\x12 .viewra.plugin.v1.WeatherRequest\x1a!.viewra.plugin.v1.WeatherResponse2\xbf\x06\n" +
+	"\x11GetCurrentWeather\x12 .viewra.plugin.v1.WeatherRequest\x1a!.viewra.plugin.v1.WeatherResponse2\x96\x03\n" +
+	"\vHostRatings\x12Z\n" +
+	"\vListRatings\x12$.viewra.plugin.v1.ListRatingsRequest\x1a%.viewra.plugin.v1.ListRatingsResponse\x12d\n" +
+	"\x11GetRatedEntityIDs\x12*.viewra.plugin.v1.GetRatedEntityIDsRequest\x1a#.viewra.plugin.v1.EntityIDsResponse\x12l\n" +
+	"\x15GetPositivelyRatedIDs\x12..viewra.plugin.v1.GetPositivelyRatedIDsRequest\x1a#.viewra.plugin.v1.EntityIDsResponse\x12W\n" +
+	"\n" +
+	"HasRatings\x12#.viewra.plugin.v1.HasRatingsRequest\x1a$.viewra.plugin.v1.HasRatingsResponse2\xb0\a\n" +
 	"\vHostPlugins\x12U\n" +
 	"\x10ListCapabilities\x12\x17.viewra.plugin.v1.Empty\x1a(.viewra.plugin.v1.CapabilityListResponse\x12\\\n" +
 	"\rListProviders\x12#.viewra.plugin.v1.CapabilityRequest\x1a&.viewra.plugin.v1.ProviderListResponse\x12a\n" +
@@ -4536,7 +5273,8 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\x18GetCapabilityPreferences\x12\x17.viewra.plugin.v1.Empty\x1a/.viewra.plugin.v1.CapabilityPreferencesResponse\x12i\n" +
 	"\x10InvokeCapability\x12).viewra.plugin.v1.CapabilityInvokeRequest\x1a*.viewra.plugin.v1.CapabilityInvokeResponse\x12q\n" +
 	"\x16InvokeCapabilityStream\x12).viewra.plugin.v1.CapabilityInvokeRequest\x1a*.viewra.plugin.v1.CapabilityInvokeResponse0\x01\x12o\n" +
-	"\x12DescribeCapability\x12+.viewra.plugin.v1.DescribeCapabilityRequest\x1a,.viewra.plugin.v1.DescribeCapabilityResponseB8Z6github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1b\x06proto3"
+	"\x12DescribeCapability\x12+.viewra.plugin.v1.DescribeCapabilityRequest\x1a,.viewra.plugin.v1.DescribeCapabilityResponse\x12o\n" +
+	"\x12InvokeVectorSearch\x12+.viewra.plugin.v1.VectorSearchInvokeRequest\x1a,.viewra.plugin.v1.VectorSearchInvokeResponseB8Z6github.com/mantonx/viewra/api/proto/plugin/v1;pluginv1b\x06proto3"
 
 var (
 	file_api_proto_plugin_host_services_proto_rawDescOnce sync.Once
@@ -4551,7 +5289,7 @@ func file_api_proto_plugin_host_services_proto_rawDescGZIP() []byte {
 }
 
 var file_api_proto_plugin_host_services_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_proto_plugin_host_services_proto_msgTypes = make([]protoimpl.MessageInfo, 70)
+var file_api_proto_plugin_host_services_proto_msgTypes = make([]protoimpl.MessageInfo, 81)
 var file_api_proto_plugin_host_services_proto_goTypes = []any{
 	(CapabilityErrorCode)(0),               // 0: viewra.plugin.v1.CapabilityErrorCode
 	(*MediaQuery)(nil),                     // 1: viewra.plugin.v1.MediaQuery
@@ -4618,18 +5356,32 @@ var file_api_proto_plugin_host_services_proto_goTypes = []any{
 	(*DescribeCapabilityResponse)(nil),     // 62: viewra.plugin.v1.DescribeCapabilityResponse
 	(*CapabilityMethodInfo)(nil),           // 63: viewra.plugin.v1.CapabilityMethodInfo
 	(*DescribeCapabilityProviderInfo)(nil), // 64: viewra.plugin.v1.DescribeCapabilityProviderInfo
-	nil,                                    // 65: viewra.plugin.v1.Media.ExternalIdsEntry
-	nil,                                    // 66: viewra.plugin.v1.MediaDetails.ExternalIdsEntry
-	nil,                                    // 67: viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
-	nil,                                    // 68: viewra.plugin.v1.CapabilityPreferencesResponse.PreferencesEntry
-	nil,                                    // 69: viewra.plugin.v1.CapabilityInvokeRequest.MetadataEntry
-	nil,                                    // 70: viewra.plugin.v1.CapabilityInvokeResponse.MetadataEntry
-	(*Empty)(nil),                          // 71: viewra.plugin.v1.Empty
+	(*ListRatingsRequest)(nil),             // 65: viewra.plugin.v1.ListRatingsRequest
+	(*ListRatingsResponse)(nil),            // 66: viewra.plugin.v1.ListRatingsResponse
+	(*UserRating)(nil),                     // 67: viewra.plugin.v1.UserRating
+	(*GetRatedEntityIDsRequest)(nil),       // 68: viewra.plugin.v1.GetRatedEntityIDsRequest
+	(*GetPositivelyRatedIDsRequest)(nil),   // 69: viewra.plugin.v1.GetPositivelyRatedIDsRequest
+	(*EntityIDsResponse)(nil),              // 70: viewra.plugin.v1.EntityIDsResponse
+	(*HasRatingsRequest)(nil),              // 71: viewra.plugin.v1.HasRatingsRequest
+	(*HasRatingsResponse)(nil),             // 72: viewra.plugin.v1.HasRatingsResponse
+	(*VectorSearchInvokeRequest)(nil),      // 73: viewra.plugin.v1.VectorSearchInvokeRequest
+	(*VectorSearchInvokeResponse)(nil),     // 74: viewra.plugin.v1.VectorSearchInvokeResponse
+	(*ListMediaByGenreRequest)(nil),        // 75: viewra.plugin.v1.ListMediaByGenreRequest
+	nil,                                    // 76: viewra.plugin.v1.Media.ExternalIdsEntry
+	nil,                                    // 77: viewra.plugin.v1.MediaDetails.ExternalIdsEntry
+	nil,                                    // 78: viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
+	nil,                                    // 79: viewra.plugin.v1.CapabilityPreferencesResponse.PreferencesEntry
+	nil,                                    // 80: viewra.plugin.v1.CapabilityInvokeRequest.MetadataEntry
+	nil,                                    // 81: viewra.plugin.v1.CapabilityInvokeResponse.MetadataEntry
+	(*FindSimilarRequest)(nil),             // 82: viewra.plugin.v1.FindSimilarRequest
+	(*SemanticSearchRequest)(nil),          // 83: viewra.plugin.v1.SemanticSearchRequest
+	(*SemanticSearchResponse)(nil),         // 84: viewra.plugin.v1.SemanticSearchResponse
+	(*Empty)(nil),                          // 85: viewra.plugin.v1.Empty
 }
 var file_api_proto_plugin_host_services_proto_depIdxs = []int32{
-	65, // 0: viewra.plugin.v1.Media.external_ids:type_name -> viewra.plugin.v1.Media.ExternalIdsEntry
+	76, // 0: viewra.plugin.v1.Media.external_ids:type_name -> viewra.plugin.v1.Media.ExternalIdsEntry
 	5,  // 1: viewra.plugin.v1.MediaList.items:type_name -> viewra.plugin.v1.Media
-	66, // 2: viewra.plugin.v1.MediaDetails.external_ids:type_name -> viewra.plugin.v1.MediaDetails.ExternalIdsEntry
+	77, // 2: viewra.plugin.v1.MediaDetails.external_ids:type_name -> viewra.plugin.v1.MediaDetails.ExternalIdsEntry
 	12, // 3: viewra.plugin.v1.MediaDetails.cast:type_name -> viewra.plugin.v1.MediaCastMember
 	11, // 4: viewra.plugin.v1.MediaDetailsList.items:type_name -> viewra.plugin.v1.MediaDetails
 	23, // 5: viewra.plugin.v1.SQLRequest.args:type_name -> viewra.plugin.v1.SQLValue
@@ -4637,102 +5389,119 @@ var file_api_proto_plugin_host_services_proto_depIdxs = []int32{
 	23, // 7: viewra.plugin.v1.SQLRow.values:type_name -> viewra.plugin.v1.SQLValue
 	27, // 8: viewra.plugin.v1.VectorStoreBatchRequest.embeddings:type_name -> viewra.plugin.v1.VectorStoreRequest
 	32, // 9: viewra.plugin.v1.VectorSearchResponse.results:type_name -> viewra.plugin.v1.VectorSearchResult
-	67, // 10: viewra.plugin.v1.NFOMetadata.external_ids:type_name -> viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
+	78, // 10: viewra.plugin.v1.NFOMetadata.external_ids:type_name -> viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
 	45, // 11: viewra.plugin.v1.NFOMetadata.actors:type_name -> viewra.plugin.v1.NFOActor
 	48, // 12: viewra.plugin.v1.ExtractImagesResponse.images:type_name -> viewra.plugin.v1.ExtractedImage
 	53, // 13: viewra.plugin.v1.CapabilityListResponse.capabilities:type_name -> viewra.plugin.v1.CapabilityInfo
 	54, // 14: viewra.plugin.v1.CapabilityInfo.providers:type_name -> viewra.plugin.v1.PluginProviderInfo
 	54, // 15: viewra.plugin.v1.ProviderListResponse.providers:type_name -> viewra.plugin.v1.PluginProviderInfo
-	68, // 16: viewra.plugin.v1.CapabilityPreferencesResponse.preferences:type_name -> viewra.plugin.v1.CapabilityPreferencesResponse.PreferencesEntry
-	69, // 17: viewra.plugin.v1.CapabilityInvokeRequest.metadata:type_name -> viewra.plugin.v1.CapabilityInvokeRequest.MetadataEntry
+	79, // 16: viewra.plugin.v1.CapabilityPreferencesResponse.preferences:type_name -> viewra.plugin.v1.CapabilityPreferencesResponse.PreferencesEntry
+	80, // 17: viewra.plugin.v1.CapabilityInvokeRequest.metadata:type_name -> viewra.plugin.v1.CapabilityInvokeRequest.MetadataEntry
 	60, // 18: viewra.plugin.v1.CapabilityInvokeResponse.error:type_name -> viewra.plugin.v1.CapabilityError
-	70, // 19: viewra.plugin.v1.CapabilityInvokeResponse.metadata:type_name -> viewra.plugin.v1.CapabilityInvokeResponse.MetadataEntry
+	81, // 19: viewra.plugin.v1.CapabilityInvokeResponse.metadata:type_name -> viewra.plugin.v1.CapabilityInvokeResponse.MetadataEntry
 	0,  // 20: viewra.plugin.v1.CapabilityError.code:type_name -> viewra.plugin.v1.CapabilityErrorCode
 	63, // 21: viewra.plugin.v1.DescribeCapabilityResponse.methods:type_name -> viewra.plugin.v1.CapabilityMethodInfo
 	64, // 22: viewra.plugin.v1.DescribeCapabilityResponse.providers:type_name -> viewra.plugin.v1.DescribeCapabilityProviderInfo
-	1,  // 23: viewra.plugin.v1.HostData.GetMedia:input_type -> viewra.plugin.v1.MediaQuery
-	1,  // 24: viewra.plugin.v1.HostData.GetMediaDetails:input_type -> viewra.plugin.v1.MediaQuery
-	3,  // 25: viewra.plugin.v1.HostData.GetMediaByExternalId:input_type -> viewra.plugin.v1.ExternalIdQuery
-	4,  // 26: viewra.plugin.v1.HostData.SearchMedia:input_type -> viewra.plugin.v1.SearchQuery
-	10, // 27: viewra.plugin.v1.HostData.ListMediaByLibrary:input_type -> viewra.plugin.v1.ListMediaRequest
-	7,  // 28: viewra.plugin.v1.HostData.GetLibrary:input_type -> viewra.plugin.v1.LibraryId
-	2,  // 29: viewra.plugin.v1.HostData.GetFilePath:input_type -> viewra.plugin.v1.MediaId
-	14, // 30: viewra.plugin.v1.HostStorage.KVGet:input_type -> viewra.plugin.v1.KVKey
-	16, // 31: viewra.plugin.v1.HostStorage.KVSet:input_type -> viewra.plugin.v1.KVEntry
-	14, // 32: viewra.plugin.v1.HostStorage.KVDelete:input_type -> viewra.plugin.v1.KVKey
-	17, // 33: viewra.plugin.v1.HostStorage.KVList:input_type -> viewra.plugin.v1.KVListRequest
-	71, // 34: viewra.plugin.v1.HostStorage.GetDatabasePath:input_type -> viewra.plugin.v1.Empty
-	20, // 35: viewra.plugin.v1.HostStorage.RegisterSchema:input_type -> viewra.plugin.v1.SchemaVersion
-	71, // 36: viewra.plugin.v1.HostStorage.GetDatabaseStats:input_type -> viewra.plugin.v1.Empty
-	22, // 37: viewra.plugin.v1.HostStorage.ExecuteSQL:input_type -> viewra.plugin.v1.SQLRequest
-	22, // 38: viewra.plugin.v1.HostStorage.QuerySQL:input_type -> viewra.plugin.v1.SQLRequest
-	27, // 39: viewra.plugin.v1.HostStorage.VectorStoreEmbedding:input_type -> viewra.plugin.v1.VectorStoreRequest
-	28, // 40: viewra.plugin.v1.HostStorage.VectorStoreBatch:input_type -> viewra.plugin.v1.VectorStoreBatchRequest
-	29, // 41: viewra.plugin.v1.HostStorage.VectorSearch:input_type -> viewra.plugin.v1.VectorSearchRequest
-	30, // 42: viewra.plugin.v1.HostStorage.VectorSearchText:input_type -> viewra.plugin.v1.VectorTextSearchRequest
-	33, // 43: viewra.plugin.v1.HostStorage.VectorGet:input_type -> viewra.plugin.v1.VectorQuery
-	33, // 44: viewra.plugin.v1.HostStorage.VectorDelete:input_type -> viewra.plugin.v1.VectorQuery
-	35, // 45: viewra.plugin.v1.HostStorage.VectorDeleteByType:input_type -> viewra.plugin.v1.VectorTypeQuery
-	35, // 46: viewra.plugin.v1.HostStorage.VectorCount:input_type -> viewra.plugin.v1.VectorTypeQuery
-	39, // 47: viewra.plugin.v1.HostUserMetadata.Get:input_type -> viewra.plugin.v1.UserMetadataKey
-	41, // 48: viewra.plugin.v1.HostUserMetadata.Set:input_type -> viewra.plugin.v1.UserMetadataEntry
-	39, // 49: viewra.plugin.v1.HostUserMetadata.Delete:input_type -> viewra.plugin.v1.UserMetadataKey
-	38, // 50: viewra.plugin.v1.HostUserMetadata.ListKeys:input_type -> viewra.plugin.v1.UserId
-	43, // 51: viewra.plugin.v1.HostFileParser.ParseNFO:input_type -> viewra.plugin.v1.ParseNFORequest
-	46, // 52: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:input_type -> viewra.plugin.v1.ExtractImagesRequest
-	49, // 53: viewra.plugin.v1.HostWeather.GetCurrentWeather:input_type -> viewra.plugin.v1.WeatherRequest
-	71, // 54: viewra.plugin.v1.HostPlugins.ListCapabilities:input_type -> viewra.plugin.v1.Empty
-	51, // 55: viewra.plugin.v1.HostPlugins.ListProviders:input_type -> viewra.plugin.v1.CapabilityRequest
-	56, // 56: viewra.plugin.v1.HostPlugins.SetCapabilityPreference:input_type -> viewra.plugin.v1.CapabilityPreferenceRequest
-	56, // 57: viewra.plugin.v1.HostPlugins.ClearCapabilityPreference:input_type -> viewra.plugin.v1.CapabilityPreferenceRequest
-	71, // 58: viewra.plugin.v1.HostPlugins.GetCapabilityPreferences:input_type -> viewra.plugin.v1.Empty
-	58, // 59: viewra.plugin.v1.HostPlugins.InvokeCapability:input_type -> viewra.plugin.v1.CapabilityInvokeRequest
-	58, // 60: viewra.plugin.v1.HostPlugins.InvokeCapabilityStream:input_type -> viewra.plugin.v1.CapabilityInvokeRequest
-	61, // 61: viewra.plugin.v1.HostPlugins.DescribeCapability:input_type -> viewra.plugin.v1.DescribeCapabilityRequest
-	5,  // 62: viewra.plugin.v1.HostData.GetMedia:output_type -> viewra.plugin.v1.Media
-	11, // 63: viewra.plugin.v1.HostData.GetMediaDetails:output_type -> viewra.plugin.v1.MediaDetails
-	5,  // 64: viewra.plugin.v1.HostData.GetMediaByExternalId:output_type -> viewra.plugin.v1.Media
-	6,  // 65: viewra.plugin.v1.HostData.SearchMedia:output_type -> viewra.plugin.v1.MediaList
-	13, // 66: viewra.plugin.v1.HostData.ListMediaByLibrary:output_type -> viewra.plugin.v1.MediaDetailsList
-	8,  // 67: viewra.plugin.v1.HostData.GetLibrary:output_type -> viewra.plugin.v1.Library
-	9,  // 68: viewra.plugin.v1.HostData.GetFilePath:output_type -> viewra.plugin.v1.FilePath
-	15, // 69: viewra.plugin.v1.HostStorage.KVGet:output_type -> viewra.plugin.v1.KVValue
-	71, // 70: viewra.plugin.v1.HostStorage.KVSet:output_type -> viewra.plugin.v1.Empty
-	71, // 71: viewra.plugin.v1.HostStorage.KVDelete:output_type -> viewra.plugin.v1.Empty
-	18, // 72: viewra.plugin.v1.HostStorage.KVList:output_type -> viewra.plugin.v1.KVKeyList
-	19, // 73: viewra.plugin.v1.HostStorage.GetDatabasePath:output_type -> viewra.plugin.v1.DatabasePath
-	71, // 74: viewra.plugin.v1.HostStorage.RegisterSchema:output_type -> viewra.plugin.v1.Empty
-	21, // 75: viewra.plugin.v1.HostStorage.GetDatabaseStats:output_type -> viewra.plugin.v1.DatabaseStats
-	24, // 76: viewra.plugin.v1.HostStorage.ExecuteSQL:output_type -> viewra.plugin.v1.SQLExecResult
-	25, // 77: viewra.plugin.v1.HostStorage.QuerySQL:output_type -> viewra.plugin.v1.SQLQueryResult
-	71, // 78: viewra.plugin.v1.HostStorage.VectorStoreEmbedding:output_type -> viewra.plugin.v1.Empty
-	71, // 79: viewra.plugin.v1.HostStorage.VectorStoreBatch:output_type -> viewra.plugin.v1.Empty
-	31, // 80: viewra.plugin.v1.HostStorage.VectorSearch:output_type -> viewra.plugin.v1.VectorSearchResponse
-	31, // 81: viewra.plugin.v1.HostStorage.VectorSearchText:output_type -> viewra.plugin.v1.VectorSearchResponse
-	34, // 82: viewra.plugin.v1.HostStorage.VectorGet:output_type -> viewra.plugin.v1.VectorGetResponse
-	71, // 83: viewra.plugin.v1.HostStorage.VectorDelete:output_type -> viewra.plugin.v1.Empty
-	36, // 84: viewra.plugin.v1.HostStorage.VectorDeleteByType:output_type -> viewra.plugin.v1.VectorDeleteResponse
-	37, // 85: viewra.plugin.v1.HostStorage.VectorCount:output_type -> viewra.plugin.v1.VectorCountResponse
-	40, // 86: viewra.plugin.v1.HostUserMetadata.Get:output_type -> viewra.plugin.v1.UserMetadataValue
-	71, // 87: viewra.plugin.v1.HostUserMetadata.Set:output_type -> viewra.plugin.v1.Empty
-	71, // 88: viewra.plugin.v1.HostUserMetadata.Delete:output_type -> viewra.plugin.v1.Empty
-	42, // 89: viewra.plugin.v1.HostUserMetadata.ListKeys:output_type -> viewra.plugin.v1.UserMetadataKeyList
-	44, // 90: viewra.plugin.v1.HostFileParser.ParseNFO:output_type -> viewra.plugin.v1.NFOMetadata
-	47, // 91: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:output_type -> viewra.plugin.v1.ExtractImagesResponse
-	50, // 92: viewra.plugin.v1.HostWeather.GetCurrentWeather:output_type -> viewra.plugin.v1.WeatherResponse
-	52, // 93: viewra.plugin.v1.HostPlugins.ListCapabilities:output_type -> viewra.plugin.v1.CapabilityListResponse
-	55, // 94: viewra.plugin.v1.HostPlugins.ListProviders:output_type -> viewra.plugin.v1.ProviderListResponse
-	71, // 95: viewra.plugin.v1.HostPlugins.SetCapabilityPreference:output_type -> viewra.plugin.v1.Empty
-	71, // 96: viewra.plugin.v1.HostPlugins.ClearCapabilityPreference:output_type -> viewra.plugin.v1.Empty
-	57, // 97: viewra.plugin.v1.HostPlugins.GetCapabilityPreferences:output_type -> viewra.plugin.v1.CapabilityPreferencesResponse
-	59, // 98: viewra.plugin.v1.HostPlugins.InvokeCapability:output_type -> viewra.plugin.v1.CapabilityInvokeResponse
-	59, // 99: viewra.plugin.v1.HostPlugins.InvokeCapabilityStream:output_type -> viewra.plugin.v1.CapabilityInvokeResponse
-	62, // 100: viewra.plugin.v1.HostPlugins.DescribeCapability:output_type -> viewra.plugin.v1.DescribeCapabilityResponse
-	62, // [62:101] is the sub-list for method output_type
-	23, // [23:62] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	67, // 23: viewra.plugin.v1.ListRatingsResponse.ratings:type_name -> viewra.plugin.v1.UserRating
+	82, // 24: viewra.plugin.v1.VectorSearchInvokeRequest.find_similar:type_name -> viewra.plugin.v1.FindSimilarRequest
+	83, // 25: viewra.plugin.v1.VectorSearchInvokeRequest.search:type_name -> viewra.plugin.v1.SemanticSearchRequest
+	84, // 26: viewra.plugin.v1.VectorSearchInvokeResponse.response:type_name -> viewra.plugin.v1.SemanticSearchResponse
+	60, // 27: viewra.plugin.v1.VectorSearchInvokeResponse.error:type_name -> viewra.plugin.v1.CapabilityError
+	1,  // 28: viewra.plugin.v1.HostData.GetMedia:input_type -> viewra.plugin.v1.MediaQuery
+	1,  // 29: viewra.plugin.v1.HostData.GetMediaDetails:input_type -> viewra.plugin.v1.MediaQuery
+	3,  // 30: viewra.plugin.v1.HostData.GetMediaByExternalId:input_type -> viewra.plugin.v1.ExternalIdQuery
+	4,  // 31: viewra.plugin.v1.HostData.SearchMedia:input_type -> viewra.plugin.v1.SearchQuery
+	10, // 32: viewra.plugin.v1.HostData.ListMediaByLibrary:input_type -> viewra.plugin.v1.ListMediaRequest
+	7,  // 33: viewra.plugin.v1.HostData.GetLibrary:input_type -> viewra.plugin.v1.LibraryId
+	2,  // 34: viewra.plugin.v1.HostData.GetFilePath:input_type -> viewra.plugin.v1.MediaId
+	75, // 35: viewra.plugin.v1.HostData.ListMediaByGenre:input_type -> viewra.plugin.v1.ListMediaByGenreRequest
+	14, // 36: viewra.plugin.v1.HostStorage.KVGet:input_type -> viewra.plugin.v1.KVKey
+	16, // 37: viewra.plugin.v1.HostStorage.KVSet:input_type -> viewra.plugin.v1.KVEntry
+	14, // 38: viewra.plugin.v1.HostStorage.KVDelete:input_type -> viewra.plugin.v1.KVKey
+	17, // 39: viewra.plugin.v1.HostStorage.KVList:input_type -> viewra.plugin.v1.KVListRequest
+	85, // 40: viewra.plugin.v1.HostStorage.GetDatabasePath:input_type -> viewra.plugin.v1.Empty
+	20, // 41: viewra.plugin.v1.HostStorage.RegisterSchema:input_type -> viewra.plugin.v1.SchemaVersion
+	85, // 42: viewra.plugin.v1.HostStorage.GetDatabaseStats:input_type -> viewra.plugin.v1.Empty
+	22, // 43: viewra.plugin.v1.HostStorage.ExecuteSQL:input_type -> viewra.plugin.v1.SQLRequest
+	22, // 44: viewra.plugin.v1.HostStorage.QuerySQL:input_type -> viewra.plugin.v1.SQLRequest
+	27, // 45: viewra.plugin.v1.HostStorage.VectorStoreEmbedding:input_type -> viewra.plugin.v1.VectorStoreRequest
+	28, // 46: viewra.plugin.v1.HostStorage.VectorStoreBatch:input_type -> viewra.plugin.v1.VectorStoreBatchRequest
+	29, // 47: viewra.plugin.v1.HostStorage.VectorSearch:input_type -> viewra.plugin.v1.VectorSearchRequest
+	30, // 48: viewra.plugin.v1.HostStorage.VectorSearchText:input_type -> viewra.plugin.v1.VectorTextSearchRequest
+	33, // 49: viewra.plugin.v1.HostStorage.VectorGet:input_type -> viewra.plugin.v1.VectorQuery
+	33, // 50: viewra.plugin.v1.HostStorage.VectorDelete:input_type -> viewra.plugin.v1.VectorQuery
+	35, // 51: viewra.plugin.v1.HostStorage.VectorDeleteByType:input_type -> viewra.plugin.v1.VectorTypeQuery
+	35, // 52: viewra.plugin.v1.HostStorage.VectorCount:input_type -> viewra.plugin.v1.VectorTypeQuery
+	39, // 53: viewra.plugin.v1.HostUserMetadata.Get:input_type -> viewra.plugin.v1.UserMetadataKey
+	41, // 54: viewra.plugin.v1.HostUserMetadata.Set:input_type -> viewra.plugin.v1.UserMetadataEntry
+	39, // 55: viewra.plugin.v1.HostUserMetadata.Delete:input_type -> viewra.plugin.v1.UserMetadataKey
+	38, // 56: viewra.plugin.v1.HostUserMetadata.ListKeys:input_type -> viewra.plugin.v1.UserId
+	43, // 57: viewra.plugin.v1.HostFileParser.ParseNFO:input_type -> viewra.plugin.v1.ParseNFORequest
+	46, // 58: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:input_type -> viewra.plugin.v1.ExtractImagesRequest
+	49, // 59: viewra.plugin.v1.HostWeather.GetCurrentWeather:input_type -> viewra.plugin.v1.WeatherRequest
+	65, // 60: viewra.plugin.v1.HostRatings.ListRatings:input_type -> viewra.plugin.v1.ListRatingsRequest
+	68, // 61: viewra.plugin.v1.HostRatings.GetRatedEntityIDs:input_type -> viewra.plugin.v1.GetRatedEntityIDsRequest
+	69, // 62: viewra.plugin.v1.HostRatings.GetPositivelyRatedIDs:input_type -> viewra.plugin.v1.GetPositivelyRatedIDsRequest
+	71, // 63: viewra.plugin.v1.HostRatings.HasRatings:input_type -> viewra.plugin.v1.HasRatingsRequest
+	85, // 64: viewra.plugin.v1.HostPlugins.ListCapabilities:input_type -> viewra.plugin.v1.Empty
+	51, // 65: viewra.plugin.v1.HostPlugins.ListProviders:input_type -> viewra.plugin.v1.CapabilityRequest
+	56, // 66: viewra.plugin.v1.HostPlugins.SetCapabilityPreference:input_type -> viewra.plugin.v1.CapabilityPreferenceRequest
+	56, // 67: viewra.plugin.v1.HostPlugins.ClearCapabilityPreference:input_type -> viewra.plugin.v1.CapabilityPreferenceRequest
+	85, // 68: viewra.plugin.v1.HostPlugins.GetCapabilityPreferences:input_type -> viewra.plugin.v1.Empty
+	58, // 69: viewra.plugin.v1.HostPlugins.InvokeCapability:input_type -> viewra.plugin.v1.CapabilityInvokeRequest
+	58, // 70: viewra.plugin.v1.HostPlugins.InvokeCapabilityStream:input_type -> viewra.plugin.v1.CapabilityInvokeRequest
+	61, // 71: viewra.plugin.v1.HostPlugins.DescribeCapability:input_type -> viewra.plugin.v1.DescribeCapabilityRequest
+	73, // 72: viewra.plugin.v1.HostPlugins.InvokeVectorSearch:input_type -> viewra.plugin.v1.VectorSearchInvokeRequest
+	5,  // 73: viewra.plugin.v1.HostData.GetMedia:output_type -> viewra.plugin.v1.Media
+	11, // 74: viewra.plugin.v1.HostData.GetMediaDetails:output_type -> viewra.plugin.v1.MediaDetails
+	5,  // 75: viewra.plugin.v1.HostData.GetMediaByExternalId:output_type -> viewra.plugin.v1.Media
+	6,  // 76: viewra.plugin.v1.HostData.SearchMedia:output_type -> viewra.plugin.v1.MediaList
+	13, // 77: viewra.plugin.v1.HostData.ListMediaByLibrary:output_type -> viewra.plugin.v1.MediaDetailsList
+	8,  // 78: viewra.plugin.v1.HostData.GetLibrary:output_type -> viewra.plugin.v1.Library
+	9,  // 79: viewra.plugin.v1.HostData.GetFilePath:output_type -> viewra.plugin.v1.FilePath
+	6,  // 80: viewra.plugin.v1.HostData.ListMediaByGenre:output_type -> viewra.plugin.v1.MediaList
+	15, // 81: viewra.plugin.v1.HostStorage.KVGet:output_type -> viewra.plugin.v1.KVValue
+	85, // 82: viewra.plugin.v1.HostStorage.KVSet:output_type -> viewra.plugin.v1.Empty
+	85, // 83: viewra.plugin.v1.HostStorage.KVDelete:output_type -> viewra.plugin.v1.Empty
+	18, // 84: viewra.plugin.v1.HostStorage.KVList:output_type -> viewra.plugin.v1.KVKeyList
+	19, // 85: viewra.plugin.v1.HostStorage.GetDatabasePath:output_type -> viewra.plugin.v1.DatabasePath
+	85, // 86: viewra.plugin.v1.HostStorage.RegisterSchema:output_type -> viewra.plugin.v1.Empty
+	21, // 87: viewra.plugin.v1.HostStorage.GetDatabaseStats:output_type -> viewra.plugin.v1.DatabaseStats
+	24, // 88: viewra.plugin.v1.HostStorage.ExecuteSQL:output_type -> viewra.plugin.v1.SQLExecResult
+	25, // 89: viewra.plugin.v1.HostStorage.QuerySQL:output_type -> viewra.plugin.v1.SQLQueryResult
+	85, // 90: viewra.plugin.v1.HostStorage.VectorStoreEmbedding:output_type -> viewra.plugin.v1.Empty
+	85, // 91: viewra.plugin.v1.HostStorage.VectorStoreBatch:output_type -> viewra.plugin.v1.Empty
+	31, // 92: viewra.plugin.v1.HostStorage.VectorSearch:output_type -> viewra.plugin.v1.VectorSearchResponse
+	31, // 93: viewra.plugin.v1.HostStorage.VectorSearchText:output_type -> viewra.plugin.v1.VectorSearchResponse
+	34, // 94: viewra.plugin.v1.HostStorage.VectorGet:output_type -> viewra.plugin.v1.VectorGetResponse
+	85, // 95: viewra.plugin.v1.HostStorage.VectorDelete:output_type -> viewra.plugin.v1.Empty
+	36, // 96: viewra.plugin.v1.HostStorage.VectorDeleteByType:output_type -> viewra.plugin.v1.VectorDeleteResponse
+	37, // 97: viewra.plugin.v1.HostStorage.VectorCount:output_type -> viewra.plugin.v1.VectorCountResponse
+	40, // 98: viewra.plugin.v1.HostUserMetadata.Get:output_type -> viewra.plugin.v1.UserMetadataValue
+	85, // 99: viewra.plugin.v1.HostUserMetadata.Set:output_type -> viewra.plugin.v1.Empty
+	85, // 100: viewra.plugin.v1.HostUserMetadata.Delete:output_type -> viewra.plugin.v1.Empty
+	42, // 101: viewra.plugin.v1.HostUserMetadata.ListKeys:output_type -> viewra.plugin.v1.UserMetadataKeyList
+	44, // 102: viewra.plugin.v1.HostFileParser.ParseNFO:output_type -> viewra.plugin.v1.NFOMetadata
+	47, // 103: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:output_type -> viewra.plugin.v1.ExtractImagesResponse
+	50, // 104: viewra.plugin.v1.HostWeather.GetCurrentWeather:output_type -> viewra.plugin.v1.WeatherResponse
+	66, // 105: viewra.plugin.v1.HostRatings.ListRatings:output_type -> viewra.plugin.v1.ListRatingsResponse
+	70, // 106: viewra.plugin.v1.HostRatings.GetRatedEntityIDs:output_type -> viewra.plugin.v1.EntityIDsResponse
+	70, // 107: viewra.plugin.v1.HostRatings.GetPositivelyRatedIDs:output_type -> viewra.plugin.v1.EntityIDsResponse
+	72, // 108: viewra.plugin.v1.HostRatings.HasRatings:output_type -> viewra.plugin.v1.HasRatingsResponse
+	52, // 109: viewra.plugin.v1.HostPlugins.ListCapabilities:output_type -> viewra.plugin.v1.CapabilityListResponse
+	55, // 110: viewra.plugin.v1.HostPlugins.ListProviders:output_type -> viewra.plugin.v1.ProviderListResponse
+	85, // 111: viewra.plugin.v1.HostPlugins.SetCapabilityPreference:output_type -> viewra.plugin.v1.Empty
+	85, // 112: viewra.plugin.v1.HostPlugins.ClearCapabilityPreference:output_type -> viewra.plugin.v1.Empty
+	57, // 113: viewra.plugin.v1.HostPlugins.GetCapabilityPreferences:output_type -> viewra.plugin.v1.CapabilityPreferencesResponse
+	59, // 114: viewra.plugin.v1.HostPlugins.InvokeCapability:output_type -> viewra.plugin.v1.CapabilityInvokeResponse
+	59, // 115: viewra.plugin.v1.HostPlugins.InvokeCapabilityStream:output_type -> viewra.plugin.v1.CapabilityInvokeResponse
+	62, // 116: viewra.plugin.v1.HostPlugins.DescribeCapability:output_type -> viewra.plugin.v1.DescribeCapabilityResponse
+	74, // 117: viewra.plugin.v1.HostPlugins.InvokeVectorSearch:output_type -> viewra.plugin.v1.VectorSearchInvokeResponse
+	73, // [73:118] is the sub-list for method output_type
+	28, // [28:73] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_plugin_host_services_proto_init() }
@@ -4741,6 +5510,7 @@ func file_api_proto_plugin_host_services_proto_init() {
 		return
 	}
 	file_api_proto_plugin_common_proto_init()
+	file_api_proto_plugin_vector_search_proto_init()
 	file_api_proto_plugin_host_services_proto_msgTypes[22].OneofWrappers = []any{
 		(*SQLValue_StringValue)(nil),
 		(*SQLValue_IntValue)(nil),
@@ -4754,9 +5524,9 @@ func file_api_proto_plugin_host_services_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_plugin_host_services_proto_rawDesc), len(file_api_proto_plugin_host_services_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   70,
+			NumMessages:   81,
 			NumExtensions: 0,
-			NumServices:   6,
+			NumServices:   7,
 		},
 		GoTypes:           file_api_proto_plugin_host_services_proto_goTypes,
 		DependencyIndexes: file_api_proto_plugin_host_services_proto_depIdxs,

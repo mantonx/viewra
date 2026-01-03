@@ -105,9 +105,11 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*types.Instance,
 // buildPluginMap creates the plugin map with core interfaces and host services.
 func (m *Manager) buildPluginMap(pluginID string, hostServiceLogger *slog.Logger) map[string]plugin.Plugin {
 	pluginMap := map[string]plugin.Plugin{
-		"core":     m.pluginFactory.NewPluginCoreGRPCPlugin(),
-		"enricher": m.pluginFactory.NewEnricherGRPCPlugin(),
-		"provider": m.pluginFactory.NewPluginProviderGRPCPlugin(),
+		"core":              m.pluginFactory.NewPluginCoreGRPCPlugin(),
+		"enricher":          m.pluginFactory.NewEnricherGRPCPlugin(),
+		"provider":          m.pluginFactory.NewPluginProviderGRPCPlugin(),
+		"vector_search":     m.pluginFactory.NewVectorSearchGRPCPlugin(),
+		"trending_provider": m.pluginFactory.NewTrendingProviderGRPCPlugin(),
 	}
 
 	// Add host data service if available
@@ -135,6 +137,13 @@ func (m *Manager) buildPluginMap(pluginID string, hostServiceLogger *slog.Logger
 	if m.hostPluginsServer != nil {
 		if p := m.pluginFactory.NewHostPluginsGRPCPlugin(m.hostPluginsServer, hostServiceLogger); p != nil {
 			pluginMap["host_plugins"] = p
+		}
+	}
+
+	// Add host ratings service if available
+	if m.hostRatingsServer != nil {
+		if p := m.pluginFactory.NewHostRatingsGRPCPlugin(m.hostRatingsServer, hostServiceLogger); p != nil {
+			pluginMap["host_ratings"] = p
 		}
 	}
 
@@ -198,7 +207,41 @@ func (m *Manager) createPluginInstance(
 		}
 	}
 
+	// If the plugin provides vector_search capability, get the VectorSearch client
+	if containsString(mf.Provides, "vector_search") {
+		vectorSearchRaw, err := rpcClient.Dispense("vector_search")
+		if err != nil {
+			m.logger.Warn("plugin provides vector_search but dispense failed",
+				"plugin", mf.ID, "error", err)
+		} else if vectorSearchClient, ok := vectorSearchRaw.(pluginv1.VectorSearchClient); ok {
+			instance.VectorSearchClient = vectorSearchClient
+			m.logger.Debug("vector_search client available", "plugin", mf.ID)
+		}
+	}
+
+	// If the plugin has trending category, get the TrendingProviderService client
+	if types.HasCategoryIn(instance.Categories, types.CategoryTrending) {
+		trendingRaw, err := rpcClient.Dispense("trending_provider")
+		if err != nil {
+			m.logger.Warn("plugin has trending category but dispense failed",
+				"plugin", mf.ID, "error", err)
+		} else if trendingClient, ok := trendingRaw.(pluginv1.TrendingProviderServiceClient); ok {
+			instance.TrendingClient = trendingClient
+			m.logger.Debug("trending_provider client available", "plugin", mf.ID)
+		}
+	}
+
 	return instance, nil
+}
+
+// containsString checks if a string slice contains a target string.
+func containsString(slice []string, target string) bool {
+	for _, s := range slice {
+		if s == target {
+			return true
+		}
+	}
+	return false
 }
 
 // initializePlugin prepares and calls the plugin's Initialize method.
@@ -247,6 +290,7 @@ func (m *Manager) initializePlugin(
 		HostDataBrokerId:    brokerIDs.data,
 		HostWeatherBrokerId: brokerIDs.weather,
 		HostPluginsBrokerId: brokerIDs.plugins,
+		HostRatingsBrokerId: brokerIDs.ratings,
 		SystemInfo:          m.systemInfo,
 	})
 	if err != nil {
@@ -265,6 +309,7 @@ type hostBrokerIDs struct {
 	data    uint32
 	weather uint32
 	plugins uint32
+	ratings uint32
 }
 
 // dispenseHostServices dispenses all host services and returns their broker IDs.
@@ -289,6 +334,11 @@ func (m *Manager) dispenseHostServices(pluginID string, rpcClient plugin.ClientP
 	// Dispense host plugins
 	if m.hostPluginsServer != nil {
 		ids.plugins = m.dispenseHostService(pluginID, rpcClient, "host_plugins")
+	}
+
+	// Dispense host ratings
+	if m.hostRatingsServer != nil {
+		ids.ratings = m.dispenseHostService(pluginID, rpcClient, "host_ratings")
 	}
 
 	return ids
@@ -353,6 +403,11 @@ func (m *Manager) registerPluginServices(ctx context.Context, instance *types.In
 		m.logger.Debug("registered plugin capabilities",
 			"plugin", mf.ID,
 			"capabilities", mf.Provides)
+	}
+
+	// Register trending provider if plugin has TrendingClient
+	if instance.TrendingClient != nil {
+		m.registerTrendingProvider(ctx, instance, mf.ID)
 	}
 
 	// Register widgets from plugin's settings schema
@@ -583,4 +638,42 @@ func getStringSliceFromMap(m map[string]any, key string) []string {
 		}
 	}
 	return result
+}
+
+// registerTrendingProvider fetches provider info and registers it with the trending provider registry.
+func (m *Manager) registerTrendingProvider(ctx context.Context, instance *types.Instance, pluginID string) {
+	if m.trendingProviderRegistry == nil || instance.TrendingClient == nil {
+		return
+	}
+
+	// Fetch provider info from the plugin
+	info, err := instance.TrendingClient.GetProviderInfo(ctx, &pluginv1.Empty{})
+	if err != nil {
+		m.logger.Warn("failed to get trending provider info",
+			"plugin", pluginID,
+			"error", err)
+		return
+	}
+
+	// Convert proto to SDK type and register
+	sdkInfo := &sdk.TrendingProviderInfo{
+		ID:          info.Id,
+		Name:        info.Name,
+		Description: info.Description,
+		Windows:     info.Windows,
+		MediaTypes:  info.MediaTypes,
+		UpdateFreq:  info.UpdateFreq,
+	}
+
+	m.trendingProviderRegistry.Register(pluginID, sdkInfo)
+
+	// Also register "trending" capability with the capability registry so widgets work
+	if m.capabilityRegistry != nil {
+		m.capabilityRegistry.Register(pluginID, "trending", "/trending")
+	}
+
+	m.logger.Debug("registered trending provider",
+		"plugin", pluginID,
+		"provider_id", info.Id,
+		"name", info.Name)
 }

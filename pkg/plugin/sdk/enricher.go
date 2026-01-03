@@ -107,6 +107,9 @@ type HostServices struct {
 
 	// Plugins provides capability-based access to other plugins
 	Plugins *PluginsClient
+
+	// Ratings provides read-only access to user ratings (favorites, likes, dislikes)
+	Ratings *RatingsClient
 }
 
 // EnricherCapabilities describes what an enricher provides and requires.
@@ -328,6 +331,17 @@ func (s *enricherGRPCServer) connectHostServices(req *pluginv1.InitRequest) {
 		} else {
 			s.services.Plugins = NewPluginsClient(conn)
 			logger.Debug("connected to host plugins service")
+		}
+	}
+
+	// Ratings service (for user ratings access)
+	if req.HostRatingsBrokerId > 0 {
+		conn, err := s.broker.Dial(req.HostRatingsBrokerId)
+		if err != nil {
+			logger.Error("failed to dial host ratings", "error", err)
+		} else {
+			s.services.Ratings = NewRatingsClient(conn)
+			logger.Debug("connected to host ratings service")
 		}
 	}
 }
@@ -774,6 +788,9 @@ func (p *HostPluginsGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.G
 // ServeEnricher starts an enricher plugin server.
 // Call this from your plugin's main() function.
 //
+// If the plugin also implements TrendingProvider, it will automatically
+// register the trending_provider service.
+//
 // Example:
 //
 //	func main() {
@@ -784,23 +801,33 @@ func (p *HostPluginsGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.G
 //	}
 func ServeEnricher(impl EnricherPlugin, logger hclog.Logger) {
 	base := &Base{}
+	plugins := map[string]plugin.Plugin{
+		"core":         &EnricherCoreGRPCPlugin{Impl: impl, base: base},
+		"enricher":     &EnricherGRPCPlugin{Impl: impl, base: base},
+		"host_storage": &HostStorageGRPCPlugin{},
+		"host_data":    &HostDataGRPCPlugin{},
+		"host_weather": &HostWeatherGRPCPlugin{},
+		"host_plugins": &HostPluginsGRPCPlugin{},
+	}
+
+	// If the enricher also implements TrendingProvider, register it
+	if tp, ok := impl.(TrendingProvider); ok {
+		plugins["trending_provider"] = &TrendingProviderGRPCPlugin{Impl: tp}
+	}
+
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: Handshake,
-		Plugins: map[string]plugin.Plugin{
-			"core":         &EnricherCoreGRPCPlugin{Impl: impl, base: base},
-			"enricher":     &EnricherGRPCPlugin{Impl: impl, base: base},
-			"host_storage": &HostStorageGRPCPlugin{},
-			"host_data":    &HostDataGRPCPlugin{},
-			"host_weather": &HostWeatherGRPCPlugin{},
-			"host_plugins": &HostPluginsGRPCPlugin{},
-		},
-		GRPCServer: plugin.DefaultGRPCServer,
-		Logger:     logger,
+		Plugins:         plugins,
+		GRPCServer:      plugin.DefaultGRPCServer,
+		Logger:          logger,
 	})
 }
 
 // ServeEnricherWithExtra starts an enricher plugin server with additional gRPC services.
 // Use this when your plugin exposes additional interfaces beyond the standard enricher.
+//
+// If the plugin also implements TrendingProvider, it will automatically
+// register the trending_provider service.
 //
 // Example (vector-search plugin):
 //
@@ -821,6 +848,11 @@ func ServeEnricherWithExtra(impl EnricherPlugin, logger hclog.Logger, extra map[
 		"host_data":    &HostDataGRPCPlugin{},
 		"host_weather": &HostWeatherGRPCPlugin{},
 		"host_plugins": &HostPluginsGRPCPlugin{},
+	}
+
+	// If the enricher also implements TrendingProvider, register it
+	if tp, ok := impl.(TrendingProvider); ok {
+		plugins["trending_provider"] = &TrendingProviderGRPCPlugin{Impl: tp}
 	}
 
 	// Add extra plugins

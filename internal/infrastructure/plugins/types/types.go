@@ -18,6 +18,7 @@ const (
 	CategoryEnricher         Category = "enricher"
 	CategoryNotificationSink Category = "notification_sink"
 	CategoryProvider         Category = "provider"
+	CategoryTrending         Category = "trending"
 )
 
 // Handshake is the shared handshake config for all plugins.
@@ -64,6 +65,14 @@ type Instance struct {
 	// ProviderClient provides access to provider methods (if applicable).
 	// This is set for plugins with category "provider".
 	ProviderClient pluginv1.PluginProviderClient
+
+	// VectorSearchClient provides access to vector search methods (if applicable).
+	// This is set for plugins that provide the "vector_search" capability.
+	VectorSearchClient pluginv1.VectorSearchClient
+
+	// TrendingClient provides access to trending provider methods (if applicable).
+	// This is set for plugins with the "trending" category.
+	TrendingClient pluginv1.TrendingProviderServiceClient
 
 	// Health tracks the plugin's current health status.
 	Health Health

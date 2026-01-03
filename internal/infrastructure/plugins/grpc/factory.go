@@ -98,6 +98,34 @@ func (f *Factory) NewHostPluginsGRPCPlugin(impl manager.HostPluginsServer, logge
 	}
 }
 
+// NewHostRatingsGRPCPlugin creates a new HostRatingsPlugin.
+// The impl parameter is a marker interface from manager package.
+func (f *Factory) NewHostRatingsGRPCPlugin(impl manager.HostRatingsServer, logger *slog.Logger) plugin.Plugin {
+	if impl == nil {
+		return nil
+	}
+	server, ok := impl.(pluginv1.HostRatingsServer)
+	if !ok {
+		return nil
+	}
+	return &HostRatingsPlugin{
+		Impl:   server,
+		Logger: logger,
+	}
+}
+
+// NewVectorSearchGRPCPlugin creates a new VectorSearchPlugin for client-side dispensing.
+// This is a client-only plugin - the plugin side serves VectorSearch, host side gets client.
+func (f *Factory) NewVectorSearchGRPCPlugin() plugin.Plugin {
+	return &VectorSearchPlugin{}
+}
+
+// NewTrendingProviderGRPCPlugin creates a new TrendingProviderPlugin for client-side dispensing.
+// This is a client-only plugin - the plugin side serves TrendingProviderService, host side gets client.
+func (f *Factory) NewTrendingProviderGRPCPlugin() plugin.Plugin {
+	return &TrendingProviderPlugin{}
+}
+
 // GetBrokerID extracts the broker ID from a dispensed broker info struct.
 func (f *Factory) GetBrokerID(brokerInfo interface{}) uint32 {
 	if brokerInfo == nil {
@@ -118,6 +146,10 @@ func (f *Factory) GetBrokerID(brokerInfo interface{}) uint32 {
 			return info.BrokerID
 		}
 	case *HostPluginsBrokerInfo:
+		if info != nil {
+			return info.BrokerID
+		}
+	case *HostRatingsBrokerInfo:
 		if info != nil {
 			return info.BrokerID
 		}

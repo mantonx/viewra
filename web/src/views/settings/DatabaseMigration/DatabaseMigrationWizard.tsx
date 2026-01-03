@@ -66,7 +66,7 @@ export const DatabaseMigrationWizard = ({ isOpen, onClose, currentDriver }: Prop
   }
 
   const handleStartMigration = async () => {
-    if (!state.targetDriver) return
+    if (!state.targetDriver) {return}
 
     const request = {
       targetDriver: state.targetDriver,

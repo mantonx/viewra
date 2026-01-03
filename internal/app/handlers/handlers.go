@@ -14,9 +14,12 @@ import (
 	appauth "github.com/mantonx/viewra/internal/application/auth"
 	appHome "github.com/mantonx/viewra/internal/application/home"
 	appplugins "github.com/mantonx/viewra/internal/application/plugins"
+	appratings "github.com/mantonx/viewra/internal/application/ratings"
 	appscheduler "github.com/mantonx/viewra/internal/application/scheduler"
 	appTrending "github.com/mantonx/viewra/internal/application/trending"
 	infraPlugins "github.com/mantonx/viewra/internal/infrastructure/plugins"
+	"github.com/mantonx/viewra/internal/infrastructure/plugins/fetcher"
+	"github.com/mantonx/viewra/internal/infrastructure/plugins/querier"
 	"github.com/mantonx/viewra/internal/infrastructure/plugins/registry"
 	"github.com/mantonx/viewra/internal/infrastructure/streaming"
 )
@@ -219,29 +222,94 @@ func BuildHandlers(
 	// Create home handler with widget aggregation
 	var homeHandler *handlers.HomeHandler
 	if svcs.PluginManager != nil && infra.Repos.HomePreferences != nil {
+		// Create continue watching service
+		var continueWatching appHome.ContinueWatchingService
+		if infra.Repos.Progress != nil && infra.Repos.Media != nil {
+			continueWatching = appHome.NewContinueWatchingService(
+				infra.Repos.Progress,
+				infra.Repos.Media,
+				infra.Repos.Movie,
+				infra.Repos.TV,
+			)
+		}
+
+		// Create recently added service
+		var recentlyAdded appHome.RecentlyAddedService
+		if infra.Repos.Movie != nil || infra.Repos.TV != nil {
+			recentlyAdded = appHome.NewRecentlyAddedService(infra.Repos.Movie, infra.Repos.TV)
+		}
+
+		// Create favorites service
+		var favorites appHome.FavoritesService
+		if infra.Repos.Ratings != nil && (infra.Repos.Movie != nil || infra.Repos.TV != nil) {
+			favorites = appHome.NewFavoritesService(infra.Repos.Movie, infra.Repos.TV, infra.Repos.Ratings)
+		}
+
+		// Create genres service
+		var genres appHome.GenresService
+		if infra.Repos.Movie != nil {
+			genres = appHome.NewGenresService(infra.Repos.Movie)
+		}
+
+		// Register core widgets
+		widgetRegistry := svcs.PluginManager.GetWidgetRegistry()
+		widgetRegistry.RegisterAll(appHome.CorePluginID, appHome.CoreWidgets())
+
+		// Create trending service for home
+		var trendingSvc appHome.TrendingService
+		if infra.DB != nil && infra.Config != nil {
+			trendingFetcher := fetcher.NewTrendingDataFetcher(
+				svcs.PluginManager,
+				logger.With("component", "trending-fetcher"),
+			)
+			mediaMatcher := querier.NewDBMediaQuerier(infra.DB, infra.Config.Database.Driver)
+			trendingSvc = appTrending.NewService(
+				svcs.PluginManager.GetTrendingProviderRegistry(),
+				trendingFetcher,
+				mediaMatcher,
+				logger.With("service", "trending"),
+			)
+		}
+
 		homeService := appHome.NewService(
-			svcs.PluginManager.GetWidgetRegistry(),
+			widgetRegistry,
 			svcs.PluginManager.GetSearchProviderRegistry(),
 			svcs.PluginManager.GetTrendingProviderRegistry(),
 			capabilityRegistry,
 			infra.Repos.HomePreferences,
 			nil, // WidgetDataFetcher - TODO: wire plugin proxy
-			nil, // ContinueWatchingService - TODO: wire progress service
+			continueWatching,
+			recentlyAdded,
+			favorites,
+			genres,
+			trendingSvc,
 			logger.With("service", "home"),
 		)
 		homeHandler = handlers.NewHomeHandler(homeService)
 	}
 
-	// Create trending handler
+	// Create trending handler (reuses trending service if available, otherwise creates new)
 	var trendingHandler *handlers.TrendingHandler
-	if svcs.PluginManager != nil {
+	if svcs.PluginManager != nil && infra.DB != nil && infra.Config != nil {
+		trendingFetcher := fetcher.NewTrendingDataFetcher(
+			svcs.PluginManager,
+			logger.With("component", "trending-fetcher"),
+		)
+		mediaMatcher := querier.NewDBMediaQuerier(infra.DB, infra.Config.Database.Driver)
 		trendingService := appTrending.NewService(
 			svcs.PluginManager.GetTrendingProviderRegistry(),
-			nil, // TrendingDataFetcher - TODO: wire plugin proxy
-			nil, // MediaMatcher - TODO: wire external ID lookup
+			trendingFetcher,
+			mediaMatcher,
 			logger.With("service", "trending"),
 		)
 		trendingHandler = handlers.NewTrendingHandler(trendingService)
+	}
+
+	// Create ratings handler
+	var ratingsHandler *handlers.RatingsHandler
+	if infra.Repos != nil && infra.Repos.Ratings != nil {
+		ratingsService := appratings.NewService(infra.Repos.Ratings)
+		ratingsHandler = handlers.NewRatingsHandler(ratingsService)
 	}
 
 	// System handler (requires lifecycle manager)
@@ -284,6 +352,7 @@ func BuildHandlers(
 		System:           systemHandler,
 		Home:             homeHandler,
 		Trending:         trendingHandler,
+		Ratings:          ratingsHandler,
 		PluginProxy:      pluginProxy,
 		Search:           searchHandler,
 		AuthValidator:    authService,

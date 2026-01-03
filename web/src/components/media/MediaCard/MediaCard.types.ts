@@ -50,8 +50,19 @@ export interface MediaCardProps {
 
   /**
    * Content to display in the info section below the image
+   * If provided, title/year props are ignored
    */
   infoContent?: ReactNode
+
+  /**
+   * Title to display (used when infoContent is not provided)
+   */
+  title?: string
+
+  /**
+   * Year to display (used when infoContent is not provided)
+   */
+  year?: number
 
   /**
    * Icon type for the play button

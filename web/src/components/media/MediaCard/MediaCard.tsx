@@ -21,6 +21,8 @@ export const MediaCard = ({
   badges,
   overlays,
   infoContent,
+  title,
+  year,
   playIconType = 'play',
 }: MediaCardProps) => {
   const [isHovered, setIsHovered] = useState(false)
@@ -97,7 +99,22 @@ export const MediaCard = ({
       </div>
 
       {/* Info section */}
-      {infoContent && <div className="p-3">{infoContent}</div>}
+      {infoContent ? (
+        <div className="p-3">{infoContent}</div>
+      ) : (title || year) ? (
+        <div className="p-3">
+          {title && (
+            <h3 className="font-medium text-sm text-neutral-900 dark:text-white line-clamp-1">
+              {title}
+            </h3>
+          )}
+          {year && year > 0 && (
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+              {year}
+            </p>
+          )}
+        </div>
+      ) : null}
     </div>
   )
 }

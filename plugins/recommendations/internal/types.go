@@ -1,24 +1,5 @@
 package internal
 
-import "time"
-
-// Rating represents a user's rating for a media item.
-type Rating struct {
-	UserID     string    `json:"user_id"`
-	EntityType string    `json:"entity_type"`
-	EntityID   int64     `json:"entity_id"`
-	Rating     string    `json:"rating"` // "up", "down", "favorite"
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
-}
-
-// RatingType constants
-const (
-	RatingUp       = "up"
-	RatingDown     = "down"
-	RatingFavorite = "favorite"
-)
-
 // Config holds the plugin configuration.
 type Config struct {
 	// Enabled controls whether recommendations are shown

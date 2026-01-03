@@ -94,6 +94,12 @@ type MovieRepository interface {
 
 	// ListMovieIDsByLibraryPaginated retrieves only movie IDs in a library with pagination (for prefetching)
 	ListMovieIDsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *common.PaginationParams) ([]int64, error)
+
+	// ListRecentlyAdded returns recently added movies across all libraries
+	ListRecentlyAdded(ctx context.Context, limit int) ([]*Movie, error)
+
+	// ListDistinctGenres returns distinct genres across all movies
+	ListDistinctGenres(ctx context.Context, limit int) ([]string, error)
 }
 
 // TVRepository extends Repository with TV-specific operations
@@ -152,6 +158,9 @@ type TVRepository interface {
 
 	// ListTVSeasonsByShow retrieves all seasons for a specific show
 	ListTVSeasonsByShow(ctx context.Context, showID int64) ([]TVSeason, error)
+
+	// ListRecentlyAddedShows returns recently added TV shows across all libraries
+	ListRecentlyAddedShows(ctx context.Context, limit int) ([]TVShow, error)
 }
 
 // TVShow represents a TV show for use in repository operations

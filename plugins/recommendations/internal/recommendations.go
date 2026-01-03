@@ -11,7 +11,7 @@ import (
 
 // RecommendationsService generates personalized recommendations.
 type RecommendationsService struct {
-	ratings *RatingsService
+	ratings *sdk.RatingsClient
 	data    *sdk.DataClient
 	plugins *sdk.PluginsClient
 	config  Config
@@ -21,7 +21,7 @@ type RecommendationsService struct {
 
 // NewRecommendationsService creates a new recommendations service.
 func NewRecommendationsService(
-	ratings *RatingsService,
+	ratings *sdk.RatingsClient,
 	data *sdk.DataClient,
 	plugins *sdk.PluginsClient,
 	config Config,
@@ -53,10 +53,10 @@ func (s *RecommendationsService) GetForYou(ctx context.Context, userID string, l
 		limit = config.MaxRecommendations
 	}
 
-	// Get user's liked items
-	likedIDs, err := s.ratings.GetUpvotedEntityIDs(ctx, userID, "", limit)
+	// Get user's positively rated items (favorites + upvotes)
+	likedIDs, err := s.ratings.GetPositivelyRatedIDs(ctx, userID, "", limit)
 	if err != nil {
-		return nil, fmt.Errorf("get upvoted IDs: %w", err)
+		return nil, fmt.Errorf("get positively rated IDs: %w", err)
 	}
 
 	if len(likedIDs) == 0 {
@@ -66,7 +66,7 @@ func (s *RecommendationsService) GetForYou(ctx context.Context, userID string, l
 	}
 
 	// Get downvoted items to exclude
-	excludeIDs, _ := s.ratings.GetDownvotedEntityIDs(ctx, userID, 100)
+	excludeIDs, _ := s.ratings.GetDownvotedIDs(ctx, userID, "", 100)
 	excludeSet := make(map[int64]bool)
 	for _, id := range excludeIDs {
 		excludeSet[id] = true
@@ -114,7 +114,7 @@ func (s *RecommendationsService) GetBecauseYouLiked(ctx context.Context, userID 
 	}
 
 	// Get a random favorite to base recommendations on
-	favoriteIDs, err := s.ratings.GetFavoriteEntityIDs(ctx, userID, "", 10)
+	favoriteIDs, err := s.ratings.GetFavoriteIDs(ctx, userID, "", 10)
 	if err != nil || len(favoriteIDs) == 0 {
 		return map[string]any{
 			"title":    "Because You Liked...",
@@ -142,7 +142,7 @@ func (s *RecommendationsService) GetBecauseYouLiked(ctx context.Context, userID 
 	for _, id := range favoriteIDs {
 		excludeSet[id] = true
 	}
-	downvoted, _ := s.ratings.GetDownvotedEntityIDs(ctx, userID, 100)
+	downvoted, _ := s.ratings.GetDownvotedIDs(ctx, userID, "", 100)
 	for _, id := range downvoted {
 		excludeSet[id] = true
 	}
@@ -177,48 +177,8 @@ func (s *RecommendationsService) GetBecauseYouLiked(ctx context.Context, userID 
 	}, nil
 }
 
-// GetFavorites returns the user's favorited items.
-func (s *RecommendationsService) GetFavorites(ctx context.Context, userID string, limit int) ([]sdk.MediaItem, error) {
-	s.mu.RLock()
-	config := s.config
-	s.mu.RUnlock()
-
-	if limit <= 0 {
-		limit = config.MaxRecommendations
-	}
-
-	favoriteIDs, err := s.ratings.GetFavoriteEntityIDs(ctx, userID, "", limit)
-	if err != nil {
-		return nil, fmt.Errorf("get favorite IDs: %w", err)
-	}
-
-	if len(favoriteIDs) == 0 {
-		return []sdk.MediaItem{}, nil
-	}
-
-	// Fetch details for each favorite
-	var items []sdk.MediaItem
-	for _, id := range favoriteIDs {
-		details, err := s.data.GetMediaDetails(ctx, id, "")
-		if err != nil {
-			s.logger.Debug("failed to get media details", "id", id, "error", err)
-			continue
-		}
-
-		rating := RatingFavorite
-		items = append(items, sdk.MediaItem{
-			EntityType: details.MediaType,
-			EntityID:   id,
-			Title:      details.Title,
-			Year:       details.Year,
-			Rating:     &rating,
-		})
-	}
-
-	return items, nil
-}
-
-// getSimilarItems uses semantic search to find similar items.
+// getSimilarItems uses semantic search (if available) to find similar items.
+// Falls back to genre-based recommendations if semantic search is unavailable.
 func (s *RecommendationsService) getSimilarItems(ctx context.Context, baseIDs []int64, exclude map[int64]bool, limit int) ([]sdk.MediaItem, error) {
 	if s.data == nil {
 		return nil, fmt.Errorf("data client not available")
@@ -227,32 +187,60 @@ func (s *RecommendationsService) getSimilarItems(ctx context.Context, baseIDs []
 	var allSimilar []sdk.MediaItem
 	seen := make(map[int64]bool)
 
+	// Check if vector search is available via the plugins client
+	vectorSearchAvailable := s.plugins != nil && s.plugins.IsVectorSearchAvailable(ctx)
+
 	// For each base item, find similar items
 	for _, baseID := range baseIDs {
 		if len(allSimilar) >= limit {
 			break
 		}
 
-		// Get the base item details
+		// Get the base item details to determine entity type
 		baseDetails, err := s.data.GetMediaDetails(ctx, baseID, "")
 		if err != nil {
+			s.logger.Debug("failed to get base item details", "base_id", baseID, "error", err)
 			continue
 		}
 
-		// Find similar items using semantic search
-		// This would call the semantic-search plugin via the plugins client
-		// For now, we'll fall back to genre-based since we don't have direct access
-		// to the semantic search capability in this implementation
+		var similar []sdk.MediaItem
 
-		// Use genre matching as a fallback
-		similar, err := s.getGenreBasedRecommendations(ctx, []int64{baseID}, exclude, limit-len(allSimilar))
-		if err != nil {
-			continue
+		if vectorSearchAvailable {
+			// Use semantic search to find similar items
+			results, _, err := s.plugins.FindSimilar(ctx, baseDetails.MediaType, baseID, limit-len(allSimilar))
+			if err != nil {
+				s.logger.Debug("semantic search failed, falling back to genre-based",
+					"base_id", baseID, "error", err)
+				// Fall back to genre-based
+				similar, _ = s.getGenreBasedRecommendationsForItem(ctx, baseDetails, exclude, limit-len(allSimilar))
+			} else {
+				// Convert semantic search results to MediaItems
+				for _, r := range results {
+					if exclude[r.EntityID] || seen[r.EntityID] || r.EntityID == baseID {
+						continue
+					}
+					similar = append(similar, sdk.MediaItem{
+						EntityType: r.EntityType,
+						EntityID:   r.EntityID,
+						Reason:     fmt.Sprintf("Similar to %s", baseDetails.Title),
+					})
+				}
+			}
+		} else {
+			// No vector search available, use genre-based fallback
+			similar, err = s.getGenreBasedRecommendationsForItem(ctx, baseDetails, exclude, limit-len(allSimilar))
+			if err != nil {
+				s.logger.Debug("genre-based recommendations failed",
+					"base_id", baseID, "error", err)
+				continue
+			}
 		}
 
 		for _, item := range similar {
 			if !seen[item.EntityID] && !exclude[item.EntityID] {
-				item.Reason = fmt.Sprintf("Similar to %s", baseDetails.Title)
+				if item.Reason == "" {
+					item.Reason = fmt.Sprintf("Similar to %s", baseDetails.Title)
+				}
 				allSimilar = append(allSimilar, item)
 				seen[item.EntityID] = true
 			}
@@ -262,12 +250,107 @@ func (s *RecommendationsService) getSimilarItems(ctx context.Context, baseIDs []
 	return allSimilar, nil
 }
 
-// getGenreBasedRecommendations finds items with matching genres.
-// Note: This is a simplified implementation that returns empty results.
-// A full implementation would use the semantic search plugin to find similar items.
+// getGenreBasedRecommendations finds items with matching genres for a list of base IDs.
+// This is called from GetForYou when semantic search is unavailable.
 func (s *RecommendationsService) getGenreBasedRecommendations(ctx context.Context, baseIDs []int64, exclude map[int64]bool, limit int) ([]sdk.MediaItem, error) {
-	// TODO: Implement genre-based recommendations using semantic search plugin
-	// For now, return empty list - the home screen will show other widgets
-	s.logger.Debug("genre-based recommendations not yet implemented, returning empty list")
-	return []sdk.MediaItem{}, nil
+	if s.data == nil {
+		return nil, fmt.Errorf("data client not available")
+	}
+
+	var allItems []sdk.MediaItem
+	seen := make(map[int64]bool)
+
+	for _, baseID := range baseIDs {
+		if len(allItems) >= limit {
+			break
+		}
+
+		baseDetails, err := s.data.GetMediaDetails(ctx, baseID, "")
+		if err != nil {
+			s.logger.Debug("failed to get base item details", "base_id", baseID, "error", err)
+			continue
+		}
+
+		items, err := s.getGenreBasedRecommendationsForItem(ctx, baseDetails, exclude, limit-len(allItems))
+		if err != nil {
+			continue
+		}
+
+		for _, item := range items {
+			if !seen[item.EntityID] {
+				seen[item.EntityID] = true
+				allItems = append(allItems, item)
+			}
+		}
+	}
+
+	return allItems, nil
+}
+
+// getGenreBasedRecommendationsForItem finds items with matching genres for a single base item.
+// Uses the host's ListMediaByGenre RPC for database-level genre matching.
+func (s *RecommendationsService) getGenreBasedRecommendationsForItem(ctx context.Context, baseItem *sdk.MediaDetails, exclude map[int64]bool, limit int) ([]sdk.MediaItem, error) {
+	if s.data == nil {
+		return nil, fmt.Errorf("data client not available")
+	}
+
+	if len(baseItem.Genres) == 0 {
+		s.logger.Debug("base item has no genres, cannot find genre-based recommendations",
+			"base_id", baseItem.ID)
+		return []sdk.MediaItem{}, nil
+	}
+
+	// Build list of IDs to exclude
+	excludeIDs := make([]int64, 0, len(exclude)+1)
+	excludeIDs = append(excludeIDs, baseItem.ID) // Exclude the base item itself
+	for id := range exclude {
+		excludeIDs = append(excludeIDs, id)
+	}
+
+	// Determine media type for query
+	mediaType := baseItem.MediaType
+	if mediaType == "tv_episode" {
+		mediaType = "tv_show" // For episodes, recommend shows
+	}
+	if mediaType != "movie" && mediaType != "tv_show" {
+		s.logger.Debug("unsupported media type for genre recommendations",
+			"media_type", mediaType)
+		return []sdk.MediaItem{}, nil
+	}
+
+	var allItems []sdk.MediaItem
+	seen := make(map[int64]bool)
+
+	// Search using the first few genres (primary genres are usually most relevant)
+	maxGenres := 2
+	if len(baseItem.Genres) < maxGenres {
+		maxGenres = len(baseItem.Genres)
+	}
+
+	for i := 0; i < maxGenres && len(allItems) < limit; i++ {
+		genre := baseItem.Genres[i]
+
+		items, err := s.data.ListMediaByGenre(ctx, mediaType, genre, 0, excludeIDs, limit-len(allItems))
+		if err != nil {
+			s.logger.Debug("ListMediaByGenre failed", "genre", genre, "error", err)
+			continue
+		}
+
+		for _, item := range items {
+			if seen[item.ID] {
+				continue
+			}
+			seen[item.ID] = true
+
+			allItems = append(allItems, sdk.MediaItem{
+				EntityType: mediaType,
+				EntityID:   item.ID,
+				Title:      item.Title,
+				Year:       item.Year,
+				Reason:     fmt.Sprintf("Also in %s", genre),
+			})
+		}
+	}
+
+	return allItems, nil
 }

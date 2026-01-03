@@ -61,9 +61,11 @@ type (
 	TvSeason = sqlc_sqlite.TvSeason
 	TvShow = sqlc_sqlite.TvShow
 	User = sqlc_sqlite.User
+	UserRating = sqlc_sqlite.UserRating
 	UserSetting = sqlc_sqlite.UserSetting
 	UserVideoPreference = sqlc_sqlite.UserVideoPreference
 	WatchProgress = sqlc_sqlite.WatchProgress
+	WidgetPreference = sqlc_sqlite.WidgetPreference
 )
 
 // Params type aliases - these represent query input parameters.
@@ -83,6 +85,7 @@ type (
 	CountSearchArtistsByNameParams = sqlc_sqlite.CountSearchArtistsByNameParams
 	CountSearchMoviesByTitleParams = sqlc_sqlite.CountSearchMoviesByTitleParams
 	CountSearchTVShowsByTitleParams = sqlc_sqlite.CountSearchTVShowsByTitleParams
+	CountUserRatingsByRatingParams = sqlc_sqlite.CountUserRatingsByRatingParams
 	CreateAlbumParams = sqlc_sqlite.CreateAlbumParams
 	CreateArtistParams = sqlc_sqlite.CreateArtistParams
 	CreateCreditParams = sqlc_sqlite.CreateCreditParams
@@ -122,6 +125,7 @@ type (
 	DeletePlaybackPreferencesParams = sqlc_sqlite.DeletePlaybackPreferencesParams
 	DeletePluginUserMetadataParams = sqlc_sqlite.DeletePluginUserMetadataParams
 	DeleteScanStateByPathParams = sqlc_sqlite.DeleteScanStateByPathParams
+	DeleteUserRatingParams = sqlc_sqlite.DeleteUserRatingParams
 	DeleteUserSettingParams = sqlc_sqlite.DeleteUserSettingParams
 	EnqueueEnrichmentJobParams = sqlc_sqlite.EnqueueEnrichmentJobParams
 	FailEnrichmentJobParams = sqlc_sqlite.FailEnrichmentJobParams
@@ -176,6 +180,7 @@ type (
 	GetTVShowsWithCountsByLibraryPaginatedParams = sqlc_sqlite.GetTVShowsWithCountsByLibraryPaginatedParams
 	GetThemeKeywordsByEntityParams = sqlc_sqlite.GetThemeKeywordsByEntityParams
 	GetTranscodeJobByMediaIDAndQualityParams = sqlc_sqlite.GetTranscodeJobByMediaIDAndQualityParams
+	GetUserRatingParams = sqlc_sqlite.GetUserRatingParams
 	GetUserSettingParams = sqlc_sqlite.GetUserSettingParams
 	GetWatchProgressByMediaIDAndUserIDParams = sqlc_sqlite.GetWatchProgressByMediaIDAndUserIDParams
 	GetWritersForEntityParams = sqlc_sqlite.GetWritersForEntityParams
@@ -187,6 +192,10 @@ type (
 	ListAlbumsByLibraryPaginatedParams = sqlc_sqlite.ListAlbumsByLibraryPaginatedParams
 	ListArtistIDsByLibraryPaginatedDescParams = sqlc_sqlite.ListArtistIDsByLibraryPaginatedDescParams
 	ListArtistIDsByLibraryPaginatedParams = sqlc_sqlite.ListArtistIDsByLibraryPaginatedParams
+	ListEntityIDsByPositiveRatingParams = sqlc_sqlite.ListEntityIDsByPositiveRatingParams
+	ListEntityIDsByRatingParams = sqlc_sqlite.ListEntityIDsByRatingParams
+	ListEntityIDsByTypeAndPositiveRatingParams = sqlc_sqlite.ListEntityIDsByTypeAndPositiveRatingParams
+	ListEntityIDsByTypeAndRatingParams = sqlc_sqlite.ListEntityIDsByTypeAndRatingParams
 	ListFailedScanCheckpointsParams = sqlc_sqlite.ListFailedScanCheckpointsParams
 	ListImagesByEntityParams = sqlc_sqlite.ListImagesByEntityParams
 	ListInProgressByUserIDParams = sqlc_sqlite.ListInProgressByUserIDParams
@@ -210,9 +219,13 @@ type (
 	ListSchedulerExecutionsParams = sqlc_sqlite.ListSchedulerExecutionsParams
 	ListTVShowIDsByLibraryPaginatedDescParams = sqlc_sqlite.ListTVShowIDsByLibraryPaginatedDescParams
 	ListTVShowIDsByLibraryPaginatedParams = sqlc_sqlite.ListTVShowIDsByLibraryPaginatedParams
+	ListTVShowsByGenreParams = sqlc_sqlite.ListTVShowsByGenreParams
 	ListTVShowsByLibraryPaginatedDescParams = sqlc_sqlite.ListTVShowsByLibraryPaginatedDescParams
 	ListTVShowsByLibraryPaginatedParams = sqlc_sqlite.ListTVShowsByLibraryPaginatedParams
 	ListTranscodeAnalyticsByMediaIDParams = sqlc_sqlite.ListTranscodeAnalyticsByMediaIDParams
+	ListUserRatingsByRatingParams = sqlc_sqlite.ListUserRatingsByRatingParams
+	ListUserRatingsByTypeAndRatingParams = sqlc_sqlite.ListUserRatingsByTypeAndRatingParams
+	ListUserRatingsByTypeParams = sqlc_sqlite.ListUserRatingsByTypeParams
 	ListUsersParams = sqlc_sqlite.ListUsersParams
 	ListWatchProgressByUserIDParams = sqlc_sqlite.ListWatchProgressByUserIDParams
 	ListWatchedByUserIDParams = sqlc_sqlite.ListWatchedByUserIDParams
@@ -292,6 +305,7 @@ type (
 	UpsertScheduledTaskParams = sqlc_sqlite.UpsertScheduledTaskParams
 	UpsertSystemSettingParams = sqlc_sqlite.UpsertSystemSettingParams
 	UpsertTVShowParams = sqlc_sqlite.UpsertTVShowParams
+	UpsertUserRatingParams = sqlc_sqlite.UpsertUserRatingParams
 	UpsertUserSettingParams = sqlc_sqlite.UpsertUserSettingParams
 	UpsertWatchProgressParams = sqlc_sqlite.UpsertWatchProgressParams
 )
@@ -367,6 +381,8 @@ type (
 	ListMusicTracksByLibraryRow = sqlc_sqlite.ListMusicTracksByLibraryRow
 	ListPluginsByCategoryRow = sqlc_sqlite.ListPluginsByCategoryRow
 	ListPluginsRow = sqlc_sqlite.ListPluginsRow
+	ListRecentlyAddedMoviesRow = sqlc_sqlite.ListRecentlyAddedMoviesRow
+	ListRecentlyAddedTVShowsRow = sqlc_sqlite.ListRecentlyAddedTVShowsRow
 	ListTVEpisodesByLibraryRow = sqlc_sqlite.ListTVEpisodesByLibraryRow
 	ListTVEpisodesBySeasonRow = sqlc_sqlite.ListTVEpisodesBySeasonRow
 	ListTVEpisodesByShowRow = sqlc_sqlite.ListTVEpisodesByShowRow

@@ -62,6 +62,7 @@ type Querier interface {
 	// ============================================================================
 	CountTVShowsByLibrary(ctx context.Context, libraryID int64) (int64, error)
 	CountTranscodeJobsByStatus(ctx context.Context, status string) (int64, error)
+	CountUserRatingsByRating(ctx context.Context, arg CountUserRatingsByRatingParams) (int64, error)
 	CountUsers(ctx context.Context) (int64, error)
 	CreateAlbum(ctx context.Context, arg CreateAlbumParams) (MusicAlbum, error)
 	CreateArtist(ctx context.Context, arg CreateArtistParams) (MusicArtist, error)
@@ -103,6 +104,7 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateWatchProgress(ctx context.Context, arg CreateWatchProgressParams) (WatchProgress, error)
 	DeleteAlbum(ctx context.Context, id int64) error
+	DeleteAllUserRatings(ctx context.Context, userID string) error
 	DeleteAllUserSettings(ctx context.Context, userID string) error
 	DeleteArtist(ctx context.Context, id int64) error
 	DeleteAudioTracksByMediaID(ctx context.Context, mediaID int64) error
@@ -167,6 +169,7 @@ type Querier interface {
 	DeleteTranscodeJob(ctx context.Context, id int64) error
 	DeleteTranscodeJobsByMediaID(ctx context.Context, mediaID int64) error
 	DeleteUser(ctx context.Context, id int64) error
+	DeleteUserRating(ctx context.Context, arg DeleteUserRatingParams) error
 	DeleteUserSetting(ctx context.Context, arg DeleteUserSettingParams) error
 	DeleteWatchProgress(ctx context.Context, id int64) error
 	DeleteWatchProgressByMediaID(ctx context.Context, mediaID int64) error
@@ -360,11 +363,13 @@ type Querier interface {
 	GetUserByUsername(ctx context.Context, lower string) (User, error)
 	// Location Preferences (stored in users table)
 	GetUserLocation(ctx context.Context, id int64) (GetUserLocationRow, error)
+	GetUserRating(ctx context.Context, arg GetUserRatingParams) (UserRating, error)
 	GetUserSetting(ctx context.Context, arg GetUserSettingParams) (UserSetting, error)
 	GetWatchProgressByID(ctx context.Context, id int64) (WatchProgress, error)
 	GetWatchProgressByMediaID(ctx context.Context, mediaID int64) (WatchProgress, error)
 	GetWatchProgressByMediaIDAndUserID(ctx context.Context, arg GetWatchProgressByMediaIDAndUserIDParams) (WatchProgress, error)
 	GetWritersForEntity(ctx context.Context, arg GetWritersForEntityParams) ([]GetWritersForEntityRow, error)
+	HasUserRatings(ctx context.Context, userID string) (int64, error)
 	IncrementPluginRestartCount(ctx context.Context, id string) error
 	IncrementSeasonEpisodeCount(ctx context.Context, id int64) error
 	// Audio and subtitle track queries for multi-language support
@@ -383,8 +388,14 @@ type Querier interface {
 	ListArtistIDsByLibraryPaginated(ctx context.Context, arg ListArtistIDsByLibraryPaginatedParams) ([]int64, error)
 	ListArtistIDsByLibraryPaginatedDesc(ctx context.Context, arg ListArtistIDsByLibraryPaginatedDescParams) ([]int64, error)
 	ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]MusicArtist, error)
+	// Returns distinct genres from all movies (genres are comma-separated in the genre column)
+	ListDistinctMovieGenres(ctx context.Context, limit int64) ([]string, error)
 	ListEnabledPlugins(ctx context.Context) ([]ListEnabledPluginsRow, error)
 	ListEnabledScheduledTasks(ctx context.Context) ([]ScheduledTask, error)
+	ListEntityIDsByPositiveRating(ctx context.Context, arg ListEntityIDsByPositiveRatingParams) ([]int64, error)
+	ListEntityIDsByRating(ctx context.Context, arg ListEntityIDsByRatingParams) ([]int64, error)
+	ListEntityIDsByTypeAndPositiveRating(ctx context.Context, arg ListEntityIDsByTypeAndPositiveRatingParams) ([]int64, error)
+	ListEntityIDsByTypeAndRating(ctx context.Context, arg ListEntityIDsByTypeAndRatingParams) ([]int64, error)
 	ListFailedScanCheckpoints(ctx context.Context, arg ListFailedScanCheckpointsParams) ([]ScanCheckpoint, error)
 	ListImagesByEntity(ctx context.Context, arg ListImagesByEntityParams) ([]MediaImage, error)
 	ListImagesByMediaID(ctx context.Context, mediaID sql.NullInt64) ([]MediaImage, error)
@@ -397,6 +408,11 @@ type Querier interface {
 	ListMonitoredLibraries(ctx context.Context) ([]Library, error)
 	ListMovieIDsByLibraryPaginated(ctx context.Context, arg ListMovieIDsByLibraryPaginatedParams) ([]int64, error)
 	ListMovieIDsByLibraryPaginatedDesc(ctx context.Context, arg ListMovieIDsByLibraryPaginatedDescParams) ([]int64, error)
+	// Lists movies matching a genre pattern with optional library filter and exclusion list.
+	// library_id: 0 means all libraries
+	// genre: genre pattern to match (will be wrapped in % for LIKE)
+	// exclude_ids: array of media IDs to exclude
+	// limit: maximum number of results
 	ListMoviesByGenre(ctx context.Context, arg ListMoviesByGenreParams) ([]ListMoviesByGenreRow, error)
 	ListMoviesByLibrary(ctx context.Context, libraryID int64) ([]ListMoviesByLibraryRow, error)
 	ListMoviesByLibraryPaginated(ctx context.Context, arg ListMoviesByLibraryPaginatedParams) ([]ListMoviesByLibraryPaginatedRow, error)
@@ -421,6 +437,10 @@ type Querier interface {
 	ListProcessingTranscodeJobs(ctx context.Context) ([]TranscodeJob, error)
 	ListQualitySwitchEventsBySessionID(ctx context.Context, sessionID string) ([]QualitySwitchEvent, error)
 	ListQueuedTranscodeJobs(ctx context.Context, limit int64) ([]TranscodeJob, error)
+	// Returns recently added movies across all libraries, ordered by creation date
+	ListRecentlyAddedMovies(ctx context.Context, limit int64) ([]ListRecentlyAddedMoviesRow, error)
+	// Returns recently added TV shows across all libraries, ordered by newest episode date
+	ListRecentlyAddedTVShows(ctx context.Context, limit int64) ([]ListRecentlyAddedTVShowsRow, error)
 	ListRunningScanJobs(ctx context.Context) ([]ScanJob, error)
 	ListScanJobsByLibrary(ctx context.Context, arg ListScanJobsByLibraryParams) ([]ScanJob, error)
 	ListScheduledTasks(ctx context.Context) ([]ScheduledTask, error)
@@ -435,6 +455,12 @@ type Querier interface {
 	ListTVSeasonsByShow(ctx context.Context, showID int64) ([]TvSeason, error)
 	ListTVShowIDsByLibraryPaginated(ctx context.Context, arg ListTVShowIDsByLibraryPaginatedParams) ([]int64, error)
 	ListTVShowIDsByLibraryPaginatedDesc(ctx context.Context, arg ListTVShowIDsByLibraryPaginatedDescParams) ([]int64, error)
+	// Lists TV shows matching a genre pattern with optional library filter and exclusion list.
+	// library_id: 0 means all libraries
+	// genre: genre pattern to match (will be wrapped in % for LIKE)
+	// exclude_ids: array of show IDs to exclude
+	// limit: maximum number of results
+	ListTVShowsByGenre(ctx context.Context, arg ListTVShowsByGenreParams) ([]TvShow, error)
 	ListTVShowsByLibrary(ctx context.Context, libraryID int64) ([]TvShow, error)
 	ListTVShowsByLibraryPaginated(ctx context.Context, arg ListTVShowsByLibraryPaginatedParams) ([]TvShow, error)
 	ListTVShowsByLibraryPaginatedDesc(ctx context.Context, arg ListTVShowsByLibraryPaginatedDescParams) ([]TvShow, error)
@@ -442,6 +468,10 @@ type Querier interface {
 	ListTranscodeJobsByLRU(ctx context.Context, limit int64) ([]TranscodeJob, error)
 	ListTranscodeJobsByMediaID(ctx context.Context, mediaID int64) ([]TranscodeJob, error)
 	ListTranscodeJobsByStatus(ctx context.Context, status string) ([]TranscodeJob, error)
+	ListUserRatings(ctx context.Context, userID string) ([]UserRating, error)
+	ListUserRatingsByRating(ctx context.Context, arg ListUserRatingsByRatingParams) ([]UserRating, error)
+	ListUserRatingsByType(ctx context.Context, arg ListUserRatingsByTypeParams) ([]UserRating, error)
+	ListUserRatingsByTypeAndRating(ctx context.Context, arg ListUserRatingsByTypeAndRatingParams) ([]UserRating, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	ListWatchProgressByUserID(ctx context.Context, arg ListWatchProgressByUserIDParams) ([]WatchProgress, error)
 	ListWatchedByUserID(ctx context.Context, arg ListWatchedByUserIDParams) ([]WatchProgress, error)
@@ -560,6 +590,7 @@ type Querier interface {
 	// Uses ON CONFLICT to handle race conditions during concurrent episode scans.
 	// On conflict, updates directory if it was previously empty.
 	UpsertTVShow(ctx context.Context, arg UpsertTVShowParams) (TvShow, error)
+	UpsertUserRating(ctx context.Context, arg UpsertUserRatingParams) (UserRating, error)
 	UpsertUserSetting(ctx context.Context, arg UpsertUserSettingParams) error
 	UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) (WatchProgress, error)
 }

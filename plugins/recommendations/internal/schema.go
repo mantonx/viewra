@@ -45,6 +45,9 @@ func SettingsSchema() *sdk.Schema {
 			Title("Algorithm Weights").
 			Properties("similar_weight", "favorite_weight")).
 		// Home screen widgets
+		// Note: "favorites" widget is now provided by core, not this plugin
+		// These widgets don't require specific capabilities because the plugin
+		// handles fallback internally (vector_search -> genre-based if unavailable)
 		Widgets([]sdk.Widget{
 			// "For You" - personalized recommendations based on ratings
 			{
@@ -71,20 +74,6 @@ func SettingsSchema() *sdk.Schema {
 				Config: map[string]any{
 					"endpoint": "/recommendations/because-you-liked",
 					"title":    "Because You Liked...",
-				},
-				SettingsKey: "enabled",
-			},
-			// "Your Favorites" - items user has favorited
-			{
-				ID:              "favorites",
-				Type:            sdk.WidgetTypeMediaRow,
-				Location:        sdk.LocationHomepageSections,
-				ClientTypes:     []string{sdk.ClientTypeAll},
-				Priority:        70,
-				CacheTTLSeconds: 120, // 2 minutes - changes when user favorites
-				Config: map[string]any{
-					"endpoint": "/favorites",
-					"title":    "Your Favorites",
 				},
 				SettingsKey: "enabled",
 			},

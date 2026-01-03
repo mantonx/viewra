@@ -100,6 +100,17 @@ func getCurrentUserID() int64 {
 	return 1
 }
 
+// getUserIDFromContext extracts the user ID from the gin context.
+// Returns the user ID set by auth middleware, or "1" as fallback for single-user mode.
+func getUserIDFromContext(c *gin.Context) string {
+	if userID, exists := c.Get("user_id"); exists {
+		if id, ok := userID.(string); ok {
+			return id
+		}
+	}
+	return "1"
+}
+
 // formatTime formats a time.Time to RFC3339 string.
 // Returns empty string if time is zero.
 func formatTime(t time.Time) string {

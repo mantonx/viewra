@@ -43,6 +43,10 @@ const TVShowCard = memo(({ show, onClick, onPlay }: TVShowCardProps) => {
             imdb: show.imdb_id,
             tmdb: show.tmdb_id ? String(show.tmdb_id) : undefined,
           }}
+          rating={show.id ? {
+            entityType: 'tv_show',
+            entityId: show.id,
+          } : undefined}
         />
       }
     />

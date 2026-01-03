@@ -53,6 +53,10 @@ const MovieCard = memo(({ movie, onClick }: MovieCardProps) => {
             imdb: movie.imdb_id,
             tmdb: movie.tmdb_id?.toString(),
           }}
+          rating={{
+            entityType: 'movie',
+            entityId: movie.id,
+          }}
         />
       }
     />

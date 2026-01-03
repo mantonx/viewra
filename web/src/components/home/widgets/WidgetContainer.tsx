@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils'
 import { SearchHero } from './SearchHero'
 import { MediaRow } from './MediaRow'
+import { ContinueRow } from './ContinueRow'
 import { WidgetType, type HomeSection, type SearchHeroData, type MediaRowData, type TrendingRowData } from './widget.types'
 
 interface WidgetContainerProps {
@@ -34,10 +35,8 @@ export const WidgetContainer = ({ section, className }: WidgetContainerProps) =>
       )
 
     case WidgetType.ContinueRow:
-      // Continue watching is handled separately as it uses local progress data
-      // This case is here for completeness but typically won't be used
       return (
-        <MediaRow
+        <ContinueRow
           data={section.data as MediaRowData}
           className={className}
         />

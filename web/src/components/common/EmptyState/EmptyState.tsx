@@ -42,7 +42,7 @@ const isLucideIcon = (icon: unknown): icon is LucideIcon => {
  */
 const EmptyState = ({ icon, title, description, action, className = '' }: EmptyStateProps) => {
   const renderIcon = () => {
-    if (!icon) return null
+    if (!icon) {return null}
 
     // Check if it's a Lucide icon component
     if (isLucideIcon(icon)) {

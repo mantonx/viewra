@@ -102,6 +102,9 @@ type Handlers struct {
 	// Trending data handler
 	Trending *handlers.TrendingHandler
 
+	// Ratings handler (user favorites, likes, dislikes)
+	Ratings *handlers.RatingsHandler
+
 	// PluginProxy proxies HTTP requests to plugin-defined routes.
 	PluginProxy *plugins.HTTPProxy
 
@@ -228,6 +231,9 @@ func (s *Server) setupRoutes() {
 
 	// Register trending routes (protected)
 	routes.RegisterTrendingRoutes(protected, h.Trending)
+
+	// Register ratings routes (protected)
+	routes.RegisterRatingsRoutes(protected, h.Ratings)
 
 	// Register dynamic capability alias routes from plugins
 	// Plugins can declare alias_path in their routes (e.g., "/api/chat" for chat capability)

@@ -22,7 +22,6 @@ categories:
 capabilities:
   provides:
     - recommendations
-    - ratings
     - widgets
   requires:
     - embedding  # Uses semantic search for "similar to" recommendations

@@ -281,7 +281,7 @@ export const PluginSettingsForm = forwardRef<PluginSettingsFormHandle, PluginSet
         })
 
         if (result.status !== 200 || !result.data.success) {
-          if (showToast) toast.error('Failed to save settings')
+          if (showToast) {toast.error('Failed to save settings')}
           return false
         }
 
@@ -290,7 +290,7 @@ export const PluginSettingsForm = forwardRef<PluginSettingsFormHandle, PluginSet
           queryKey: getGetApiPluginsIdSettingsQueryKey(pluginId),
         })
 
-        if (showToast) toast.success('Settings saved')
+        if (showToast) {toast.success('Settings saved')}
         setInitialData(data)
         onSaveComplete?.()
         return true
@@ -320,8 +320,8 @@ export const PluginSettingsForm = forwardRef<PluginSettingsFormHandle, PluginSet
   // Auto-save for embedded forms (hideSubmit=true)
   // Debounces saves to avoid excessive API calls while typing
   useEffect(() => {
-    if (!hideSubmit) return // Only auto-save for embedded forms
-    if (JSON.stringify(formData) === JSON.stringify(initialData)) return // No changes
+    if (!hideSubmit) {return} // Only auto-save for embedded forms
+    if (JSON.stringify(formData) === JSON.stringify(initialData)) {return} // No changes
 
     // Clear existing timer
     if (autoSaveTimerRef.current) {

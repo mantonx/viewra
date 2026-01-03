@@ -11,11 +11,18 @@ type Section struct {
 	// Values: "search-hero", "featured-row", "continue-row", "media-row"
 	Type string `json:"type"`
 
+	// Location specifies where the section appears.
+	// Values: "homepage-top", "homepage-sections"
+	Location string `json:"location"`
+
 	// ClientTypes specifies which clients should render this section.
 	// Values: "all", "web", "ios", "android", "roku", "firetv", "smarttv"
 	ClientTypes []string `json:"client_types"`
 
-	// Position is the order in which sections appear.
+	// Priority is the widget's base priority (higher = earlier).
+	Priority int `json:"priority"`
+
+	// Position is the order in which sections appear (after user prefs applied).
 	Position int `json:"position"`
 
 	// Hidden indicates if the user has hidden this section.
@@ -32,7 +39,7 @@ type Section struct {
 	DataURL string `json:"data_url,omitempty"`
 
 	// PluginID is the plugin that provides this section.
-	PluginID string `json:"-"`
+	PluginID string `json:"plugin_id,omitempty"`
 }
 
 // HomeRequest contains parameters for getting the home screen.
@@ -180,6 +187,9 @@ type MediaItem struct {
 
 	// Rating is the user's rating for this item.
 	Rating *string `json:"rating,omitempty"`
+
+	// CreatedAt is when the item was added (for sorting, not serialized).
+	CreatedAt time.Time `json:"-"`
 }
 
 // MediaProgress represents playback progress for a media item.

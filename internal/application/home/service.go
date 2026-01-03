@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	apptrending "github.com/mantonx/viewra/internal/application/trending"
 	"github.com/mantonx/viewra/internal/domain/home"
 	"github.com/mantonx/viewra/internal/infrastructure/plugins/registry"
 	"github.com/mantonx/viewra/pkg/plugin/sdk"
@@ -25,8 +26,43 @@ type ContinueWatchingService interface {
 	// HasHistory returns true if the user has watch history.
 	HasHistory(ctx context.Context, userID string) bool
 
-	// GetContinueWatching returns items the user is currently watching.
-	GetContinueWatching(ctx context.Context, userID string, limit int) ([]*home.MediaItem, error)
+	// GetContinueWatchingFull returns items the user is currently watching with full typed data.
+	GetContinueWatchingFull(ctx context.Context, userID string, limit int) ([]MediaItemWithTime, error)
+}
+
+// RecentlyAddedService provides recently added media data.
+type RecentlyAddedService interface {
+	// GetRecentlyAdded returns recently added media items.
+	GetRecentlyAdded(ctx context.Context, limit int) ([]*home.MediaItem, error)
+
+	// GetRecentlyAddedFull returns recently added media with full typed data.
+	GetRecentlyAddedFull(ctx context.Context, limit int) ([]MediaItemWithTime, error)
+}
+
+// FavoritesService provides user favorites data.
+type FavoritesService interface {
+	// HasFavorites returns true if the user has any favorites.
+	HasFavorites(ctx context.Context, userID string) bool
+
+	// GetFavorites returns the user's favorite media items.
+	GetFavorites(ctx context.Context, userID string, limit int) ([]*home.MediaItem, error)
+
+	// GetFavoritesFull returns favorite media with full typed data.
+	GetFavoritesFull(ctx context.Context, userID string, limit int) ([]MediaItemWithTime, error)
+}
+
+// GenresService provides genre data for search suggestions.
+type GenresService interface {
+	// GetDistinctGenres returns distinct genres from the library.
+	GetDistinctGenres(ctx context.Context, limit int) ([]string, error)
+}
+
+// TrendingService provides trending media data.
+type TrendingService interface {
+	// GetTrending returns trending items matched to the local library.
+	GetTrending(ctx context.Context, mediaType string, limit int) (*apptrending.Result, error)
+	// HasProvider returns true if a trending provider is available.
+	HasProvider() bool
 }
 
 // Service aggregates widgets from all plugins and builds the home response.
@@ -38,6 +74,10 @@ type Service struct {
 	preferencesRepo    home.PreferencesRepository
 	widgetDataFetcher  WidgetDataFetcher
 	continueWatching   ContinueWatchingService
+	recentlyAdded      RecentlyAddedService
+	favorites          FavoritesService
+	genres             GenresService
+	trending           TrendingService
 	logger             *slog.Logger
 }
 
@@ -50,6 +90,10 @@ func NewService(
 	preferencesRepo home.PreferencesRepository,
 	widgetDataFetcher WidgetDataFetcher,
 	continueWatching ContinueWatchingService,
+	recentlyAdded RecentlyAddedService,
+	favorites FavoritesService,
+	genres GenresService,
+	trending TrendingService,
 	logger *slog.Logger,
 ) *Service {
 	return &Service{
@@ -60,6 +104,10 @@ func NewService(
 		preferencesRepo:    preferencesRepo,
 		widgetDataFetcher:  widgetDataFetcher,
 		continueWatching:   continueWatching,
+		recentlyAdded:      recentlyAdded,
+		favorites:          favorites,
+		genres:             genres,
+		trending:           trending,
 		logger:             logger,
 	}
 }
@@ -139,7 +187,9 @@ func (s *Service) GetSection(ctx context.Context, sectionID, userID, clientType 
 	return &home.Section{
 		ID:              widget.Widget.ID,
 		Type:            widget.Widget.Type,
+		Location:        widget.Widget.Location,
 		ClientTypes:     widget.Widget.ClientTypes,
+		Priority:        widget.Widget.Priority,
 		CacheTTLSeconds: widget.Widget.CacheTTLSeconds,
 		Data:            data,
 		PluginID:        widget.PluginID,
@@ -356,7 +406,9 @@ func (s *Service) fetchWidgetData(ctx context.Context, widgets []*registry.Regis
 			sections = append(sections, &home.Section{
 				ID:              widget.Widget.ID,
 				Type:            widget.Widget.Type,
+				Location:        widget.Widget.Location,
 				ClientTypes:     widget.Widget.ClientTypes,
+				Priority:        widget.Widget.Priority,
 				Position:        position,
 				Hidden:          false,
 				CacheTTLSeconds: widget.Widget.CacheTTLSeconds,
@@ -385,7 +437,9 @@ func (s *Service) buildSectionsWithURLs(widgets []*registry.RegisteredWidget) []
 		sections = append(sections, &home.Section{
 			ID:              w.Widget.ID,
 			Type:            w.Widget.Type,
+			Location:        w.Widget.Location,
 			ClientTypes:     w.Widget.ClientTypes,
+			Priority:        w.Widget.Priority,
 			Position:        i,
 			CacheTTLSeconds: w.Widget.CacheTTLSeconds,
 			DataURL:         fmt.Sprintf("/api/home/sections/%s", w.Widget.ID),
@@ -414,30 +468,165 @@ func (s *Service) getWidgetData(ctx context.Context, widget *registry.Registered
 
 // getBuiltinWidgetData handles built-in widget types.
 func (s *Service) getBuiltinWidgetData(ctx context.Context, widget *registry.RegisteredWidget, userID string) (map[string]any, error) {
-	switch widget.Widget.Type {
-	case sdk.WidgetTypeContinueRow:
+	// Route by widget ID for core widgets
+	switch widget.Widget.ID {
+	case "continue-watching":
 		return s.getContinueWatchingData(ctx, userID)
+	case "recently-added":
+		return s.getRecentlyAddedData(ctx)
+	case "favorites":
+		return s.getFavoritesData(ctx, userID)
+	case "trending":
+		return s.getTrendingData(ctx)
+	case "search-hero-fallback":
+		return s.getSearchHeroFallbackData(ctx)
 	default:
+		// Fallback for unknown widgets
 		return map[string]any{
 			"title": widget.Widget.Config["title"],
 		}, nil
 	}
 }
 
-// getContinueWatchingData gets continue watching data.
+// getContinueWatchingData gets continue watching data with full typed objects.
 func (s *Service) getContinueWatchingData(ctx context.Context, userID string) (map[string]any, error) {
 	if s.continueWatching == nil {
-		return map[string]any{"title": "Continue Watching", "items": []any{}}, nil
+		return map[string]any{"title": "Continue Watching", "movies": []any{}, "shows": []any{}}, nil
 	}
 
-	items, err := s.continueWatching.GetContinueWatching(ctx, userID, 20)
+	items, err := s.continueWatching.GetContinueWatchingFull(ctx, userID, 20)
 	if err != nil {
 		return nil, err
 	}
 
+	// Separate into typed arrays for frontend
+	movieItems := make([]any, 0)
+	showItems := make([]any, 0)
+	for _, item := range items {
+		if item.Type == "movie" && item.Movie != nil {
+			movieItems = append(movieItems, item.Movie)
+		} else if item.Type == "tv_show" && item.TVShow != nil {
+			showItems = append(showItems, item.TVShow)
+		}
+	}
+
 	return map[string]any{
-		"title": "Continue Watching",
-		"items": items,
+		"title":  "Continue Watching",
+		"movies": movieItems,
+		"shows":  showItems,
+	}, nil
+}
+
+// getRecentlyAddedData gets recently added media data with full typed objects.
+func (s *Service) getRecentlyAddedData(ctx context.Context) (map[string]any, error) {
+	if s.recentlyAdded == nil {
+		return map[string]any{"title": "Recently Added", "movies": []any{}, "shows": []any{}}, nil
+	}
+
+	items, err := s.recentlyAdded.GetRecentlyAddedFull(ctx, 20)
+	if err != nil {
+		return nil, err
+	}
+
+	// Separate into typed arrays for frontend
+	movieItems := make([]any, 0)
+	showItems := make([]any, 0)
+	for _, item := range items {
+		if item.Type == "movie" && item.Movie != nil {
+			movieItems = append(movieItems, item.Movie)
+		} else if item.Type == "tv_show" && item.TVShow != nil {
+			showItems = append(showItems, item.TVShow)
+		}
+	}
+
+	return map[string]any{
+		"title":  "Recently Added",
+		"movies": movieItems,
+		"shows":  showItems,
+	}, nil
+}
+
+// getFavoritesData gets user favorites data with full typed objects.
+func (s *Service) getFavoritesData(ctx context.Context, userID string) (map[string]any, error) {
+	if s.favorites == nil {
+		return map[string]any{"title": "Your Favorites", "movies": []any{}, "shows": []any{}}, nil
+	}
+
+	items, err := s.favorites.GetFavoritesFull(ctx, userID, 20)
+	if err != nil {
+		return nil, err
+	}
+
+	// Separate into typed arrays for frontend
+	movieItems := make([]any, 0)
+	showItems := make([]any, 0)
+	for _, item := range items {
+		if item.Type == "movie" && item.Movie != nil {
+			movieItems = append(movieItems, item.Movie)
+		} else if item.Type == "tv_show" && item.TVShow != nil {
+			showItems = append(showItems, item.TVShow)
+		}
+	}
+
+	return map[string]any{
+		"title":  "Your Favorites",
+		"movies": movieItems,
+		"shows":  showItems,
+	}, nil
+}
+
+// getTrendingData gets trending media data via the trending service.
+func (s *Service) getTrendingData(ctx context.Context) (map[string]any, error) {
+	if s.trending == nil || !s.trending.HasProvider() {
+		return map[string]any{
+			"title": "Trending",
+			"items": []any{},
+		}, nil
+	}
+
+	result, err := s.trending.GetTrending(ctx, "all", 20)
+	if err != nil {
+		s.logger.Warn("failed to get trending data", "error", err)
+		return map[string]any{
+			"title": "Trending",
+			"items": []any{},
+		}, nil
+	}
+
+	return map[string]any{
+		"title":          "Trending",
+		"items":          result.Items,
+		"source":         result.Source,
+		"window":         result.Window,
+		"total_matched":  result.TotalMatched,
+		"total_trending": result.TotalTrending,
+	}, nil
+}
+
+// getSearchHeroFallbackData gets search hero data with genre suggestions.
+func (s *Service) getSearchHeroFallbackData(ctx context.Context) (map[string]any, error) {
+	suggestions := make([]map[string]any, 0)
+
+	if s.genres != nil {
+		genres, err := s.genres.GetDistinctGenres(ctx, 8)
+		if err == nil {
+			for _, g := range genres {
+				suggestions = append(suggestions, map[string]any{
+					"id":    g,
+					"label": g,
+					"action": map[string]any{
+						"type":   "filter",
+						"filter": map[string]string{"genre": g},
+					},
+				})
+			}
+		}
+	}
+
+	return map[string]any{
+		"placeholder": "Search...",
+		"suggestions": suggestions,
+		"search_url":  "/api/search",
 	}, nil
 }
 
@@ -448,11 +637,16 @@ func (s *Service) buildMeta(ctx context.Context, userID string) *home.HomeMeta {
 		hasWatchHistory = s.continueWatching.HasHistory(ctx, userID)
 	}
 
+	hasRatings := false
+	if s.favorites != nil {
+		hasRatings = s.favorites.HasFavorites(ctx, userID)
+	}
+
 	return &home.HomeMeta{
 		GeneratedAt: time.Now(),
 		UserContext: &home.UserContext{
 			HasWatchHistory: hasWatchHistory,
-			HasRatings:      false, // TODO: implement ratings check
+			HasRatings:      hasRatings,
 			TimeOfDay:       getTimeOfDay(),
 			Season:          getSeason(),
 		},

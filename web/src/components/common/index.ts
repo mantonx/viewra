@@ -18,3 +18,4 @@ export {
   type SettingsPageListProps,
 } from './Page'
 export { ServerStatusOverlay } from './ServerStatusOverlay'
+export { ScrollableRow } from './ScrollableRow'

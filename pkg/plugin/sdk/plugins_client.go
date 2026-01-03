@@ -440,3 +440,129 @@ type Capability struct {
 	Name      string           // Capability name (e.g., "embedding")
 	Providers []PluginProvider // Plugins providing this capability
 }
+
+// --- VectorSearch convenience methods ---
+// These methods use the InvokeVectorSearch RPC which provides typed access to
+// vector search plugins. Unlike the generic Invoke method, these use strongly-typed
+// request/response messages for vector search operations.
+
+// IsVectorSearchAvailable returns true if any plugin provides vector_search capability.
+// Use this to check before calling FindSimilar or SemanticSearch.
+//
+// Example:
+//
+//	if plugins.IsVectorSearchAvailable(ctx) {
+//	    results, err := plugins.FindSimilar(ctx, "movie", 123, 10)
+//	}
+func (c *PluginsClient) IsVectorSearchAvailable(ctx context.Context) bool {
+	return c.IsAvailable(ctx, "vector_search")
+}
+
+// FindSimilar finds items similar to a given entity using vector search.
+// Returns results ordered by similarity (highest first).
+//
+// Example:
+//
+//	results, provider, err := plugins.FindSimilar(ctx, "movie", movieID, 10)
+//	for _, r := range results {
+//	    fmt.Printf("Similar %s %d (score: %.2f)\n", r.EntityType, r.EntityID, r.Similarity)
+//	}
+func (c *PluginsClient) FindSimilar(ctx context.Context, entityType string, entityID int64, limit int, opts ...InvokeOption) ([]SemanticSearchResult, string, error) {
+	options := &invokeOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	resp, err := c.client.InvokeVectorSearch(ctx, &pluginv1.VectorSearchInvokeRequest{
+		Method:          "FindSimilar",
+		PreferredPlugin: options.preferredPlugin,
+		FindSimilar: &pluginv1.FindSimilarRequest{
+			EntityType: entityType,
+			EntityId:   entityID,
+			Limit:      int32(limit),
+		},
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("find similar failed: %w", err)
+	}
+
+	if resp.Error != nil {
+		return nil, "", &CapabilityError{
+			Code:      resp.Error.Code,
+			Message:   resp.Error.Message,
+			Details:   resp.Error.Details,
+			Retryable: resp.Error.Retryable,
+		}
+	}
+
+	if resp.Response == nil {
+		return nil, resp.ProviderPlugin, nil
+	}
+
+	results := make([]SemanticSearchResult, len(resp.Response.Results))
+	for i, r := range resp.Response.Results {
+		results[i] = SemanticSearchResult{
+			EntityType: r.EntityType,
+			EntityID:   r.EntityId,
+			Similarity: r.Similarity,
+			Text:       r.Text,
+		}
+	}
+
+	return results, resp.ProviderPlugin, nil
+}
+
+// SemanticSearch performs semantic search across indexed media.
+// Returns results ordered by relevance (highest first).
+//
+// Example:
+//
+//	results, provider, err := plugins.SemanticSearch(ctx, "action movies with space battles", []string{"movie"}, 10, "user-123")
+//	for _, r := range results {
+//	    fmt.Printf("Found %s %d (score: %.2f)\n", r.EntityType, r.EntityID, r.Similarity)
+//	}
+func (c *PluginsClient) SemanticSearch(ctx context.Context, query string, entityTypes []string, limit int, userID string, opts ...InvokeOption) ([]SemanticSearchResult, string, error) {
+	options := &invokeOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	resp, err := c.client.InvokeVectorSearch(ctx, &pluginv1.VectorSearchInvokeRequest{
+		Method:          "Search",
+		PreferredPlugin: options.preferredPlugin,
+		Search: &pluginv1.SemanticSearchRequest{
+			Query:       query,
+			EntityTypes: entityTypes,
+			Limit:       int32(limit),
+			UserId:      userID,
+		},
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("semantic search failed: %w", err)
+	}
+
+	if resp.Error != nil {
+		return nil, "", &CapabilityError{
+			Code:      resp.Error.Code,
+			Message:   resp.Error.Message,
+			Details:   resp.Error.Details,
+			Retryable: resp.Error.Retryable,
+		}
+	}
+
+	if resp.Response == nil {
+		return nil, resp.ProviderPlugin, nil
+	}
+
+	results := make([]SemanticSearchResult, len(resp.Response.Results))
+	for i, r := range resp.Response.Results {
+		results[i] = SemanticSearchResult{
+			EntityType: r.EntityType,
+			EntityID:   r.EntityId,
+			Similarity: r.Similarity,
+			Text:       r.Text,
+		}
+	}
+
+	return results, resp.ProviderPlugin, nil
+}

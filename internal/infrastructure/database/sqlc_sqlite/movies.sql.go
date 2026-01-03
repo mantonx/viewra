@@ -8,6 +8,7 @@ package sqlc_sqlite
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 const countMoviesByLibrary = `-- name: CountMoviesByLibrary :one
@@ -298,6 +299,43 @@ func (q *Queries) GetMovieByMediaID(ctx context.Context, mediaID int64) (GetMovi
 	return i, err
 }
 
+const listDistinctMovieGenres = `-- name: ListDistinctMovieGenres :many
+SELECT DISTINCT TRIM(j.value) as genre
+FROM movies m
+JOIN media med ON m.media_id = med.id
+CROSS JOIN json_each('["' || REPLACE(m.genre, ', ', '","') || '"]') j
+WHERE med.is_extra = 0
+  AND m.genre IS NOT NULL
+  AND m.genre != ''
+  AND TRIM(j.value) != ''
+ORDER BY genre
+LIMIT ?
+`
+
+// Returns distinct genres from all movies (genres are comma-separated in the genre column)
+func (q *Queries) ListDistinctMovieGenres(ctx context.Context, limit int64) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listDistinctMovieGenres, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var genre string
+		if err := rows.Scan(&genre); err != nil {
+			return nil, err
+		}
+		items = append(items, genre)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMovieIDsByLibraryPaginated = `-- name: ListMovieIDsByLibraryPaginated :many
 SELECT med.id
 FROM movies m
@@ -416,15 +454,19 @@ SELECT
     med.updated_at
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = ?
+WHERE (med.library_id = ?1 OR ?1 = 0)
   AND med.is_extra = 0
-  AND m.genre LIKE ?
+  AND m.genre LIKE '%' || ?2 || '%'
+  AND med.id NOT IN (/*SLICE:exclude_ids*/?)
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE
+LIMIT ?4
 `
 
 type ListMoviesByGenreParams struct {
-	LibraryID int64          `json:"library_id"`
-	Genre     sql.NullString `json:"genre"`
+	LibraryID  int64          `json:"library_id"`
+	Genre      sql.NullString `json:"genre"`
+	ExcludeIds []int64        `json:"exclude_ids"`
+	Limit      int64          `json:"limit"`
 }
 
 type ListMoviesByGenreRow struct {
@@ -488,8 +530,26 @@ type ListMoviesByGenreRow struct {
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
 }
 
+// Lists movies matching a genre pattern with optional library filter and exclusion list.
+// library_id: 0 means all libraries
+// genre: genre pattern to match (will be wrapped in % for LIKE)
+// exclude_ids: array of media IDs to exclude
+// limit: maximum number of results
 func (q *Queries) ListMoviesByGenre(ctx context.Context, arg ListMoviesByGenreParams) ([]ListMoviesByGenreRow, error) {
-	rows, err := q.db.QueryContext(ctx, listMoviesByGenre, arg.LibraryID, arg.Genre)
+	query := listMoviesByGenre
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.LibraryID)
+	queryParams = append(queryParams, arg.Genre)
+	if len(arg.ExcludeIds) > 0 {
+		for _, v := range arg.ExcludeIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:exclude_ids*/?", strings.Repeat(",?", len(arg.ExcludeIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:exclude_ids*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err
 	}
@@ -1269,6 +1329,195 @@ func (q *Queries) ListMoviesByYear(ctx context.Context, arg ListMoviesByYearPara
 	items := []ListMoviesByYearRow{}
 	for rows.Next() {
 		var i ListMoviesByYearRow
+		if err := rows.Scan(
+			&i.MediaID,
+			&i.Year,
+			&i.ReleaseDate,
+			&i.Genre,
+			&i.Director,
+			&i.Cast,
+			&i.ContentRating,
+			&i.MaturityRating,
+			&i.ContentAdvisories,
+			&i.Plot,
+			&i.Tagline,
+			&i.OriginalTitle,
+			&i.SortTitle,
+			&i.ImdbID,
+			&i.TmdbID,
+			&i.RuntimeMinutes,
+			&i.Budget,
+			&i.Revenue,
+			&i.OriginalLanguage,
+			&i.CountryOfOrigin,
+			&i.AwardsSummary,
+			&i.Rating,
+			&i.RatingVotes,
+			&i.MediaID_2,
+			&i.LibraryID,
+			&i.Title,
+			&i.FilePath,
+			&i.FileSize,
+			&i.FileHash,
+			&i.ContainerFormat,
+			&i.Duration,
+			&i.Width,
+			&i.Height,
+			&i.AspectRatio,
+			&i.Codec,
+			&i.AudioCodec,
+			&i.CodecProfile,
+			&i.BitRate,
+			&i.FrameRate,
+			&i.ScanType,
+			&i.HdrFormat,
+			&i.ColorSpace,
+			&i.ColorPrimaries,
+			&i.ThumbnailPath,
+			&i.Type,
+			&i.SourceType,
+			&i.ResolutionLabel,
+			&i.QualityScore,
+			&i.Is3d,
+			&i.StereoMode,
+			&i.HasDash,
+			&i.DashManifestPath,
+			&i.TranscodingStatus,
+			&i.IsExtra,
+			&i.DateAdded,
+			&i.DateModified,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecentlyAddedMovies = `-- name: ListRecentlyAddedMovies :many
+SELECT
+    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary, m.rating, m.rating_votes,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.is_extra = 0
+ORDER BY med.created_at DESC
+LIMIT ?
+`
+
+type ListRecentlyAddedMoviesRow struct {
+	MediaID           int64           `json:"media_id"`
+	Year              sql.NullInt64   `json:"year"`
+	ReleaseDate       sql.NullTime    `json:"release_date"`
+	Genre             sql.NullString  `json:"genre"`
+	Director          sql.NullString  `json:"director"`
+	Cast              sql.NullString  `json:"cast"`
+	ContentRating     sql.NullString  `json:"content_rating"`
+	MaturityRating    sql.NullInt64   `json:"maturity_rating"`
+	ContentAdvisories sql.NullString  `json:"content_advisories"`
+	Plot              sql.NullString  `json:"plot"`
+	Tagline           sql.NullString  `json:"tagline"`
+	OriginalTitle     sql.NullString  `json:"original_title"`
+	SortTitle         sql.NullString  `json:"sort_title"`
+	ImdbID            sql.NullString  `json:"imdb_id"`
+	TmdbID            sql.NullInt64   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
+	Budget            sql.NullInt64   `json:"budget"`
+	Revenue           sql.NullInt64   `json:"revenue"`
+	OriginalLanguage  sql.NullString  `json:"original_language"`
+	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
+	AwardsSummary     sql.NullString  `json:"awards_summary"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	MediaID_2         int64           `json:"media_id_2"`
+	LibraryID         int64           `json:"library_id"`
+	Title             string          `json:"title"`
+	FilePath          string          `json:"file_path"`
+	FileSize          sql.NullInt64   `json:"file_size"`
+	FileHash          sql.NullString  `json:"file_hash"`
+	ContainerFormat   sql.NullString  `json:"container_format"`
+	Duration          sql.NullFloat64 `json:"duration"`
+	Width             sql.NullInt64   `json:"width"`
+	Height            sql.NullInt64   `json:"height"`
+	AspectRatio       sql.NullString  `json:"aspect_ratio"`
+	Codec             sql.NullString  `json:"codec"`
+	AudioCodec        sql.NullString  `json:"audio_codec"`
+	CodecProfile      sql.NullString  `json:"codec_profile"`
+	BitRate           sql.NullInt64   `json:"bit_rate"`
+	FrameRate         sql.NullFloat64 `json:"frame_rate"`
+	ScanType          sql.NullString  `json:"scan_type"`
+	HdrFormat         sql.NullString  `json:"hdr_format"`
+	ColorSpace        sql.NullString  `json:"color_space"`
+	ColorPrimaries    sql.NullString  `json:"color_primaries"`
+	ThumbnailPath     sql.NullString  `json:"thumbnail_path"`
+	Type              string          `json:"type"`
+	SourceType        sql.NullString  `json:"source_type"`
+	ResolutionLabel   sql.NullString  `json:"resolution_label"`
+	QualityScore      sql.NullInt64   `json:"quality_score"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
+	StereoMode        sql.NullString  `json:"stereo_mode"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
+	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
+	TranscodingStatus sql.NullString  `json:"transcoding_status"`
+	IsExtra           int64           `json:"is_extra"`
+	DateAdded         sql.NullTime    `json:"date_added"`
+	DateModified      sql.NullTime    `json:"date_modified"`
+	CreatedAt         sql.NullTime    `json:"created_at"`
+	UpdatedAt         sql.NullTime    `json:"updated_at"`
+}
+
+// Returns recently added movies across all libraries, ordered by creation date
+func (q *Queries) ListRecentlyAddedMovies(ctx context.Context, limit int64) ([]ListRecentlyAddedMoviesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRecentlyAddedMovies, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecentlyAddedMoviesRow{}
+	for rows.Next() {
+		var i ListRecentlyAddedMoviesRow
 		if err := rows.Scan(
 			&i.MediaID,
 			&i.Year,

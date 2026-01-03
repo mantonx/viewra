@@ -614,3 +614,42 @@ FROM tv_shows
 WHERE (title ILIKE $1 OR original_title ILIKE $2)
 ORDER BY COALESCE(NULLIF(sort_title, ''), title)
 LIMIT sqlc.arg('limit')::bigint;
+
+-- name: ListRecentlyAddedTVShows :many
+-- Returns recently added TV shows across all libraries, ordered by newest episode date
+SELECT
+    s.id,
+    s.library_id,
+    s.title,
+    s.original_title,
+    s.sort_title,
+    s.year,
+    s.genre,
+    s.plot,
+    s.content_rating,
+    s.imdb_id,
+    s.tmdb_id,
+    s.created_at,
+    MAX(med.created_at) as latest_episode_added
+FROM tv_shows s
+JOIN tv_episodes e ON s.id = e.show_id
+JOIN media med ON e.media_id = med.id
+WHERE med.is_extra = 0
+GROUP BY s.id
+ORDER BY latest_episode_added DESC
+LIMIT sqlc.arg('limit')::bigint;
+
+-- name: ListTVShowsByGenre :many
+-- Lists TV shows matching a genre pattern with optional library filter and exclusion list.
+-- library_id: 0 means all libraries
+-- genre: genre pattern to match (will be wrapped in % for ILIKE)
+-- exclude_ids: array of show IDs to exclude
+-- limit: maximum number of results
+SELECT
+    s.*
+FROM tv_shows s
+WHERE (s.library_id = sqlc.arg('library_id')::bigint OR sqlc.arg('library_id')::bigint = 0)
+  AND s.genre ILIKE '%' || sqlc.arg('genre') || '%'
+  AND s.id NOT IN (sqlc.slice('exclude_ids'))
+ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title)
+LIMIT sqlc.arg('limit')::bigint;

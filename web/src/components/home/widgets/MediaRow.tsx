@@ -1,38 +1,14 @@
-import { MediaCard } from '@/components/media'
 import { cn } from '@/lib/utils'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
-import type { MediaItem, MediaRowData, TrendingItem, TrendingRowData } from './widget.types'
+import { MediaCard } from '@/components/media'
+import { ScrollableRow } from '@/components/common'
+import type { MediaRowData, TrendingItem, TrendingRowData } from './widget.types'
+import { normalizeMediaType } from './utils'
 
 interface MediaRowProps {
   data: MediaRowData | TrendingRowData
   className?: string
-}
-
-/**
- * Normalize media type from various formats to MediaCard format
- */
-const normalizeMediaType = (type: string): 'movie' | 'tv-show' | 'music-album' | 'music-artist' => {
-  switch (type.toLowerCase()) {
-    case 'movie':
-    case 'movies':
-      return 'movie'
-    case 'tv':
-    case 'tv_show':
-    case 'tv-show':
-    case 'tvshow':
-      return 'tv-show'
-    case 'music_album':
-    case 'music-album':
-    case 'album':
-      return 'music-album'
-    case 'music_artist':
-    case 'music-artist':
-    case 'artist':
-      return 'music-artist'
-    default:
-      return 'movie'
-  }
 }
 
 /**
@@ -45,16 +21,45 @@ const isTrendingData = (data: MediaRowData | TrendingRowData): data is TrendingR
 /**
  * MediaRow - Horizontal scrolling row of media items
  *
- * Used for recommendations, trending, similar items, etc.
- * Supports both local media items and external trending items.
+ * Renders movies and TV shows in a horizontal scrollable row.
+ * Supports trending items from external sources (TMDb).
  */
 export const MediaRow = ({ data, className }: MediaRowProps) => {
-  const items = isTrendingData(data) ? data.items : data.items
-  const seeAllUrl = !isTrendingData(data) ? data.see_all_url : undefined
-  const subtitle = !isTrendingData(data) ? data.subtitle : undefined
+  const navigate = useNavigate()
 
-  if (!items || items.length === 0) {
+  // Determine what data we have
+  const isTrending = isTrendingData(data)
+  const mediaRowData = !isTrending ? (data as MediaRowData) : null
+
+  // Get items based on data type
+  const trendingItems = isTrending ? (data as TrendingRowData).items : []
+  const movies = mediaRowData?.movies ?? []
+  const shows = mediaRowData?.shows ?? []
+
+  const seeAllUrl = mediaRowData?.see_all_url
+  const subtitle = mediaRowData?.subtitle
+
+  // Check if we have any content to show
+  const hasContent = trendingItems.length > 0 || movies.length > 0 || shows.length > 0
+  if (!hasContent) {
     return null
+  }
+
+  const handleMovieClick = (movieId: number) => {
+    navigate({ to: `/movies?id=${movieId}` })
+  }
+
+  const handleShowClick = (showId: number) => {
+    navigate({ to: `/tv/${showId}` })
+  }
+
+  const handleMediaClick = (mediaType: string, mediaId: number) => {
+    const normalizedType = normalizeMediaType(mediaType)
+    if (normalizedType === 'movie') {
+      handleMovieClick(mediaId)
+    } else if (normalizedType === 'tv-show') {
+      handleShowClick(mediaId)
+    }
   }
 
   return (
@@ -85,37 +90,47 @@ export const MediaRow = ({ data, className }: MediaRowProps) => {
         )}
       </div>
 
-      {/* Scrollable row */}
-      <div className="overflow-x-auto -mx-4 px-4 pb-2">
-        <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
-          {items.map((item, index) => {
-            if (isTrendingData(data)) {
-              // Trending item from external source
-              const trendingItem = item as TrendingItem
-              return <TrendingCard key={trendingItem.external_id || index} item={trendingItem} />
-            } else {
-              // Local media item
-              const mediaItem = item as MediaItem
-              return (
-                <div key={mediaItem.entity_id} className="w-48 shrink-0">
-                  <MediaCard
-                    mediaId={mediaItem.entity_id}
-                    mediaType={normalizeMediaType(mediaItem.entity_type)}
-                    imageAlt={mediaItem.title}
-                    infoContent={
-                      mediaItem.reason ? (
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2">
-                          {mediaItem.reason}
-                        </p>
-                      ) : undefined
-                    }
-                  />
-                </div>
-              )
-            }
-          })}
-        </div>
-      </div>
+      {/* Scrollable row with affordances */}
+      <ScrollableRow gap={4}>
+        {/* Trending items */}
+        {isTrending &&
+          trendingItems.map((item, index) => (
+            <TrendingCard
+              key={item.external_id || index}
+              item={item}
+              onClick={handleMediaClick}
+            />
+          ))}
+
+        {/* Movies */}
+        {movies.map((movie) => (
+          <div key={`movie-${movie.id}`} className="w-48 shrink-0">
+            <MediaCard
+              mediaId={movie.id}
+              mediaType="movie"
+              imageAlt={movie.title}
+              title={movie.title}
+              year={movie.year}
+              onClick={() => handleMovieClick(movie.id)}
+            />
+          </div>
+        ))}
+
+        {/* TV Shows */}
+        {shows.map((show) => (
+          <div key={`show-${show.id}`} className="w-48 shrink-0">
+            <MediaCard
+              mediaId={show.id ?? 0}
+              mediaType="tv-show"
+              imageAlt={show.title ?? 'TV Show'}
+              imageFallback="📺"
+              title={show.title ?? 'Unknown Show'}
+              year={show.year}
+              onClick={() => show.id && handleShowClick(show.id)}
+            />
+          </div>
+        ))}
+      </ScrollableRow>
     </section>
   )
 }
@@ -125,17 +140,22 @@ export const MediaRow = ({ data, className }: MediaRowProps) => {
  */
 interface TrendingCardProps {
   item: TrendingItem
+  onClick?: (mediaType: string, mediaId: number) => void
 }
 
-const TrendingCard = ({ item }: TrendingCardProps) => {
+const TrendingCard = ({ item, onClick }: TrendingCardProps) => {
   // If matched to local library, use MediaCard
   if (item.local_matched && item.local_id) {
+    const localId = item.local_id
     return (
       <div className="w-48 shrink-0">
         <MediaCard
-          mediaId={item.local_id}
+          mediaId={localId}
           mediaType={normalizeMediaType(item.media_type)}
           imageAlt={item.title}
+          title={item.title}
+          year={item.year}
+          onClick={() => onClick?.(item.media_type, localId)}
         />
       </div>
     )

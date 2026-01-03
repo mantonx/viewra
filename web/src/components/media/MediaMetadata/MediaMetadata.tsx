@@ -1,5 +1,6 @@
 import { getProgressPercentage, cn } from '@/lib/utils'
 import { text, bg } from '@/styles/semantic'
+import { RatingButtons } from '@/components/media/RatingButtons'
 import type { MediaMetadataProps } from './MediaMetadata.types'
 
 export const MediaMetadata = ({
@@ -14,6 +15,7 @@ export const MediaMetadata = ({
   links,
   seasonCount,
   episodeCount,
+  rating,
 }: MediaMetadataProps) => {
   // Format duration to hours and minutes
   const formatDuration = (seconds?: number) => {
@@ -42,6 +44,17 @@ export const MediaMetadata = ({
           </span>
         )}
       </div>
+
+      {/* Rating buttons */}
+      {rating && (
+        <div className="mb-2" onClick={(e) => e.stopPropagation()}>
+          <RatingButtons
+            entityType={rating.entityType}
+            entityId={rating.entityId}
+            size="sm"
+          />
+        </div>
+      )}
 
       {/* Year and Duration OR Season/Episode counts */}
       <div className={cn('flex items-center gap-2 text-xs mb-2', text.secondary)}>

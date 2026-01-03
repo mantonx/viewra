@@ -439,6 +439,33 @@ func (r *Repository) ensureTVSeasonExists(ctx context.Context, showID int64, epi
 	return media.TVSeason{}, err
 }
 
+// ListRecentlyAddedShows returns recently added TV shows across all libraries.
+func (r *Repository) ListRecentlyAddedShows(ctx context.Context, limit int) ([]media.TVShow, error) {
+	rows, err := r.Q().ListRecentlyAddedTVShows(ctx, int64(limit))
+	if err != nil {
+		return nil, err
+	}
+
+	shows := make([]media.TVShow, len(rows))
+	for i, row := range rows {
+		shows[i] = media.TVShow{
+			ID:            row.ID,
+			LibraryID:     row.LibraryID,
+			Title:         row.Title,
+			OriginalTitle: common.ParseNullString(row.OriginalTitle),
+			SortTitle:     common.ParseNullString(row.SortTitle),
+			Year:          int(common.ParseNullInt64(row.Year)),
+			Genre:         parseGenres(common.ParseNullString(row.Genre)),
+			Plot:          common.ParseNullString(row.Plot),
+			ContentRating: common.ParseNullString(row.ContentRating),
+			IMDbID:        common.ParseNullString(row.ImdbID),
+			TMDbID:        int(common.ParseNullInt64(row.TmdbID)),
+			CreatedAt:     common.ParseNullTime(row.CreatedAt),
+		}
+	}
+	return shows, nil
+}
+
 // mapSlice converts a slice of one type to another using the provided mapper function.
 func mapSlice[TFrom, TTo any](from []TFrom, mapper func(TFrom) TTo) []TTo {
 	result := make([]TTo, len(from))

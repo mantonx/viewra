@@ -230,6 +230,20 @@ func (r *Repository) ListMovieIDsByLibraryPaginated(ctx context.Context, library
 	})
 }
 
+// ListRecentlyAdded returns recently added movies across all libraries
+func (r *Repository) ListRecentlyAdded(ctx context.Context, limit int) ([]*media.Movie, error) {
+	rows, err := r.Q().ListRecentlyAddedMovies(ctx, int64(limit))
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(rows, recentlyAddedRowToDomain), nil
+}
+
+// ListDistinctGenres returns distinct genres across all movies
+func (r *Repository) ListDistinctGenres(ctx context.Context, limit int) ([]string, error) {
+	return r.Q().ListDistinctMovieGenres(ctx, int64(limit))
+}
+
 // mapSlice converts a slice of one type to another using the provided mapper function.
 func mapSlice[TFrom, TTo any](from []TFrom, mapper func(TFrom) TTo) []TTo {
 	result := make([]TTo, len(from))

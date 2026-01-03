@@ -26,6 +26,7 @@ const (
 	HostData_ListMediaByLibrary_FullMethodName   = "/viewra.plugin.v1.HostData/ListMediaByLibrary"
 	HostData_GetLibrary_FullMethodName           = "/viewra.plugin.v1.HostData/GetLibrary"
 	HostData_GetFilePath_FullMethodName          = "/viewra.plugin.v1.HostData/GetFilePath"
+	HostData_ListMediaByGenre_FullMethodName     = "/viewra.plugin.v1.HostData/ListMediaByGenre"
 )
 
 // HostDataClient is the client API for HostData service.
@@ -50,6 +51,9 @@ type HostDataClient interface {
 	GetLibrary(ctx context.Context, in *LibraryId, opts ...grpc.CallOption) (*Library, error)
 	// GetFilePath returns the full file path for a media item.
 	GetFilePath(ctx context.Context, in *MediaId, opts ...grpc.CallOption) (*FilePath, error)
+	// ListMediaByGenre lists media items matching a genre pattern.
+	// Used for genre-based recommendations when semantic search is unavailable.
+	ListMediaByGenre(ctx context.Context, in *ListMediaByGenreRequest, opts ...grpc.CallOption) (*MediaList, error)
 }
 
 type hostDataClient struct {
@@ -130,6 +134,16 @@ func (c *hostDataClient) GetFilePath(ctx context.Context, in *MediaId, opts ...g
 	return out, nil
 }
 
+func (c *hostDataClient) ListMediaByGenre(ctx context.Context, in *ListMediaByGenreRequest, opts ...grpc.CallOption) (*MediaList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MediaList)
+	err := c.cc.Invoke(ctx, HostData_ListMediaByGenre_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HostDataServer is the server API for HostData service.
 // All implementations must embed UnimplementedHostDataServer
 // for forward compatibility.
@@ -152,6 +166,9 @@ type HostDataServer interface {
 	GetLibrary(context.Context, *LibraryId) (*Library, error)
 	// GetFilePath returns the full file path for a media item.
 	GetFilePath(context.Context, *MediaId) (*FilePath, error)
+	// ListMediaByGenre lists media items matching a genre pattern.
+	// Used for genre-based recommendations when semantic search is unavailable.
+	ListMediaByGenre(context.Context, *ListMediaByGenreRequest) (*MediaList, error)
 	mustEmbedUnimplementedHostDataServer()
 }
 
@@ -182,6 +199,9 @@ func (UnimplementedHostDataServer) GetLibrary(context.Context, *LibraryId) (*Lib
 }
 func (UnimplementedHostDataServer) GetFilePath(context.Context, *MediaId) (*FilePath, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetFilePath not implemented")
+}
+func (UnimplementedHostDataServer) ListMediaByGenre(context.Context, *ListMediaByGenreRequest) (*MediaList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListMediaByGenre not implemented")
 }
 func (UnimplementedHostDataServer) mustEmbedUnimplementedHostDataServer() {}
 func (UnimplementedHostDataServer) testEmbeddedByValue()                  {}
@@ -330,6 +350,24 @@ func _HostData_GetFilePath_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HostData_ListMediaByGenre_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMediaByGenreRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostDataServer).ListMediaByGenre(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostData_ListMediaByGenre_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostDataServer).ListMediaByGenre(ctx, req.(*ListMediaByGenreRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // HostData_ServiceDesc is the grpc.ServiceDesc for HostData service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -364,6 +402,10 @@ var HostData_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetFilePath",
 			Handler:    _HostData_GetFilePath_Handler,
+		},
+		{
+			MethodName: "ListMediaByGenre",
+			Handler:    _HostData_ListMediaByGenre_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -1629,6 +1671,240 @@ var HostWeather_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
+	HostRatings_ListRatings_FullMethodName           = "/viewra.plugin.v1.HostRatings/ListRatings"
+	HostRatings_GetRatedEntityIDs_FullMethodName     = "/viewra.plugin.v1.HostRatings/GetRatedEntityIDs"
+	HostRatings_GetPositivelyRatedIDs_FullMethodName = "/viewra.plugin.v1.HostRatings/GetPositivelyRatedIDs"
+	HostRatings_HasRatings_FullMethodName            = "/viewra.plugin.v1.HostRatings/HasRatings"
+)
+
+// HostRatingsClient is the client API for HostRatings service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// HostRatings provides read-only access to user ratings data.
+// Plugins use this to query user preferences (favorites, likes, dislikes)
+// for generating personalized recommendations.
+type HostRatingsClient interface {
+	// ListRatings returns all ratings for a user, optionally filtered by entity type and rating type.
+	ListRatings(ctx context.Context, in *ListRatingsRequest, opts ...grpc.CallOption) (*ListRatingsResponse, error)
+	// GetRatedEntityIDs returns entity IDs with a specific rating type (favorite, up, down).
+	GetRatedEntityIDs(ctx context.Context, in *GetRatedEntityIDsRequest, opts ...grpc.CallOption) (*EntityIDsResponse, error)
+	// GetPositivelyRatedIDs returns entity IDs the user has rated positively (favorite OR up).
+	// This is a convenience method for recommendations that treats both as positive signals.
+	GetPositivelyRatedIDs(ctx context.Context, in *GetPositivelyRatedIDsRequest, opts ...grpc.CallOption) (*EntityIDsResponse, error)
+	// HasRatings returns whether a user has any ratings.
+	HasRatings(ctx context.Context, in *HasRatingsRequest, opts ...grpc.CallOption) (*HasRatingsResponse, error)
+}
+
+type hostRatingsClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewHostRatingsClient(cc grpc.ClientConnInterface) HostRatingsClient {
+	return &hostRatingsClient{cc}
+}
+
+func (c *hostRatingsClient) ListRatings(ctx context.Context, in *ListRatingsRequest, opts ...grpc.CallOption) (*ListRatingsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRatingsResponse)
+	err := c.cc.Invoke(ctx, HostRatings_ListRatings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostRatingsClient) GetRatedEntityIDs(ctx context.Context, in *GetRatedEntityIDsRequest, opts ...grpc.CallOption) (*EntityIDsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EntityIDsResponse)
+	err := c.cc.Invoke(ctx, HostRatings_GetRatedEntityIDs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostRatingsClient) GetPositivelyRatedIDs(ctx context.Context, in *GetPositivelyRatedIDsRequest, opts ...grpc.CallOption) (*EntityIDsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EntityIDsResponse)
+	err := c.cc.Invoke(ctx, HostRatings_GetPositivelyRatedIDs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostRatingsClient) HasRatings(ctx context.Context, in *HasRatingsRequest, opts ...grpc.CallOption) (*HasRatingsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HasRatingsResponse)
+	err := c.cc.Invoke(ctx, HostRatings_HasRatings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// HostRatingsServer is the server API for HostRatings service.
+// All implementations must embed UnimplementedHostRatingsServer
+// for forward compatibility.
+//
+// HostRatings provides read-only access to user ratings data.
+// Plugins use this to query user preferences (favorites, likes, dislikes)
+// for generating personalized recommendations.
+type HostRatingsServer interface {
+	// ListRatings returns all ratings for a user, optionally filtered by entity type and rating type.
+	ListRatings(context.Context, *ListRatingsRequest) (*ListRatingsResponse, error)
+	// GetRatedEntityIDs returns entity IDs with a specific rating type (favorite, up, down).
+	GetRatedEntityIDs(context.Context, *GetRatedEntityIDsRequest) (*EntityIDsResponse, error)
+	// GetPositivelyRatedIDs returns entity IDs the user has rated positively (favorite OR up).
+	// This is a convenience method for recommendations that treats both as positive signals.
+	GetPositivelyRatedIDs(context.Context, *GetPositivelyRatedIDsRequest) (*EntityIDsResponse, error)
+	// HasRatings returns whether a user has any ratings.
+	HasRatings(context.Context, *HasRatingsRequest) (*HasRatingsResponse, error)
+	mustEmbedUnimplementedHostRatingsServer()
+}
+
+// UnimplementedHostRatingsServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedHostRatingsServer struct{}
+
+func (UnimplementedHostRatingsServer) ListRatings(context.Context, *ListRatingsRequest) (*ListRatingsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListRatings not implemented")
+}
+func (UnimplementedHostRatingsServer) GetRatedEntityIDs(context.Context, *GetRatedEntityIDsRequest) (*EntityIDsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRatedEntityIDs not implemented")
+}
+func (UnimplementedHostRatingsServer) GetPositivelyRatedIDs(context.Context, *GetPositivelyRatedIDsRequest) (*EntityIDsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPositivelyRatedIDs not implemented")
+}
+func (UnimplementedHostRatingsServer) HasRatings(context.Context, *HasRatingsRequest) (*HasRatingsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method HasRatings not implemented")
+}
+func (UnimplementedHostRatingsServer) mustEmbedUnimplementedHostRatingsServer() {}
+func (UnimplementedHostRatingsServer) testEmbeddedByValue()                     {}
+
+// UnsafeHostRatingsServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to HostRatingsServer will
+// result in compilation errors.
+type UnsafeHostRatingsServer interface {
+	mustEmbedUnimplementedHostRatingsServer()
+}
+
+func RegisterHostRatingsServer(s grpc.ServiceRegistrar, srv HostRatingsServer) {
+	// If the following call pancis, it indicates UnimplementedHostRatingsServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&HostRatings_ServiceDesc, srv)
+}
+
+func _HostRatings_ListRatings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRatingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostRatingsServer).ListRatings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostRatings_ListRatings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostRatingsServer).ListRatings(ctx, req.(*ListRatingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostRatings_GetRatedEntityIDs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRatedEntityIDsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostRatingsServer).GetRatedEntityIDs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostRatings_GetRatedEntityIDs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostRatingsServer).GetRatedEntityIDs(ctx, req.(*GetRatedEntityIDsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostRatings_GetPositivelyRatedIDs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPositivelyRatedIDsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostRatingsServer).GetPositivelyRatedIDs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostRatings_GetPositivelyRatedIDs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostRatingsServer).GetPositivelyRatedIDs(ctx, req.(*GetPositivelyRatedIDsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostRatings_HasRatings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HasRatingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostRatingsServer).HasRatings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostRatings_HasRatings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostRatingsServer).HasRatings(ctx, req.(*HasRatingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// HostRatings_ServiceDesc is the grpc.ServiceDesc for HostRatings service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var HostRatings_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "viewra.plugin.v1.HostRatings",
+	HandlerType: (*HostRatingsServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListRatings",
+			Handler:    _HostRatings_ListRatings_Handler,
+		},
+		{
+			MethodName: "GetRatedEntityIDs",
+			Handler:    _HostRatings_GetRatedEntityIDs_Handler,
+		},
+		{
+			MethodName: "GetPositivelyRatedIDs",
+			Handler:    _HostRatings_GetPositivelyRatedIDs_Handler,
+		},
+		{
+			MethodName: "HasRatings",
+			Handler:    _HostRatings_HasRatings_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/proto/plugin/host_services.proto",
+}
+
+const (
 	HostPlugins_ListCapabilities_FullMethodName          = "/viewra.plugin.v1.HostPlugins/ListCapabilities"
 	HostPlugins_ListProviders_FullMethodName             = "/viewra.plugin.v1.HostPlugins/ListProviders"
 	HostPlugins_SetCapabilityPreference_FullMethodName   = "/viewra.plugin.v1.HostPlugins/SetCapabilityPreference"
@@ -1637,6 +1913,7 @@ const (
 	HostPlugins_InvokeCapability_FullMethodName          = "/viewra.plugin.v1.HostPlugins/InvokeCapability"
 	HostPlugins_InvokeCapabilityStream_FullMethodName    = "/viewra.plugin.v1.HostPlugins/InvokeCapabilityStream"
 	HostPlugins_DescribeCapability_FullMethodName        = "/viewra.plugin.v1.HostPlugins/DescribeCapability"
+	HostPlugins_InvokeVectorSearch_FullMethodName        = "/viewra.plugin.v1.HostPlugins/InvokeVectorSearch"
 )
 
 // HostPluginsClient is the client API for HostPlugins service.
@@ -1670,6 +1947,10 @@ type HostPluginsClient interface {
 	// DescribeCapability returns metadata about a capability's available methods.
 	// Useful for discovering what methods a capability supports.
 	DescribeCapability(ctx context.Context, in *DescribeCapabilityRequest, opts ...grpc.CallOption) (*DescribeCapabilityResponse, error)
+	// InvokeVectorSearch forwards a vector search request to a plugin providing vector_search capability.
+	// Used for plugin-to-plugin semantic search operations (e.g., recommendations → semantic-search).
+	// Unlike InvokeCapability which uses generic bytes, this uses typed messages for vector search.
+	InvokeVectorSearch(ctx context.Context, in *VectorSearchInvokeRequest, opts ...grpc.CallOption) (*VectorSearchInvokeResponse, error)
 }
 
 type hostPluginsClient struct {
@@ -1769,6 +2050,16 @@ func (c *hostPluginsClient) DescribeCapability(ctx context.Context, in *Describe
 	return out, nil
 }
 
+func (c *hostPluginsClient) InvokeVectorSearch(ctx context.Context, in *VectorSearchInvokeRequest, opts ...grpc.CallOption) (*VectorSearchInvokeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VectorSearchInvokeResponse)
+	err := c.cc.Invoke(ctx, HostPlugins_InvokeVectorSearch_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HostPluginsServer is the server API for HostPlugins service.
 // All implementations must embed UnimplementedHostPluginsServer
 // for forward compatibility.
@@ -1800,6 +2091,10 @@ type HostPluginsServer interface {
 	// DescribeCapability returns metadata about a capability's available methods.
 	// Useful for discovering what methods a capability supports.
 	DescribeCapability(context.Context, *DescribeCapabilityRequest) (*DescribeCapabilityResponse, error)
+	// InvokeVectorSearch forwards a vector search request to a plugin providing vector_search capability.
+	// Used for plugin-to-plugin semantic search operations (e.g., recommendations → semantic-search).
+	// Unlike InvokeCapability which uses generic bytes, this uses typed messages for vector search.
+	InvokeVectorSearch(context.Context, *VectorSearchInvokeRequest) (*VectorSearchInvokeResponse, error)
 	mustEmbedUnimplementedHostPluginsServer()
 }
 
@@ -1833,6 +2128,9 @@ func (UnimplementedHostPluginsServer) InvokeCapabilityStream(*CapabilityInvokeRe
 }
 func (UnimplementedHostPluginsServer) DescribeCapability(context.Context, *DescribeCapabilityRequest) (*DescribeCapabilityResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DescribeCapability not implemented")
+}
+func (UnimplementedHostPluginsServer) InvokeVectorSearch(context.Context, *VectorSearchInvokeRequest) (*VectorSearchInvokeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InvokeVectorSearch not implemented")
 }
 func (UnimplementedHostPluginsServer) mustEmbedUnimplementedHostPluginsServer() {}
 func (UnimplementedHostPluginsServer) testEmbeddedByValue()                     {}
@@ -1992,6 +2290,24 @@ func _HostPlugins_DescribeCapability_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HostPlugins_InvokeVectorSearch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VectorSearchInvokeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostPluginsServer).InvokeVectorSearch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostPlugins_InvokeVectorSearch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostPluginsServer).InvokeVectorSearch(ctx, req.(*VectorSearchInvokeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // HostPlugins_ServiceDesc is the grpc.ServiceDesc for HostPlugins service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2026,6 +2342,10 @@ var HostPlugins_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DescribeCapability",
 			Handler:    _HostPlugins_DescribeCapability_Handler,
+		},
+		{
+			MethodName: "InvokeVectorSearch",
+			Handler:    _HostPlugins_InvokeVectorSearch_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

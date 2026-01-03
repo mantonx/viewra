@@ -691,6 +691,16 @@ type User struct {
 	LocationName      sql.NullString  `json:"location_name"`
 }
 
+type UserRating struct {
+	ID         int64          `json:"id"`
+	UserID     string         `json:"user_id"`
+	EntityType string         `json:"entity_type"`
+	EntityID   int64          `json:"entity_id"`
+	Rating     string         `json:"rating"`
+	CreatedAt  sql.NullString `json:"created_at"`
+	UpdatedAt  sql.NullString `json:"updated_at"`
+}
+
 type UserSetting struct {
 	UserID    string    `json:"user_id"`
 	Key       string    `json:"key"`
@@ -727,4 +737,15 @@ type WatchProgress struct {
 	SelectedQuality       sql.NullString  `json:"selected_quality"`
 	SelectedAudioTrack    sql.NullInt64   `json:"selected_audio_track"`
 	SelectedSubtitleTrack sql.NullInt64   `json:"selected_subtitle_track"`
+}
+
+type WidgetPreference struct {
+	ID        int64         `json:"id"`
+	UserID    string        `json:"user_id"`
+	WidgetID  string        `json:"widget_id"`
+	Location  string        `json:"location"`
+	Position  int64         `json:"position"`
+	Hidden    sql.NullInt64 `json:"hidden"`
+	CreatedAt sql.NullTime  `json:"created_at"`
+	UpdatedAt sql.NullTime  `json:"updated_at"`
 }

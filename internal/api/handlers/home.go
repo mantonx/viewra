@@ -35,7 +35,7 @@ func NewHomeHandler(homeService *appHome.Service) *HomeHandler {
 // @Router /api/home [get]
 func (h *HomeHandler) GetHome(c *gin.Context) {
 	req := &home.HomeRequest{
-		UserID:     getUserID(c),
+		UserID:     getUserIDFromContext(c),
 		ClientType: c.GetHeader("X-Client-Type"),
 		Inline:     c.DefaultQuery("inline", "true") == "true",
 		ImageSize:  c.GetHeader("X-Image-Size"),
@@ -79,7 +79,7 @@ func (h *HomeHandler) GetSection(c *gin.Context) {
 	section, err := h.homeService.GetSection(
 		c.Request.Context(),
 		sectionID,
-		getUserID(c),
+		getUserIDFromContext(c),
 		c.GetHeader("X-Client-Type"),
 	)
 	if err != nil {
@@ -107,7 +107,7 @@ func (h *HomeHandler) GetSection(c *gin.Context) {
 // @Success 200 {array} home.WidgetPreference
 // @Router /api/home/preferences [get]
 func (h *HomeHandler) GetPreferences(c *gin.Context) {
-	prefs, err := h.homeService.GetPreferences(c.Request.Context(), getUserID(c))
+	prefs, err := h.homeService.GetPreferences(c.Request.Context(), getUserIDFromContext(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get preferences"})
 		return
@@ -133,7 +133,7 @@ func (h *HomeHandler) UpdatePreferences(c *gin.Context) {
 		return
 	}
 
-	err := h.homeService.UpdatePreferences(c.Request.Context(), getUserID(c), &req)
+	err := h.homeService.UpdatePreferences(c.Request.Context(), getUserIDFromContext(c), &req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update preferences"})
 		return
@@ -150,25 +150,11 @@ func (h *HomeHandler) UpdatePreferences(c *gin.Context) {
 // @Success 200 {object} gin.H "success"
 // @Router /api/home/preferences [delete]
 func (h *HomeHandler) ResetPreferences(c *gin.Context) {
-	err := h.homeService.ResetPreferences(c.Request.Context(), getUserID(c))
+	err := h.homeService.ResetPreferences(c.Request.Context(), getUserIDFromContext(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reset preferences"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true})
-}
-
-// getUserID extracts the user ID from the context.
-// In a real implementation, this would come from the authentication middleware.
-func getUserID(c *gin.Context) string {
-	// Try to get from context (set by auth middleware)
-	if userID, exists := c.Get("user_id"); exists {
-		if id, ok := userID.(string); ok {
-			return id
-		}
-	}
-
-	// Fallback for anonymous/development
-	return "anonymous"
 }

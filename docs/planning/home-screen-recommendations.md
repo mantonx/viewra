@@ -1,103 +1,90 @@
-# Home Screen, Widget System & Recommendations
+# Home Screen & Widget System
 
 ## Overview
 
-A multi-client home screen system with plugin-based widgets, search providers, trending data, and personalized recommendations. The API is designed to serve web, iOS, Android, Roku, Fire TV, and Smart TV clients from a single endpoint.
+A multi-client home screen with plugin-based widgets, search, and personalized content rows. The core app provides essential functionality (continue watching, recently added, favorites, trending) that works without plugins. Plugins enhance the experience with AI-powered features (semantic search, personalized recommendations).
 
-### Goals
+### Design Principles
 
-1. **API-first design** - Single `/api/home` endpoint serves all clients
-2. **Plugin-based widgets** - Plugins register home screen sections via settings schema
-3. **Search provider system** - Multiple search backends with graceful fallback
-4. **Trending capability** - Reusable interface for popularity data (TMDb, future: Trakt)
-5. **Recommendations plugin** - AI-powered personalized recommendations with user ratings
-6. **User customization** - Reorderable, hideable home sections (per-user)
-7. **Multi-client support** - Web, iOS, Android, Roku, Fire TV, Smart TV
+1. **Core functionality without plugins** - Home screen works out of the box
+2. **Plugins enhance, not enable** - AI features are additive
+3. **API-first design** - Single `/api/home` endpoint serves all clients
+4. **User customization** - Reorderable, hideable rows (per-user)
+5. **Multi-client support** - Web, iOS, Android, Roku, Fire TV, Smart TV
+6. **Tasteful polish** - Clean, fast, not gimmicky
 
 ### Non-Goals
 
 - Real-time push updates (future iteration)
 - Collaborative filtering across users
 - Machine learning model training
+- Flashy animations or gimmicky features
 
 ---
 
-## Part 1: API Design
+## Part 1: Architecture
+
+### Core vs Plugin Responsibilities
+
+| Feature | Core | Plugin |
+|---------|------|--------|
+| Continue Watching | Yes | - |
+| Recently Added | Yes | - |
+| Your Favorites | Yes | - |
+| Trending | Yes (via TrendingProvider) | TMDb, Trakt provide data |
+| User Ratings (up/down/favorite) | Yes | - |
+| Search (basic text) | Yes | - |
+| Search (semantic/AI) | - | semantic-search |
+| For You (personalized) | - | recommendations |
+| Because You Watched X | - | recommendations |
+| Contextual suggestions | - | semantic-search |
+
+### Default Row Order (by priority)
+
+| Priority | Row | Source | Visibility |
+|----------|-----|--------|------------|
+| 100 | Search Hero | semantic-search OR core fallback | Always |
+| 95 | Continue Watching | Core | If user has in-progress items |
+| 90 | For You | recommendations plugin | If plugin installed + user has ratings |
+| 85 | Recently Added | Core | If library has content |
+| 80 | Because You Watched X | recommendations plugin | If plugin installed + user has favorites |
+| 70 | Your Favorites | Core | If user has favorited items |
+| 50 | Trending | Core (via TrendingProvider) | If a trending provider is registered |
+
+Users can reorder rows via preferences. Smart defaults hide empty rows.
+
+---
+
+## Part 2: API Design
 
 ### Primary Endpoint: `GET /api/home`
 
-Single endpoint returns everything a client needs to render the home screen.
+Returns all home screen sections for the authenticated user.
 
 **Query Parameters:**
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
-| `inline` | bool | `true` | Include item data inline vs. return data URLs only |
+| `inline` | bool | `true` | Include section data inline vs. return data URLs only |
 | `sections` | string | `all` | Comma-separated section IDs or `all` |
 
-**Headers (Optional):**
+**Headers:**
 
 | Header | Values | Description |
 |--------|--------|-------------|
 | `X-Client-Type` | `web`, `ios`, `android`, `roku`, `firetv`, `smarttv` | Client hint for filtering widgets |
 | `X-Image-Size` | `small`, `medium`, `large` | Preferred image size |
 
-**Response Structure:**
+**Response:**
 
 ```json
 {
   "sections": [
     {
-      "id": "search-hero",
-      "type": "search-hero",
-      "client_types": ["web", "ios", "android"],
-      "position": 0,
-      "hidden": false,
-      "cache_ttl_seconds": 300,
-      "data": {
-        "placeholder": "What would you like to watch?",
-        "suggestions": [
-          {
-            "id": "s1",
-            "label": "Rainy day picks",
-            "icon": "cloud-rain",
-            "description": "Cozy films for the weather",
-            "style": "accent",
-            "action": {
-              "type": "search",
-              "query": "cozy rainy day movies"
-            }
-          }
-        ],
-        "search_url": "/api/search"
-      },
-      "data_url": "/api/home/sections/search-hero"
-    },
-    {
-      "id": "featured-suggestions",
-      "type": "featured-row",
-      "client_types": ["roku", "firetv", "smarttv"],
-      "position": 0,
-      "hidden": false,
-      "cache_ttl_seconds": 300,
-      "data": {
-        "title": "Suggested for You",
-        "items": [
-          {
-            "entity_type": "movie",
-            "entity_id": 123,
-            "title": "Dune: Part Two",
-            "year": 2024,
-            "poster": "/api/images/movies/123/poster"
-          }
-        ]
-      }
-    },
-    {
       "id": "continue-watching",
       "type": "continue-row",
       "client_types": ["all"],
-      "position": 1,
+      "position": 0,
       "hidden": false,
       "cache_ttl_seconds": 60,
       "data": {
@@ -109,7 +96,6 @@ Single endpoint returns everything a client needs to render the home screen.
             "title": "Dune: Part Two",
             "year": 2024,
             "poster": "/api/images/movies/123/poster",
-            "backdrop": "/api/images/movies/123/backdrop",
             "progress": {
               "percent": 45,
               "position_seconds": 3240,
@@ -117,36 +103,19 @@ Single endpoint returns everything a client needs to render the home screen.
             }
           }
         ]
-      }
+      },
+      "data_url": "/api/home/sections/continue-watching"
     },
     {
-      "id": "rec-for-you",
+      "id": "recently-added",
       "type": "media-row",
       "client_types": ["all"],
-      "position": 2,
-      "hidden": false,
-      "cache_ttl_seconds": 600,
+      "position": 1,
+      "cache_ttl_seconds": 300,
       "data": {
-        "title": "For You",
-        "subtitle": "Based on your watch history",
-        "empty_state": {
-          "title": "Trending",
-          "subtitle": "Rate some content to get personalized recommendations"
-        },
-        "items": [
-          {
-            "entity_type": "movie",
-            "entity_id": 456,
-            "title": "Blade Runner 2049",
-            "year": 2017,
-            "poster": "/api/images/movies/456/poster",
-            "reason": "Similar to Dune",
-            "rating": null
-          }
-        ],
-        "see_all_url": "/api/recommendations/for-you"
-      },
-      "data_url": "/api/home/sections/rec-for-you"
+        "title": "Recently Added",
+        "items": [...]
+      }
     }
   ],
   "preferences": {
@@ -166,48 +135,11 @@ Single endpoint returns everything a client needs to render the home screen.
 }
 ```
 
-**When `inline=false`:**
-
-Sections return metadata only; clients fetch data via `data_url`:
-
-```json
-{
-  "sections": [
-    {
-      "id": "rec-for-you",
-      "type": "media-row",
-      "position": 2,
-      "data_url": "/api/home/sections/rec-for-you"
-    }
-  ]
-}
-```
-
-**HTTP Cache Headers:**
-
-```
-Cache-Control: private, max-age=60
-ETag: "abc123"
-Vary: Authorization, X-Client-Type, X-Image-Size
-```
-
 ### Section Refresh: `GET /api/home/sections/{section_id}`
 
-Returns a single section's data for targeted refresh without re-fetching entire home.
+Returns a single section's data for targeted refresh.
 
-```json
-{
-  "id": "rec-for-you",
-  "type": "media-row",
-  "data": {
-    "title": "For You",
-    "items": [...]
-  },
-  "cache_ttl_seconds": 600
-}
-```
-
-### Preferences: `/api/home/preferences`
+### Preferences Endpoints
 
 ```
 GET    /api/home/preferences         # Get user's widget ordering
@@ -215,556 +147,41 @@ PUT    /api/home/preferences         # Update ordering/visibility
 DELETE /api/home/preferences         # Reset to smart defaults
 ```
 
-**PUT Request Body:**
+### Core Ratings Endpoints
 
+```
+GET    /api/ratings                           # List user's ratings
+POST   /api/ratings                           # Create/update rating
+DELETE /api/ratings/{entity_type}/{entity_id} # Remove rating
+```
+
+**POST /api/ratings body:**
 ```json
 {
-  "sections": [
-    {"id": "continue-watching", "position": 0, "hidden": false},
-    {"id": "rec-for-you", "position": 1, "hidden": false},
-    {"id": "rec-trending", "position": 2, "hidden": true}
-  ]
+  "entity_type": "movie",
+  "entity_id": 123,
+  "rating": "favorite"
 }
 ```
 
-### Supporting Endpoints
+Rating values: `"up"`, `"down"`, `"favorite"`
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/search` | Search (routes to active provider) |
-| `GET` | `/api/search/providers` | List registered search providers |
-| `GET` | `/api/search/suggestions` | Get suggestions from active provider |
-| `GET` | `/api/trending` | Get trending items matched to library |
-| `GET` | `/api/ratings` | List user's ratings |
-| `POST` | `/api/ratings` | Create rating |
-| `PUT` | `/api/ratings/{entityType}/{entityId}` | Update rating |
-| `DELETE` | `/api/ratings/{entityType}/{entityId}` | Remove rating |
+### Core Genres Endpoint
+
+```
+GET /api/genres?media_type=movie    # List distinct genres in user's library
+```
+
+Returns genres for dynamic search chips when semantic-search is unavailable.
 
 ---
 
-## Part 2: Widget System
+## Part 3: Database Schema
 
-### Widget Types
-
-| Type | Description | Clients | Data Shape |
-|------|-------------|---------|------------|
-| `search-hero` | Search input + AI suggestion chips | web, ios, android | `{placeholder, suggestions[], search_url}` |
-| `featured-row` | Featured items (search hero alternative) | roku, firetv, smarttv | `{title, items[]}` |
-| `continue-row` | Continue watching with progress bars | all | `{title, items[] with progress}` |
-| `media-row` | Generic horizontal media row | all | `{title, subtitle?, items[], see_all_url?}` |
-
-### Client Type Filtering
-
-Widgets declare which clients should render them via `client_types`:
-
-- `["all"]` - All clients render this widget
-- `["web", "ios", "android"]` - Only these clients render this widget
-- `["roku", "firetv", "smarttv"]` - Alternative for constrained clients
-
-Clients filter sections by their type. A Roku client ignores `search-hero` and renders `featured-row` instead.
-
-### Widget Registration
-
-Plugins register widgets via `x-viewra-widgets` in their settings schema:
-
-```go
-sdk.NewSchema("Semantic Search").
-    Meta(sdk.PluginMeta{...}).
-    Widgets([]sdk.Widget{
-        {
-            ID:                 "search-hero",
-            Type:               sdk.WidgetTypeSearchHero,
-            Location:           sdk.LocationHomepageTop,
-            ClientTypes:        []string{"web", "ios", "android"},
-            Priority:           100,
-            CacheTTLSeconds:    300,
-            RequiredCapability: "search_provider",
-            SettingsKey:        "show_search_hero",
-        },
-        {
-            ID:                 "featured-suggestions",
-            Type:               sdk.WidgetTypeFeaturedRow,
-            Location:           sdk.LocationHomepageTop,
-            ClientTypes:        []string{"roku", "firetv", "smarttv"},
-            Priority:           100,
-            CacheTTLSeconds:    300,
-            RequiredCapability: "search_provider",
-            SettingsKey:        "show_search_hero",
-        },
-    })
-```
-
-### Widget Data Fetching
-
-The `HomeService` calls each plugin to fetch widget data:
-
-```go
-type WidgetDataProvider interface {
-    GetWidgetData(ctx context.Context, widgetID string, userID string) (map[string]any, error)
-}
-```
-
-Plugins implement this via HTTP routes or direct gRPC calls.
-
----
-
-## Part 3: SDK Interfaces
-
-### SearchProvider
-
-```go
-// pkg/plugin/sdk/search_provider.go
-
-// SearchProvider defines the interface for plugins providing search functionality.
-type SearchProvider interface {
-    mustEmbedBase()
-
-    // Search performs a search with the given request
-    Search(ctx context.Context, req *SearchProviderRequest) (*SearchProviderResponse, error)
-
-    // GetSuggestions returns contextual suggestions for the search hero
-    GetSuggestions(ctx context.Context, req *SuggestionRequest) (*SuggestionResponse, error)
-
-    // GetProviderInfo returns metadata about this search provider
-    GetProviderInfo(ctx context.Context) (*SearchProviderInfo, error)
-}
-
-// SearchProviderRequest contains search parameters
-type SearchProviderRequest struct {
-    Query       string   // Search query text
-    EntityTypes []string // Filter by media types
-    Limit       int      // Max results
-    UserID      string   // For context enrichment
-}
-
-// SearchProviderResponse contains search results
-type SearchProviderResponse struct {
-    Results  []SearchResult
-    Total    int
-    Provider string // Which provider served this result
-}
-
-// SearchResult is a single search result
-type SearchResult struct {
-    EntityType string  // "movie", "tv_show", etc.
-    EntityID   int64   // Database ID
-    Title      string  // Display title
-    Year       int     // Release year
-    Poster     string  // Poster URL
-    Score      float32 // Relevance score 0.0-1.0
-    Reason     string  // Optional: why this matched
-}
-
-// SuggestionRequest for getting search suggestions
-type SuggestionRequest struct {
-    UserID  string // For personalization
-    Context string // "homepage", "search_focus"
-    Limit   int    // Max suggestions
-}
-
-// SuggestionResponse contains rich suggestions
-type SuggestionResponse struct {
-    Suggestions []Suggestion
-}
-
-// Suggestion is a rich search suggestion
-type Suggestion struct {
-    ID          string           // Unique identifier
-    Label       string           // Display text
-    Icon        string           // Icon name
-    Description string           // Optional subtitle
-    Style       string           // "primary", "secondary", "accent"
-    Action      SuggestionAction // What happens on click
-}
-
-// SuggestionAction defines what a suggestion does
-type SuggestionAction struct {
-    Type   string            // "search", "filter", "navigate"
-    Query  string            // For type="search"
-    Filter map[string]string // For type="filter"
-    URL    string            // For type="navigate"
-}
-
-// SearchProviderInfo contains provider metadata
-type SearchProviderInfo struct {
-    ID           string   // Provider identifier
-    Name         string   // Display name
-    Description  string   // What this provider does
-    Icon         string   // Icon name
-    Priority     int      // Higher = preferred
-    Capabilities []string // "natural_language", "suggestions", "context_aware"
-}
-```
-
-### TrendingProvider
-
-```go
-// pkg/plugin/sdk/trending.go
-
-// TrendingProvider provides trending/popular content data.
-type TrendingProvider interface {
-    mustEmbedBase()
-
-    // GetTrending returns currently trending items
-    GetTrending(ctx context.Context, req *TrendingRequest) (*TrendingResponse, error)
-
-    // GetProviderInfo returns metadata about this trending source
-    GetProviderInfo(ctx context.Context) (*TrendingProviderInfo, error)
-}
-
-// TrendingRequest parameters
-type TrendingRequest struct {
-    MediaType string // "movie", "tv", "all"
-    Window    string // "day", "week"
-    Limit     int    // Max results
-    Region    string // ISO 3166-1 country code
-}
-
-// TrendingResponse results
-type TrendingResponse struct {
-    Items    []TrendingItem
-    Window   string // Time window used
-    Source   string // "tmdb", "trakt", etc.
-    CachedAt int64  // Unix timestamp when fetched
-}
-
-// TrendingItem is a single trending item
-type TrendingItem struct {
-    ExternalID   string  // e.g., "tmdb:12345"
-    MediaType    string  // "movie" or "tv"
-    Title        string  // Display title
-    Year         int     // Release year
-    Popularity   float32 // Provider-specific score
-    PosterPath   string  // External poster URL
-    Overview     string  // Description
-    LocalID      *int64  // Matched local library ID (filled by consumer)
-    LocalMatched bool    // Whether matched to local library
-}
-
-// TrendingProviderInfo metadata
-type TrendingProviderInfo struct {
-    ID          string   // "tmdb", "trakt"
-    Name        string   // "TMDb Trending"
-    Description string   // What this provides
-    Windows     []string // Supported time windows
-    MediaTypes  []string // Supported media types
-    UpdateFreq  string   // "hourly", "daily"
-}
-```
-
-### Widget Types
-
-```go
-// pkg/plugin/sdk/widgets.go
-
-// Widget defines a UI section a plugin provides for the home screen.
-type Widget struct {
-    ID                 string         // Unique widget ID
-    Type               string         // Widget type
-    Location           string         // Where to render
-    ClientTypes        []string       // Which clients render this
-    Priority           int            // Order (higher = first)
-    CacheTTLSeconds    int            // Cache duration
-    Config             map[string]any // Widget-specific config
-    RequiredCapability string         // Only show if available
-    SettingsKey        string         // Settings key for enabled state
-}
-
-// Widget locations
-const (
-    LocationHomepageTop      = "homepage-top"
-    LocationHomepageSections = "homepage-sections"
-)
-
-// Widget types
-const (
-    WidgetTypeSearchHero  = "search-hero"
-    WidgetTypeFeaturedRow = "featured-row"
-    WidgetTypeContinueRow = "continue-row"
-    WidgetTypeMediaRow    = "media-row"
-)
-
-// Client types
-const (
-    ClientTypeAll     = "all"
-    ClientTypeWeb     = "web"
-    ClientTypeIOS     = "ios"
-    ClientTypeAndroid = "android"
-    ClientTypeRoku    = "roku"
-    ClientTypeFireTV  = "firetv"
-    ClientTypeSmartTV = "smarttv"
-)
-```
-
----
-
-## Part 4: Core Services
-
-### HomeService
-
-Aggregates widgets from all plugins and builds the home response.
-
-```go
-// internal/application/home/service.go
-
-type HomeService struct {
-    widgetRegistry     *registry.WidgetRegistry
-    preferencesRepo    home.PreferencesRepository
-    searchProviders    *registry.SearchProviderRegistry
-    trendingProviders  *registry.TrendingProviderRegistry
-    continueWatching   *progress.ContinueWatchingService
-    pluginProxy        *proxy.HTTPProxy
-    events             events.Publisher
-    logger             *slog.Logger
-}
-
-type HomeRequest struct {
-    UserID     string
-    ClientType string
-    Inline     bool
-    Sections   []string // Specific sections or empty for all
-    ImageSize  string
-}
-
-type HomeResponse struct {
-    Sections    []*Section           `json:"sections"`
-    Preferences *PreferencesInfo     `json:"preferences"`
-    Meta        *HomeMeta            `json:"meta"`
-}
-
-func (s *HomeService) GetHome(ctx context.Context, req *HomeRequest) (*HomeResponse, error) {
-    // 1. Get all registered widgets
-    widgets := s.widgetRegistry.GetAll()
-
-    // 2. Filter by client type
-    if req.ClientType != "" {
-        widgets = filterByClientType(widgets, req.ClientType)
-    }
-
-    // 3. Get user preferences
-    prefs, _ := s.preferencesRepo.Get(ctx, req.UserID)
-
-    // 4. Apply preferences (ordering, visibility)
-    widgets = applyPreferences(widgets, prefs)
-
-    // 5. If no preferences, apply smart defaults
-    if prefs == nil {
-        widgets = s.applySmartDefaults(ctx, req.UserID, widgets)
-    }
-
-    // 6. Fetch data for each widget (parallel)
-    sections := s.fetchWidgetData(ctx, widgets, req)
-
-    // 7. Build response
-    return &HomeResponse{
-        Sections:    sections,
-        Preferences: &PreferencesInfo{CanReorder: true, CanHide: true},
-        Meta:        s.buildMeta(ctx, req.UserID),
-    }, nil
-}
-
-func (s *HomeService) fetchWidgetData(ctx context.Context, widgets []*Widget, req *HomeRequest) []*Section {
-    sections := make([]*Section, 0, len(widgets))
-    var mu sync.Mutex
-    var wg sync.WaitGroup
-
-    for _, w := range widgets {
-        wg.Add(1)
-        go func(widget *Widget) {
-            defer wg.Done()
-
-            data, err := s.getWidgetData(ctx, widget, req)
-            if err != nil {
-                // Log error for admin visibility
-                s.logger.Error("widget data fetch failed",
-                    "widget_id", widget.ID,
-                    "plugin_id", widget.PluginID,
-                    "error", err,
-                )
-                // Emit event for monitoring
-                s.events.Emit(events.WidgetError{
-                    WidgetID:  widget.ID,
-                    PluginID:  widget.PluginID,
-                    Error:     err.Error(),
-                    Timestamp: time.Now(),
-                })
-                // Skip this widget silently
-                return
-            }
-
-            mu.Lock()
-            sections = append(sections, &Section{
-                ID:              widget.ID,
-                Type:            widget.Type,
-                ClientTypes:     widget.ClientTypes,
-                Position:        widget.Position,
-                Hidden:          widget.Hidden,
-                CacheTTLSeconds: widget.CacheTTLSeconds,
-                Data:            data,
-                DataURL:         fmt.Sprintf("/api/home/sections/%s", widget.ID),
-            })
-            mu.Unlock()
-        }(w)
-    }
-
-    wg.Wait()
-
-    // Sort by position
-    sort.Slice(sections, func(i, j int) bool {
-        return sections[i].Position < sections[j].Position
-    })
-
-    return sections
-}
-```
-
-### Smart Default Ordering
-
-New users without preferences get intelligent ordering based on available data:
-
-```go
-func (s *HomeService) applySmartDefaults(ctx context.Context, userID string, widgets []*Widget) []*Widget {
-    hasWatchHistory := s.continueWatching.HasHistory(ctx, userID)
-    hasRatings := s.ratingsRepo.HasRatings(ctx, userID)
-    hasWeather := s.weatherService.IsAvailable(ctx, userID)
-
-    for _, w := range widgets {
-        switch w.ID {
-        case "continue-watching":
-            if hasWatchHistory {
-                w.Priority += 50 // Boost to top
-            } else {
-                w.Hidden = true // Hide if empty
-            }
-
-        case "rec-for-you":
-            if hasRatings || hasWatchHistory {
-                w.Priority += 20 // Boost if we have personalization data
-            }
-
-        case "rec-contextual":
-            if hasWeather {
-                w.Priority += 10
-            } else {
-                w.Hidden = true // Hide if no weather data
-            }
-
-        case "rec-trending":
-            if !hasRatings && !hasWatchHistory {
-                w.Priority += 30 // Boost for new users
-            }
-        }
-    }
-
-    // Sort by adjusted priority
-    sort.Slice(widgets, func(i, j int) bool {
-        return widgets[i].Priority > widgets[j].Priority
-    })
-
-    // Assign positions
-    position := 0
-    for _, w := range widgets {
-        if !w.Hidden {
-            w.Position = position
-            position++
-        }
-    }
-
-    return widgets
-}
-```
-
-### TrendingService
-
-Aggregates trending data and matches against local library:
-
-```go
-// internal/application/trending/service.go
-
-type TrendingService struct {
-    providerRegistry *registry.TrendingRegistry
-    mediaRepo        media.Repository
-    cache            cache.Cache
-    logger           *slog.Logger
-}
-
-func (s *TrendingService) GetTrending(ctx context.Context, mediaType string, limit int) (*TrendingResult, error) {
-    // 1. Get trending from best available provider
-    provider := s.providerRegistry.GetDefault()
-    if provider == nil {
-        return nil, ErrNoTrendingProvider
-    }
-
-    // 2. Check cache
-    cacheKey := fmt.Sprintf("trending:%s:%s", provider.ID, mediaType)
-    if cached, ok := s.cache.Get(cacheKey); ok {
-        return s.matchToLibrary(ctx, cached.(*TrendingResponse), limit)
-    }
-
-    // 3. Fetch from provider
-    trending, err := provider.GetTrending(ctx, &sdk.TrendingRequest{
-        MediaType: mediaType,
-        Window:    "week",
-        Limit:     limit * 3, // Get extra to account for non-matches
-    })
-    if err != nil {
-        return nil, fmt.Errorf("fetch trending: %w", err)
-    }
-
-    // 4. Cache for 1 hour
-    s.cache.Set(cacheKey, trending, time.Hour)
-
-    // 5. Match against local library
-    return s.matchToLibrary(ctx, trending, limit)
-}
-
-func (s *TrendingService) matchToLibrary(ctx context.Context, trending *sdk.TrendingResponse, limit int) (*TrendingResult, error) {
-    matched := make([]TrendingItem, 0)
-
-    for _, item := range trending.Items {
-        // Parse external ID (e.g., "tmdb:12345")
-        parts := strings.SplitN(item.ExternalID, ":", 2)
-        if len(parts) != 2 {
-            continue
-        }
-        source, externalID := parts[0], parts[1]
-
-        // Look up in local library
-        localMedia, err := s.mediaRepo.FindByExternalID(ctx, source, externalID, item.MediaType)
-        if err != nil || localMedia == nil {
-            continue // Not in library
-        }
-
-        matched = append(matched, TrendingItem{
-            TrendingItem: item,
-            LocalID:      &localMedia.ID,
-            LocalMatched: true,
-        })
-
-        if len(matched) >= limit {
-            break
-        }
-    }
-
-    return &TrendingResult{
-        Items:        matched,
-        Source:       trending.Source,
-        Window:       trending.Window,
-        TotalMatched: len(matched),
-    }, nil
-}
-```
-
----
-
-## Part 5: Database Schema
-
-### Core: Widget Preferences
+### Core: Widget Preferences (EXISTS)
 
 ```sql
--- migrations/postgres/000XXX_widget_preferences.up.sql
--- migrations/000XXX_widget_preferences.up.sql (SQLite)
-
+-- migrations/000002_widget_preferences.up.sql
 CREATE TABLE widget_preferences (
     id INTEGER PRIMARY KEY,
     user_id TEXT NOT NULL,
@@ -776,153 +193,337 @@ CREATE TABLE widget_preferences (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, widget_id)
 );
-
-CREATE INDEX idx_widget_prefs_user_location ON widget_preferences(user_id, location);
 ```
 
-### Recommendations Plugin: User Ratings
+### Core: User Ratings (NEW)
 
 ```sql
--- Plugin migration (auto-prefixed with plugin_recommendations_)
-
-CREATE TABLE ratings (
+-- migrations/000003_user_ratings.up.sql
+CREATE TABLE user_ratings (
     id INTEGER PRIMARY KEY,
     user_id TEXT NOT NULL,
     entity_type TEXT NOT NULL,
     entity_id INTEGER NOT NULL,
     rating TEXT NOT NULL CHECK(rating IN ('up', 'down', 'favorite')),
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, entity_type, entity_id)
 );
 
-CREATE INDEX idx_ratings_user ON ratings(user_id);
-CREATE INDEX idx_ratings_entity ON ratings(entity_type, entity_id);
-CREATE INDEX idx_ratings_user_rating ON ratings(user_id, rating);
+CREATE INDEX idx_user_ratings_user ON user_ratings(user_id);
+CREATE INDEX idx_user_ratings_entity ON user_ratings(entity_type, entity_id);
+CREATE INDEX idx_user_ratings_user_rating ON user_ratings(user_id, rating);
+```
+
+### Core: Recently Added Queries (NEW)
+
+```sql
+-- sqlite/movies.sql
+-- name: ListRecentlyAddedMovies :many
+SELECT m.*, med.*
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.is_extra = 0
+ORDER BY med.created_at DESC
+LIMIT ?;
+
+-- name: ListRecentlyAddedTVEpisodes :many
+SELECT e.*, med.*
+FROM tv_episodes e
+JOIN media med ON e.media_id = med.id
+WHERE med.is_extra = 0
+ORDER BY med.created_at DESC
+LIMIT ?;
 ```
 
 ---
 
-## Part 6: Recommendations Plugin
+## Part 4: Backend Implementation
 
-### Plugin Structure
+### File Structure
 
 ```
-plugins/recommendations/
-├── internal/
-│   ├── plugin.go           # Main plugin, implements HTTP handlers
-│   ├── schema.go           # Settings schema with widgets
-│   ├── types.go            # Domain types
-│   ├── ratings.go          # User ratings CRUD
-│   ├── recommendations.go  # Recommendation engine
-│   ├── popularity.go       # Popularity service (uses trending)
-│   └── strategies/
-│       ├── interface.go    # Strategy interface
-│       ├── for_you.go      # Personalized recommendations
-│       ├── similar.go      # "Because you watched X"
-│       ├── contextual.go   # Weather/time-based
-│       ├── trending.go     # Uses trending capability
-│       └── baseline.go     # Recent, top-rated fallbacks
-├── config.yml
-├── go.mod
-├── main.go
-└── plugin.yml
+internal/
+├── domain/
+│   └── ratings/
+│       ├── entity.go           # UserRating entity
+│       └── repository.go       # Repository interface
+├── application/
+│   ├── home/
+│   │   ├── service.go          # HomeService (EXISTS, modify)
+│   │   ├── continue_watching.go # ContinueWatchingService (NEW)
+│   │   └── core_widgets.go     # Core widget definitions (NEW)
+│   └── ratings/
+│       ├── service.go          # RatingsService (NEW)
+│       └── dto.go              # DTOs (NEW)
+├── infrastructure/
+│   ├── persistence/
+│   │   └── ratings/
+│   │       └── repository.go   # SQL implementation (NEW)
+│   └── plugins/
+│       └── registry/
+│           └── widget.go       # Add RegisterCoreWidgets() (MODIFY)
+└── api/
+    ├── handlers/
+    │   ├── home.go             # (EXISTS)
+    │   └── ratings.go          # Ratings handler (NEW)
+    └── routes/
+        └── ratings.go          # Ratings routes (NEW)
 ```
 
-### Plugin Manifest
-
-```yaml
-# plugins/recommendations/plugin.yml
-id: recommendations
-name: Recommendations
-version: 1.0.0
-description: AI-powered personalized recommendations with user ratings
-
-provides:
-  - recommendations
-
-requires: []
-
-optional:
-  - semantic_search  # For AI-powered recommendations
-  - trending         # For trending-based recommendations
-
-permissions:
-  - storage:sql      # For user ratings
-  - data:read        # For media access
-  - weather:read     # For contextual recommendations
-```
-
-### Settings Schema
+### Core Widget Registration
 
 ```go
+// internal/application/home/core_widgets.go
+
+package home
+
+import "github.com/mantonx/viewra/pkg/plugin/sdk"
+
+// CoreWidgets returns the built-in widgets provided by the core application.
+func CoreWidgets() []sdk.Widget {
+    return []sdk.Widget{
+        {
+            ID:              "continue-watching",
+            Type:            sdk.WidgetTypeContinueRow,
+            Location:        sdk.LocationHomepageSections,
+            ClientTypes:     []string{sdk.ClientTypeAll},
+            Priority:        95,
+            CacheTTLSeconds: 60,
+            Config: map[string]any{
+                "title": "Continue Watching",
+            },
+        },
+        {
+            ID:              "recently-added",
+            Type:            sdk.WidgetTypeMediaRow,
+            Location:        sdk.LocationHomepageSections,
+            ClientTypes:     []string{sdk.ClientTypeAll},
+            Priority:        85,
+            CacheTTLSeconds: 300,
+            Config: map[string]any{
+                "title": "Recently Added",
+            },
+        },
+        {
+            ID:              "favorites",
+            Type:            sdk.WidgetTypeMediaRow,
+            Location:        sdk.LocationHomepageSections,
+            ClientTypes:     []string{sdk.ClientTypeAll},
+            Priority:        70,
+            CacheTTLSeconds: 120,
+            Config: map[string]any{
+                "title": "Your Favorites",
+            },
+        },
+        {
+            ID:                 "trending",
+            Type:               sdk.WidgetTypeMediaRow,
+            Location:           sdk.LocationHomepageSections,
+            ClientTypes:        []string{sdk.ClientTypeAll},
+            Priority:           50,
+            CacheTTLSeconds:    3600,
+            RequiredCapability: "trending",
+            Config: map[string]any{
+                "title": "Trending",
+            },
+        },
+        {
+            ID:              "search-hero-fallback",
+            Type:            sdk.WidgetTypeSearchHero,
+            Location:        sdk.LocationHomepageTop,
+            ClientTypes:     []string{sdk.ClientTypeWeb, sdk.ClientTypeIOS, sdk.ClientTypeAndroid},
+            Priority:        50, // Lower than semantic-search's 100
+            CacheTTLSeconds: 3600,
+            Config: map[string]any{
+                "placeholder":       "Search...",
+                "show_suggestions":  true,
+                "suggestions_type":  "genres", // Dynamic genre chips
+            },
+        },
+    }
+}
+```
+
+### ContinueWatchingService
+
+```go
+// internal/application/home/continue_watching.go
+
+package home
+
+import (
+    "context"
+    "github.com/mantonx/viewra/internal/domain/home"
+    "github.com/mantonx/viewra/internal/domain/progress"
+    "github.com/mantonx/viewra/internal/domain/media"
+)
+
+type ContinueWatchingServiceImpl struct {
+    progressRepo progress.Repository
+    mediaRepo    media.Repository
+    movieRepo    media.MovieRepository
+    tvRepo       media.TVRepository
+}
+
+func (s *ContinueWatchingServiceImpl) HasHistory(ctx context.Context, userID string) bool {
+    // Check if user has any in-progress items
+    items, err := s.progressRepo.ListInProgressByUserID(ctx, parseUserID(userID), 1, 0)
+    return err == nil && len(items) > 0
+}
+
+func (s *ContinueWatchingServiceImpl) GetContinueWatching(ctx context.Context, userID string, limit int) ([]*home.MediaItem, error) {
+    // 1. Get in-progress items from progress repo
+    progressItems, err := s.progressRepo.ListInProgressByUserID(ctx, parseUserID(userID), limit, 0)
+    if err != nil {
+        return nil, err
+    }
+    
+    // 2. Enrich with media details
+    items := make([]*home.MediaItem, 0, len(progressItems))
+    for _, p := range progressItems {
+        mediaInfo, err := s.mediaRepo.GetByID(ctx, p.MediaID)
+        if err != nil {
+            continue
+        }
+        
+        item := &home.MediaItem{
+            EntityType: mediaInfo.Type,
+            EntityID:   p.MediaID,
+            Title:      mediaInfo.Title,
+            Year:       mediaInfo.Year,
+            Poster:     fmt.Sprintf("/api/images/%s/%d/poster", mediaInfo.Type, p.MediaID),
+            Progress: &home.MediaProgress{
+                Percent:         int(float64(p.Position) / float64(p.Duration) * 100),
+                PositionSeconds: int(p.Position),
+                DurationSeconds: int(p.Duration),
+            },
+        }
+        items = append(items, item)
+    }
+    
+    return items, nil
+}
+```
+
+### HomeService Updates
+
+The existing HomeService needs these changes:
+
+1. **Register core widgets at startup** - Call `RegisterCoreWidgets()` during initialization
+2. **Handle core widget data** - Extend `getBuiltinWidgetData()` to handle all core widgets
+3. **Wire ContinueWatchingService** - Currently passed as nil
+
+```go
+// internal/application/home/service.go - getBuiltinWidgetData updates
+
+func (s *Service) getBuiltinWidgetData(ctx context.Context, widget *registry.RegisteredWidget, userID string) (map[string]any, error) {
+    switch widget.Widget.ID {
+    case "continue-watching":
+        return s.getContinueWatchingData(ctx, userID)
+    case "recently-added":
+        return s.getRecentlyAddedData(ctx, userID)
+    case "favorites":
+        return s.getFavoritesData(ctx, userID)
+    case "trending":
+        return s.getTrendingData(ctx)
+    case "search-hero-fallback":
+        return s.getSearchHeroFallbackData(ctx)
+    default:
+        return map[string]any{"title": widget.Widget.Config["title"]}, nil
+    }
+}
+
+func (s *Service) getRecentlyAddedData(ctx context.Context, userID string) (map[string]any, error) {
+    // Fetch recently added movies and TV episodes, merge, sort by date
+    // Return as MediaItem slice
+}
+
+func (s *Service) getFavoritesData(ctx context.Context, userID string) (map[string]any, error) {
+    // Query user_ratings where rating = 'favorite'
+    // Enrich with media details
+}
+
+func (s *Service) getTrendingData(ctx context.Context) (map[string]any, error) {
+    // Use TrendingService to get trending matched to local library
+    if s.trendingService == nil || !s.trendingService.HasProvider() {
+        return nil, fmt.Errorf("no trending provider")
+    }
+    result, err := s.trendingService.GetTrending(ctx, "all", 20)
+    // Convert to MediaItem format
+}
+
+func (s *Service) getSearchHeroFallbackData(ctx context.Context) (map[string]any, error) {
+    // Get distinct genres from library
+    genres, err := s.genreService.GetDistinctGenres(ctx, "all", 8)
+    // Convert to suggestion chips
+    suggestions := make([]sdk.Suggestion, 0, len(genres))
+    for _, g := range genres {
+        suggestions = append(suggestions, sdk.Suggestion{
+            ID:     strings.ToLower(g),
+            Label:  g,
+            Action: sdk.SuggestionAction{Type: "filter", Filter: map[string]string{"genre": g}},
+        })
+    }
+    return map[string]any{
+        "placeholder":  "Search...",
+        "suggestions":  suggestions,
+        "search_url":   "/api/search",
+    }, nil
+}
+```
+
+---
+
+## Part 5: Recommendations Plugin Updates
+
+### Remove from Plugin
+
+1. **Remove `favorites` widget** - Now in core
+2. **Remove ratings table creation** - Now in core migrations
+3. **Update to use core ratings table** - Read from `user_ratings` instead of creating own table
+
+### Keep in Plugin (AI-powered only)
+
+```go
+// plugins/recommendations/internal/schema.go
+
 func SettingsSchema() *sdk.Schema {
     return sdk.NewSchema("Recommendations Settings").
         Meta(sdk.PluginMeta{
             DisplayName: "Recommendations",
-            Description: "Personalized content recommendations",
+            Description: "AI-powered personalized recommendations",
             Icon:        "sparkles",
         }).
         Property("enabled", sdk.Boolean().
             Title("Enable Recommendations").
             Default(true)).
-        Property("show_reasons", sdk.Boolean().
-            Title("Show Recommendation Reasons").
-            Description("Display short phrases explaining recommendations").
-            Default(true)).
-        Property("contextual_enabled", sdk.Boolean().
-            Title("Contextual Recommendations").
-            Description("Adjust based on time, weather, and season").
-            Default(true).
-            DependsOn("enabled")).
         Widgets([]sdk.Widget{
             {
-                ID:              "rec-for-you",
-                Type:            sdk.WidgetTypeMediaRow,
-                Location:        sdk.LocationHomepageSections,
-                ClientTypes:     []string{sdk.ClientTypeAll},
-                Priority:        90,
-                CacheTTLSeconds: 600,
+                ID:                 "rec-for-you",
+                Type:               sdk.WidgetTypeMediaRow,
+                Location:           sdk.LocationHomepageSections,
+                ClientTypes:        []string{sdk.ClientTypeAll},
+                Priority:           90,
+                CacheTTLSeconds:    300,
+                RequiredCapability: "embedding", // Requires semantic-search
                 Config: map[string]any{
-                    "endpoint": "/for-you",
+                    "endpoint": "/recommendations/for-you",
                     "title":    "For You",
                 },
                 SettingsKey: "enabled",
             },
             {
-                ID:              "rec-similar",
-                Type:            sdk.WidgetTypeMediaRow,
-                Location:        sdk.LocationHomepageSections,
-                ClientTypes:     []string{sdk.ClientTypeAll},
-                Priority:        80,
-                CacheTTLSeconds: 600,
+                ID:                 "rec-because-you-liked",
+                Type:               sdk.WidgetTypeMediaRow,
+                Location:           sdk.LocationHomepageSections,
+                ClientTypes:        []string{sdk.ClientTypeAll},
+                Priority:           80,
+                CacheTTLSeconds:    600,
+                RequiredCapability: "embedding",
                 Config: map[string]any{
-                    "endpoint": "/similar",
-                    "title":    "Because You Watched",
-                },
-                SettingsKey: "enabled",
-            },
-            {
-                ID:              "rec-contextual",
-                Type:            sdk.WidgetTypeMediaRow,
-                Location:        sdk.LocationHomepageSections,
-                ClientTypes:     []string{sdk.ClientTypeAll},
-                Priority:        70,
-                CacheTTLSeconds: 300,
-                Config: map[string]any{
-                    "endpoint": "/contextual",
-                },
-                SettingsKey: "contextual_enabled",
-            },
-            {
-                ID:              "rec-trending",
-                Type:            sdk.WidgetTypeMediaRow,
-                Location:        sdk.LocationHomepageSections,
-                ClientTypes:     []string{sdk.ClientTypeAll},
-                Priority:        60,
-                CacheTTLSeconds: 3600,
-                Config: map[string]any{
-                    "endpoint": "/trending",
-                    "title":    "Trending",
+                    "endpoint": "/recommendations/because-you-liked",
+                    "title":    "Because You Liked",
                 },
                 SettingsKey: "enabled",
             },
@@ -930,544 +531,223 @@ func SettingsSchema() *sdk.Schema {
 }
 ```
 
-### Recommendation Strategies
+### Plugin Accesses Core Ratings
 
 ```go
-// plugins/recommendations/internal/strategies/interface.go
+// plugins/recommendations/internal/plugin.go
 
-// Strategy generates recommendations for a user.
-type Strategy interface {
-    // Name returns the strategy identifier
-    Name() string
-
-    // Generate produces recommendations
-    Generate(ctx context.Context, req *StrategyRequest) (*StrategyResponse, error)
-
-    // IsAvailable returns whether this strategy can run
-    IsAvailable(ctx context.Context) bool
-
-    // Priority for ordering (higher = run first)
-    Priority() int
-}
-
-type StrategyRequest struct {
-    UserID  string
-    Limit   int
-    Context *RecommendationContext
-}
-
-type RecommendationContext struct {
-    TimeOfDay string // "morning", "afternoon", "evening", "night"
-    DayOfWeek string // "monday", "tuesday", ...
-    Season    string // "spring", "summer", "fall", "winter"
-    Weather   *WeatherContext
-    Holidays  []string
-}
-
-type WeatherContext struct {
-    Condition   string  // "sunny", "cloudy", "rainy", "snowy"
-    Temperature float32 // Celsius
-}
-
-type StrategyResponse struct {
-    Recommendations []Recommendation
-    RowTitle        string // Can be dynamic based on context
-    RowSubtitle     string
-}
-```
-
-### Strategy Implementations
-
-| Strategy | Description | Dependencies | Fallback |
-|----------|-------------|--------------|----------|
-| `ForYouStrategy` | Personalized blend | Ratings + semantic-search | → TrendingStrategy |
-| `SimilarStrategy` | "Because you watched X" | Watch history + semantic-search | → Skip |
-| `ContextualStrategy` | Weather/time-appropriate | Weather service | → Skip |
-| `TrendingStrategy` | Popular items | Trending provider | → RecentStrategy |
-| `RecentStrategy` | Recently added | None | Always available |
-| `TopRatedStrategy` | Highest community rated | Ratings data | → RecentStrategy |
-
-### Graceful Degradation
-
-```go
-func (e *RecommendationEngine) GetForYou(ctx context.Context, userID string, limit int) (*RecommendationRow, error) {
-    // Try AI-powered first
-    if e.isSemanticSearchAvailable(ctx) && e.hasUserData(ctx, userID) {
-        return e.strategies.ForYou.Generate(ctx, userID, limit)
+func (p *RecommendationsPlugin) Initialize(ctx context.Context, dataDir string, config []byte, services *sdk.HostServices) error {
+    // Don't create ratings table - use core's user_ratings table
+    // Access via host data service or direct SQL queries
+    
+    if services.Storage != nil {
+        p.sql = services.Storage.SQL()
+        // Query core user_ratings table for recommendations
     }
-
-    // Fall back to ratings-based
-    if e.hasUserRatings(ctx, userID) {
-        return e.strategies.RatingsBased.Generate(ctx, userID, limit)
-    }
-
-    // Fall back to trending
-    if e.isTrendingAvailable(ctx) {
-        row, err := e.strategies.Trending.Generate(ctx, userID, limit)
-        if err == nil {
-            row.Title = "Trending"
-            row.Subtitle = "Rate some content to get personalized recommendations"
-            return row, nil
-        }
-    }
-
-    // Ultimate fallback: recently added
-    return e.strategies.Recent.Generate(ctx, userID, limit)
 }
 ```
 
 ---
 
-## Part 7: TMDb Trending Integration
+## Part 6: Frontend Implementation
 
-### Plugin Updates
+### Home Screen Layout
 
-```yaml
-# plugins/tmdb/plugin.yml (updated)
-provides:
-  - enricher
-  - trending  # NEW
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│  [🔍 Search...]                                                │
+│                                                                 │
+│  [Action] [Comedy] [Sci-Fi] [Drama] [Documentary] [Thriller]   │
+│                                                                 │
+│  142 Movies  ·  38 TV Shows  ·  256 Albums                     │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Continue Watching                                              │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐       │
+│  │        │ │        │ │        │ │        │ │        │  →    │
+│  │ ▓▓▓▓░░ │ │ ▓▓░░░░ │ │ ▓▓▓░░░ │ │ ▓░░░░░ │ │ ▓▓▓▓▓░ │       │
+│  └────────┘ └────────┘ └────────┘ └────────┘ └────────┘       │
+│                                                                 │
+│  For You                                                        │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐       │
+│  │        │ │        │ │        │ │        │ │        │  →    │
+│  └────────┘ └────────┘ └────────┘ └────────┘ └────────┘       │
+│                                                                 │
+│  Recently Added                                                 │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐       │
+│  │        │ │        │ │        │ │        │ │        │  →    │
+│  └────────┘ └────────┘ └────────┘ └────────┘ └────────┘       │
+│                                                                 │
+│  Because You Watched "Breaking Bad"                             │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐       │
+│  │        │ │        │ │        │ │        │ │        │  →    │
+│  └────────┘ └────────┘ └────────┘ └────────┘ └────────┘       │
+│                                                                 │
+│  Your Favorites                                                 │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐       │
+│  │        │ │        │ │        │ │        │ │        │  →    │
+│  └────────┘ └────────┘ └────────┘ └────────┘ └────────┘       │
+│                                                                 │
+│  Trending                                                       │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐       │
+│  │        │ │        │ │        │ │        │ │        │  →    │
+│  └────────┘ └────────┘ └────────┘ └────────┘ └────────┘       │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Implementation
+### Responsive Breakpoints
 
-```go
-// plugins/tmdb/internal/trending.go
+| Breakpoint | Cards Per Row | Notes |
+|------------|---------------|-------|
+| < 640px (mobile) | 2-3 | Chips wrap, smaller cards |
+| 640-1024px (tablet) | 4-5 | Standard layout |
+| 1024-1440px (desktop) | 5-6 | Comfortable spacing |
+| > 1440px (large) | 7-8+ | More visible cards |
 
-func (p *TMDbPlugin) GetTrending(ctx context.Context, req *sdk.TrendingRequest) (*sdk.TrendingResponse, error) {
-    mediaType := req.MediaType
-    if mediaType == "" || mediaType == "all" {
-        mediaType = "all"
-    }
-
-    window := req.Window
-    if window == "" {
-        window = "week"
-    }
-
-    // Call TMDb API: GET /trending/{media_type}/{time_window}
-    resp, err := p.client.GetTrending(ctx, mediaType, window)
-    if err != nil {
-        return nil, fmt.Errorf("tmdb trending: %w", err)
-    }
-
-    items := make([]sdk.TrendingItem, 0, len(resp.Results))
-    for _, r := range resp.Results {
-        mt := r.MediaType
-        if mt == "" {
-            mt = mediaType // Single type request
-        }
-
-        items = append(items, sdk.TrendingItem{
-            ExternalID:  fmt.Sprintf("tmdb:%d", r.ID),
-            MediaType:   mt,
-            Title:       coalesceTitles(r.Title, r.Name),
-            Year:        extractYear(r.ReleaseDate, r.FirstAirDate),
-            Popularity:  r.Popularity,
-            PosterPath:  p.buildPosterURL(r.PosterPath),
-            Overview:    r.Overview,
-        })
-    }
-
-    return &sdk.TrendingResponse{
-        Items:    items,
-        Window:   window,
-        Source:   "tmdb",
-        CachedAt: time.Now().Unix(),
-    }, nil
-}
-
-func (p *TMDbPlugin) GetTrendingProviderInfo(ctx context.Context) (*sdk.TrendingProviderInfo, error) {
-    return &sdk.TrendingProviderInfo{
-        ID:          "tmdb",
-        Name:        "TMDb Trending",
-        Description: "Trending movies and TV shows from The Movie Database",
-        Windows:     []string{"day", "week"},
-        MediaTypes:  []string{"movie", "tv", "all"},
-        UpdateFreq:  "daily",
-    }, nil
-}
-```
-
----
-
-## Part 8: semantic-search Updates
-
-### Plugin Updates
-
-```yaml
-# plugins/semantic-search/plugin.yml (updated)
-provides:
-  - semantic_search
-  - search_provider  # NEW
-```
-
-### SearchProvider Implementation
-
-```go
-// plugins/semantic-search/internal/suggestions.go
-
-func (p *SemanticSearchPlugin) GetSuggestions(ctx context.Context, req *sdk.SuggestionRequest) (*sdk.SuggestionResponse, error) {
-    suggestions := make([]sdk.Suggestion, 0)
-
-    // Get user context
-    qc, _ := p.contextEnricher.GetContext(ctx, req.UserID)
-
-    // Weather-based suggestion
-    if qc != nil && qc.Weather != nil && qc.Weather.Available {
-        suggestion := p.getWeatherSuggestion(qc)
-        if suggestion != nil {
-            suggestions = append(suggestions, *suggestion)
-        }
-    }
-
-    // Time-based suggestion
-    if qc != nil {
-        suggestion := p.getTimeSuggestion(qc)
-        if suggestion != nil {
-            suggestions = append(suggestions, *suggestion)
-        }
-    }
-
-    // Holiday suggestion
-    if qc != nil && len(qc.Holidays) > 0 {
-        suggestion := p.getHolidaySuggestion(qc.Holidays[0])
-        if suggestion != nil {
-            suggestions = append(suggestions, *suggestion)
-        }
-    }
-
-    // Genre suggestions (static)
-    suggestions = append(suggestions, []sdk.Suggestion{
-        {ID: "action", Label: "Action", Icon: "zap", Action: sdk.SuggestionAction{Type: "search", Query: "action movies"}},
-        {ID: "comedy", Label: "Comedy", Icon: "smile", Action: sdk.SuggestionAction{Type: "search", Query: "comedy"}},
-        {ID: "documentary", Label: "Documentary", Icon: "film", Action: sdk.SuggestionAction{Type: "search", Query: "documentary"}},
-    }...)
-
-    // Limit
-    limit := req.Limit
-    if limit <= 0 {
-        limit = 6
-    }
-    if len(suggestions) > limit {
-        suggestions = suggestions[:limit]
-    }
-
-    return &sdk.SuggestionResponse{Suggestions: suggestions}, nil
-}
-
-func (p *SemanticSearchPlugin) getWeatherSuggestion(qc *QueryContext) *sdk.Suggestion {
-    if qc.Weather == nil || !qc.Weather.Available {
-        return nil
-    }
-
-    switch qc.Weather.Condition {
-    case "rainy", "stormy":
-        return &sdk.Suggestion{
-            ID:          "weather-rainy",
-            Label:       "Rainy day picks",
-            Icon:        "cloud-rain",
-            Description: "Cozy films for the weather",
-            Style:       "accent",
-            Action:      sdk.SuggestionAction{Type: "search", Query: "cozy rainy day movies"},
-        }
-    case "sunny", "clear":
-        return &sdk.Suggestion{
-            ID:          "weather-sunny",
-            Label:       "Feel-good films",
-            Icon:        "sun",
-            Description: "Bright movies for a sunny day",
-            Style:       "primary",
-            Action:      sdk.SuggestionAction{Type: "search", Query: "uplifting feel-good movies"},
-        }
-    case "snowy":
-        return &sdk.Suggestion{
-            ID:          "weather-snowy",
-            Label:       "Winter favorites",
-            Icon:        "snowflake",
-            Description: "Perfect for a snowy day",
-            Style:       "accent",
-            Action:      sdk.SuggestionAction{Type: "search", Query: "winter snow movies"},
-        }
-    }
-    return nil
-}
-
-func (p *SemanticSearchPlugin) getTimeSuggestion(qc *QueryContext) *sdk.Suggestion {
-    switch qc.TimeOfDay {
-    case "morning":
-        return &sdk.Suggestion{
-            ID:          "time-morning",
-            Label:       "Morning watch",
-            Icon:        "sunrise",
-            Action:      sdk.SuggestionAction{Type: "search", Query: "light morning movies"},
-        }
-    case "evening", "night":
-        return &sdk.Suggestion{
-            ID:          "time-evening",
-            Label:       "Evening picks",
-            Icon:        "moon",
-            Action:      sdk.SuggestionAction{Type: "search", Query: "evening movies to unwind"},
-        }
-    }
-    return nil
-}
-```
-
-### Widget Registration
-
-```go
-// In schema.go
-Widgets([]sdk.Widget{
-    {
-        ID:                 "search-hero",
-        Type:               sdk.WidgetTypeSearchHero,
-        Location:           sdk.LocationHomepageTop,
-        ClientTypes:        []string{sdk.ClientTypeWeb, sdk.ClientTypeIOS, sdk.ClientTypeAndroid},
-        Priority:           100,
-        CacheTTLSeconds:    300,
-        RequiredCapability: "search_provider",
-        SettingsKey:        "show_search_hero",
-        Config: map[string]any{
-            "placeholder":      "What would you like to watch?",
-            "show_suggestions": true,
-        },
-    },
-    {
-        ID:                 "featured-suggestions",
-        Type:               sdk.WidgetTypeFeaturedRow,
-        Location:           sdk.LocationHomepageTop,
-        ClientTypes:        []string{sdk.ClientTypeRoku, sdk.ClientTypeFireTV, sdk.ClientTypeSmartTV},
-        Priority:           100,
-        CacheTTLSeconds:    300,
-        RequiredCapability: "search_provider",
-        SettingsKey:        "show_search_hero",
-        Config: map[string]any{
-            "title":    "Suggested for You",
-            "endpoint": "/suggestions",
-        },
-    },
-})
-```
-
----
-
-## Part 9: Frontend Implementation
-
-### Component Structure
+### File Changes
 
 ```
 web/src/
-├── routes/_layout/
-│   └── index.tsx                    # Home page with WidgetSlot
+├── views/
+│   └── home/
+│       └── Home.tsx                    # Simplify: remove QuickActions, use widget system
 ├── components/
-│   ├── home/
-│   │   ├── WidgetSlot.tsx           # Renders widgets for a location
-│   │   ├── WidgetRenderer.tsx       # Maps type to component
-│   │   ├── CustomizeMode.tsx        # Widget reordering UI
-│   │   └── DraggableWidgetList.tsx  # Drag-drop list
-│   ├── widgets/
-│   │   ├── SearchHeroWidget.tsx     # Search + suggestions
-│   │   ├── MediaRowWidget.tsx       # Generic media row
-│   │   ├── ContinueRowWidget.tsx    # Continue watching
-│   │   └── SuggestionChip.tsx       # Clickable suggestion
-│   └── media/
-│       ├── RecommendationCard.tsx   # Card with rating actions
-│       └── RatingButtons.tsx        # Thumbs up/down/favorite
-└── hooks/
-    ├── useHome.ts                   # Home data fetching
-    ├── useWidgetPreferences.ts      # Preferences management
-    └── useRatings.ts                # Rating mutations
+│   └── home/
+│       ├── widgets/
+│       │   ├── WidgetContainer.tsx     # Handle all widget types
+│       │   ├── MediaRow.tsx            # Standard media row
+│       │   ├── ContinueRow.tsx         # Row with progress bars (NEW)
+│       │   ├── SearchHero.tsx          # Search with chips
+│       │   └── SuggestionChip.tsx      # Chip component
+│       ├── ContinueWatching.tsx        # REMOVE (use widget system)
+│       └── index.ts
+└── lib/
+    └── hooks/
+        └── useWidgets.ts               # Add useGenreChips hook
 ```
 
-### Home Page
+### Home.tsx Updates
 
-```typescript
-// web/src/routes/_layout/index.tsx
+```tsx
+// web/src/views/home/Home.tsx
 
-const Index = () => {
-  const { data, isLoading } = useHome()
-  const [customizeMode, setCustomizeMode] = useState(false)
-  const { mutate: updatePreferences } = useUpdateWidgetPreferences()
+export const Home = () => {
+  const { data: librariesData } = useQuery(getGetApiLibrariesQueryOptions())
+  const { data: homeSections, isLoading } = useHomeSections()
+
+  const libraries = librariesData?.status === 200 ? librariesData.data.libraries ?? [] : []
+  const movieCount = libraries.filter((l) => l.type === 'movie').length
+  const tvCount = libraries.filter((l) => l.type === 'tv').length
+  const musicCount = libraries.filter((l) => l.type === 'music').length
+
+  // Separate top widgets (search hero) from content rows
+  const topSections = homeSections?.sections?.filter(
+    (s) => s.location === 'homepage-top'
+  ) ?? []
+  
+  const contentSections = homeSections?.sections?.filter(
+    (s) => s.location === 'homepage-sections'
+  ) ?? []
 
   if (isLoading) return <HomeSkeleton />
-
-  const topSections = data?.sections.filter(s => 
-    s.position === 0 && matchesClientType(s.client_types)
-  ) ?? []
-
-  const mainSections = data?.sections.filter(s => 
-    s.position > 0 && !s.hidden && matchesClientType(s.client_types)
-  ) ?? []
 
   return (
     <div className="h-full overflow-auto">
       <div className="page-enter">
-        {/* Top widgets (search hero) */}
-        {topSections.map(section => (
-          <WidgetRenderer key={section.id} section={section} />
-        ))}
+        {/* Hero Section - simplified */}
+        <div className="p-8 pb-6">
+          {/* Search Hero (from widget system) */}
+          {topSections.map((section) => (
+            <WidgetContainer key={section.id} section={section} />
+          ))}
 
-        <div className="p-8 pt-6 space-y-10">
-          {/* Header with customize button */}
-          <div className="flex justify-between items-center">
-            <h1 className={text.heading.lg}>Home</h1>
-            {data?.preferences.can_reorder && (
-              <Button 
-                variant="ghost" 
-                onClick={() => setCustomizeMode(!customizeMode)}
-              >
-                {customizeMode ? 'Done' : 'Customize'}
-              </Button>
-            )}
+          {/* Stats - compact inline */}
+          <div className="mt-6 text-sm text-neutral-500 dark:text-neutral-400">
+            {movieCount} Movies · {tvCount} TV Shows · {musicCount} Albums
           </div>
-
-          {/* Customize mode or normal view */}
-          {customizeMode ? (
-            <CustomizeMode
-              sections={data?.sections ?? []}
-              onReorder={(sections) => updatePreferences({ sections })}
-              onClose={() => setCustomizeMode(false)}
-            />
-          ) : (
-            mainSections.map(section => (
-              <WidgetRenderer key={section.id} section={section} />
-            ))
-          )}
         </div>
+
+        {/* Content Rows - all via widget system */}
+        <div className="px-8 pb-8 space-y-8">
+          {contentSections.map((section) => (
+            <WidgetContainer key={section.id} section={section} />
+          ))}
+        </div>
+
+        {/* Customize button - appears on hover */}
+        <CustomizeButton />
       </div>
     </div>
   )
 }
 ```
 
-### Widget Renderer
+### Rating UI on Media Detail Pages
 
-```typescript
-// web/src/components/home/WidgetRenderer.tsx
+Add rating buttons to movie/TV detail pages:
 
-const widgetComponents: Record<string, React.ComponentType<WidgetProps>> = {
-  'search-hero': SearchHeroWidget,
-  'featured-row': MediaRowWidget,
-  'continue-row': ContinueRowWidget,
-  'media-row': MediaRowWidget,
+```tsx
+// web/src/components/media/RatingButtons.tsx
+
+type RatingButtonsProps = {
+  entityType: 'movie' | 'tv_show' | 'tv_episode'
+  entityId: number
+  currentRating?: 'up' | 'down' | 'favorite' | null
 }
 
-type WidgetRendererProps = {
-  section: Section
-}
+export const RatingButtons = ({ entityType, entityId, currentRating }: RatingButtonsProps) => {
+  const { mutate: setRating } = useSetRating()
+  const { mutate: deleteRating } = useDeleteRating()
 
-const WidgetRenderer = ({ section }: WidgetRendererProps) => {
-  const Component = widgetComponents[section.type]
-  
-  if (!Component) {
-    console.warn(`Unknown widget type: ${section.type}`)
-    return null
-  }
-
-  return <Component section={section} />
-}
-```
-
-### Customize Mode
-
-```typescript
-// web/src/components/home/CustomizeMode.tsx
-
-type CustomizeModeProps = {
-  sections: Section[]
-  onReorder: (sections: SectionPreference[]) => void
-  onClose: () => void
-}
-
-const CustomizeMode = ({ sections, onReorder, onClose }: CustomizeModeProps) => {
-  const [items, setItems] = useState(
-    sections
-      .filter(s => s.position > 0) // Exclude top widgets
-      .sort((a, b) => a.position - b.position)
-  )
-
-  const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return
-
-    const reordered = Array.from(items)
-    const [removed] = reordered.splice(result.source.index, 1)
-    reordered.splice(result.destination.index, 0, removed)
-
-    setItems(reordered)
-  }
-
-  const handleToggle = (id: string) => {
-    setItems(items.map(item => 
-      item.id === id ? { ...item, hidden: !item.hidden } : item
-    ))
-  }
-
-  const handleSave = () => {
-    onReorder(items.map((item, index) => ({
-      id: item.id,
-      position: index + 1,
-      hidden: item.hidden,
-    })))
-    onClose()
-  }
-
-  const handleReset = () => {
-    // API call to delete preferences
-    onClose()
+  const handleRate = (rating: 'up' | 'down' | 'favorite') => {
+    if (currentRating === rating) {
+      deleteRating({ entityType, entityId })
+    } else {
+      setRating({ entityType, entityId, rating })
+    }
   }
 
   return (
-    <div className={cn(glass.card, 'p-6')}>
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h2 className={text.heading.md}>Customize Your Home</h2>
-          <p className={text.muted}>Drag to reorder, toggle to show/hide</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={handleReset}>Reset</Button>
-          <Button onClick={handleSave}>Save</Button>
-        </div>
-      </div>
-
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <Droppable droppableId="widgets">
-          {(provided) => (
-            <div ref={provided.innerRef} {...provided.droppableProps}>
-              {items.map((item, index) => (
-                <Draggable key={item.id} draggableId={item.id} index={index}>
-                  {(provided, snapshot) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.draggableProps}
-                      className={cn(
-                        'flex items-center gap-4 p-4 rounded-lg mb-2',
-                        bg.secondary,
-                        item.hidden && 'opacity-50',
-                        snapshot.isDragging && 'shadow-lg'
-                      )}
-                    >
-                      <div {...provided.dragHandleProps}>
-                        <GripVertical className="w-5 h-5 text-muted" />
-                      </div>
-                      <div className="flex-1">
-                        <span className={item.hidden ? text.muted : ''}>
-                          {item.data?.title ?? item.id}
-                        </span>
-                      </div>
-                      <Switch
-                        checked={!item.hidden}
-                        onCheckedChange={() => handleToggle(item.id)}
-                      />
-                    </div>
-                  )}
-                </Draggable>
-              ))}
-              {provided.placeholder}
-            </div>
-          )}
-        </Droppable>
-      </DragDropContext>
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => handleRate('up')}
+        className={cn(
+          'p-2 rounded-lg transition-colors',
+          currentRating === 'up' 
+            ? 'bg-green-500/20 text-green-500' 
+            : 'hover:bg-neutral-100 dark:hover:bg-white/10'
+        )}
+        aria-label="Like"
+      >
+        <ThumbsUp className="w-5 h-5" />
+      </button>
+      <button
+        onClick={() => handleRate('down')}
+        className={cn(
+          'p-2 rounded-lg transition-colors',
+          currentRating === 'down'
+            ? 'bg-red-500/20 text-red-500'
+            : 'hover:bg-neutral-100 dark:hover:bg-white/10'
+        )}
+        aria-label="Dislike"
+      >
+        <ThumbsDown className="w-5 h-5" />
+      </button>
+      <button
+        onClick={() => handleRate('favorite')}
+        className={cn(
+          'p-2 rounded-lg transition-colors',
+          currentRating === 'favorite'
+            ? 'bg-pink-500/20 text-pink-500'
+            : 'hover:bg-neutral-100 dark:hover:bg-white/10'
+        )}
+        aria-label="Add to Favorites"
+      >
+        <Heart className={cn('w-5 h-5', currentRating === 'favorite' && 'fill-current')} />
+      </button>
     </div>
   )
 }
@@ -1475,229 +755,155 @@ const CustomizeMode = ({ sections, onReorder, onClose }: CustomizeModeProps) => 
 
 ---
 
-## Part 10: Error Handling
+## Part 7: Implementation Phases
 
-### Widget Failures
+### Phase 1: Core Infrastructure (Backend)
 
-When a plugin fails to provide widget data, the widget is silently omitted from the response. Errors are logged and emitted as events for admin visibility.
+1. **Create user_ratings migration** - `migrations/000003_user_ratings.{up,down}.sql`
+2. **Create ratings domain** - `internal/domain/ratings/`
+3. **Create ratings repository** - `internal/infrastructure/persistence/ratings/`
+4. **Create ratings API** - Handler and routes
+5. **Add recently added SQL queries** - Both SQLite and PostgreSQL
+6. **Add genres endpoint** - For dynamic search chips
 
-```go
-// In HomeService.fetchWidgetData()
-if err != nil {
-    s.logger.Error("widget data fetch failed",
-        "widget_id", widget.ID,
-        "plugin_id", widget.PluginID,
-        "error", err,
-    )
-    s.events.Emit(events.WidgetError{
-        WidgetID:  widget.ID,
-        PluginID:  widget.PluginID,
-        Error:     err.Error(),
-        Timestamp: time.Now(),
-    })
-    return // Skip this widget
-}
-```
+### Phase 2: Core Widgets (Backend)
 
-### Admin Monitoring
+1. **Create core_widgets.go** - Widget definitions
+2. **Implement ContinueWatchingService** - Wire to progress repo
+3. **Update HomeService** - Handle all core widget data
+4. **Update widget registry** - `RegisterCoreWidgets()` method
+5. **Wire in app startup** - Register core widgets on init
 
-Admins can monitor widget health via:
+### Phase 3: Update Recommendations Plugin
 
-1. **Logs** - Standard structured logging
-2. **Plugin health endpoint** - `GET /api/plugins/{id}/health`
-3. **Events stream** - SSE endpoint for real-time monitoring (if implemented)
+1. **Remove favorites widget** from schema
+2. **Remove ratings table creation** from migrations
+3. **Update to read from core user_ratings** table
+4. **Add `RequiredCapability: "embedding"`** to widgets
 
----
+### Phase 4: Frontend Updates
 
-## Part 11: File Changes Summary
+1. **Simplify Home.tsx** - Remove hardcoded components
+2. **Remove QuickActions**
+3. **Create ContinueRow component** - For progress bars
+4. **Update WidgetContainer** - Handle all types
+5. **Add RatingButtons component**
+6. **Add rating buttons to detail pages**
+7. **Add useGenreChips hook** - For fallback search
 
-### SDK (pkg/plugin/sdk/)
+### Phase 5: Polish
 
-| File | Action | Description |
-|------|--------|-------------|
-| `search_provider.go` | CREATE | SearchProvider interface |
-| `trending.go` | CREATE | TrendingProvider interface |
-| `widgets.go` | CREATE | Widget types and constants |
-| `schema.go` | MODIFY | Add `Widgets()` method |
-| `serve.go` | MODIFY | Add serve helpers for new interfaces |
-
-### Protobuf (api/proto/plugin/)
-
-| File | Action | Description |
-|------|--------|-------------|
-| `search_provider.proto` | CREATE | gRPC definitions |
-| `trending.proto` | CREATE | gRPC definitions |
-
-### Core Backend (internal/)
-
-| File | Action | Description |
-|------|--------|-------------|
-| `infrastructure/plugins/registry/search_provider.go` | CREATE | Search provider registry |
-| `infrastructure/plugins/registry/trending.go` | CREATE | Trending provider registry |
-| `infrastructure/plugins/registry/widget.go` | CREATE | Widget registry |
-| `application/home/service.go` | CREATE | Home aggregation service |
-| `application/home/preferences.go` | CREATE | Preferences service |
-| `application/trending/service.go` | CREATE | Trending aggregation |
-| `api/handlers/home.go` | CREATE | Home API handler |
-| `api/routes/home.go` | CREATE | Home routes |
-
-### Migrations
-
-| File | Action | Description |
-|------|--------|-------------|
-| `migrations/postgres/000XXX_widget_preferences.up.sql` | CREATE | Preferences table |
-| `migrations/000XXX_widget_preferences.up.sql` | CREATE | SQLite version |
-
-### Plugins
-
-| File | Action | Description |
-|------|--------|-------------|
-| `plugins/tmdb/plugin.yml` | MODIFY | Add `trending` capability |
-| `plugins/tmdb/internal/plugin.go` | MODIFY | Implement TrendingProvider |
-| `plugins/tmdb/internal/trending.go` | CREATE | Trending implementation |
-| `plugins/semantic-search/plugin.yml` | MODIFY | Add `search_provider` capability |
-| `plugins/semantic-search/internal/plugin.go` | MODIFY | Implement SearchProvider |
-| `plugins/semantic-search/internal/suggestions.go` | CREATE | Suggestion generation |
-| `plugins/semantic-search/internal/schema.go` | MODIFY | Add widgets |
-| `plugins/recommendations/` | CREATE | Entire new plugin |
-
-### Frontend (web/src/)
-
-| File | Action | Description |
-|------|--------|-------------|
-| `routes/_layout/index.tsx` | MODIFY | Integrate widget system |
-| `components/home/WidgetSlot.tsx` | CREATE | Widget slot |
-| `components/home/WidgetRenderer.tsx` | CREATE | Widget renderer |
-| `components/home/CustomizeMode.tsx` | CREATE | Customization UI |
-| `components/home/DraggableWidgetList.tsx` | CREATE | Drag-drop list |
-| `components/widgets/SearchHeroWidget.tsx` | CREATE | Search hero |
-| `components/widgets/MediaRowWidget.tsx` | CREATE | Media row |
-| `components/widgets/ContinueRowWidget.tsx` | CREATE | Continue watching |
-| `components/widgets/SuggestionChip.tsx` | CREATE | Suggestion chip |
-| `components/media/RecommendationCard.tsx` | CREATE | Recommendation card |
-| `components/media/RatingButtons.tsx` | CREATE | Rating buttons |
-| `hooks/useHome.ts` | CREATE | Home data hook |
-| `hooks/useWidgetPreferences.ts` | CREATE | Preferences hook |
-| `hooks/useRatings.ts` | CREATE | Ratings hook |
+1. **Empty states** - Helpful messages, no cartoon illustrations
+2. **Loading states** - Progressive row loading
+3. **Error handling** - Graceful degradation
+4. **Keyboard navigation** - Focus states, tab order
+5. **Responsive testing** - All breakpoints
 
 ---
 
-## Part 12: Implementation Phases
+## Part 8: File Changes Summary
 
-### Phase 1: SDK & Core Infrastructure (2-3 days)
+### Backend - New Files
 
-1. Create SDK interfaces (`search_provider.go`, `trending.go`, `widgets.go`)
-2. Update `schema.go` with `Widgets()` method
-3. Create protobuf definitions
-4. Implement registries (search provider, trending, widget)
-5. Create `HomeService` and `TrendingService`
-6. Add API handlers and routes
-7. Create database migration for widget preferences
+| File | Description |
+|------|-------------|
+| `migrations/000003_user_ratings.up.sql` | Core ratings table |
+| `migrations/000003_user_ratings.down.sql` | Drop ratings table |
+| `migrations/postgres/000003_user_ratings.up.sql` | PostgreSQL version |
+| `migrations/postgres/000003_user_ratings.down.sql` | PostgreSQL drop |
+| `internal/domain/ratings/entity.go` | UserRating entity |
+| `internal/domain/ratings/repository.go` | Repository interface |
+| `internal/infrastructure/persistence/ratings/repository.go` | SQL implementation |
+| `internal/application/ratings/service.go` | Ratings service |
+| `internal/application/ratings/dto.go` | DTOs |
+| `internal/application/home/continue_watching.go` | ContinueWatchingService |
+| `internal/application/home/core_widgets.go` | Core widget definitions |
+| `internal/api/handlers/ratings.go` | Ratings handler |
+| `internal/api/routes/ratings.go` | Ratings routes |
 
-### Phase 2: TMDb Trending Integration (0.5 days)
+### Backend - Modified Files
 
-1. Update `plugins/tmdb/plugin.yml`
-2. Implement `TrendingProvider` in TMDb plugin
-3. Add `/trending` route to TMDb plugin
+| File | Changes |
+|------|---------|
+| `internal/infrastructure/database/queries/sqlite/movies.sql` | Add ListRecentlyAddedMovies |
+| `internal/infrastructure/database/queries/postgres/movies.sql` | Add ListRecentlyAddedMovies |
+| `internal/infrastructure/database/queries/sqlite/tv_shows.sql` | Add ListRecentlyAddedTVEpisodes |
+| `internal/infrastructure/database/queries/postgres/tv_shows.sql` | Add ListRecentlyAddedTVEpisodes |
+| `internal/infrastructure/plugins/registry/widget.go` | Add RegisterCoreWidgets() |
+| `internal/application/home/service.go` | Handle core widget data |
+| `internal/app/handlers/handlers.go` | Wire services, register core widgets |
+| `internal/app/services/services.go` | Create ContinueWatchingService |
 
-### Phase 3: semantic-search Updates (1 day)
+### Plugin - Modified Files
 
-1. Update `plugins/semantic-search/plugin.yml`
-2. Implement `SearchProvider` interface
-3. Create `suggestions.go` with context-aware suggestions
-4. Add widgets to settings schema
+| File | Changes |
+|------|---------|
+| `plugins/recommendations/internal/schema.go` | Remove favorites, add RequiredCapability |
+| `plugins/recommendations/internal/plugin.go` | Remove ratings table creation, use core table |
 
-### Phase 4: Frontend Widget System (2-3 days)
+### Frontend - New Files
 
-1. Create `useHome` hook
-2. Implement `WidgetSlot` and `WidgetRenderer`
-3. Create widget components (SearchHero, MediaRow, ContinueRow)
-4. Implement `CustomizeMode` with drag-drop
-5. Update homepage to use widget system
+| File | Description |
+|------|-------------|
+| `web/src/components/home/widgets/ContinueRow.tsx` | Row with progress bars |
+| `web/src/components/media/RatingButtons.tsx` | Rating buttons component |
+| `web/src/lib/hooks/useRatings.ts` | Rating mutations |
 
-### Phase 5: Recommendations Plugin (3-4 days)
+### Frontend - Modified Files
 
-1. Create plugin scaffold
-2. Implement user ratings (storage + API)
-3. Implement recommendation strategies
-4. Add graceful degradation
-5. Register widgets
+| File | Changes |
+|------|---------|
+| `web/src/views/home/Home.tsx` | Simplify, remove QuickActions |
+| `web/src/components/home/widgets/WidgetContainer.tsx` | Handle all types |
+| `web/src/components/home/widgets/SearchHero.tsx` | Support genre chips fallback |
+| `web/src/components/home/index.ts` | Remove ContinueWatching export |
+| `web/src/lib/hooks/useWidgets.ts` | Add useGenreChips |
 
-### Phase 6: Frontend Recommendations (1-2 days)
+### Frontend - Removed Files
 
-1. Create `RecommendationCard` component
-2. Implement `RatingButtons`
-3. Create `useRatings` hook
-4. Integrate with media cards
-
-### Phase 7: Smart Defaults & Polish (1 day)
-
-1. Implement smart default ordering
-2. Add empty states
-3. Error handling polish
-4. Integration tests
+| File | Reason |
+|------|--------|
+| `web/src/components/home/ContinueWatching.tsx` | Replaced by widget system |
 
 ---
 
-## Part 13: Testing Checklist
+## Part 9: Testing Checklist
 
 ### API Tests
 
-- [ ] `GET /api/home` returns sections with data inline
-- [ ] `GET /api/home?inline=false` returns sections with data URLs
-- [ ] `GET /api/home` with `X-Client-Type: roku` filters widgets
+- [ ] `GET /api/home` returns core widgets without plugins
+- [ ] `GET /api/home` includes plugin widgets when available
 - [ ] `GET /api/home/sections/{id}` returns single section
 - [ ] `GET /api/home/preferences` returns user preferences
 - [ ] `PUT /api/home/preferences` updates ordering
 - [ ] `DELETE /api/home/preferences` resets to defaults
-- [ ] `GET /api/trending` returns matched items
-- [ ] `GET /api/search/suggestions` returns suggestions
+- [ ] `GET /api/ratings` returns user's ratings
+- [ ] `POST /api/ratings` creates rating
+- [ ] `DELETE /api/ratings/{type}/{id}` removes rating
+- [ ] `GET /api/genres` returns distinct genres
 
-### Plugin Tests
+### Widget Tests
 
-- [ ] TMDb plugin provides trending data
-- [ ] semantic-search plugin provides suggestions
-- [ ] Recommendations plugin serves recommendation rows
-- [ ] Widget registration works correctly
-- [ ] Failed plugins are silently omitted
+- [ ] Continue Watching shows in-progress items
+- [ ] Continue Watching hidden when no progress
+- [ ] Recently Added shows newest content
+- [ ] Favorites shows favorited items
+- [ ] Favorites hidden when no favorites
+- [ ] Trending shows when provider available
+- [ ] Trending hidden when no provider
+- [ ] Search hero shows AI suggestions when semantic-search available
+- [ ] Search hero shows genre chips as fallback
 
 ### Frontend Tests
 
-- [ ] Homepage renders widgets correctly
-- [ ] Customize mode allows reordering
-- [ ] Hidden widgets don't appear
-- [ ] Search hero shows suggestions
-- [ ] Rating buttons work
+- [ ] Home renders all widget rows
+- [ ] Rows scroll horizontally
+- [ ] Responsive card counts at breakpoints
+- [ ] Customize button appears on hover
+- [ ] Preferences modal allows reordering
+- [ ] Hidden rows don't appear
 - [ ] Empty states display correctly
-
----
-
-## Part 14: Future Considerations
-
-### Real-Time Updates
-
-Future iteration could add:
-- WebSocket/SSE for web clients
-- Push notifications for iOS/Android
-- Polling for constrained clients (Roku)
-
-### Additional Trending Providers
-
-- Trakt integration
-- Internal play count analytics
-- Community ratings aggregation
-
-### Machine Learning
-
-- Collaborative filtering
-- Watch pattern analysis
-- Personalized ranking models
-
-### Widget Marketplace
-
-- Third-party widget plugins
-- Custom widget types
-- Widget theming
+- [ ] Rating buttons work on detail pages
 
 ---
 
@@ -1705,15 +911,340 @@ Future iteration could add:
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Search hero fallback | No hero when disabled | Cleaner UX, use navbar search |
-| Widget ordering | User-reorderable | Personalization is valuable |
-| Rating type | Per-user (thumbs + favorite) | Simple but expressive |
-| Empty "For You" | Show Trending with note | Never empty, encourages engagement |
-| Widget preferences storage | Core database | UI customization is core feature |
-| Trending source | TMDb via capability | Extensible, can add more providers |
-| Edit mode UX | Explicit "Customize" button | Clean default view |
-| Initial ordering | Smart defaults | Better new user experience |
-| Home endpoint inline | Configurable | Flexibility for different clients |
-| Client filtering | Separate widgets with `client_types` | Cleaner API |
-| Section failures | Silent omission + admin logging | Graceful degradation |
-| Real-time updates | Deferred | Focus on core first |
+| Favorites location | Core | Simple query, doesn't need AI |
+| Ratings table | Core | User preference data, not plugin-specific |
+| QuickActions | Remove | Doesn't help design, navigation elsewhere |
+| Hero section | Simplify | Search + stats only, no welcome text |
+| Search fallback | Dynamic genre chips | Based on user's library content |
+| Trending source | TrendingProvider registry | Any plugin can contribute |
+| Customize button | Hover only | Cleaner default view |
+| Rating types | up/down/favorite | Simple but expressive |
+| Empty rows | Smart defaults hide | Never show empty sections |
+| Gimmicks | Avoid | Tasteful polish, not flashy |
+
+---
+
+## Implementation Progress
+
+### Phase 1: Core Infrastructure (Backend) - COMPLETE
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Create user_ratings migration | DONE | `migrations/000003_user_ratings.{up,down}.sql` for both SQLite and PostgreSQL |
+| Create ratings domain | DONE | `internal/domain/ratings/entity.go`, `repository.go` |
+| Create ratings repository | DONE | `internal/infrastructure/persistence/ratings/repository.go` |
+| Create ratings service | DONE | `internal/application/ratings/service.go` |
+| Create ratings API handler | DONE | `internal/api/handlers/ratings.go` |
+| Create ratings routes | DONE | `internal/api/routes/ratings.go` |
+| Wire into app startup | DONE | Updated `repositories.go`, `handlers.go`, `server.go` |
+| Add SQLC queries | DONE | `queries/sqlite/user_ratings.sql`, `queries/postgres/user_ratings.sql` |
+| Add recently added SQL queries | DONE | Added `ListRecentlyAddedMovies` to both backends |
+| Add genres endpoint | DONE | Added `ListDistinctMovieGenres` to both backends |
+
+**Cleanup notes:** Consolidated duplicate `getUserID` functions into shared `getUserIDFromContext()` in helpers.go. Added nil check to route registration.
+
+### Phase 2: Core Widgets (Backend) - COMPLETE
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Create core_widgets.go | DONE | 5 core widgets: continue-watching, recently-added, favorites, trending, search-hero-fallback |
+| Implement ContinueWatchingService | DONE | `internal/application/home/continue_watching.go` - wired to progress and media repos |
+| Create RecentlyAddedService | DONE | `internal/application/home/services.go` - supports movies + TV shows combined or separate |
+| Create FavoritesService | DONE | `internal/application/home/services.go` - supports movies + TV shows |
+| Create GenresService | DONE | `internal/application/home/services.go` - uses movie repository |
+| Update HomeService | DONE | Added new service interfaces, updated `NewService` constructor, implemented `getBuiltinWidgetData` for all widget types |
+| Update buildMeta | DONE | Now checks `HasRatings` via FavoritesService |
+| Wire in app startup | DONE | `handlers.go` creates all services, registers core widgets via `RegisterAll()` |
+| Add ListRecentlyAdded to MovieRepository | DONE | Domain interface + persistence implementation |
+| Add ListDistinctGenres to MovieRepository | DONE | Domain interface + persistence implementation |
+| Add ListRecentlyAddedShows to TVRepository | DONE | Domain interface + persistence implementation + SQL queries |
+
+**Architecture notes:**
+- Services use domain repository interfaces (clean architecture)
+- `RecentlyAddedService` offers: `GetRecentlyAdded()` (combined), `GetRecentlyAddedMovies()`, `GetRecentlyAddedTVShows()`
+- `FavoritesService` fetches both movie and TV show favorites
+- `MediaItem` has `CreatedAt` field (not serialized) for sorting combined results
+
+**Files created:**
+- `internal/application/home/core_widgets.go` - Core widget definitions
+- `internal/application/home/continue_watching.go` - ContinueWatchingService implementation
+- `internal/application/home/services.go` - RecentlyAddedService, FavoritesService, GenresService implementations
+
+**Files modified:**
+- `internal/domain/media/repository.go` - Added `ListRecentlyAdded`, `ListDistinctGenres` to MovieRepository; `ListRecentlyAddedShows` to TVRepository
+- `internal/domain/home/types.go` - Added `CreatedAt` field to MediaItem
+- `internal/infrastructure/persistence/movie/repository.go` - Implemented new methods
+- `internal/infrastructure/persistence/movie/types.go` - Added `recentlyAddedRowToDomain` converter
+- `internal/infrastructure/persistence/tvshow/repository.go` - Implemented `ListRecentlyAddedShows`
+- `internal/infrastructure/database/queries/sqlite/tv_shows.sql` - Added `ListRecentlyAddedTVShows` query
+- `internal/infrastructure/database/queries/postgres/tv_shows.sql` - Added `ListRecentlyAddedTVShows` query
+- `internal/application/home/service.go` - Added service interfaces, updated constructor
+- `internal/app/handlers/handlers.go` - Create and wire all home services, register core widgets
+
+### Phase 3: Update Recommendations Plugin - COMPLETE
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Remove favorites widget | DONE | Removed from schema.go, handler, and route |
+| Remove ratings table creation | DONE | Removed runMigrations(), plugin now uses core table |
+| Remove 'ratings' from capabilities | DONE | Plugin only provides 'recommendations' and 'widgets' now |
+| Add RequiredCapability | DONE | Both `rec-for-you` and `rec-because-you-liked` require `embedding` |
+| Remove unused GetFavorites method | DONE | Cleaned up recommendations.go |
+| Create HostRatings gRPC service | DONE | Plugins access core ratings via SDK.RatingsClient |
+| Update plugin to use SDK RatingsClient | DONE | Replaced SQL queries with SDK calls |
+| Remove ratings write endpoints from plugin | DONE | Users use core's `/api/ratings` for writes |
+
+**HostRatings Service (new plugin host service):**
+The recommendations plugin couldn't directly query the `user_ratings` table because the SDK's SQLClient automatically prefixes table names with `plugin_{id}_`. We solved this by:
+
+1. **Added HostRatings proto service** - `api/proto/plugin/host_services.proto` with ListRatings, GetRatedEntityIDs, HasRatings
+2. **Implemented RatingsServer** - `internal/infrastructure/plugins/host/ratings.go`
+3. **Added RatingsClient to SDK** - `pkg/plugin/sdk/ratings.go`
+4. **Wired into plugin broker** - Updated factory, manager, loader to dispense HostRatings service
+5. **Added HostRatingsBrokerId to InitRequest** - Plugins receive broker ID during initialization
+6. **Updated SDK HostServices** - Added Ratings field to HostServices struct
+
+**Files created:**
+- `internal/infrastructure/plugins/host/ratings.go` - HostRatings gRPC server implementation
+- `pkg/plugin/sdk/ratings.go` - RatingsClient SDK wrapper
+
+**Files modified (core):**
+- `api/proto/plugin/host_services.proto` - Added HostRatings service and messages
+- `api/proto/plugin/plugin_core.proto` - Added host_ratings_broker_id to InitRequest
+- `internal/infrastructure/plugins/grpc/plugin.go` - Added HostRatingsPlugin
+- `internal/infrastructure/plugins/grpc/factory.go` - Added NewHostRatingsGRPCPlugin
+- `internal/infrastructure/plugins/manager/manager.go` - Added hostRatingsServer field and getter
+- `internal/infrastructure/plugins/manager/factory.go` - Added factory interface method
+- `internal/infrastructure/plugins/manager/loader.go` - Wire HostRatings into plugin map and dispense
+- `internal/infrastructure/plugins/service.go` - Export HostRatingsServer type alias
+- `internal/app/services/services.go` - Create and pass hostRatingsServer to manager
+- `pkg/plugin/sdk/enricher.go` - Added Ratings to HostServices, connect on init
+- `pkg/plugin/sdk/widget.go` - Connect to HostRatings on init
+
+**Files modified (plugin):**
+- `plugins/recommendations/internal/plugin.go` - Use sdk.RatingsClient directly, removed ratingsService wrapper
+- `plugins/recommendations/internal/recommendations.go` - Use sdk.RatingsClient directly
+- `plugins/recommendations/internal/schema.go` - Removed favorites widget, added RequiredCapability
+- `plugins/recommendations/plugin.yml` - Removed 'ratings' from capabilities.provides
+
+**Files deleted (plugin cleanup):**
+- `plugins/recommendations/internal/ratings.go` - Removed unnecessary wrapper, use sdk.RatingsClient directly
+
+### Phase 4: Frontend Updates - COMPLETE
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Simplify Home.tsx | DONE | Removed hardcoded ContinueWatching and QuickActions, uses widget system |
+| Create ContinueRow component | DONE | Renders media cards with progress bars for continue-watching widget |
+| Update WidgetContainer | DONE | Routes continue-row type to ContinueRow component |
+| Remove legacy ContinueWatching | DONE | Deleted standalone component, widget system handles it |
+| Create RatingButtons component | DONE | Thumbs up/down/favorite with API integration |
+| Add ratings to MovieCard | DONE | Via MediaMetadata component |
+| Add ratings to TVShowCard | DONE | Via MediaMetadata component |
+| Generate ratings API client | DONE | Ran `make api-client-gen` |
+
+**Files created:**
+- `web/src/components/home/widgets/ContinueRow.tsx` - Continue watching row with progress bars
+- `web/src/components/media/RatingButtons/RatingButtons.tsx` - Rating buttons component
+- `web/src/components/media/RatingButtons/index.ts` - Export
+
+**Files modified:**
+- `web/src/views/home/Home.tsx` - Removed ContinueWatching import, QuickActions component, simplified layout
+- `web/src/components/home/widgets/WidgetContainer.tsx` - Route continue-row to ContinueRow
+- `web/src/components/home/widgets/index.ts` - Export ContinueRow
+- `web/src/components/home/index.ts` - Removed ContinueWatching export
+- `web/src/components/media/index.ts` - Export RatingButtons
+- `web/src/components/media/MediaMetadata/MediaMetadata.tsx` - Added optional rating prop
+- `web/src/components/media/MediaMetadata/MediaMetadata.types.ts` - Added rating interface
+- `web/src/components/movies/MovieCard/MovieCard.tsx` - Pass rating prop to MediaMetadata
+- `web/src/components/tv/TVShowCard/TVShowCard.tsx` - Pass rating prop to MediaMetadata
+
+**Files deleted:**
+- `web/src/components/home/ContinueWatching.tsx` - Replaced by widget system
+
+**Deferred (low priority):**
+- `useGenreChips` hook for fallback search when semantic-search unavailable
+
+**Bug fix (2026-01-01):**
+- Fixed missing `Location` and `Priority` fields in `home.Section` JSON output
+- Backend was not populating these fields when building sections in `service.go`
+- Frontend `WidgetContainer` filters by `location` - widgets weren't displaying because `section.location` was empty
+- Updated `GetSection()`, `fetchWidgetData()`, and `buildSectionsWithURLs()` to copy `Location` and `Priority` from widget definition
+
+### Phase 5: Polish - IN PROGRESS
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Horizontal scroll affordances | DONE | ScrollableRow component with gradient fades and nav buttons |
+| Movie cards use MovieCard | DONE | Recently Added uses full MovieCard with metadata |
+| TV show cards use TVShowCard | DONE | Recently Added uses TVShowCard |
+| Remove welcome text/stats | DONE | Cleaner home page layout |
+| Missing posters investigation | DONE | First 4 movies lack images in DB (need enrichment) |
+
+**ScrollableRow component (`web/src/components/common/ScrollableRow/`):**
+- Gradient fades on edges indicate scrollable content
+- Large navigation buttons (48px) appear on hover
+- Buttons always on top of cards (`z-[100]`)
+- Smooth scroll behavior (80% of viewport width)
+- Hidden scrollbar for clean appearance
+- Cursor pointer on buttons
+
+**Home page states (`web/src/views/home/Home.tsx`):**
+- Loading skeleton with shimmer effect
+- Empty state for new users with "Add Library" CTA
+- Error state with retry button
+
+**Files created:**
+- `web/src/components/common/ScrollableRow/ScrollableRow.tsx`
+- `web/src/components/common/ScrollableRow/index.ts`
+
+**Files modified:**
+- `web/src/components/common/index.ts` - Export ScrollableRow
+- `web/src/components/home/widgets/MediaRow.tsx` - Use ScrollableRow
+- `web/src/index.css` - Added `.scrollbar-hide` utility
+- `web/src/views/home/Home.tsx` - Added loading, empty, and error states
+
+**Completed polish tasks:**
+- [x] Horizontal scroll affordances
+- [x] Empty states - Welcome message with "Add Library" CTA
+- [x] Loading states - Skeleton with shimmer animation
+- [x] Error handling - Error state with retry button
+
+**Remaining polish tasks:**
+- [ ] Keyboard navigation - Focus states, tab order
+- [ ] Responsive testing - All breakpoints
+
+### Phase 6: Plugin-to-Plugin VectorSearch Communication - PENDING
+
+The recommendations plugin needs to call `FindSimilar` on the semantic-search plugin to generate AI-powered recommendations. Currently, the `getSimilarItems()` and `getGenreBasedRecommendations()` methods in the recommendations plugin are stubbed out.
+
+**Problem:**
+- The semantic-search plugin implements `VectorSearchPlugin` interface with `FindSimilar` method
+- The existing `InvokeCapability` in `HostPlugins` only works with `PluginProvider` (chat, embedding)
+- No mechanism exists for plugins to invoke `VectorSearchClient` methods on other plugins
+
+**Solution: Add VectorSearch capability invocation**
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Add `InvokeVectorSearch` RPC to HostPlugins | PENDING | New proto RPC for vector search invocation |
+| Add `ListMediaByGenre` RPC to HostData | PENDING | For genre-based fallback recommendations |
+| Modify `ListMoviesByGenre` SQL query | PENDING | Add limit, exclude_ids, optional library_id |
+| Add `ListTVShowsByGenre` SQL query | PENDING | New query for TV shows |
+| Add `VectorSearchClient` to Instance | PENDING | types.go field for plugins with vector_search |
+| Add `VectorSearchPlugin` gRPC plugin | PENDING | grpc/plugin.go client wrapper |
+| Wire VectorSearch in loader | PENDING | Dispense for plugins declaring vector_search |
+| Implement `InvokeVectorSearch` server | PENDING | host/plugins.go method |
+| Implement `ListMediaByGenre` server | PENDING | host/data.go method |
+| Add `ListMediaByGenre` to querier | PENDING | querier/querier.go implementation |
+| Update movie repository | PENDING | New method signature for ListMoviesByGenre |
+| Add `FindSimilar` to SDK PluginsClient | PENDING | plugins_client.go method |
+| Add `ListMediaByGenre` to SDK DataClient | PENDING | host.go method |
+| Add `vector_search` to semantic-search manifest | PENDING | plugin.yml provides field |
+| Implement `getSimilarItems()` in recommendations | PENDING | Use semantic search via SDK |
+| Implement `getGenreBasedRecommendations()` | PENDING | Genre-based fallback |
+
+**Architecture:**
+
+```
+┌─────────────────────┐         ┌─────────────────────┐
+│  recommendations    │         │  semantic-search    │
+│      plugin         │         │      plugin         │
+├─────────────────────┤         ├─────────────────────┤
+│ getSimilarItems()   │         │ VectorSearchPlugin  │
+│   │                 │         │   FindSimilar()     │
+│   ▼                 │         │   Search()          │
+│ sdk.PluginsClient   │         └─────────────────────┘
+│   .FindSimilar()    │                   ▲
+└─────────────────────┘                   │
+          │                               │
+          ▼                               │
+┌─────────────────────────────────────────┴─────┐
+│                    HOST                        │
+├───────────────────────────────────────────────┤
+│  HostPlugins.InvokeVectorSearch()             │
+│    │                                          │
+│    ├─► findVectorSearchProvider()             │
+│    │     └─► capabilities["vector_search"]    │
+│    │                                          │
+│    └─► instance.VectorSearchClient.FindSimilar│
+└───────────────────────────────────────────────┘
+```
+
+**Proto changes (`api/proto/plugin/host_services.proto`):**
+
+```protobuf
+// In HostPlugins service:
+rpc InvokeVectorSearch(VectorSearchInvokeRequest) returns (VectorSearchInvokeResponse);
+
+// In HostData service:
+rpc ListMediaByGenre(ListMediaByGenreRequest) returns (MediaList);
+
+// New messages:
+message VectorSearchInvokeRequest {
+  string method = 1;  // "FindSimilar" or "Search"
+  string preferred_plugin = 2;
+  FindSimilarRequest find_similar = 10;
+  SemanticSearchRequest search = 11;
+}
+
+message VectorSearchInvokeResponse {
+  string provider_plugin = 1;
+  SemanticSearchResponse response = 2;
+  CapabilityError error = 3;
+}
+
+message ListMediaByGenreRequest {
+  string media_type = 1;  // "movie" or "tv_show"
+  string genre = 2;
+  int32 limit = 3;
+  repeated int64 exclude_ids = 4;
+  int64 library_id = 5;  // 0 = all libraries
+}
+```
+
+**SQL changes:**
+
+SQLite `ListMoviesByGenre` (breaking change):
+```sql
+WHERE (med.library_id = sqlc.arg(library_id) OR sqlc.arg(library_id) = 0)
+  AND m.genre LIKE '%' || sqlc.arg(genre) || '%'
+  AND med.id NOT IN (SELECT value FROM json_each(sqlc.arg(exclude_ids_json)))
+LIMIT sqlc.arg(limit);
+```
+
+Postgres `ListMoviesByGenre` (breaking change):
+```sql
+WHERE ($1::bigint = 0 OR med.library_id = $1)
+  AND m.genre ILIKE '%' || @genre || '%'
+  AND med.id != ALL(@exclude_ids::bigint[])
+LIMIT @limit;
+```
+
+New `ListTVShowsByGenre` queries for both SQLite and Postgres.
+
+**Files to create:**
+- None (all modifications to existing files)
+
+**Files to modify:**
+
+| File | Changes |
+|------|---------|
+| `api/proto/plugin/host_services.proto` | Add `InvokeVectorSearch`, `ListMediaByGenre` RPCs and messages |
+| `internal/infrastructure/database/queries/sqlite/movies.sql` | Update `ListMoviesByGenre` |
+| `internal/infrastructure/database/queries/sqlite/tv_shows.sql` | Add `ListTVShowsByGenre` |
+| `internal/infrastructure/database/queries/postgres/movies.sql` | Update `ListMoviesByGenre` |
+| `internal/infrastructure/database/queries/postgres/tv_shows.sql` | Add `ListTVShowsByGenre` |
+| `internal/infrastructure/plugins/types/types.go` | Add `VectorSearchClient` field |
+| `internal/infrastructure/plugins/grpc/plugin.go` | Add `VectorSearchPlugin` struct |
+| `internal/infrastructure/plugins/grpc/factory.go` | Add `NewVectorSearchGRPCPlugin()` |
+| `internal/infrastructure/plugins/manager/factory.go` | Add interface method |
+| `internal/infrastructure/plugins/manager/loader.go` | Wire `vector_search` dispensing |
+| `internal/infrastructure/plugins/host/plugins.go` | Add `InvokeVectorSearch()`, `findVectorSearchProvider()` |
+| `internal/infrastructure/plugins/host/data.go` | Add `ListMediaByGenre()` interface and implementation |
+| `internal/infrastructure/plugins/querier/querier.go` | Add `ListMediaByGenre()` implementation |
+| `internal/infrastructure/persistence/movie/repository.go` | Update `ListMoviesByGenre()` signature |
+| `pkg/plugin/sdk/plugins_client.go` | Add `FindSimilar()`, `SemanticSearch()`, `IsVectorSearchAvailable()` |
+| `pkg/plugin/sdk/host.go` | Add `ListMediaByGenre()` to DataClient |
+| `plugins/semantic-search/plugin.yml` | Add `vector_search` to provides |
+| `plugins/recommendations/internal/recommendations.go` | Implement `getSimilarItems()`, `getGenreBasedRecommendations()` |

@@ -81,6 +81,10 @@ message InitRequest {
   // Broker ID for host plugins service (0 = not available)
   // Plugin can dial this ID to get a HostPluginsClient for capability discovery
   uint32 host_plugins_broker_id = 10;
+
+  // Broker ID for host ratings service (0 = not available)
+  // Plugin can dial this ID to get a HostRatingsClient for user ratings access
+  uint32 host_ratings_broker_id = 11;
 }
 
 // SystemInfo contains host system resource information.

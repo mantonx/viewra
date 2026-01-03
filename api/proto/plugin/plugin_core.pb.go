@@ -161,6 +161,9 @@ type InitRequest struct {
 	// Broker ID for host plugins service (0 = not available)
 	// Plugin can dial this ID to get a HostPluginsClient for capability discovery
 	HostPluginsBrokerId uint32 `protobuf:"varint,10,opt,name=host_plugins_broker_id,json=hostPluginsBrokerId,proto3" json:"host_plugins_broker_id,omitempty"`
+	// Broker ID for host ratings service (0 = not available)
+	// Plugin can dial this ID to get a HostRatingsClient for user ratings access
+	HostRatingsBrokerId uint32 `protobuf:"varint,11,opt,name=host_ratings_broker_id,json=hostRatingsBrokerId,proto3" json:"host_ratings_broker_id,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -247,6 +250,13 @@ func (x *InitRequest) GetSystemInfo() *SystemInfo {
 func (x *InitRequest) GetHostPluginsBrokerId() uint32 {
 	if x != nil {
 		return x.HostPluginsBrokerId
+	}
+	return 0
+}
+
+func (x *InitRequest) GetHostRatingsBrokerId() uint32 {
+	if x != nil {
+		return x.HostRatingsBrokerId
 	}
 	return 0
 }
@@ -1299,7 +1309,7 @@ var File_api_proto_plugin_plugin_core_proto protoreflect.FileDescriptor
 
 const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
 	"\n" +
-	"\"api/proto/plugin/plugin_core.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"\xfc\x02\n" +
+	"\"api/proto/plugin/plugin_core.proto\x12\x10viewra.plugin.v1\x1a\x1dapi/proto/plugin/common.proto\"\xb1\x03\n" +
 	"\vInitRequest\x12!\n" +
 	"\fhost_version\x18\x01 \x01(\tR\vhostVersion\x12\x19\n" +
 	"\bdata_dir\x18\x02 \x01(\tR\adataDir\x12\x16\n" +
@@ -1310,7 +1320,8 @@ const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
 	"\vsystem_info\x18\t \x01(\v2\x1c.viewra.plugin.v1.SystemInfoR\n" +
 	"systemInfo\x123\n" +
 	"\x16host_plugins_broker_id\x18\n" +
-	" \x01(\rR\x13hostPluginsBrokerIdJ\x04\b\x06\x10\aJ\x04\b\a\x10\b\"\x8a\x02\n" +
+	" \x01(\rR\x13hostPluginsBrokerId\x123\n" +
+	"\x16host_ratings_broker_id\x18\v \x01(\rR\x13hostRatingsBrokerIdJ\x04\b\x06\x10\aJ\x04\b\a\x10\b\"\x8a\x02\n" +
 	"\n" +
 	"SystemInfo\x12\x1b\n" +
 	"\tram_bytes\x18\x01 \x01(\x04R\bramBytes\x12.\n" +
