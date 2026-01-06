@@ -113,6 +113,27 @@ At 200k+ items, LIKE queries become problematic:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+### FTS5 Deployment Validation
+
+**Critical**: Verify FTS5 + trigram tokenizer is available before shipping.
+
+| Deployment | FTS5 Status | Notes |
+|------------|-------------|-------|
+| `mattn/go-sqlite3` | ✅ Included | Compiles SQLite from source with FTS5 enabled |
+| `modernc.org/sqlite` | ✅ Included | Pure Go, FTS5 built-in |
+| System SQLite (Linux) | ⚠️ Check | Most distros include FTS5, but trigram may vary |
+| Alpine/musl | ⚠️ Check | May need explicit build flag |
+
+**Validation test** (run on target):
+```bash
+sqlite3 :memory: "CREATE VIRTUAL TABLE t USING fts5(c, tokenize='trigram'); \
+  INSERT INTO t VALUES ('hello world'); \
+  SELECT * FROM t WHERE t MATCH 'ell';"
+# Should output: hello world
+```
+
+ViewRA uses `github.com/mattn/go-sqlite3` which compiles SQLite with `ENABLE_FTS5` - we're good.
+
 ### FTS5 Schema (Plugin-managed SQLite)
 
 ```sql
@@ -120,8 +141,8 @@ At 200k+ items, LIKE queries become problematic:
 -- This lives in the plugin's data directory, not the main DB
 CREATE VIRTUAL TABLE autocomplete_fts USING fts5(
     -- Searchable content
-    name,           -- Title or person name
-    aliases,        -- Alternative names, "scar jo" for "Scarlett Johansson"
+    name,           -- Title or person name (normalized)
+    aliases,        -- Alternative names, space-separated for trigram matching
     -- Metadata (unindexed, just for retrieval)
     type UNINDEXED,       -- 'title', 'person', 'genre'
     entity_id UNINDEXED,  -- Movie/TV ID or person ID
@@ -162,20 +183,98 @@ SELECT
 FROM people p;
 ```
 
+### Tiered Autocomplete Ranking
+
+**Problem**: Pure `ORDER BY popularity` returns annoying results ("The...", remasters, sequels) and drowns the best match.
+
+**Solution**: Rank by match quality first, then popularity within tiers.
+
+| Tier | Match Type | Example Query | Example Match |
+|------|------------|---------------|---------------|
+| 0 | Exact prefix on name | "alien" | "Alien", "Aliens" |
+| 1 | Token-start matches | "lord ring" | "The Lord of the Rings" |
+| 2 | Trigram contains | "ien" | "Alien", "Aliens" |
+
+```sql
+-- Tiered ranking query
+SELECT 
+    name, type, entity_id, subtype, year, popularity,
+    CASE
+        -- Tier 0: Exact prefix match (name starts with query)
+        WHEN LOWER(name) LIKE LOWER(:query) || '%' THEN 0
+        -- Tier 1: All query tokens match word starts
+        WHEN autocomplete_fts MATCH :prefix_query THEN 1
+        -- Tier 2: Trigram match (fallback)
+        ELSE 2
+    END AS match_tier
+FROM autocomplete_fts
+WHERE autocomplete_fts MATCH :trigram_query
+ORDER BY 
+    match_tier ASC,      -- Best match type first
+    popularity DESC      -- Then by popularity within tier
+LIMIT 10;
+```
+
+**Query construction** (Go):
+```go
+func buildAutocompleteQuery(input string) (prefixQuery, trigramQuery string) {
+    tokens := strings.Fields(strings.ToLower(input))
+    
+    // Prefix query: each token as prefix "lord* ring*"
+    prefixParts := make([]string, len(tokens))
+    for i, t := range tokens {
+        prefixParts[i] = t + "*"
+    }
+    prefixQuery = strings.Join(prefixParts, " ")
+    
+    // Trigram query: same as prefix for FTS5 trigram
+    // (trigram tokenizer handles partial matching internally)
+    trigramQuery = prefixQuery
+    
+    return prefixQuery, trigramQuery
+}
+```
+
+**Example results for "alien"**:
+```
+Tier 0 (prefix):
+  1. Alien (1979)           - exact prefix, high popularity
+  2. Aliens (1986)          - exact prefix, high popularity
+  3. Alien 3 (1992)         - exact prefix, medium popularity
+
+Tier 1 (token-start):
+  4. Alien: Resurrection    - "alien" matches token start
+
+Tier 2 (trigram):
+  5. Alienoid (2022)        - contains "alien" mid-word
+```
+
 ### FTS5 Query Examples
 
 ```sql
 -- Simple prefix search: "spiel" → "spielberg"
-SELECT * FROM autocomplete_fts WHERE autocomplete_fts MATCH 'spiel*' ORDER BY popularity DESC LIMIT 10;
+SELECT * FROM autocomplete_fts 
+WHERE autocomplete_fts MATCH 'spiel*' 
+ORDER BY 
+    CASE WHEN LOWER(name) LIKE 'spiel%' THEN 0 ELSE 1 END,
+    popularity DESC 
+LIMIT 10;
 
 -- Multi-word: "lord ring" → "Lord of the Rings"
-SELECT * FROM autocomplete_fts WHERE autocomplete_fts MATCH 'lord* ring*' ORDER BY popularity DESC LIMIT 10;
-
--- Partial name: "scar jo" → "Scarlett Johansson" (needs alias support)
-SELECT * FROM autocomplete_fts WHERE autocomplete_fts MATCH 'scar* jo*' ORDER BY popularity DESC LIMIT 10;
+SELECT * FROM autocomplete_fts 
+WHERE autocomplete_fts MATCH 'lord* ring*' 
+ORDER BY 
+    CASE WHEN LOWER(name) LIKE 'lord%' THEN 0 
+         WHEN LOWER(name) LIKE '%lord%ring%' THEN 1 
+         ELSE 2 END,
+    popularity DESC 
+LIMIT 10;
 
 -- With type filter
-SELECT * FROM autocomplete_fts WHERE autocomplete_fts MATCH 'chris*' AND type = 'person' ORDER BY popularity DESC LIMIT 10;
+SELECT * FROM autocomplete_fts 
+WHERE autocomplete_fts MATCH 'chris*' AND type = 'person' 
+ORDER BY popularity DESC 
+LIMIT 10;
 ```
 
 ### API Design
@@ -284,58 +383,116 @@ Common searches that fail without aliases:
 - "rdj" → Robert Downey Jr.
 - "jlo" → Jennifer Lopez
 
-**Solution**: Maintain an aliases field, either:
-1. **Manual**: Curated list for top ~500 people
-2. **Generated**: First-name + last-initial patterns
+**Solution**: Maintain an aliases field with normalized, space-separated aliases for trigram matching.
+
+**Normalization rules** (apply to both names and aliases):
+1. Lowercase
+2. Strip punctuation (except spaces)
+3. Fold whitespace (multiple spaces → single)
+4. Remove suffixes ("Jr.", "Sr.", "III", etc.)
+5. ASCII-fold accents (optional: "José" → "jose")
+
+**Storage**: Aliases stored as space-separated string so trigram can match any part.
+```
+name: "Scarlett Johansson"
+aliases: "scar jo scarjo sj johansson scarlett"
+```
+
+**Generation strategies**:
+1. **Generated patterns**: First-initial + last, first + last-initial, initials
+2. **Manual overrides**: Curated list for top ~500 people with known nicknames
 
 ```go
+// Normalize a name for consistent matching
+func normalizeName(name string) string {
+    // 1. Lowercase
+    name = strings.ToLower(name)
+    
+    // 2. Remove suffixes
+    suffixes := []string{" jr.", " jr", " sr.", " sr", " iii", " ii", " iv"}
+    for _, suffix := range suffixes {
+        name = strings.TrimSuffix(name, suffix)
+    }
+    
+    // 3. Strip punctuation (keep letters, numbers, spaces)
+    var result strings.Builder
+    for _, r := range name {
+        if unicode.IsLetter(r) || unicode.IsNumber(r) || r == ' ' {
+            result.WriteRune(r)
+        }
+    }
+    name = result.String()
+    
+    // 4. Collapse whitespace
+    name = strings.Join(strings.Fields(name), " ")
+    
+    return name
+}
+
 // Generate common alias patterns
-func generateAliases(name string) []string {
-    parts := strings.Fields(name)
+func generateAliases(name string) string {
+    normalized := normalizeName(name)
+    parts := strings.Fields(normalized)
     if len(parts) < 2 {
-        return nil
+        return ""
     }
     
     aliases := []string{}
+    first := parts[0]
+    last := parts[len(parts)-1]
     
-    // "Steven Spielberg" → "s spielberg", "steven s"
-    first := strings.ToLower(parts[0])
-    last := strings.ToLower(parts[len(parts)-1])
-    
+    // "steven spielberg" → "s spielberg", "steven s"
     aliases = append(aliases, first[:1]+" "+last)        // "s spielberg"
     aliases = append(aliases, first+" "+last[:1])        // "steven s"
+    aliases = append(aliases, first+last)                // "stevenspielberg" (no space)
     
-    // For names with middle parts: "Robert Downey Jr." → "rdj"
-    if len(parts) >= 3 {
+    // For names with middle parts: "robert downey" → "rd"
+    if len(parts) >= 2 {
         initials := ""
         for _, p := range parts {
-            if len(p) > 0 && p != "Jr." && p != "Sr." {
-                initials += strings.ToLower(p[:1])
+            if len(p) > 0 {
+                initials += p[:1]
             }
         }
         if len(initials) >= 2 {
-            aliases = append(aliases, initials)  // "rdj"
+            aliases = append(aliases, initials)  // "rd", "rdj" etc.
         }
     }
     
-    return aliases
+    // Return space-separated for FTS5 trigram indexing
+    return strings.Join(aliases, " ")
 }
 ```
 
 ### Implementation Tasks
 
+**Setup & Validation**:
+- [ ] Verify FTS5 + trigram available in CI/deployment targets
 - [ ] Create FTS5 virtual table in plugin's SQLite DB
-- [ ] Add `AutocompleteService` with FTS5 queries
+- [ ] Add schema versioning for FTS5 table (rebuild on schema change)
+
+**Core Autocomplete**:
+- [ ] Add `AutocompleteService` with tiered ranking queries
+- [ ] Implement `normalizeName()` for consistent matching
+- [ ] Implement `generateAliases()` for people
 - [ ] Populate FTS5 on plugin startup (from host DB via SDK)
 - [ ] Add incremental update on library scan completion
-- [ ] Implement alias generation for people
 - [ ] Register `/autocomplete` endpoint
 - [ ] Add response caching (short TTL, ~30s)
+
+**Entity Resolution**:
 - [ ] Update search params to accept `similar_to_id`
-- [ ] Frontend: Add autocomplete dropdown component
-- [ ] Frontend: Use entity_id when selecting suggestions
-- [ ] Frontend: Keyboard navigation (up/down/enter/escape)
-- [ ] Frontend: Debounce input (200-300ms)
+- [ ] Update "movies like X" to use fallback chain: ID → exact → FTS5 → semantic
+- [ ] Return `entity_id` / `person_id` in all autocomplete responses
+
+**Frontend**:
+- [ ] Add autocomplete dropdown component
+- [ ] Use entity_id when selecting suggestions (not text)
+- [ ] Keyboard navigation (up/down/enter/escape)
+- [ ] Debounce input (200-300ms)
+- [ ] Visual indication of match tier (optional)
+
+**Integration**:
 - [ ] Add recent searches to suggestions (see Phase 2)
 
 ### Performance Expectations
