@@ -2,14 +2,31 @@
 
 ## Overview
 
-This document outlines a comprehensive plan to improve search quality in ViewRA's semantic-search plugin. The improvements span multiple phases, from quick wins to larger architectural changes.
+This document outlines a plan to improve search quality in ViewRA's semantic-search plugin. The focus is on **tuning and extending the existing architecture** rather than adding external search engines.
+
+### Why Not Bleve/Meilisearch?
+
+We evaluated adding Bleve (embedded) or Meilisearch (external) for BM25 full-text search. **Decision: Skip for now.**
+
+**Reasons:**
+1. **Semantic search already handles fuzzy matching** - Embeddings naturally handle typos ("Spielburg" ≈ "Spielberg") and synonyms
+2. **Intent detection covers structured queries** - Director, actor, studio, language, decade patterns are already detected
+3. **Complexity cost outweighs benefit** - Another dependency, sync logic, failure modes for marginal improvement
+4. **Resource constraints** - K3s deployments benefit from fewer containers
+5. **Autocomplete solves the "exact match" problem better** - Type-ahead prevents typos in the first place
+
+**Revisit if:**
+- Users report significant search quality issues at scale
+- Need to expose search API directly to external clients
+- Building multi-tenant features where Meilisearch's tenant tokens would help
 
 ### Goals
-- Improve search relevance for structured queries ("90s teen movies")
-- Add fuzzy matching for typos ("Spielburg" → "Spielberg")
+- Improve search relevance for structured queries ("90s teen movies") ✅ Fixed
+- Handle typos gracefully (autocomplete + embeddings)
 - Incorporate quality signals (ratings, popularity)
 - Enable personalized search results
-- Reduce latency through caching
+- Reduce latency through caching ✅ Done
+- Add debugging/observability tools
 - Clean up technical debt
 
 ---
@@ -18,12 +35,13 @@ This document outlines a comprehensive plan to improve search quality in ViewRA'
 
 ### What's Working Well
 
-1. **Hybrid Search Architecture**: Combines semantic vector search with intent-based text search
-2. **Intent Detection**: Detects director, actor, studio, genre, language, and "similar to" patterns
+1. **Semantic Vector Search**: Embeddings handle conceptual/fuzzy matching naturally
+2. **Intent Detection**: Detects director, actor, studio, genre, language, decade, and "similar to" patterns
 3. **Rich Indexing Format**: Includes title, year, genres, plot, cast, directors, studios, themes, locations
 4. **Context Enrichment**: Weather, time-of-day, and seasonal suggestions (privacy-conscious, opt-in)
 5. **Diversity Penalty**: Prevents results dominated by single director/decade/genre
 6. **Deduplication**: Handles same movie appearing from multiple libraries
+7. **Query Embedding Cache**: LRU cache reduces latency for repeated queries ✅ Implemented
 
 ### Technical Debt
 
@@ -34,483 +52,372 @@ This document outlines a comprehensive plan to improve search quality in ViewRA'
 | Magic boost numbers | `search.go` (0.55, 0.35, 0.60, etc.) | Hard to tune, arbitrary values |
 | Brittle text extraction | `search.go:1087-1096` | Relies on exact prefix format |
 | US-only holidays | `holidays.go:18-124` | No international support |
-| No query embedding cache | `embedding.go` | Repeated API calls for same query |
 
-### Missing Features
+### Recent Fixes
 
-| Feature | Impact | Effort |
-|---------|--------|--------|
-| Stemming ("teen" ↔ "teenager") | High | Medium (Bleve) |
-| Fuzzy matching (typo tolerance) | High | Medium (Bleve) |
-| Field-specific boosting | Medium | Medium (Bleve) |
-| Rating/quality signals | Medium | Low |
-| User personalization | High | High |
-| Autocomplete/type-ahead | Medium | Medium |
-| Search history tracking | Low | Low |
-| Trending searches | Low | Medium |
+| Issue | Status | Notes |
+|-------|--------|-------|
+| "90s teen movies" not working | ✅ Fixed | Added decade/demographic words to `nonNameWords` |
+| "movies like X" not using FindSimilar | ✅ Fixed | Added `extractSimilarToTitle()` pattern detection |
+| Repeated queries hit AI API | ✅ Fixed | Added LRU embedding cache (1000 entries, 1hr TTL) |
+| "anime movies" detected as person | ✅ Fixed | Added anime/animated/cartoon to `nonNameWords` |
 
 ---
 
-## Phase 1: Bleve Integration (Hybrid Search)
+## Phase 1: Autocomplete & Type-Ahead (Primary Solution for Typos)
 
 ### Problem
-The current search relies entirely on embedding similarity for structured queries. "90s teen movies" embeds the phrase and finds semantically similar content, but can't filter by decade or match stemmed terms.
+Users misspell titles/names, leading to poor results. Traditional solution is fuzzy matching, but **autocomplete prevents typos in the first place**.
 
 ### Solution
-Integrate [Bleve](https://github.com/blevesearch/bleve) for BM25 full-text search alongside existing vector search.
+Add type-ahead autocomplete that suggests titles, people, and genres as the user types.
 
 ### Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                    Semantic Search Plugin                                 │
-├──────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  ┌──────────────────┐                                                    │
-│  │  IndexingService │                                                    │
-│  │                  │──────┬────────────────────────────────┐            │
-│  │  IndexSingle()   │      │                                │            │
-│  │  IndexLibrary()  │      ▼                                ▼            │
-│  └──────────────────┘  ┌────────────┐              ┌─────────────────┐   │
-│                        │   Bleve    │              │ Vector Storage  │   │
-│                        │   Index    │              │ (Host-managed)  │   │
-│                        │            │              │                 │   │
-│                        │ data/      │              │ sqlite-vec /    │   │
-│                        │ plugins/   │              │ pgvector        │   │
-│                        │ semantic-  │              │                 │   │
-│                        │ search/    │              └─────────────────┘   │
-│                        │ bleve/     │                      │             │
-│                        └────────────┘                      │             │
-│                              │                             │             │
-│                              ▼                             ▼             │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                      SearchService                                │   │
-│  │                                                                   │   │
-│  │   ┌─────────────┐  ┌─────────────┐                               │   │
-│  │   │ Bleve Search│  │Vector Search│  Parallel execution           │   │
-│  │   │ (BM25)      │  │ (Cosine)    │                               │   │
-│  │   └─────────────┘  └─────────────┘                               │   │
-│  │          │                │                                       │   │
-│  │          ▼                ▼                                       │   │
-│  │   ┌──────────────────────────────┐                               │   │
-│  │   │   Score Fusion (RRF/RSF)     │                               │   │
-│  │   └──────────────────────────────┘                               │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    Autocomplete Flow                             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  User types: "spiel"                                            │
+│       │                                                         │
+│       ▼                                                         │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │            Autocomplete Endpoint                         │   │
+│  │  GET /api/plugins/semantic-search/autocomplete?q=spiel   │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│       │                                                         │
+│       ▼                                                         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐            │
+│  │   Titles    │  │   People    │  │   Genres    │            │
+│  │   (SQL      │  │   (SQL      │  │   (Static   │            │
+│  │   LIKE)     │  │   LIKE)     │  │   list)     │            │
+│  └─────────────┘  └─────────────┘  └─────────────┘            │
+│       │                │                │                       │
+│       └────────────────┼────────────────┘                       │
+│                        ▼                                        │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  Merge & Rank (titles first, then people, then genres)   │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│       │                                                         │
+│       ▼                                                         │
+│  Response:                                                      │
+│  [                                                              │
+│    {"type": "person", "text": "Steven Spielberg", "role": "director"},
+│    {"type": "title", "text": "Spielberg (2017)", "entity_id": 456},
+│    {"type": "title", "text": "The Post", "entity_id": 789, "hint": "Spielberg"}
+│  ]                                                              │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Search Modes (Auto-detected)
-
-| Mode | When Used | Example Queries |
-|------|-----------|-----------------|
-| **Hybrid** (default) | General queries | "90s teen movies", "sci-fi thriller" |
-| **Hybrid + Filters** | Structured queries | "directed by Spielberg", "Korean films" |
-| **Semantic Only** | Abstract/mood queries | "cozy movie for rainy day", "something uplifting" |
-
-> **Note**: "Structured" queries still use hybrid search but with filters as first-class Bleve `must` clauses. See "Structured Queries Philosophy" in Risks & Mitigations.
-
-### Bleve Document Schema
-
-| Field | Type | Analyzer | Purpose |
-|-------|------|----------|---------|
-| `entity_type` | keyword | - | Filter by movie/tv/etc |
-| `entity_id` | numeric | - | Join back to vector results |
-| `title` | text | english | Title search with stemming |
-| `plot` | text | english | Plot/description search |
-| `tagline` | text | english | Tagline search |
-| `year` | numeric | - | Year range queries |
-| `decade` | keyword | - | "90s", "1990s" exact match |
-| `genres` | keyword[] | - | Genre filtering |
-| `language` | keyword | - | Language filtering |
-| `country` | keyword | - | Country filtering |
-| `content_rating` | keyword | - | MPAA rating (PG-13, R) |
-| `directors` | text | simple | Director name search (no stemming) |
-| `writers` | text | simple | Writer name search |
-| `cast` | text | simple | Actor search |
-| `studios` | text | simple | Studio search |
-| `themes` | text | english | Theme keywords |
-| `locations` | text | english | Location keywords |
-| `tmdb_rating` | numeric | - | Quality signal (0-10) |
-| `vote_count` | numeric | - | Confidence signal |
-
-### Score Fusion
-
-**RRF (Reciprocal Rank Fusion)** - Default:
-```
-score(d) = Σ 1/(k + rank_i(d))
-```
-- `k` = 60 (default, configurable)
-- Simple, robust, doesn't require score normalization
-
-**RSF (Relative Score Fusion)** - Alternative:
-```
-score(d) = w_bleve * norm(bleve_score) + w_vector * norm(vector_score)
-```
-- Configurable weights (default 0.5 each)
-- Considers actual score magnitudes
-
-### Configuration
-
-```yaml
-bleve:
-  enabled: true
-  schema_version: 1
-  fuzzy_enabled: true
-  fuzzy_distance: 1
-
-search:
-  fusion_method: "rrf"    # "rrf" or "rsf"
-  fusion_k: 60            # RRF k parameter
-  vector_weight: 0.5      # RSF weight for vectors
-  text_weight: 0.5        # RSF weight for text
-```
-
-### Design Principles
-
-1. **Filters as First-Class Queries**: Use decade/genre/language/country as Bleve `must` clauses, not just boost hints. This ensures hard constraints are enforced at the query level.
-
-2. **Single-Writer Pattern**: All Bleve index writes go through a serialized work queue to prevent corruption. See "Bleve Index Lifecycle" in Risks & Mitigations.
-
-3. **Normalized Names**: Directors/cast use a custom analyzer with lowercase, punctuation stripping, whitespace collapsing, and accent folding.
-
-### Implementation Tasks
-
-- [ ] Add `github.com/blevesearch/bleve/v2` dependency
-- [ ] Create `BleveService` with index management (`bleve.go`)
-  - [ ] Implement single-writer pattern with work queue
-  - [ ] Add crash recovery / index integrity check on startup
-  - [ ] Handle graceful shutdown with pending write flush
-- [ ] Define document schema and mapping (`bleve_document.go`)
-  - [ ] Create custom analyzer for person names (normalized)
-  - [ ] Add decade field with proper tokenization
-- [ ] Implement Bleve query builder (`bleve_search.go`)
-  - [ ] Support filters as `must` clauses (decade, genre, language, country)
-  - [ ] Implement robust decade parser (see Risks & Mitigations)
-- [ ] Implement RRF/RSF score fusion (`fusion.go`)
-- [ ] Integrate into `IndexingService.IndexSingle()`
-- [ ] Add `detectSearchMode()` logic
-- [ ] Add "Rebuild Bleve Index" API endpoint
-- [ ] **Add Query Explain debug endpoint** (`GET /api/plugins/semantic-search/explain?q=...`)
-  - Returns: detected mode, extracted intents/filters, top N from each source, fused ranks, boost deltas
-- [ ] Handle schema version changes (auto-rebuild)
-- [ ] Add settings to UI schema
-
-### Test Queries
-
-| Query | Expected Improvement |
-|-------|---------------------|
-| "90s teen movies" | Decade filter + stemmed "teen/teenager" |
-| "Spielburg movies" | Fuzzy match → "Spielberg" |
-| "sci fi" | Stemmed → "sci-fi", "science fiction" |
-| "Korean thriller" | Language + genre filtering |
-| "movies like The Matrix" | Still uses vector similarity |
-| "cozy rainy day movie" | Still uses semantic search |
-
----
-
-## Phase 2: Performance Optimizations
-
-### 2.1 Query Embedding Cache
-
-**Problem**: Same query searched twice = two embedding API calls.
-
-**Solution**: LRU cache for query embeddings in `EmbeddingService`.
-
-```go
-type EmbeddingService struct {
-    // ... existing fields
-    cacheMu   sync.RWMutex
-    cache     map[string]*embeddingCacheEntry
-    cacheKeys []string  // For LRU tracking
-    maxCache  int       // Default: 1000 entries (~3MB)
-    cacheTTL  time.Duration // Default: 1 hour
-}
-
-type embeddingCacheEntry struct {
-    embedding []float32
-    createdAt time.Time
-}
-```
-
-**Cache Key**: Normalized query (lowercase, collapsed whitespace)
-```go
-func normalizeQuery(text string) string {
-    return strings.ToLower(strings.Join(strings.Fields(text), " "))
-}
-```
-
-**Implementation Tasks**:
-- [ ] Add cache fields to `EmbeddingService`
-- [ ] Implement cache lookup in `EmbedSingle()`
-- [ ] Add LRU eviction when at capacity
-- [ ] Add cache config options (size, TTL)
-- [ ] Add cache hit/miss metrics
-
-**Impact**: 50%+ latency reduction for repeat queries.
-
-### 2.2 Pre-parsed Metadata
-
-**Problem**: `applyKeywordBoost()` calls `extractLine()` repeatedly, parsing the same text for each result.
-
-**Solution**: Store structured metadata alongside embedding text.
-
-```go
-type Embedding struct {
-    // Existing fields
-    EntityType string
-    EntityID   int64
-    Vector     []float32
-    Text       string
-    
-    // New: pre-parsed for fast boosting
-    Metadata   *ParsedMetadata `json:"metadata,omitempty"`
-}
-
-type ParsedMetadata struct {
-    Title     string   `json:"title"`
-    Year      int      `json:"year"`
-    Genres    []string `json:"genres"`
-    Directors []string `json:"directors"`
-    Cast      []string `json:"cast"`
-    Studios   []string `json:"studios"`
-}
-```
-
-**Implementation Tasks**:
-- [ ] Add `ParsedMetadata` struct
-- [ ] Populate during indexing
-- [ ] Update `applyKeywordBoost()` to use metadata
-- [ ] Migration: backfill existing embeddings or rebuild on next index
-
-### 2.3 Result Caching
-
-**Problem**: Same search by different users recalculates everything.
-
-**Solution**: Cache search results with TTL, keyed by (query, entityTypes, limit).
-
-**Note**: Must exclude user-specific boosts from cache key, apply personalization post-cache.
-
----
-
-## Phase 3: Quality Signals
-
-### 3.1 Rating Integration
-
-**Available Data** (already in database):
-- `movies.rating` - TMDB vote average (0-10 scale)
-- `movies.rating_votes` - TMDB vote count
-- Same fields exist for `tv_shows` and `tv_episodes`
-
-**Missing Data**:
-- `popularity` - TMDB popularity score (fetched but not stored)
-
-**Ranking Formula**:
-```go
-func applyQualityBoost(results []SearchResult) []SearchResult {
-    for i := range results {
-        rating := results[i].Metadata.Rating      // 0-10
-        votes := results[i].Metadata.VoteCount
-        
-        // Bayesian-weighted rating boost
-        // High rating + high votes = bigger boost
-        ratingBoost := (rating / 10.0) * 0.1  // Up to 10% boost for high-rated content
-        confidenceBoost := math.Log10(float64(votes+1)) * 0.02  // ~6% for 1000 votes
-        
-        results[i].Similarity *= (1 + ratingBoost + confidenceBoost)
-    }
-    return results
-}
-```
-
-**Implementation Tasks**:
-- [ ] Add rating/vote_count to `ParsedMetadata`
-- [ ] Fetch during indexing from `MediaDetails`
-- [ ] Add `applyQualityBoost()` function
-- [ ] Make boost weights configurable
-- [ ] Optional: Add `popularity` column to schema, store from TMDB
-
-### 3.2 Recency Boost
-
-**Problem**: Newly added content doesn't get surfaced appropriately.
-
-**Solution**: Small boost for recently added items.
-
-```go
-func applyRecencyBoost(results []SearchResult, addedDates map[int64]time.Time) {
-    now := time.Now()
-    for i := range results {
-        addedAt := addedDates[results[i].EntityID]
-        daysSinceAdded := now.Sub(addedAt).Hours() / 24
-        
-        if daysSinceAdded < 7 {
-            results[i].Similarity *= 1.05  // 5% boost for last week
-        } else if daysSinceAdded < 30 {
-            results[i].Similarity *= 1.02  // 2% boost for last month
-        }
-    }
-}
-```
-
----
-
-## Phase 4: Personalization
-
-### Available User Signals
-
-| Source | Data | Signal Type |
-|--------|------|-------------|
-| `user_ratings` | up/down/favorite | Explicit preference |
-| `watch_progress` | watched items, completion | Implicit preference |
-| `watch_progress` | in-progress items | Current interest |
-
-### Personalization Strategy
-
-```go
-func applyPersonalization(ctx context.Context, userID string, results []SearchResult) {
-    // Get user's preference signals
-    favorites := getUserFavorites(ctx, userID)      // Strongest signal
-    upvoted := getUserUpvoted(ctx, userID)          // Medium signal
-    downvoted := getUserDownvoted(ctx, userID)      // Negative signal
-    watched := getUserWatchedItems(ctx, userID)     // Implicit signal
-    
-    // Extract genre/director preferences from history
-    preferredGenres := extractGenrePreferences(favorites, upvoted, watched)
-    preferredDirectors := extractDirectorPreferences(favorites, upvoted)
-    
-    for i := range results {
-        boost := 1.0
-        
-        // Boost items matching preferred genres
-        for _, genre := range results[i].Metadata.Genres {
-            if weight, ok := preferredGenres[genre]; ok {
-                boost += weight * 0.1  // Up to 10% per matching genre
-            }
-        }
-        
-        // Boost items from preferred directors
-        for _, director := range results[i].Metadata.Directors {
-            if weight, ok := preferredDirectors[director]; ok {
-                boost += weight * 0.15  // Up to 15% for matching director
-            }
-        }
-        
-        // Penalize downvoted content's genres
-        // (Don't hide completely - user might still want to see)
-        for _, genre := range results[i].Metadata.Genres {
-            if isDislikedGenre(downvoted, genre) {
-                boost -= 0.1
-            }
-        }
-        
-        results[i].Similarity *= float32(boost)
-    }
-}
-```
-
-### Privacy Controls
-
-- [ ] Add user setting: "Personalize search results" (default: on)
-- [ ] All processing is local (no external services)
-- [ ] Uses existing opt-in data only
-- [ ] Option to reset/clear personalization
-
-### Implementation Tasks
-
-- [ ] Add `sdk.RatingsClient` and `sdk.ProgressClient` to plugin
-- [ ] Create `PersonalizationService`
-- [ ] Extract preference patterns from user history
-- [ ] Apply personalization boosts in search
-- [ ] Add UI toggle for personalization
-- [ ] Cache user preferences (invalidate on rating/watch changes)
-
----
-
-## Phase 5: Autocomplete & Suggestions
-
-### Current State
-
-- Context-based suggestion chips (weather, time, holidays)
-- No type-ahead autocomplete
-- No search history
-- No trending searches
-
-### 5.1 Autocomplete Endpoint
-
-**New Endpoint**: `GET /api/plugins/semantic-search/autocomplete?q=<prefix>&limit=10`
+### API Design
+
+**Endpoint**: `GET /api/plugins/semantic-search/autocomplete`
+
+**Parameters**:
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `q` | string | required | Search prefix (min 2 chars) |
+| `limit` | int | 8 | Max suggestions to return |
+| `types` | string | "all" | Filter: "titles", "people", "genres", or "all" |
 
 **Response**:
 ```json
 {
   "suggestions": [
-    {"type": "title", "text": "The Godfather", "entity_id": 123},
-    {"type": "person", "text": "Steven Spielberg", "role": "director"},
+    {"type": "title", "text": "The Godfather", "entity_id": 123, "year": 1972},
+    {"type": "person", "text": "Steven Spielberg", "role": "director", "movie_count": 34},
     {"type": "genre", "text": "Science Fiction"},
-    {"type": "recent", "text": "90s action movies"},
-    {"type": "trending", "text": "new releases"}
+    {"type": "recent", "text": "90s action movies", "searched_at": "2024-01-15T10:30:00Z"}
+  ],
+  "query": "spiel",
+  "took_ms": 12
+}
+```
+
+### Implementation
+
+**Title Search** (SQL):
+```sql
+-- SQLite
+SELECT id, title, year FROM movies 
+WHERE title LIKE ? || '%' COLLATE NOCASE
+ORDER BY rating_votes DESC
+LIMIT 5;
+
+-- With trigram for mid-word matching (optional enhancement)
+SELECT id, title, year FROM movies
+WHERE title LIKE '%' || ? || '%' COLLATE NOCASE
+ORDER BY 
+  CASE WHEN title LIKE ? || '%' COLLATE NOCASE THEN 0 ELSE 1 END,
+  rating_votes DESC
+LIMIT 5;
+```
+
+**People Search** (from indexed embeddings metadata or separate table):
+```sql
+SELECT DISTINCT director as name, 'director' as role, COUNT(*) as movie_count
+FROM movies 
+WHERE director LIKE ? || '%' COLLATE NOCASE
+GROUP BY director
+ORDER BY movie_count DESC
+LIMIT 3;
+
+-- Combined with cast
+UNION ALL
+
+SELECT DISTINCT name, 'actor' as role, COUNT(*) as movie_count
+FROM movie_cast
+WHERE name LIKE ? || '%' COLLATE NOCASE
+GROUP BY name
+ORDER BY movie_count DESC
+LIMIT 3;
+```
+
+**Genre Suggestions** (static list with prefix filter):
+```go
+var genres = []string{
+    "Action", "Adventure", "Animation", "Comedy", "Crime",
+    "Documentary", "Drama", "Family", "Fantasy", "History",
+    "Horror", "Music", "Mystery", "Romance", "Science Fiction",
+    "Thriller", "War", "Western",
+}
+
+func suggestGenres(prefix string) []string {
+    prefix = strings.ToLower(prefix)
+    var matches []string
+    for _, g := range genres {
+        if strings.HasPrefix(strings.ToLower(g), prefix) {
+            matches = append(matches, g)
+        }
+    }
+    return matches
+}
+```
+
+### Implementation Tasks
+
+- [ ] Add `AutocompleteService` in `internal/autocomplete.go`
+- [ ] Add SQL queries for title/people prefix search
+- [ ] Register `/autocomplete` endpoint in plugin
+- [ ] Add response caching (short TTL, ~30s)
+- [ ] Frontend: Add autocomplete dropdown component
+- [ ] Frontend: Keyboard navigation (up/down/enter/escape)
+- [ ] Frontend: Debounce input (200-300ms)
+- [ ] Add recent searches to suggestions (see Phase 2)
+
+---
+
+## Phase 2: Search History & Recent Searches
+
+### Problem
+Users often repeat searches. Showing recent searches improves UX and reduces typing.
+
+### Solution
+Track search queries per user, surface in autocomplete.
+
+### Storage
+
+**Option A: Plugin-managed SQLite** (simpler, isolated)
+```sql
+-- In plugin's data directory
+CREATE TABLE search_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    query TEXT NOT NULL,
+    result_count INTEGER,
+    searched_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_search_history_user ON search_history(user_id, searched_at DESC);
+```
+
+**Option B: Host-managed via SDK** (if we add a history capability to the host)
+
+### API
+
+**Track search** (called internally after each search):
+```go
+func (s *SearchService) trackSearch(ctx context.Context, userID, query string, resultCount int) {
+    // Insert into search_history, keep only last 50 per user
+}
+```
+
+**Get recent searches**:
+```go
+func (s *AutocompleteService) getRecentSearches(ctx context.Context, userID string, limit int) []string {
+    // SELECT DISTINCT query FROM search_history WHERE user_id = ? ORDER BY searched_at DESC LIMIT ?
+}
+```
+
+### Implementation Tasks
+
+- [ ] Create search_history table in plugin's SQLite DB
+- [ ] Track searches after successful search
+- [ ] Deduplicate consecutive identical searches
+- [ ] Add "clear history" endpoint
+- [ ] Include recent searches in autocomplete response
+- [ ] Add setting to disable history tracking
+
+---
+
+## Phase 3: Query Explain Endpoint (Debugging)
+
+### Problem
+Hard to understand why a search returns certain results. Need visibility into the ranking pipeline.
+
+### Solution
+Add debug endpoint that explains how a query was processed.
+
+### API
+
+**Endpoint**: `GET /api/plugins/semantic-search/explain?q=<query>`
+
+**Response**:
+```json
+{
+  "query": "90s spielberg movies",
+  "normalized_query": "90s spielberg movies",
+  "detected_intents": {
+    "decade": {"value": "1990s", "year_start": 1990, "year_end": 1999},
+    "person": {"name": "spielberg", "type": "director_or_actor"}
+  },
+  "search_mode": "semantic_with_filters",
+  "embedding_cached": true,
+  "vector_search": {
+    "min_similarity": 0.35,
+    "results_before_filter": 127,
+    "results_after_filter": 23
+  },
+  "boosts_applied": [
+    {"type": "director_match", "target": "spielberg", "boost": 0.55, "matches": 12},
+    {"type": "decade_match", "target": "1990s", "boost": 0.20, "matches": 18}
+  ],
+  "final_results": 15,
+  "took_ms": 45,
+  "top_results": [
+    {
+      "title": "Schindler's List",
+      "year": 1993,
+      "base_similarity": 0.72,
+      "boosted_similarity": 0.89,
+      "boost_breakdown": {
+        "director_match": 0.55,
+        "decade_match": 0.20,
+        "diversity_penalty": -0.08
+      }
+    }
   ]
 }
 ```
 
-**Implementation**:
-- Bleve prefix queries on title, cast, directors fields
-- Fuzzy matching for typo tolerance
-- Merge with recent/trending searches
-- Limit total suggestions (e.g., 8)
-
-### 5.2 Search History
-
-**New Table**:
-```sql
-CREATE TABLE search_history (
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id),
-    query TEXT NOT NULL,
-    result_count INTEGER,
-    clicked_result_id INTEGER,  -- For relevance feedback
-    searched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_user_recent (user_id, searched_at DESC)
-);
-```
-
-**Features**:
-- Track last N searches per user (default: 50)
-- Show as "Recent searches" with clock icon
-- Clear history option in settings
-
-### 5.3 Trending Searches
-
-**Aggregation**:
-```sql
-SELECT query, COUNT(*) as search_count
-FROM search_history
-WHERE searched_at > datetime('now', '-7 days')
-GROUP BY LOWER(query)
-ORDER BY search_count DESC
-LIMIT 10;
-```
-
-**Privacy**: Aggregate only, no user attribution in trending.
-
 ### Implementation Tasks
 
-- [ ] Create `search_history` table migration
-- [ ] Add history tracking in search handler
-- [ ] Implement autocomplete endpoint using Bleve
-- [ ] Add recent searches to suggestions
-- [ ] Implement trending aggregation
-- [ ] Frontend: Add autocomplete dropdown component
-- [ ] Frontend: Keyboard navigation for suggestions
+- [ ] Add `ExplainService` or extend `SearchService` with explain mode
+- [ ] Collect boost breakdown during search
+- [ ] Add `/explain` endpoint (admin-only or debug flag)
+- [ ] Log explain data for failed searches (zero results)
 
 ---
 
-## Phase 6: Technical Debt Cleanup
+## Phase 4: Quality Signals (Rating/Popularity)
 
-### 6.1 Externalize Configuration
+### Problem
+High-quality, popular content should rank slightly higher than obscure matches.
 
-**Move to `data/plugins/semantic-search/config/`**:
+### Solution
+Apply light re-ranking based on TMDB ratings and vote counts.
 
+### Available Data
+
+| Field | Source | Scale |
+|-------|--------|-------|
+| `rating` | TMDB vote average | 0-10 |
+| `rating_votes` | TMDB vote count | 0-∞ |
+| `popularity` | TMDB popularity | 0-∞ (not currently stored) |
+
+### Ranking Formula
+
+```go
+func applyQualityBoost(results []SearchResult) {
+    for i := range results {
+        rating := results[i].Rating        // 0-10
+        votes := results[i].VoteCount
+        
+        // Only boost if we have enough confidence (votes > 100)
+        if votes < 100 {
+            continue
+        }
+        
+        // Normalized rating boost: max 10% for perfect 10.0 rating
+        ratingBoost := (rating / 10.0) * 0.10
+        
+        // Confidence factor: log scale, ~5% boost at 1000 votes
+        confidenceFactor := math.Min(math.Log10(float64(votes))/4.0, 1.0)
+        
+        // Combined boost, capped at 15%
+        totalBoost := math.Min(ratingBoost*confidenceFactor, 0.15)
+        
+        results[i].Similarity *= (1 + float32(totalBoost))
+    }
+}
+```
+
+### Implementation Tasks
+
+- [ ] Add rating/votes to search result metadata
+- [ ] Implement `applyQualityBoost()` function
+- [ ] Add config option to enable/disable quality boost
+- [ ] Add config option for boost weights
+- [ ] Test that obscure but relevant results aren't buried
+
+---
+
+## Phase 5: Externalize Configuration
+
+### Problem
+Boost weights, studio lists, and language maps are hardcoded. Tuning requires code changes.
+
+### Solution
+Move to config files that can be edited without recompilation.
+
+### Config Structure
+
+```
+data/plugins/semantic-search/
+├── config.yaml           # Main plugin config
+├── studios.yaml          # Known studios for intent detection
+├── languages.yaml        # Language name mappings
+└── boosts.yaml           # Ranking boost weights
+```
+
+**boosts.yaml**:
 ```yaml
-# studios.yaml
+# Boost weights for keyword matching
+boosts:
+  director_match: 0.55
+  director_mismatch_penalty: -0.35
+  actor_match: 0.50
+  genre_match: 0.30
+  decade_match: 0.20
+  studio_match: 0.25
+  language_match: 0.30
+
+# Quality signal weights
+quality:
+  enabled: true
+  max_boost: 0.15
+  min_votes: 100
+
+# Diversity penalties
+diversity:
+  same_director_penalty: 0.15
+  same_decade_penalty: 0.05
+  same_genre_penalty: 0.03
+```
+
+**studios.yaml**:
+```yaml
 studios:
   - pixar
   - disney
@@ -518,266 +425,77 @@ studios:
   - a24
   - warner bros
   - universal
-  # ... easily extensible
-
-# languages.yaml  
-languages:
-  french: French
-  korean: Korean
-  japanese: Japanese
-  # ...
-
-# boost_weights.yaml
-boosts:
-  director_match: 0.55
-  director_mismatch_penalty: 0.35
-  actor_match: 0.50
-  genre_match: 0.30
-  # ... tunable without code changes
-```
-
-### 6.2 International Holidays
-
-**Add region support**:
-```yaml
-# holidays/us.yaml
-holidays:
-  - name: Christmas
-    month: 12
-    day: 25
-    suggestions: ["Christmas movies", "Holiday classics"]
-
-# holidays/india.yaml
-holidays:
-  - name: Diwali
-    month: 10  # varies
-    day: 24
-    suggestions: ["Bollywood celebrations", "Festival films"]
-```
-
-**Load based on user's timezone/locale**.
-
-### 6.3 Remove Magic Numbers
-
-**Before**:
-```go
-boost += 0.55  // What does this mean?
-```
-
-**After**:
-```go
-boost += s.config.Boosts.DirectorMatch  // Clear, configurable
+  - paramount
+  - sony
+  - lionsgate
+  - netflix
+  - amazon
+  - apple
+  - hbo
+  - ghibli
+  - dreamworks
 ```
 
 ### Implementation Tasks
 
-- [ ] Create config file structure
-- [ ] Load configs on plugin startup
-- [ ] Replace hardcoded lists with config lookups
-- [ ] Add config reload endpoint (for hot updates)
-- [ ] Add international holiday files
-- [ ] Document all boost parameters
+- [ ] Create default config files on first run
+- [ ] Add config loading on plugin startup
+- [ ] Replace hardcoded values with config lookups
+- [ ] Add config reload endpoint (hot reload)
+- [ ] Document all config options
 
 ---
 
-## Risks & Mitigations
+## Phase 6: Personalization (Future)
 
-### 1. Bleve Index Lifecycle
+### Overview
+Boost results based on user's watch history and ratings. **Lower priority** - implement after core search is solid.
 
-**Risk**: Index corruption, lock contention, and crash recovery issues.
+### Signals Available
 
-**Mitigations**:
-- **Single-writer pattern**: All index writes go through a single goroutine with a work queue
-- **Index lock management**: Use Bleve's built-in locking; handle `ErrIndexLocked` gracefully
-- **Crash recovery**: On startup, check index integrity; rebuild if corrupted
-- **Library removal**: When a library is deleted, batch-delete all its documents from Bleve index
-- **Graceful shutdown**: Flush pending writes and close index cleanly on plugin shutdown
+| Source | Signal | Weight |
+|--------|--------|--------|
+| `user_ratings` (favorite) | Strong positive | High |
+| `user_ratings` (up) | Positive | Medium |
+| `user_ratings` (down) | Negative | Medium |
+| `watch_progress` (completed) | Implicit positive | Low |
 
-```go
-type BleveService struct {
-    index     bleve.Index
-    writeCh   chan bleveWriteOp   // Serialized writes
-    closeCh   chan struct{}
-}
+### Approach
+1. Extract genre/director preferences from favorites and highly-rated items
+2. Apply small boost (max ±10%) to matching content
+3. Never hide content, just re-rank slightly
+4. User setting to enable/disable
 
-func (s *BleveService) Start() {
-    go s.writeLoop()  // Single writer goroutine
-}
+### Implementation Tasks (Future)
 
-func (s *BleveService) writeLoop() {
-    for {
-        select {
-        case op := <-s.writeCh:
-            op.execute(s.index)
-        case <-s.closeCh:
-            s.index.Close()
-            return
-        }
-    }
-}
-```
-
-### 2. Name Normalization
-
-**Risk**: Director/cast searches fail due to inconsistent naming ("Bong Joon-ho" vs "Bong Joon Ho").
-
-**Solution**: Apply consistent normalization during indexing AND querying:
-
-```go
-func normalizeName(name string) string {
-    // 1. Lowercase
-    name = strings.ToLower(name)
-    // 2. Strip punctuation (except spaces)
-    name = regexp.MustCompile(`[^\p{L}\p{N}\s]`).ReplaceAllString(name, "")
-    // 3. Collapse whitespace
-    name = strings.Join(strings.Fields(name), " ")
-    // 4. ASCII-fold accents (optional, use golang.org/x/text/transform)
-    name = foldAccents(name)
-    return name
-}
-```
-
-**Implementation**:
-- Create custom Bleve analyzer for `directors`/`cast`/`writers` fields
-- Apply same normalization to search queries for person names
-- Store both original and normalized forms (original for display)
-
-### 3. Robust Decade Parser
-
-**Risk**: Decade queries fail for edge cases ("late 90s", "early 2000s", "80's", "turn of the century").
-
-**Solution**: Comprehensive decade normalization:
-
-| Input | Normalized Token | Year Range |
-|-------|------------------|------------|
-| `90s`, `90's`, `nineties`, `1990s` | `1990s` | 1990-1999 |
-| `early 90s` | `1990s` | 1990-1993 |
-| `late 90s` | `1990s` | 1997-1999 |
-| `mid 90s` | `1990s` | 1994-1996 |
-| `1998` | `1990s` + exact year | 1998 |
-| `turn of the century` | `2000s` | 1998-2002 |
-| `golden age` | special handling | 1930s-1960s |
-
-```go
-type DecadeInfo struct {
-    Canonical  string // "1990s"
-    YearStart  int    // 1990
-    YearEnd    int    // 1999
-    Modifier   string // "early", "late", "mid", ""
-}
-
-func parseDecade(input string) (*DecadeInfo, bool) {
-    // Implementation with regex patterns for all variants
-}
-```
-
-### 4. Ranking Discipline
-
-**Risk**: "Death by a thousand multipliers" - too many boost factors compound unpredictably.
-
-**Design Principle**: Limit post-fusion modifications to maintain predictable ranking.
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Ranking Pipeline                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────┐  ┌─────────────┐                              │
-│  │ Bleve BM25  │  │   Vector    │                              │
-│  │   Results   │  │  Similarity │                              │
-│  └──────┬──────┘  └──────┬──────┘                              │
-│         │                │                                      │
-│         └───────┬────────┘                                      │
-│                 ▼                                                │
-│        ┌────────────────┐                                       │
-│        │  RRF Fusion    │  ← Base ranking (no boosts here)      │
-│        └───────┬────────┘                                       │
-│                │                                                 │
-│                ▼                                                 │
-│        ┌────────────────┐                                       │
-│        │ Hard Filters   │  Step 1: Remove non-matching          │
-│        │ (constraints)  │  (decade, language, content rating)   │
-│        └───────┬────────┘                                       │
-│                │                                                 │
-│                ▼                                                 │
-│        ┌────────────────┐                                       │
-│        │ Light Re-rank  │  Step 2: MAX 2 boost sources          │
-│        │ (quality +     │  - Quality: rating * confidence       │
-│        │  personalize)  │  - Personalization: user prefs        │
-│        └───────┬────────┘  Combined boost capped at ±20%        │
-│                │                                                 │
-│                ▼                                                 │
-│         Final Results                                           │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Rules**:
-1. Fusion produces the base ranking (RRF or RSF)
-2. Post-fusion: max 2 modification steps
-   - Step 1: Hard filters/constraints (pass/fail, no score changes)
-   - Step 2: Light re-ranking (quality + personalization, capped boost)
-3. Combined boost from Step 2 capped at ±20% to prevent runaway scores
-4. Log each component's contribution in debug mode
-
-### 5. Structured Queries Philosophy
-
-**Principle**: "Structured" means "enable constraints", NOT "disable vectors".
-
-**Wrong approach**:
-```go
-if isStructuredQuery(query) {
-    return bleveOnlySearch(query)  // ❌ Loses semantic understanding
-}
-```
-
-**Correct approach**:
-```go
-if isStructuredQuery(query) {
-    // Extract constraints as Bleve must-clauses
-    filters := extractFilters(query)  // decade, genre, language, etc.
-    
-    // Still use hybrid search, but with filters applied
-    return hybridSearchWithFilters(query, filters)  // ✓ Best of both
-}
-```
-
-**Rationale**: A query like "90s teen comedy" benefits from:
-- Vector search: understands "teen" themes even if not explicitly tagged
-- BM25 search: matches "teen", "teenager", "coming of age" via stemming
-- Filters: restricts to 1990-1999 release years
-- All three working together produce better results than any alone
+- [ ] Add SDK clients for ratings and watch progress
+- [ ] Build preference extraction logic
+- [ ] Apply personalization in search pipeline
+- [ ] Add user setting toggle
+- [ ] Cache preferences with invalidation
 
 ---
 
-## Implementation Priority Matrix
+## Implementation Priority
 
-| Phase | Effort | Impact | Priority |
-|-------|--------|--------|----------|
-| 2.1 Query Embedding Cache | Low | High | **P0** |
-| 1. Bleve Integration | High | High | **P1** |
-| 3.1 Rating Integration | Low | Medium | **P1** |
-| 6.1 Externalize Config | Low | Medium | **P2** |
-| 2.2 Pre-parsed Metadata | Medium | Medium | **P2** |
-| 5.1 Autocomplete | Medium | Medium | **P2** |
-| 4. Personalization | High | High | **P3** |
-| 5.2 Search History | Low | Low | **P3** |
-| 3.2 Recency Boost | Low | Low | **P3** |
-| 6.2 International Holidays | Low | Low | **P4** |
+| Phase | Effort | Impact | Priority | Status |
+|-------|--------|--------|----------|--------|
+| Query Embedding Cache | Low | High | P0 | ✅ Done |
+| Autocomplete | Medium | High | **P1** | Pending |
+| Query Explain | Low | Medium | **P1** | Pending |
+| Search History | Low | Medium | P2 | Pending |
+| Quality Signals | Low | Medium | P2 | Pending |
+| Externalize Config | Medium | Medium | P3 | Pending |
+| Personalization | High | High | P4 | Future |
 
 ### Recommended Order
 
-1. **Query Embedding Cache** (P0) - Quick win, immediate latency improvement
-2. **Bleve Integration** - Core improvement with:
-   - Title/people fields with custom name analyzer
-   - Decade/year/genre/language/country as first-class filters (`must` clauses)
-   - RRF fusion for combining Bleve + vector results
-3. **Quality Signals** - Rating/votes as light re-rank (capped at ±20% boost)
-4. **Query Explain Endpoint** - Debug tool to validate ranking pipeline
-5. **Autocomplete** - Better UX, uses Bleve prefix queries
-6. **Personalization** - Major feature, builds on infrastructure
-
-> **Rationale**: Cache first (quick win), then Bleve with proper filters (foundational), then quality signals as a controlled re-rank layer. Autocomplete and personalization come after the core search is solid.
+1. **Autocomplete** - Prevents typos, improves UX significantly
+2. **Query Explain** - Enables debugging and tuning
+3. **Search History** - Quick win, enhances autocomplete
+4. **Quality Signals** - Light re-ranking based on ratings
+5. **Externalize Config** - Enables tuning without code changes
+6. **Personalization** - Major feature, requires more infrastructure
 
 ---
 
@@ -788,9 +506,8 @@ if isStructuredQuery(query) {
 | Zero-result queries | Unknown | < 5% | Log and track |
 | Search latency (p50) | ~50ms | < 30ms | Metrics endpoint |
 | Search latency (p95) | ~200ms | < 100ms | Metrics endpoint |
-| Cache hit rate | 0% | > 60% | Cache metrics |
-| "90s teen movies" quality | Poor | Good | Manual testing |
-| Typo tolerance | None | Good | "Spielburg" test |
+| Cache hit rate | ~0% | > 60% | Cache stats endpoint |
+| Autocomplete usage | N/A | > 30% of searches | Track selection |
 
 ---
 
@@ -800,35 +517,27 @@ if isStructuredQuery(query) {
 
 | File | Purpose |
 |------|---------|
-| `internal/bleve.go` | BleveService - index management |
-| `internal/bleve_search.go` | Query building and execution |
-| `internal/bleve_document.go` | Document struct and mapping |
-| `internal/fusion.go` | RRF/RSF score fusion |
-| `internal/personalization.go` | User preference learning |
-| `internal/autocomplete.go` | Type-ahead suggestions |
-| `config/studios.yaml` | Studio names (externalized) |
+| `internal/autocomplete.go` | Autocomplete service and endpoint |
+| `internal/explain.go` | Query explain endpoint |
+| `internal/history.go` | Search history tracking |
+| `internal/quality.go` | Quality signal boosting |
+| `internal/config_loader.go` | YAML config loading |
+| `config/boosts.yaml` | Default boost weights |
+| `config/studios.yaml` | Studio list |
 | `config/languages.yaml` | Language mappings |
-| `config/boost_weights.yaml` | Tunable boost parameters |
 
 ### Modified Files
 
 | File | Changes |
 |------|---------|
-| `go.mod` | Add bleve/v2 dependency |
-| `internal/types.go` | Add BleveConfig, cache config, personalization config |
-| `internal/embedding.go` | Add query cache |
-| `internal/indexing.go` | Index to both Bleve and vector storage |
-| `internal/search.go` | Integrate hybrid search, quality boosts |
-| `internal/plugin.go` | Initialize new services, add endpoints |
+| `internal/embedding.go` | ✅ Already has LRU cache |
+| `internal/search.go` | Add quality boost, config lookups |
+| `internal/plugin.go` | Register new endpoints |
 | `internal/schema.go` | Add UI settings for new features |
-| `internal/suggestions.go` | Add recent/trending suggestions |
 
 ---
 
 ## References
 
-- [Bleve Documentation](https://blevesearch.com/docs/)
-- [Bleve GitHub](https://github.com/blevesearch/bleve)
-- [RRF Paper](https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf)
-- [Hybrid Search Best Practices](https://www.pinecone.io/learn/hybrid-search/)
-- [BM25 Explained](https://www.elastic.co/blog/practical-bm25-part-2-the-bm25-algorithm-and-its-variables)
+- [SQLite FTS5](https://www.sqlite.org/fts5.html) - If we ever need full-text search without external deps
+- [RRF Paper](https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf) - Score fusion (for future reference)
