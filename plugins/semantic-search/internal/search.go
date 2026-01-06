@@ -66,8 +66,29 @@ func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]Sear
 	// Detect query intent early to determine search strategy
 	intent := detectQueryIntent(params.Query)
 
-	// Generate embedding for the query
-	queryEmbedding, err := s.embeddingService.EmbedSingle(ctx, params.Query)
+	// Handle "similar to" queries by finding the source movie and using FindSimilar
+	if intent.isSimilarSearch && intent.similarToTitle != "" {
+		s.logger.Info("detected 'similar to' query",
+			"query", params.Query,
+			"extractedTitle", intent.similarToTitle)
+		results, err := s.handleSimilarToSearch(ctx, intent.similarToTitle, params)
+		if err != nil {
+			// Log but fall back to regular search if we can't find the movie
+			s.logger.Warn("similar-to search failed, falling back to semantic search",
+				"title", intent.similarToTitle, "error", err)
+		} else if len(results) > 0 {
+			s.logger.Info("similar-to search succeeded",
+				"title", intent.similarToTitle,
+				"resultCount", len(results))
+			return results, nil
+		} else {
+			s.logger.Warn("similar-to search returned no results, falling back to semantic search",
+				"title", intent.similarToTitle)
+		}
+	}
+
+	// Generate embedding for the query (with caching for repeated queries)
+	queryEmbedding, err := s.embeddingService.EmbedSingleCached(ctx, params.Query)
 	if err != nil {
 		return nil, fmt.Errorf("embed query: %w", err)
 	}
@@ -110,6 +131,22 @@ func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]Sear
 	})
 	if err != nil {
 		return nil, fmt.Errorf("search embeddings: %w", err)
+	}
+
+	s.logger.Info("vector search completed",
+		"query", params.Query,
+		"minSimilarity", minSim,
+		"resultCount", len(searchResp.Results))
+
+	// Log top results for debugging
+	for i, r := range searchResp.Results {
+		if i >= 3 {
+			break
+		}
+		s.logger.Debug("vector search result",
+			"index", i,
+			"entityID", r.EntityID,
+			"similarity", r.Similarity)
 	}
 
 	// Convert results to map for merging
@@ -235,6 +272,7 @@ type queryIntent struct {
 	isLocationSearch bool
 	isPersonSearch   bool   // Generic person search (name + movies)
 	isLanguageSearch bool   // Searching by language (French films, Korean movies)
+	isSimilarSearch  bool   // "movies like X", "similar to X" - find similar to a specific title
 	directorName     string // extracted director name if searching by director
 	actorName        string // extracted actor name if searching by actor
 	writerName       string // extracted writer name
@@ -242,11 +280,20 @@ type queryIntent struct {
 	studioName       string // extracted studio name
 	personName       string // generic person name (from "Name movies" pattern)
 	languageName     string // language being searched for (e.g., "french", "korean")
+	similarToTitle   string // extracted title for "similar to" searches
 }
 
 func detectQueryIntent(query string) queryIntent {
 	intent := queryIntent{}
 	q := strings.ToLower(query)
+
+	// Check for "similar to" / "movies like" patterns FIRST
+	// These patterns indicate user wants movies similar to a specific title
+	intent.similarToTitle, intent.isSimilarSearch = extractSimilarToTitle(q)
+	if intent.isSimilarSearch {
+		// If we found a "similar to" pattern, return early - this is the primary intent
+		return intent
+	}
 
 	// Known studio names for disambiguation - check these first before director patterns
 	knownStudios := map[string]bool{
@@ -423,8 +470,7 @@ func detectQueryIntent(query string) queryIntent {
 
 // extractPersonFromNameMoviesPattern extracts a person name from "Name movies" pattern
 func extractPersonFromNameMoviesPattern(query string) (string, bool) {
-	q := strings.ToLower(query)
-	words := strings.Fields(query) // Keep original case for name extraction
+	words := strings.Fields(query)
 
 	// Check if query ends with movies/films
 	mediaWords := map[string]bool{
@@ -445,20 +491,7 @@ func extractPersonFromNameMoviesPattern(query string) (string, bool) {
 		return "", false
 	}
 
-	// Check if any name word is capitalized (proper noun)
-	hasCapital := false
-	for _, w := range nameWords {
-		if len(w) > 0 && w[0] >= 'A' && w[0] <= 'Z' {
-			hasCapital = true
-			break
-		}
-	}
-
-	if !hasCapital {
-		return "", false
-	}
-
-	// Skip if it contains a nationality pattern like "korean movies" or "korean thriller movies"
+	// Skip if it contains a nationality pattern like "korean movies"
 	nationalityWords := map[string]bool{
 		"korean": true, "japanese": true, "french": true, "italian": true,
 		"german": true, "spanish": true, "british": true, "american": true,
@@ -471,16 +504,46 @@ func extractPersonFromNameMoviesPattern(query string) (string, bool) {
 		}
 	}
 
-	// Check for genre words that shouldn't be treated as names
-	genreWords := map[string]bool{
+	// Check for genre/adjective words that shouldn't be treated as names
+	nonNameWords := map[string]bool{
+		// Genres
 		"action": true, "comedy": true, "drama": true, "horror": true,
 		"thriller": true, "romance": true, "fantasy": true, "animation": true,
 		"documentary": true, "crime": true, "mystery": true, "adventure": true,
 		"sci-fi": true, "western": true, "musical": true, "war": true,
+		"comedies": true, "dramas": true, "thrillers": true, "westerns": true,
+		"anime": true, "animated": true, "cartoon": true, "manga": true,
+		// Adjectives
 		"indie": true, "classic": true, "old": true, "new": true,
 		"good": true, "best": true, "top": true, "great": true,
+		"funny": true, "scary": true, "romantic": true, "sad": true,
+		"happy": true, "dark": true, "light": true, "serious": true,
+		// Query patterns
+		"similar": true, "more": true, "other": true, "some": true,
+		"any": true, "random": true, "popular": true, "trending": true,
+		"recent": true, "latest": true, "upcoming": true, "recommended": true,
+		// Common words
+		"with": true, "about": true, "like": true, "featuring": true,
+		// Demographic/age descriptors (not person names)
+		"teen": true, "teenage": true, "teenager": true, "teens": true,
+		"kids": true, "children": true, "child": true, "family": true,
+		"adult": true, "mature": true, "young": true, "youth": true,
+		// Decade descriptors (not person names)
+		"50s": true, "60s": true, "70s": true, "80s": true, "90s": true,
+		"00s": true, "2000s": true, "2010s": true, "2020s": true,
+		"fifties": true, "sixties": true, "seventies": true, "eighties": true,
+		"nineties": true, "retro": true, "vintage": true, "modern": true,
 	}
-	if len(nameWords) == 1 && genreWords[strings.ToLower(nameWords[0])] {
+
+	// If all name words are non-name words, skip
+	allNonName := true
+	for _, w := range nameWords {
+		if !nonNameWords[strings.ToLower(w)] {
+			allNonName = false
+			break
+		}
+	}
+	if allNonName {
 		return "", false
 	}
 
@@ -491,20 +554,79 @@ func extractPersonFromNameMoviesPattern(query string) (string, bool) {
 		return "", false
 	}
 
-	// Check if this looks like a known query pattern we should ignore
-	// e.g., "similar movies", "more movies", "other movies"
-	skipWords := map[string]bool{
-		"similar": true, "more": true, "other": true, "some": true,
-		"any": true, "random": true, "popular": true, "trending": true,
-		"recent": true, "latest": true, "upcoming": true, "recommended": true,
-	}
-	firstWord := strings.ToLower(nameWords[0])
-	if skipWords[firstWord] {
-		return "", false
+	return name, true
+}
+
+// extractSimilarToTitle extracts a movie title from "movies like X" or "similar to X" patterns.
+// Returns the extracted title and whether a pattern was found.
+func extractSimilarToTitle(query string) (string, bool) {
+	q := strings.ToLower(query)
+
+	// Patterns to detect (order matters - more specific first):
+	// - "movies like X", "films like X", "something like X"
+	// - "movies similar to X", "films similar to X"
+	// - "similar to X"
+	// - "like X" (when it starts with "like")
+	// - "more like X"
+
+	patterns := []struct {
+		prefix string
+		suffix string // optional suffix to strip from the end
+	}{
+		// "movies/films like X" patterns
+		{"movies like ", ""},
+		{"films like ", ""},
+		{"movie like ", ""},
+		{"film like ", ""},
+		{"something like ", ""},
+		{"anything like ", ""},
+		{"more like ", ""},
+
+		// "similar to X" patterns
+		{"movies similar to ", ""},
+		{"films similar to ", ""},
+		{"movie similar to ", ""},
+		{"film similar to ", ""},
+		{"similar to ", ""},
+
+		// "recommend me X" style patterns
+		{"recommend something like ", ""},
+		{"recommend movies like ", ""},
+		{"recommend films like ", ""},
+
+		// "find me movies like X"
+		{"find movies like ", ""},
+		{"find films like ", ""},
+		{"find me movies like ", ""},
+		{"find me films like ", ""},
+		{"show me movies like ", ""},
+		{"show me films like ", ""},
 	}
 
-	_ = q // Silence unused warning
-	return name, true
+	for _, p := range patterns {
+		if idx := strings.Index(q, p.prefix); idx != -1 {
+			// Extract everything after the pattern
+			title := strings.TrimSpace(q[idx+len(p.prefix):])
+
+			// Strip common suffixes that might be added
+			suffixesToStrip := []string{
+				" please", " thanks", " movie", " film",
+				" recommendations", " recommendation",
+			}
+			for _, suffix := range suffixesToStrip {
+				title = strings.TrimSuffix(title, suffix)
+			}
+
+			title = strings.TrimSpace(title)
+
+			// Must have at least something as the title
+			if len(title) >= 2 {
+				return title, true
+			}
+		}
+	}
+
+	return "", false
 }
 
 // applyKeywordBoost boosts results that contain query keywords in their text.
@@ -682,7 +804,7 @@ func (s *SearchService) applyKeywordBoost(results []SearchResult, queryOriginal,
 			boost += float32(matchCount-1) * 0.03
 		}
 
-		// Genre matching boost
+		// Genre matching boost - very strong boost/penalty for genre-specific searches
 		if len(queryGenres) > 0 {
 			resultGenres := extractLine(textLower, "genre:")
 			genreMatches := 0
@@ -692,10 +814,11 @@ func (s *SearchService) applyKeywordBoost(results []SearchResult, queryOriginal,
 				}
 			}
 			if genreMatches > 0 {
-				boost += float32(genreMatches) * 0.08
+				boost += float32(genreMatches) * 0.20 // Very strong boost for matching genre
 			} else {
-				// Penalize results that don't match the requested genre
-				boost -= 0.05
+				// Very strong penalty for results that don't match the requested genre
+				// This ensures non-matching genres are pushed to the bottom
+				penalty += 0.45
 			}
 		}
 
@@ -910,11 +1033,18 @@ func extractGenresFromQuery(query string) []string {
 	genreMap := map[string]string{
 		"action":          "action",
 		"comedy":          "comedy",
+		"comedies":        "comedy",
+		"funny":           "comedy",
 		"drama":           "drama",
+		"dramas":          "drama",
 		"horror":          "horror",
+		"scary":           "horror",
 		"thriller":        "thriller",
+		"thrillers":       "thriller",
 		"romance":         "romance",
 		"romantic":        "romance",
+		"romcom":          "comedy", // rom-coms are comedies
+		"rom-com":         "comedy",
 		"sci-fi":          "science fiction",
 		"scifi":           "science fiction",
 		"science fiction": "science fiction",
@@ -922,11 +1052,14 @@ func extractGenresFromQuery(query string) []string {
 		"animation":       "animation",
 		"animated":        "animation",
 		"documentary":     "documentary",
+		"documentaries":   "documentary",
 		"crime":           "crime",
 		"mystery":         "mystery",
 		"western":         "western",
+		"westerns":        "western",
 		"war":             "war",
 		"musical":         "music",
+		"musicals":        "music",
 		"family":          "family",
 		"adventure":       "adventure",
 		"superhero":       "action", // superhero often tagged as action
@@ -1175,6 +1308,97 @@ func (s *SearchService) FindSimilar(ctx context.Context, entityType EntityType, 
 		if len(results) >= limit {
 			break
 		}
+	}
+
+	return results, nil
+}
+
+// handleSimilarToSearch handles "movies like X" queries by finding the source movie and returning similar items.
+func (s *SearchService) handleSimilarToSearch(ctx context.Context, title string, params SearchParams) ([]SearchResult, error) {
+	// Determine which entity types to search for the source movie
+	// Default to movie if no entity types specified or if movie is in the list
+	sourceTypes := []string{string(EntityMovie)}
+	if len(params.EntityTypes) > 0 {
+		// Use the first entity type as the source type
+		sourceTypes = []string{string(params.EntityTypes[0])}
+	}
+
+	// Search for the movie by title using text search
+	s.logger.Debug("searching for source movie by title",
+		"title", title,
+		"sourceTypes", sourceTypes)
+	textResults, err := s.vector.SearchText(ctx, title, sourceTypes, 20)
+	if err != nil {
+		s.logger.Warn("text search failed for source title",
+			"title", title, "error", err)
+		return nil, fmt.Errorf("search for source title: %w", err)
+	}
+
+	s.logger.Info("text search for source movie",
+		"title", title,
+		"resultCount", len(textResults.Results))
+
+	if len(textResults.Results) == 0 {
+		return nil, fmt.Errorf("no movie found matching '%s'", title)
+	}
+
+	// Log first few results for debugging
+	for i, r := range textResults.Results {
+		if i >= 3 {
+			break
+		}
+		s.logger.Debug("text search result",
+			"index", i,
+			"entityID", r.EntityID,
+			"titleKey", extractTitleKey(r.Text))
+	}
+
+	// Find the best match - prefer exact title matches
+	var bestMatch *sdk.VectorSearchResult
+	titleLower := strings.ToLower(title)
+
+	for i, r := range textResults.Results {
+		resultTitleKey := extractTitleKey(r.Text)
+		// Check for exact match (title without year)
+		resultTitle := resultTitleKey
+		// Strip year in parentheses for matching
+		if idx := strings.LastIndex(resultTitle, "("); idx > 0 {
+			resultTitle = strings.TrimSpace(resultTitle[:idx])
+		}
+
+		if resultTitle == titleLower {
+			bestMatch = &textResults.Results[i]
+			break
+		}
+		// Also check if title contains the search term (for partial matches)
+		if bestMatch == nil && strings.Contains(resultTitle, titleLower) {
+			bestMatch = &textResults.Results[i]
+		}
+	}
+
+	// If no exact match, use the first result
+	if bestMatch == nil {
+		bestMatch = &textResults.Results[0]
+	}
+
+	s.logger.Info("found source movie for similar search",
+		"query", title,
+		"matched", extractTitleKey(bestMatch.Text),
+		"entityID", bestMatch.EntityID)
+
+	// Apply limits
+	limit := params.Limit
+	if limit <= 0 {
+		limit = s.defaultLimit
+	}
+	if limit > s.maxLimit {
+		limit = s.maxLimit
+	}
+
+	// Use FindSimilar to get similar movies
+	results, err := s.FindSimilar(ctx, EntityType(bestMatch.EntityType), bestMatch.EntityID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("find similar to %s: %w", bestMatch.Text, err)
 	}
 
 	return results, nil

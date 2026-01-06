@@ -724,8 +724,8 @@ func TestExtractPersonFromNameMoviesPattern(t *testing.T) {
 		{
 			name:      "lowercase only",
 			query:     "spielberg movies",
-			wantName:  "",
-			wantMatch: false, // No capital letter
+			wantName:  "spielberg",
+			wantMatch: true, // Lowercase names are now accepted for better UX
 		},
 		{
 			name:      "similar keyword",
