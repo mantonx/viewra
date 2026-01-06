@@ -2,7 +2,25 @@
 
 ## Overview
 
-This document outlines a plan to improve search quality in ViewRA's semantic-search plugin. The focus is on **tuning and extending the existing architecture** rather than adding external search engines.
+This document outlines a plan to improve search quality in ViewRA's **semantic-search plugin**. The focus is on **tuning and extending the existing architecture** rather than adding external search engines.
+
+> **Important**: The semantic-search plugin is **optional**. When disabled, ViewRA falls back to basic text search in the core application. This document covers plugin improvements only.
+
+### Core vs Plugin Search
+
+| Feature | Core (Fallback) | Semantic-Search Plugin |
+|---------|-----------------|------------------------|
+| Title search | ✅ LIKE/ILIKE | ✅ Vector + intent |
+| Typo tolerance | ❌ | ✅ Embeddings |
+| "Movies like X" | ❌ | ✅ FindSimilar |
+| Vibe/mood queries | ❌ | ✅ Semantic |
+| Director/actor search | ✅ Basic LIKE | ✅ Intent detection |
+| Decade/genre filters | ❌ | ✅ Intent detection |
+| Context (weather/time) | ❌ | ✅ Optional enrichment |
+
+**Core search location**: `internal/api/handlers/search.go:47-87`
+
+When semantic-search is unavailable, `/api/search` falls back to `searchService.Search()` which performs LIKE queries across movies and TV shows. The response includes `fallback: true` to indicate fallback mode.
 
 ### Why Not Bleve/Meilisearch?
 
@@ -1560,7 +1578,961 @@ Based on code analysis, these scenarios are **already implemented**:
 
 ---
 
+## Architectural Guardrails
+
+### A. User-Facing Explain Lite
+
+The `/explain` endpoint is for developers. Users need a simpler "why this result?" string per result.
+
+**Examples**:
+- "Same director as Inception"
+- "Matches your 'cozy' mood"
+- "Similar tone and era"
+- "Because you liked The Matrix"
+
+**Implementation**: Derive from boost breakdown we already compute.
+
+```go
+type ResultReason struct {
+    Type    string // "director_match", "mood_match", "similar_to", "personalized"
+    Display string // Human-readable: "Same director as Inception"
+}
+
+func deriveResultReason(boosts BoostBreakdown, ctx SearchContext) *ResultReason {
+    // Priority order for displaying reason
+    if boosts.DirectorMatch > 0 && ctx.Intent.DirectorName != "" {
+        return &ResultReason{
+            Type:    "director_match",
+            Display: fmt.Sprintf("Directed by %s", ctx.Intent.DirectorName),
+        }
+    }
+    if boosts.SimilarTo > 0 && ctx.SimilarToTitle != "" {
+        return &ResultReason{
+            Type:    "similar_to", 
+            Display: fmt.Sprintf("Similar to %s", ctx.SimilarToTitle),
+        }
+    }
+    if boosts.MoodMatch > 0 && ctx.DetectedMood != "" {
+        return &ResultReason{
+            Type:    "mood_match",
+            Display: fmt.Sprintf("Matches '%s' mood", ctx.DetectedMood),
+        }
+    }
+    // ... etc
+    return nil
+}
+```
+
+**Response addition**:
+```json
+{
+  "results": [
+    {
+      "title": "Interstellar",
+      "year": 2014,
+      "reason": "Directed by Christopher Nolan"
+    }
+  ]
+}
+```
+
+### B. Hard Filters vs Soft Signals (Explicit Separation)
+
+Implicitly we distinguish hard filters (language, playback) from soft boosts (genre, mood, quality). Make this explicit in code to prevent future regression.
+
+```go
+// HardFilters are pass/fail constraints - results that don't match are excluded entirely
+type HardFilters struct {
+    YearRange          *YearRange        // Decade detection
+    Language           string            // "Korean", "French"
+    ExcludeGenres      []string          // From negative terms
+    PlaybackConstraints *PlaybackConstraints
+    EntityID           int64             // Direct navigation
+}
+
+// SoftSignals affect ranking but never exclude results
+type SoftSignals struct {
+    DirectorName       string            // Boost matches
+    ActorName          string
+    ComposerName       string
+    StudioName         string
+    MoodKeywords       []string
+    QualityBoost       bool              // Apply rating/votes boost
+    PersonalizedBoost  bool              // Apply user preference boost
+}
+
+// SearchParams combines both clearly
+type SearchParams struct {
+    Query       string
+    Hard        HardFilters
+    Soft        SoftSignals
+    Limit       int
+    SessionID   string
+}
+```
+
+**Rule**: Code that handles `HardFilters` filters out results. Code that handles `SoftSignals` only adjusts scores.
+
+### C. Popularity Feedback Loop Prevention
+
+**Problem**: If we use search clicks to boost popularity:
+1. Autocomplete → popular picks
+2. Popular picks → more clicks  
+3. Long tail dies
+
+**Guardrails**:
+
+```go
+// NEVER do this:
+// func trackSearchClick(entityID int64) { incrementPopularity(entityID) }
+
+// Instead, only use explicit signals for personalization:
+type FeedbackSignal struct {
+    Type   string // "favorite", "rating_up", "rating_down", "completed"
+    Weight float64
+}
+
+var allowedFeedbackSignals = map[string]float64{
+    "favorite":    1.0,   // Explicit strong positive
+    "rating_up":   0.5,   // Explicit positive
+    "rating_down": -0.5,  // Explicit negative
+    "completed":   0.1,   // Implicit weak positive (watched to end)
+    // "search_click": NOT ALLOWED - creates feedback loop
+}
+```
+
+**Policy**: Implicit click signals can be used for **debugging** and **metrics**, never for **ranking**.
+
+### D. Library Affinity (Future Signal)
+
+Multi-library setups (4K remux, kids library, arthouse) may need implicit preference.
+
+**Don't implement now**, but leave room in types:
+
+```go
+type SoftSignals struct {
+    // ... existing fields
+    
+    // Future: ordered preference for libraries
+    // LibraryAffinity []int64 // First = most preferred
+}
+```
+
+**Use case**: User with a 4K library and a 720p library probably wants 4K results ranked higher for the same title.
+
+### E. Embedding Versioning
+
+Embeddings are **not timeless**. Changes that require re-embedding:
+- Embedding model change
+- Embedding text composition change (add themes, keywords)
+- New fields added to indexed content
+
+**Design for future**:
+
+```go
+// Store version with embeddings
+type EmbeddingRecord struct {
+    EntityID   int64
+    EntityType string
+    Vector     []float32
+    Version    int       // Increment when embedding logic changes
+    CreatedAt  time.Time
+}
+
+const CurrentEmbeddingVersion = 1
+
+// On search, tolerate mixed versions but log warning
+func (s *SearchService) Search(ctx context.Context, params SearchParams) (*SearchResponse, error) {
+    // ... search logic
+    
+    // Log if we're comparing across versions (indicates need for re-embedding)
+    if hasVersionMismatch(results) {
+        s.logger.Warn("search results contain mixed embedding versions",
+            "current_version", CurrentEmbeddingVersion,
+            "result_versions", extractVersions(results))
+    }
+    
+    return response, nil
+}
+```
+
+**Migration path**:
+1. Bump `CurrentEmbeddingVersion`
+2. Background job re-embeds all content
+3. Mixed versions work during transition
+4. Old versions cleaned up after migration complete
+
+---
+
+## Ship Checklist
+
+### Before GA
+
+| Item | Status | Notes |
+|------|--------|-------|
+| FTS5 + trigram verified in CI | ⬜ | Test on Alpine, Debian, Ubuntu |
+| FTS5 + trigram verified on target (K3s) | ⬜ | Run validation query |
+| Autocomplete tiering tested on ambiguous titles | ⬜ | "It", "Up", "Her", "Cars" |
+| `/explain` endpoint wired into logs | ⬜ | Log on zero-result cases |
+| Hard vs soft constraints separated in code | ⬜ | `HardFilters` / `SoftSignals` types |
+| At least 1 user-facing result reason | ⬜ | `reason` field in response |
+| Fallback search works when plugin disabled | ✅ | Already implemented |
+
+### After GA (Operational)
+
+| Metric | Target | Tracking |
+|--------|--------|----------|
+| Zero-result rate | < 5% | Prometheus counter |
+| Autocomplete selection rate | > 30% | Track `entity_id` usage |
+| Fallback usage rate | < 10% (if plugin enabled) | Track `fallback: true` |
+| Cache hit rate | > 60% | Cache stats endpoint |
+| p50 latency | < 30ms | Histogram |
+| p95 latency | < 100ms | Histogram |
+
+### Revisit Triggers
+
+Only reconsider Meilisearch/Bleve if:
+1. FTS5 autocomplete becomes unmaintainable at scale
+2. Multi-tenant requirements emerge
+3. External API clients hammer search endpoints
+4. Zero-result rate stays above 10% despite tuning
+
+---
+
+## UX Contracts (Non-Negotiable)
+
+These are **not nice-to-haves**. They are the difference between "search works" and "search feels good." Each item has explicit acceptance criteria.
+
+> **Principle**: Trust > Cleverness. Users forgive imperfect results if they understand why. They don't forgive unexplained behavior.
+
+---
+
+### Contract 1: Intent Chips (First-Class UI State)
+
+**Status**: REQUIRED for GA
+
+Intent detection is useless if users can't see it. Detected intent must be **visible, editable, and always present** after every search.
+
+#### What Users See
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 🔎 "90s spielberg comedies not horror"                      │
+│                                                             │
+│ Understanding: 90s · Comedy · Spielberg · ✕ Horror          │
+│               [tap chip to remove or refine]                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Chip Requirements
+
+| Requirement | Detail |
+|-------------|--------|
+| **Always visible** | Show after every search, even if only 1 chip |
+| **Removable** | Tap X to remove constraint, re-run search |
+| **Refinable** | Tap chip to see alternatives (90s → 80s, 2000s) |
+| **Ordered** | Semantic → Structural → Exclusions |
+| **Color-coded** | Exclusions visually distinct (red/strikethrough) |
+
+#### Chip Types (Ordered by Display Priority)
+
+| Priority | Type | Example | Refinable To |
+|----------|------|---------|--------------|
+| 1 | Mood | `cozy` | Related moods |
+| 2 | Similar-to | `like Cocktail` | — |
+| 3 | Person | `Spielberg` | `as director`, `as producer` |
+| 4 | Genre | `Comedy` | Sub-genres, parent genre |
+| 5 | Decade | `90s` | Adjacent decades |
+| 6 | Studio | `A24` | — |
+| 7 | Language | `Korean` | — |
+| 8 | Exclusion | `✕ Horror` | — |
+
+#### API Contract
+
+```json
+{
+  "query": "90s spielberg comedies not horror",
+  "intent": {
+    "chips": [
+      {
+        "id": "chip_1",
+        "type": "decade",
+        "value": "1990s",
+        "display": "90s",
+        "removable": true,
+        "refinements": ["80s", "2000s", "1985-1995"]
+      },
+      {
+        "id": "chip_2", 
+        "type": "person",
+        "value": "steven spielberg",
+        "display": "Spielberg",
+        "role": "director",
+        "removable": true,
+        "refinements": ["as director only", "as producer only"]
+      },
+      {
+        "id": "chip_3",
+        "type": "genre",
+        "value": "comedy",
+        "display": "Comedy",
+        "removable": true,
+        "refinements": ["Romantic Comedy", "Dark Comedy", "Dramedy"]
+      },
+      {
+        "id": "chip_4",
+        "type": "exclusion",
+        "value": "horror",
+        "display": "Not Horror",
+        "removable": true,
+        "refinements": null
+      }
+    ],
+    "raw_query_remainder": ""
+  },
+  "results": [...]
+}
+```
+
+#### Why This Matters
+
+| Without Chips | With Chips |
+|---------------|------------|
+| "Why did it show me this?" | "Oh, it understood Spielberg as director" |
+| "It's ignoring my words" | "I can see it detected '90s' — let me remove that" |
+| User retypes query | User taps chip to refine |
+| Frustration → abandonment | Understanding → engagement |
+
+#### Acceptance Criteria
+
+- [ ] Chips appear after every search (not hidden behind a click)
+- [ ] Removing a chip re-runs search without that constraint
+- [ ] Tapping a chip shows refinement options (if applicable)
+- [ ] Exclusion chips are visually distinct
+- [ ] Chips persist across session refinements
+
+---
+
+### Contract 2: Result Reasons (One Per Result, User-Facing)
+
+**Status**: REQUIRED for GA
+
+Every result should explain **why it's there**. This is the single biggest trust-builder.
+
+#### Rules (Strict)
+
+| Rule | Rationale |
+|------|-----------|
+| **One reason only** | Multiple reasons = noise |
+| **Never show scores** | "0.87 similarity" means nothing |
+| **Prefer semantic over metadata** | "Similar tone" > "Same year" |
+| **Omit if weak** | No reason > bad reason |
+
+#### Priority Order (Show First Match)
+
+| Priority | Reason Type | Example Display | When to Show |
+|----------|-------------|-----------------|--------------|
+| 1 | Similar-to | "Similar to Cocktail" | SimilarTo boost > 0.3 |
+| 2 | Person match | "Directed by Spielberg" | Director/actor boost > 0.4 |
+| 3 | Mood match | "Matches 'cozy' mood" | Mood boost > 0.3 |
+| 4 | Era/genre | "Popular 90s comedy" | Decade + genre match |
+| 5 | Quality | "Highly rated thriller" | Rating > 8.0, votes > 10k |
+| 6 | — | *(no reason shown)* | No strong signal |
+
+#### Implementation
+
+```go
+type ResultReason struct {
+    Type    string `json:"type"`    // "similar_to", "person", "mood", "era_genre", "quality"
+    Display string `json:"display"` // Human-readable
+}
+
+func deriveReason(r SearchResult, ctx SearchContext) *ResultReason {
+    // Priority 1: Similar-to (strongest signal)
+    if ctx.SimilarToTitle != "" && r.SimilarityToTarget > 0.3 {
+        return &ResultReason{
+            Type:    "similar_to",
+            Display: fmt.Sprintf("Similar to %s", ctx.SimilarToTitle),
+        }
+    }
+    
+    // Priority 2: Person match
+    if ctx.Intent.DirectorName != "" && r.DirectorMatches(ctx.Intent.DirectorName) {
+        return &ResultReason{
+            Type:    "person",
+            Display: fmt.Sprintf("Directed by %s", r.Director),
+        }
+    }
+    if ctx.Intent.ActorName != "" && r.HasActor(ctx.Intent.ActorName) {
+        return &ResultReason{
+            Type:    "person",
+            Display: fmt.Sprintf("Starring %s", ctx.Intent.ActorName),
+        }
+    }
+    
+    // Priority 3: Mood match
+    if ctx.DetectedMood != "" && r.MoodBoost > 0.3 {
+        return &ResultReason{
+            Type:    "mood",
+            Display: fmt.Sprintf("Matches '%s' mood", ctx.DetectedMood),
+        }
+    }
+    
+    // Priority 4: Era/genre (combine if both present)
+    if ctx.Intent.Decade != nil && r.MatchesDecade(ctx.Intent.Decade) {
+        if ctx.Intent.Genre != "" && r.HasGenre(ctx.Intent.Genre) {
+            return &ResultReason{
+                Type:    "era_genre",
+                Display: fmt.Sprintf("Popular %s %s", ctx.Intent.Decade.Display, ctx.Intent.Genre),
+            }
+        }
+    }
+    
+    // Priority 5: Quality (only for high-quality, high-confidence)
+    if r.Rating > 8.0 && r.VoteCount > 10000 {
+        return &ResultReason{
+            Type:    "quality",
+            Display: fmt.Sprintf("Highly rated %s", r.PrimaryGenre),
+        }
+    }
+    
+    // No strong signal — omit reason
+    return nil
+}
+```
+
+#### API Response
+
+```json
+{
+  "results": [
+    {
+      "title": "Jaws",
+      "year": 1975,
+      "reason": {"type": "person", "display": "Directed by Steven Spielberg"}
+    },
+    {
+      "title": "E.T.",
+      "year": 1982,
+      "reason": {"type": "similar_to", "display": "Similar tone and era"}
+    },
+    {
+      "title": "The Goonies",
+      "year": 1985
+      // No reason field — signal was weak
+    }
+  ]
+}
+```
+
+#### Acceptance Criteria
+
+- [ ] Every search result has at most one `reason` field
+- [ ] Reasons follow priority order exactly
+- [ ] No internal scores or IDs exposed
+- [ ] Results with no strong signal have no reason (omit field entirely)
+- [ ] Reason text is grammatically correct and human-readable
+
+---
+
+### Contract 3: Autocomplete Polish (Non-Optional)
+
+**Status**: REQUIRED for GA
+
+Autocomplete is the **most-used** part of search. These aren't polish — they're table stakes.
+
+#### A. Visual Grouping (Not Just Ranking)
+
+**Requirement**: Suggestions grouped by type with visual headers.
+
+```
+┌─────────────────────────────────────┐
+│ 🎬 TITLES                           │
+│   The Godfather (1972)              │
+│   The Godfather Part II (1974)      │
+├─────────────────────────────────────┤
+│ 👤 PEOPLE                           │
+│   Steven Spielberg · Director       │
+│   Scarlett Johansson · Actor        │
+├─────────────────────────────────────┤
+│ 📚 COLLECTIONS                      │
+│   Mission: Impossible (6 films)     │
+├─────────────────────────────────────┤
+│ 🕐 RECENT SEARCHES                  │
+│   90s action movies                 │
+└─────────────────────────────────────┘
+```
+
+**Why**: Reduces cognitive load. User knows "I'm looking for a person" before scanning.
+
+#### B. Match Highlighting (Exact Segments Only)
+
+**Requirement**: Bold only the matching substring, never the whole word.
+
+```
+Steven **Spiel**berg
+Lord of the **Ring**s
+**Scar**lett Johansson
+```
+
+**API**: Return match indices:
+```json
+{
+  "text": "Steven Spielberg",
+  "matches": [[7, 12]],  // "Spiel" at byte positions 7-12
+  "entity_id": 456
+}
+```
+
+**Why**: Instant visual confirmation that "yes, it understood my input."
+
+#### C. Keyboard Behavior (Must Feel Native)
+
+| Key | Action | Notes |
+|-----|--------|-------|
+| `↓` | Next suggestion | Wrap to top at end |
+| `↑` | Previous suggestion | Wrap to bottom at start |
+| `Enter` | Select highlighted | Execute search |
+| `Tab` | Accept + continue typing | For building queries |
+| `Esc` | Close suggestions | Keep input text |
+| `Esc` `Esc` | Clear input | Full reset |
+
+**Anti-patterns to avoid**:
+- ❌ Arrow keys trap focus (can't navigate away)
+- ❌ Esc clears input on first press
+- ❌ Tab submits instead of accepting
+
+**Why**: Power users notice bad keyboard behavior immediately. It makes search feel "bolted on."
+
+#### API Response Structure
+
+```json
+{
+  "query": "spiel",
+  "groups": {
+    "titles": [
+      {
+        "text": "Schindler's List",
+        "year": 1993,
+        "entity_id": 123,
+        "matches": [[0, 0]]  // No match in title, matched director
+      }
+    ],
+    "people": [
+      {
+        "text": "Steven Spielberg",
+        "role": "Director",
+        "person_id": 456,
+        "matches": [[7, 12]],
+        "hint": "Schindler's List, Jaws, E.T."
+      }
+    ],
+    "collections": [],
+    "recent": [
+      {
+        "text": "spielberg movies",
+        "matches": [[0, 5]],
+        "searched_at": "2024-01-15T10:30:00Z"
+      }
+    ]
+  },
+  "took_ms": 8
+}
+```
+
+#### Acceptance Criteria
+
+- [ ] Suggestions grouped by type with headers
+- [ ] Match highlighting uses indices, frontend renders bold
+- [ ] All keyboard shortcuts work as specified
+- [ ] Arrow keys don't trap focus
+- [ ] Esc closes suggestions (first press), clears input (second press)
+- [ ] Tab accepts suggestion but keeps cursor in input
+
+---
+
+### Contract 4: Zero-Result Narration (Explain Recovery)
+
+**Status**: REQUIRED for GA
+
+Silent recovery feels like a bug. Explained recovery feels like help.
+
+#### What Users See
+
+**Before** (bad):
+```
+No results found.
+```
+
+**After** (good):
+```
+┌─────────────────────────────────────────────────────────────┐
+│ ℹ️ No exact matches for "1950s Korean horror"               │
+│                                                             │
+│ Showing similar films with relaxed filters:                 │
+│   • Expanded decade: 1950s → 1945-1965                      │
+│   • Broadened region: Korean → East Asian                   │
+│                                                             │
+│ [Search anyway] [Clear filters]                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Relaxation Display Rules
+
+| Relaxation Type | User Message |
+|-----------------|--------------|
+| Decade expanded | "Expanded decade: 90s → 1985-2005" |
+| Genre broadened | "Broadened genre: Giallo → Horror" |
+| Language expanded | "Expanded region: Korean → East Asian" |
+| Similarity lowered | "Showing broader matches" |
+| Negatives removed | "Removed exclusion: Horror" |
+
+#### API Response
+
+```json
+{
+  "results": [...],
+  "recovery": {
+    "applied": true,
+    "original_count": 0,
+    "recovered_count": 12,
+    "relaxations": [
+      {
+        "type": "decade",
+        "original": "1950s",
+        "relaxed_to": "1945-1965",
+        "display": "Expanded decade: 1950s → 1945-1965"
+      },
+      {
+        "type": "language", 
+        "original": "Korean",
+        "relaxed_to": "East Asian",
+        "display": "Expanded region: Korean → East Asian"
+      }
+    ],
+    "message": "No exact matches — showing similar films with relaxed filters"
+  }
+}
+```
+
+#### Suggested Refinements (When Results < 5)
+
+```
+Only 3 results found. Try:
+  • Remove "90s" filter
+  • Try "Thriller" instead of "Horror"
+  • Search "movies like Psycho" instead
+```
+
+```json
+{
+  "results": [...],
+  "suggestions": [
+    {
+      "type": "remove_filter",
+      "display": "Remove '90s' filter",
+      "action": {"remove_chip": "chip_decade_90s"}
+    },
+    {
+      "type": "broaden_genre",
+      "display": "Try 'Thriller' instead of 'Horror'",
+      "action": {"replace_chip": "chip_genre_horror", "with": "thriller"}
+    },
+    {
+      "type": "similar_to",
+      "display": "Search 'movies like Psycho' instead",
+      "action": {"new_query": "movies like Psycho"}
+    }
+  ]
+}
+```
+
+#### Acceptance Criteria
+
+- [ ] Zero-result state never shows empty UI
+- [ ] Recovery banner explains what changed in plain language
+- [ ] Each relaxation is listed individually
+- [ ] Suggestions appear when results < 5
+- [ ] Users can click suggestions to apply them
+
+---
+
+### Contract 5: Top-3 Bias (Results Must Be Right at the Top)
+
+**Status**: REQUIRED for GA
+
+Users rarely scroll past the first 3 results. If those are wrong, the whole search feels broken.
+
+#### Rules
+
+| Position | Rule |
+|----------|------|
+| 1-3 | **Almost never wrong** — exact matches, high confidence only |
+| 1-3 | **No near-duplicates** — same title different years get demoted |
+| 1-5 | **Max 2 from same director** |
+| 1-5 | **Max 2 from same franchise** |
+| 6+ | Diversity rules relax |
+
+#### Implementation
+
+```go
+const (
+    StrictWindowSize    = 3   // Positions 1-3: very strict
+    DiversityWindowSize = 5   // Positions 1-5: diversity enforcement
+)
+
+func applyTopBias(results []SearchResult) []SearchResult {
+    // Pass 1: Boost exact matches in strict window
+    for i := 0; i < min(StrictWindowSize, len(results)); i++ {
+        if results[i].ExactTitleMatch {
+            results[i].Score *= 1.25
+        }
+    }
+    
+    // Pass 2: Demote near-duplicates in strict window
+    seen := make(map[string]bool)
+    for i := 0; i < min(StrictWindowSize, len(results)); i++ {
+        key := normalizeTitle(results[i].Title)
+        if seen[key] {
+            results[i].Score *= 0.4  // Heavy penalty
+        }
+        seen[key] = true
+    }
+    
+    // Re-sort after bias adjustments
+    sort.Slice(results, func(i, j int) bool {
+        return results[i].Score > results[j].Score
+    })
+    
+    // Pass 3: Enforce diversity in diversity window
+    return enforceDiversity(results, DiversityWindow{
+        MaxSameDirector:  2,
+        MaxSameFranchise: 2,
+        MaxSameDecade:    3,
+        WindowSize:       DiversityWindowSize,
+    })
+}
+```
+
+#### Acceptance Criteria
+
+- [ ] Exact title matches appear in top 3
+- [ ] No duplicate titles in top 3 (e.g., "Alien" and "Alien (Director's Cut)")
+- [ ] No more than 2 results from same director in top 5
+- [ ] No more than 2 results from same franchise in top 5
+- [ ] Diversity constraints relax after position 5
+
+---
+
+### Contract 6: Session Refinement Visibility
+
+**Status**: REQUIRED for GA
+
+Users must know when they're refining vs starting fresh.
+
+#### Visual Indicators
+
+**Refining previous search**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 🔁 Refining: "rainy day movies"                             │
+│                                                             │
+│ Current: rainy day movies + more funny + only 90s           │
+│                                                             │
+│ [Start new search]                                          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Breadcrumb trail**:
+```
+rainy day movies → more funny → only 90s
+                              ↑
+                         [click to revert]
+```
+
+#### Follow-Up Detection
+
+| Query | Type | Action |
+|-------|------|--------|
+| "more funny" | Modifier | Add comedy boost to existing |
+| "only 90s" | Filter | Add decade to existing |
+| "with Cruise" | Addition | Add actor to existing |
+| "not so violent" | Exclusion | Add negative to existing |
+| "actually, sci-fi" | Correction | Replace genre |
+| "something else" | Reset | Start fresh |
+
+#### API Contract
+
+```json
+{
+  "session": {
+    "id": "sess_abc123",
+    "mode": "refining",  // "fresh" | "refining"
+    "base_query": "rainy day movies",
+    "refinements": [
+      {"query": "more funny", "type": "modifier"},
+      {"query": "only 90s", "type": "filter"}
+    ],
+    "accumulated_chips": [
+      {"type": "mood", "value": "rainy day", "display": "Rainy Day"},
+      {"type": "mood", "value": "funny", "display": "Funny", "added_by": "refinement"},
+      {"type": "decade", "value": "1990s", "display": "90s", "added_by": "refinement"}
+    ]
+  },
+  "results": [...]
+}
+```
+
+#### Acceptance Criteria
+
+- [ ] "Refining" indicator appears when in refinement mode
+- [ ] Breadcrumb trail shows refinement history
+- [ ] Each breadcrumb is clickable to revert
+- [ ] "Start new search" button is always visible during refinement
+- [ ] Refinement chips visually distinguished from original chips
+
+---
+
+### Contract 7: Playback Constraints UI
+
+**Status**: P2 (Post-GA)
+
+Media server-specific: users need to filter by what their device can actually play.
+
+#### UI Affordances
+
+**Toggle style**:
+```
+┌─────────────────────────────────────┐
+│ Playback Filters                    │
+│                                     │
+│ ☑️ Direct Play only                 │
+│ ☐ 4K / UHD                          │
+│ ☐ HDR (Dolby Vision / HDR10)        │
+│ ☐ Has subtitles                     │
+└─────────────────────────────────────┘
+```
+
+**Chip style** (after selection):
+```
+🔎 "action movies" · 4K · HDR · ✕ Transcoding
+```
+
+#### Filter-Out Explanation
+
+When results are hidden by playback constraints, explain why:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 3 results hidden:                                           │
+│   • The Matrix (1999) — requires transcoding on this device │
+│   • Inception (2010) — no 4K version available              │
+│                                                             │
+│ [Show anyway]                                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Acceptance Criteria (P2)
+
+- [ ] Playback toggles in search UI
+- [ ] Playback constraints shown as chips
+- [ ] Hidden results explained with reason
+- [ ] "Show anyway" option available
+
+---
+
+### Contract 8: Metrics → Tuning Workflow
+
+**Status**: REQUIRED for GA
+
+Don't tune blind. Track these signals and define response actions.
+
+#### Metrics and Response Triggers
+
+| Metric | Bad Sign | Response Action |
+|--------|----------|-----------------|
+| Zero-result rate | > 5% | Review relaxation strategies, add aliases |
+| Autocomplete selection rate | < 20% | Fix ranking, add more aliases, check grouping |
+| Click position distribution | Most clicks at 5+ | Top-3 bias is wrong, review boosting |
+| Back-after-click rate | > 30% | Results don't match expectations, review reasons |
+| Refinement rate | > 50% | Initial results poor, review intent detection |
+| Session length | Very long (> 10 queries) | User is struggling, review UX |
+
+#### Tuning Workflow
+
+```
+1. Weekly: Review metrics dashboard
+   ├─ Zero-result rate trending up?
+   │   └─ Check /explain logs for common failed queries
+   │   └─ Add missing aliases or relaxation rules
+   │
+   ├─ Autocomplete selection dropping?
+   │   └─ Check what users type vs what we suggest
+   │   └─ Add missing aliases, fix ranking bugs
+   │
+   ├─ Click position shifting right?
+   │   └─ Review top-3 bias implementation
+   │   └─ Check if diversity is too aggressive
+   │
+   └─ Back-after-click spiking?
+       └─ Review result reasons — are they accurate?
+       └─ Check if semantic similarity is misleading
+
+2. On each release: A/B test ranking changes
+   └─ Never ship ranking changes without metrics comparison
+
+3. Monthly: Review /explain logs for patterns
+   └─ Common intents we're missing?
+   └─ Boosts that seem wrong?
+```
+
+#### Dashboard Queries
+
+```sql
+-- Weekly health check
+SELECT 
+    date(timestamp) as day,
+    COUNT(CASE WHEN result_count = 0 THEN 1 END) * 100.0 / COUNT(*) as zero_result_pct,
+    AVG(CASE WHEN type = 'result_click' THEN position END) as avg_click_position,
+    COUNT(CASE WHEN type = 'autocomplete_select' THEN 1 END) * 100.0 / 
+        NULLIF(COUNT(CASE WHEN type = 'autocomplete_show' THEN 1 END), 0) as autocomplete_select_pct
+FROM search_events
+WHERE timestamp > datetime('now', '-7 days')
+GROUP BY date(timestamp);
+
+-- Back-after-click detection (bad clicks)
+SELECT 
+    e1.query,
+    COUNT(*) as bad_click_count
+FROM search_events e1
+JOIN search_events e2 ON e1.session_id = e2.session_id 
+    AND e2.type = 'back'
+    AND e2.timestamp BETWEEN e1.timestamp AND datetime(e1.timestamp, '+5 seconds')
+WHERE e1.type = 'result_click'
+    AND e1.timestamp > datetime('now', '-7 days')
+GROUP BY e1.query
+ORDER BY bad_click_count DESC
+LIMIT 20;
+
+-- Most common zero-result queries
+SELECT query, COUNT(*) as count
+FROM search_events
+WHERE result_count = 0 AND timestamp > datetime('now', '-7 days')
+GROUP BY query
+ORDER BY count DESC
+LIMIT 50;
+```
+
+#### Acceptance Criteria
+
+- [ ] All metrics tracked and stored
+- [ ] Dashboard queries return valid data
+- [ ] Weekly review process documented
+- [ ] Alert thresholds defined for each metric
+
+---
+
 ## References
 
-- [SQLite FTS5](https://www.sqlite.org/fts5.html) - If we ever need full-text search without external deps
+- [SQLite FTS5](https://www.sqlite.org/fts5.html) - Full-text search without external deps
 - [RRF Paper](https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf) - Score fusion (for future reference)

@@ -650,6 +650,6 @@ SELECT
 FROM tv_shows s
 WHERE (s.library_id = sqlc.arg('library_id')::bigint OR sqlc.arg('library_id')::bigint = 0)
   AND s.genre ILIKE '%' || sqlc.arg('genre') || '%'
-  AND s.id NOT IN (sqlc.slice('exclude_ids'))
-ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title)
+  AND NOT (s.id = ANY(sqlc.arg('exclude_ids')::bigint[]))
+ORDER BY COALESCE(s.rating, 0) * LOG(COALESCE(s.rating_votes, 0) + 1) DESC, s.created_at DESC
 LIMIT sqlc.arg('limit')::bigint;

@@ -5,11 +5,14 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
+import type { GithubComMantonxViewraInternalDomainHomeHeroData } from './githubComMantonxViewraInternalDomainHomeHeroData'
 import type { GithubComMantonxViewraInternalDomainHomeUserContext } from './githubComMantonxViewraInternalDomainHomeUserContext'
 
 export interface GithubComMantonxViewraInternalDomainHomeHomeMeta {
   /** GeneratedAt is when the response was generated. */
   generated_at?: string
+  /** Hero contains data for the hero backdrop section. */
+  hero?: GithubComMantonxViewraInternalDomainHomeHeroData
   /** UserContext contains information about the user's context. */
   user_context?: GithubComMantonxViewraInternalDomainHomeUserContext
 }

@@ -34,6 +34,9 @@ type PluginFactory interface {
 	// NewHostRatingsGRPCPlugin creates a new HostRatingsGRPCPlugin.
 	NewHostRatingsGRPCPlugin(impl HostRatingsServer, logger *slog.Logger) plugin.Plugin
 
+	// NewHostProgressGRPCPlugin creates a new HostProgressGRPCPlugin.
+	NewHostProgressGRPCPlugin(impl HostProgressServer, logger *slog.Logger) plugin.Plugin
+
 	// NewVectorSearchGRPCPlugin creates a new VectorSearchGRPCPlugin for client-side dispensing.
 	NewVectorSearchGRPCPlugin() plugin.Plugin
 

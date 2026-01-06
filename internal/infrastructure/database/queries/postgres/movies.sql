@@ -216,10 +216,10 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE (med.library_id = sqlc.arg('library_id')::bigint OR sqlc.arg('library_id')::bigint = 0)
-  AND med.is_extra = false
+  AND med.is_extra = 0
   AND m.genre ILIKE '%' || sqlc.arg('genre') || '%'
-  AND med.id NOT IN (sqlc.slice('exclude_ids'))
-ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title)
+  AND NOT (med.id = ANY(sqlc.arg('exclude_ids')::bigint[]))
+ORDER BY COALESCE(m.rating, 0) * LOG(COALESCE(m.rating_votes, 0) + 1) DESC, med.date_added DESC
 LIMIT sqlc.arg('limit')::bigint;
 
 -- name: ListMoviesByYear :many
@@ -272,6 +272,7 @@ DELETE FROM movies
 WHERE media_id = $1;
 
 -- name: ListMoviesByLibraryPaginated :many
+-- library_id: 0 means all libraries
 SELECT
     m.*,
     med.id as media_id,
@@ -311,12 +312,13 @@ SELECT
     med.updated_at
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = $1
+WHERE (med.library_id = sqlc.arg('library_id')::bigint OR sqlc.arg('library_id')::bigint = 0)
   AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
 LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: ListMoviesByLibraryPaginatedDesc :many
+-- library_id: 0 means all libraries
 SELECT
     m.*,
     med.id as media_id,
@@ -356,27 +358,30 @@ SELECT
     med.updated_at
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = $1
+WHERE (med.library_id = sqlc.arg('library_id')::bigint OR sqlc.arg('library_id')::bigint = 0)
   AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) DESC
 LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: CountMoviesByLibrary :one
+-- library_id: 0 means all libraries
 SELECT COUNT(*)
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = $1
+WHERE (med.library_id = sqlc.arg('library_id')::bigint OR sqlc.arg('library_id')::bigint = 0)
   AND med.is_extra = 0;
 
 -- name: CountSearchMoviesByTitle :one
+-- library_id: 0 means all libraries
 SELECT COUNT(*)
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = $1
+WHERE (med.library_id = sqlc.arg('library_id')::bigint OR sqlc.arg('library_id')::bigint = 0)
   AND med.is_extra = 0
-  AND (med.title ILIKE $2 OR m.original_title ILIKE $3);
+  AND (med.title ILIKE sqlc.arg('query') OR m.original_title ILIKE sqlc.arg('query'));
 
 -- name: SearchMoviesByTitlePaginated :many
+-- library_id: 0 means all libraries
 SELECT
     m.*,
     med.id as media_id,
@@ -416,26 +421,28 @@ SELECT
     med.updated_at
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = $1
+WHERE (med.library_id = sqlc.arg('library_id')::bigint OR sqlc.arg('library_id')::bigint = 0)
   AND med.is_extra = 0
-  AND (med.title ILIKE $2 OR m.original_title ILIKE $3)
+  AND (med.title ILIKE sqlc.arg('query') OR m.original_title ILIKE sqlc.arg('query'))
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
 LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: ListMovieIDsByLibraryPaginated :many
+-- library_id: 0 means all libraries
 SELECT med.id
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = $1
+WHERE (med.library_id = sqlc.arg('library_id')::bigint OR sqlc.arg('library_id')::bigint = 0)
   AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
 LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;
 
 -- name: ListMovieIDsByLibraryPaginatedDesc :many
+-- library_id: 0 means all libraries
 SELECT med.id
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = $1
+WHERE (med.library_id = sqlc.arg('library_id')::bigint OR sqlc.arg('library_id')::bigint = 0)
   AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) DESC
 LIMIT sqlc.arg('limit')::bigint OFFSET sqlc.arg('offset')::bigint;

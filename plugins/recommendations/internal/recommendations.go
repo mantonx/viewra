@@ -7,16 +7,20 @@ import (
 	"sync"
 
 	"github.com/mantonx/viewra/pkg/plugin/sdk"
+	"github.com/mantonx/viewra/plugins/recommendations/internal/cf"
 )
 
 // RecommendationsService generates personalized recommendations.
 type RecommendationsService struct {
-	ratings *sdk.RatingsClient
-	data    *sdk.DataClient
-	plugins *sdk.PluginsClient
-	config  Config
-	logger  *slog.Logger
-	mu      sync.RWMutex
+	ratings              *sdk.RatingsClient
+	data                 *sdk.DataClient
+	plugins              *sdk.PluginsClient
+	userEmbeddingService *UserEmbeddingService
+	sarService           *cf.SARService
+	hybridScorer         *HybridScorer
+	config               Config
+	logger               *slog.Logger
+	mu                   sync.RWMutex
 }
 
 // NewRecommendationsService creates a new recommendations service.
@@ -24,15 +28,21 @@ func NewRecommendationsService(
 	ratings *sdk.RatingsClient,
 	data *sdk.DataClient,
 	plugins *sdk.PluginsClient,
+	userEmbeddingService *UserEmbeddingService,
+	sarService *cf.SARService,
+	hybridScorer *HybridScorer,
 	config Config,
 	logger *slog.Logger,
 ) *RecommendationsService {
 	return &RecommendationsService{
-		ratings: ratings,
-		data:    data,
-		plugins: plugins,
-		config:  config,
-		logger:  logger,
+		ratings:              ratings,
+		data:                 data,
+		plugins:              plugins,
+		userEmbeddingService: userEmbeddingService,
+		sarService:           sarService,
+		hybridScorer:         hybridScorer,
+		config:               config,
+		logger:               logger,
 	}
 }
 
@@ -43,7 +53,13 @@ func (s *RecommendationsService) UpdateConfig(config Config) {
 	s.config = config
 }
 
-// GetForYou returns personalized recommendations based on user ratings.
+// GetForYou returns personalized recommendations based on user ratings and watch history.
+// When hybrid scoring is enabled, it combines multiple strategies with configurable weights:
+// - Collaborative filtering (SAR): "users who watched X also watched Y"
+// - Semantic similarity: content-based matching
+// - Exploration: discovery of new content
+//
+// When hybrid scoring is disabled, it falls back to the legacy sequential approach.
 func (s *RecommendationsService) GetForYou(ctx context.Context, userID string, limit int) ([]sdk.MediaItem, error) {
 	s.mu.RLock()
 	config := s.config
@@ -53,31 +69,77 @@ func (s *RecommendationsService) GetForYou(ctx context.Context, userID string, l
 		limit = config.MaxRecommendations
 	}
 
-	// Get user's positively rated items (favorites + upvotes)
+	// Use hybrid scoring if enabled and available
+	if config.UseHybridScoring && s.hybridScorer != nil {
+		recommendations, err := s.hybridScorer.GetRecommendations(ctx, userID, limit)
+		if err != nil {
+			s.logger.Warn("hybrid scoring failed, falling back to legacy", "error", err)
+		} else if len(recommendations) > 0 {
+			s.logger.Debug("got hybrid recommendations",
+				"user_id", userID,
+				"count", len(recommendations),
+			)
+			return recommendations, nil
+		}
+	}
+
+	// Legacy fallback: sequential strategy approach
+	return s.getLegacyRecommendations(ctx, userID, limit)
+}
+
+// getLegacyRecommendations implements the original sequential recommendation strategy.
+func (s *RecommendationsService) getLegacyRecommendations(ctx context.Context, userID string, limit int) ([]sdk.MediaItem, error) {
+	// Build exclude set from downvoted and already-liked items
+	excludeSet := s.buildExcludeSet(ctx, userID)
+
+	var recommendations []sdk.MediaItem
+	var err error
+
+	// Strategy 1: SAR collaborative filtering
+	if s.sarService != nil && s.sarService.HasUser(userID) {
+		recommendations, err = s.getSARRecommendations(ctx, userID, excludeSet, limit)
+		if err != nil {
+			s.logger.Debug("SAR recommendations failed", "error", err)
+		} else if len(recommendations) > 0 {
+			s.logger.Debug("got SAR recommendations",
+				"user_id", userID,
+				"count", len(recommendations),
+			)
+			return recommendations, nil
+		}
+	}
+
+	// Strategy 2: User taste recommendations (uses both ratings and watch history)
+	if s.userEmbeddingService != nil {
+		recommendations, err = s.userEmbeddingService.GetUserTasteRecommendations(ctx, userID, excludeSet, limit)
+		if err != nil {
+			s.logger.Debug("user taste recommendations failed", "error", err)
+		} else if len(recommendations) > 0 {
+			s.logger.Debug("got user taste recommendations",
+				"user_id", userID,
+				"count", len(recommendations),
+			)
+			return recommendations, nil
+		}
+	}
+
+	// Strategy 3: Direct semantic similarity to liked items
 	likedIDs, err := s.ratings.GetPositivelyRatedIDs(ctx, userID, "", limit)
 	if err != nil {
-		return nil, fmt.Errorf("get positively rated IDs: %w", err)
+		s.logger.Debug("failed to get positively rated IDs", "error", err)
 	}
 
 	if len(likedIDs) == 0 {
-		// No ratings yet - return empty or could return popular items
+		// No ratings or watch history - return empty (hybrid scorer handles cold start)
 		s.logger.Debug("no ratings for user, returning empty recommendations", "user_id", userID)
 		return []sdk.MediaItem{}, nil
 	}
 
-	// Get downvoted items to exclude
-	excludeIDs, _ := s.ratings.GetDownvotedIDs(ctx, userID, "", 100)
-	excludeSet := make(map[int64]bool)
-	for _, id := range excludeIDs {
-		excludeSet[id] = true
-	}
-	// Also exclude already liked items
+	// Add liked items to exclude set
 	for _, id := range likedIDs {
 		excludeSet[id] = true
 	}
 
-	// Try to use semantic search for similar items if available
-	var recommendations []sdk.MediaItem
 	if s.plugins != nil && s.plugins.IsAvailable(ctx, "embedding") {
 		recommendations, err = s.getSimilarItems(ctx, likedIDs, excludeSet, limit)
 		if err != nil {
@@ -85,7 +147,7 @@ func (s *RecommendationsService) GetForYou(ctx context.Context, userID string, l
 		}
 	}
 
-	// Fall back to genre-based recommendations if semantic search not available or failed
+	// Strategy 4: Genre-based recommendations (final fallback)
 	if len(recommendations) == 0 {
 		recommendations, err = s.getGenreBasedRecommendations(ctx, likedIDs, excludeSet, limit)
 		if err != nil {
@@ -101,6 +163,70 @@ func (s *RecommendationsService) GetForYou(ctx context.Context, userID string, l
 	}
 
 	return recommendations, nil
+}
+
+// buildExcludeSet creates a set of item IDs to exclude from recommendations.
+func (s *RecommendationsService) buildExcludeSet(ctx context.Context, userID string) map[int64]bool {
+	excludeSet := make(map[int64]bool)
+
+	// Exclude downvoted items
+	if s.ratings != nil {
+		downvotedIDs, _ := s.ratings.GetDownvotedIDs(ctx, userID, "", 100)
+		for _, id := range downvotedIDs {
+			excludeSet[id] = true
+		}
+	}
+
+	return excludeSet
+}
+
+// getSARRecommendations uses SAR collaborative filtering to get recommendations.
+func (s *RecommendationsService) getSARRecommendations(ctx context.Context, userID string, exclude map[int64]bool, limit int) ([]sdk.MediaItem, error) {
+	if s.sarService == nil {
+		return nil, nil
+	}
+
+	// Get scored recommendations from SAR
+	scored := s.sarService.RecommendWithScores(userID, limit*2, exclude) // Request extra to filter
+	if len(scored) == 0 {
+		return nil, nil
+	}
+
+	// Convert to MediaItems with details
+	var items []sdk.MediaItem
+	for _, rec := range scored {
+		if len(items) >= limit {
+			break
+		}
+
+		// Get media details to include title/type
+		if s.data != nil {
+			details, err := s.data.GetMediaDetails(ctx, rec.ItemID, "")
+			if err != nil {
+				s.logger.Debug("failed to get media details for SAR recommendation",
+					"item_id", rec.ItemID,
+					"error", err,
+				)
+				continue
+			}
+
+			items = append(items, sdk.MediaItem{
+				EntityType: details.MediaType,
+				EntityID:   rec.ItemID,
+				Title:      details.Title,
+				Year:       details.Year,
+				Reason:     "Popular with similar viewers",
+			})
+		} else {
+			// Fallback without details
+			items = append(items, sdk.MediaItem{
+				EntityID: rec.ItemID,
+				Reason:   "Popular with similar viewers",
+			})
+		}
+	}
+
+	return items, nil
 }
 
 // GetBecauseYouLiked returns a recommendation row based on a specific favorite item.
@@ -145,6 +271,12 @@ func (s *RecommendationsService) GetBecauseYouLiked(ctx context.Context, userID 
 	downvoted, _ := s.ratings.GetDownvotedIDs(ctx, userID, "", 100)
 	for _, id := range downvoted {
 		excludeSet[id] = true
+	}
+
+	// Also exclude items that appear in "For You" to avoid duplicates between rows
+	forYouItems, _ := s.GetForYou(ctx, userID, limit)
+	for _, item := range forYouItems {
+		excludeSet[item.EntityID] = true
 	}
 
 	// Get similar items

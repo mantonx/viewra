@@ -332,9 +332,11 @@ func (q *DBMediaQuerier) ListMediaByGenre(ctx context.Context, mediaType, genre 
 
 // listMoviesByGenre returns movies matching a genre pattern.
 func (q *DBMediaQuerier) listMoviesByGenre(ctx context.Context, genre string, libraryID int64, excludeIDs []int64, limit int) ([]*MediaInfo, error) {
-	// If no exclude IDs, use an empty slice (NOT nil - sqlc.slice needs a non-nil slice)
-	if excludeIDs == nil {
-		excludeIDs = []int64{}
+	// Use a sentinel value (-1) if no exclude IDs, because:
+	// - Empty slice causes sqlc to generate "NOT IN (NULL)" which doesn't work in PostgreSQL
+	// - -1 is never a valid media ID, so it won't exclude anything
+	if len(excludeIDs) == 0 {
+		excludeIDs = []int64{-1}
 	}
 
 	rows, err := q.querier.ListMoviesByGenre(ctx, unified.ListMoviesByGenreParams{
@@ -368,9 +370,11 @@ func (q *DBMediaQuerier) listMoviesByGenre(ctx context.Context, genre string, li
 
 // listTVShowsByGenre returns TV shows matching a genre pattern.
 func (q *DBMediaQuerier) listTVShowsByGenre(ctx context.Context, genre string, libraryID int64, excludeIDs []int64, limit int) ([]*MediaInfo, error) {
-	// If no exclude IDs, use an empty slice (NOT nil - sqlc.slice needs a non-nil slice)
-	if excludeIDs == nil {
-		excludeIDs = []int64{}
+	// Use a sentinel value (-1) if no exclude IDs, because:
+	// - Empty slice causes sqlc to generate "NOT IN (NULL)" which doesn't work in PostgreSQL
+	// - -1 is never a valid show ID, so it won't exclude anything
+	if len(excludeIDs) == 0 {
+		excludeIDs = []int64{-1}
 	}
 
 	rows, err := q.querier.ListTVShowsByGenre(ctx, unified.ListTVShowsByGenreParams{

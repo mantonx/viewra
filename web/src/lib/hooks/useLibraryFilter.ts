@@ -21,7 +21,7 @@ export const useLibraryFilter = (type: LibraryType) => {
   const [selectedLibrary, setSelectedLibrary] = useState<string>('all')
 
   // Fetch all libraries
-  const { data: librariesData } = useQuery(getGetApiLibrariesQueryOptions())
+  const { data: librariesData, isSuccess } = useQuery(getGetApiLibrariesQueryOptions())
   const allLibraries = extractLibraries(librariesData)
 
   // Filter to libraries of the specified type
@@ -39,5 +39,7 @@ export const useLibraryFilter = (type: LibraryType) => {
     libraries,
     /** Active library ID to use for queries */
     libraryId,
+    /** Whether libraries have loaded successfully */
+    isReady: isSuccess,
   }
 }

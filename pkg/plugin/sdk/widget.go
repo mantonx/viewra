@@ -176,6 +176,17 @@ func (s *widgetGRPCServer) connectHostServices(req *pluginv1.InitRequest) {
 			logger.Debug("connected to host ratings service")
 		}
 	}
+
+	// Progress service (for watch history access)
+	if req.HostProgressBrokerId > 0 {
+		conn, err := s.broker.Dial(req.HostProgressBrokerId)
+		if err != nil {
+			logger.Error("failed to dial host progress", "error", err)
+		} else {
+			s.services.Progress = NewProgressClient(conn)
+			logger.Debug("connected to host progress service")
+		}
+	}
 }
 
 func (s *widgetGRPCServer) Shutdown(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.Empty, error) {

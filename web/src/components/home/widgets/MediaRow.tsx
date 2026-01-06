@@ -3,7 +3,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
 import { MediaCard } from '@/components/media'
 import { ScrollableRow } from '@/components/common'
-import type { MediaRowData, TrendingItem, TrendingRowData } from './widget.types'
+import type { MediaRowData, RecommendationItem, TrendingItem, TrendingRowData } from './widget.types'
 import { normalizeMediaType } from './utils'
 
 interface MediaRowProps {
@@ -33,14 +33,18 @@ export const MediaRow = ({ data, className }: MediaRowProps) => {
 
   // Get items based on data type
   const trendingItems = isTrending ? (data as TrendingRowData).items : []
+  const recommendationItems = mediaRowData?.items ?? []
   const movies = mediaRowData?.movies ?? []
   const shows = mediaRowData?.shows ?? []
 
   const seeAllUrl = mediaRowData?.see_all_url
   const subtitle = mediaRowData?.subtitle
 
+  // Calculate total item count for display
+  const itemCount = trendingItems.length + recommendationItems.length + movies.length + shows.length
+
   // Check if we have any content to show
-  const hasContent = trendingItems.length > 0 || movies.length > 0 || shows.length > 0
+  const hasContent = itemCount > 0
   if (!hasContent) {
     return null
   }
@@ -67,9 +71,16 @@ export const MediaRow = ({ data, className }: MediaRowProps) => {
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h2 className="text-xl text-neutral-900 dark:text-neutral-50 font-display tracking-tight">
-            {data.title}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl text-neutral-900 dark:text-neutral-50 font-display tracking-tight">
+              {data.title}
+            </h2>
+            {itemCount > 0 && (
+              <span className="text-sm text-neutral-500 dark:text-neutral-400 tabular-nums">
+                {itemCount}
+              </span>
+            )}
+          </div>
           {subtitle && (
             <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">{subtitle}</p>
           )}
@@ -102,6 +113,15 @@ export const MediaRow = ({ data, className }: MediaRowProps) => {
             />
           ))}
 
+        {/* Recommendation items (from plugins like recommendations) */}
+        {recommendationItems.map((item) => (
+          <RecommendationCard
+            key={`${item.entity_type}-${item.entity_id}`}
+            item={item}
+            onClick={handleMediaClick}
+          />
+        ))}
+
         {/* Movies */}
         {movies.map((movie) => (
           <div key={`movie-${movie.id}`} className="w-48 shrink-0">
@@ -132,6 +152,31 @@ export const MediaRow = ({ data, className }: MediaRowProps) => {
         ))}
       </ScrollableRow>
     </section>
+  )
+}
+
+/**
+ * RecommendationCard - Card for recommendation items from plugins
+ */
+interface RecommendationCardProps {
+  item: RecommendationItem
+  onClick?: (mediaType: string, mediaId: number) => void
+}
+
+const RecommendationCard = ({ item, onClick }: RecommendationCardProps) => {
+  const mediaType = item.entity_type === 'movie' ? 'movie' : 'tv-show'
+
+  return (
+    <div className="w-48 shrink-0">
+      <MediaCard
+        mediaId={item.entity_id}
+        mediaType={mediaType}
+        imageAlt={item.title}
+        title={item.title}
+        year={item.year}
+        onClick={() => onClick?.(item.entity_type, item.entity_id)}
+      />
+    </div>
   )
 }
 

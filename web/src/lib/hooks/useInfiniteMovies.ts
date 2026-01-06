@@ -11,17 +11,18 @@ import type {
 } from '../api/generated/models'
 
 export interface UseInfiniteMoviesOptions {
-  libraryId: number
+  libraryId?: number
   sort?: string
   search?: string
   enabled?: boolean
   pageSize?: number
 }
 
-export const useInfiniteMovies = ({ libraryId, sort, search, enabled = true, pageSize }: UseInfiniteMoviesOptions) => {
+export const useInfiniteMovies = ({ libraryId = 0, sort, search, enabled = true, pageSize }: UseInfiniteMoviesOptions) => {
   // Wrapper function to ensure proper typing for useInfiniteMedia
+  // library_id: 0 means all libraries
   const queryFn = async (
-    params: { library_id: number; sort?: string; q?: string; limit?: number; offset?: number },
+    params: { library_id?: number; sort?: string; q?: string; limit?: number; offset?: number },
     options?: RequestInit
   ): Promise<{ data: GithubComMantonxViewraInternalApplicationMoviesListMoviesResponse; status: number; headers: Headers }> => {
     const response = await getApiMovies(params, options)
@@ -32,7 +33,7 @@ export const useInfiniteMovies = ({ libraryId, sort, search, enabled = true, pag
     // Include search in query key so results are cached separately per search term
     queryKey: ['movies', sort || 'title-asc', search || ''],
     queryFn,
-    params: { library_id: libraryId, sort, q: search || undefined },
+    params: { library_id: libraryId || undefined, sort, q: search || undefined },
     enabled,
     pageSize,
   })

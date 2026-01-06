@@ -271,13 +271,19 @@ func BuildHandlers(
 			)
 		}
 
+		// Create widget data fetcher for plugin widgets
+		widgetFetcher := appHome.NewPluginWidgetFetcher(
+			svcs.PluginManager,
+			logger.With("component", "widget-fetcher"),
+		)
+
 		homeService := appHome.NewService(
 			widgetRegistry,
 			svcs.PluginManager.GetSearchProviderRegistry(),
 			svcs.PluginManager.GetTrendingProviderRegistry(),
 			capabilityRegistry,
 			infra.Repos.HomePreferences,
-			nil, // WidgetDataFetcher - TODO: wire plugin proxy
+			widgetFetcher,
 			continueWatching,
 			recentlyAdded,
 			favorites,

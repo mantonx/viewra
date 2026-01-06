@@ -2357,3 +2357,241 @@ var HostPlugins_ServiceDesc = grpc.ServiceDesc{
 	},
 	Metadata: "api/proto/plugin/host_services.proto",
 }
+
+const (
+	HostProgress_ListWatchedItems_FullMethodName    = "/viewra.plugin.v1.HostProgress/ListWatchedItems"
+	HostProgress_ListInProgressItems_FullMethodName = "/viewra.plugin.v1.HostProgress/ListInProgressItems"
+	HostProgress_GetWatchedEntityIDs_FullMethodName = "/viewra.plugin.v1.HostProgress/GetWatchedEntityIDs"
+	HostProgress_HasWatchHistory_FullMethodName     = "/viewra.plugin.v1.HostProgress/HasWatchHistory"
+)
+
+// HostProgressClient is the client API for HostProgress service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// HostProgress provides read-only access to user watch progress data.
+// Plugins use this to query watch history for collaborative filtering
+// and personalized recommendations.
+type HostProgressClient interface {
+	// ListWatchedItems returns all watched items for a user.
+	// Useful for building collaborative filtering models based on viewing history.
+	ListWatchedItems(ctx context.Context, in *ListWatchedItemsRequest, opts ...grpc.CallOption) (*ListWatchedItemsResponse, error)
+	// ListInProgressItems returns items the user is currently watching (partial progress).
+	// Useful for "continue watching" recommendations and understanding current interests.
+	ListInProgressItems(ctx context.Context, in *ListInProgressItemsRequest, opts ...grpc.CallOption) (*ListInProgressItemsResponse, error)
+	// GetWatchedEntityIDs returns just the entity IDs of watched items.
+	// More efficient than ListWatchedItems when only IDs are needed.
+	GetWatchedEntityIDs(ctx context.Context, in *GetWatchedEntityIDsRequest, opts ...grpc.CallOption) (*EntityIDsResponse, error)
+	// HasWatchHistory returns whether a user has any watch history.
+	HasWatchHistory(ctx context.Context, in *HasWatchHistoryRequest, opts ...grpc.CallOption) (*HasWatchHistoryResponse, error)
+}
+
+type hostProgressClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewHostProgressClient(cc grpc.ClientConnInterface) HostProgressClient {
+	return &hostProgressClient{cc}
+}
+
+func (c *hostProgressClient) ListWatchedItems(ctx context.Context, in *ListWatchedItemsRequest, opts ...grpc.CallOption) (*ListWatchedItemsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListWatchedItemsResponse)
+	err := c.cc.Invoke(ctx, HostProgress_ListWatchedItems_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostProgressClient) ListInProgressItems(ctx context.Context, in *ListInProgressItemsRequest, opts ...grpc.CallOption) (*ListInProgressItemsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListInProgressItemsResponse)
+	err := c.cc.Invoke(ctx, HostProgress_ListInProgressItems_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostProgressClient) GetWatchedEntityIDs(ctx context.Context, in *GetWatchedEntityIDsRequest, opts ...grpc.CallOption) (*EntityIDsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EntityIDsResponse)
+	err := c.cc.Invoke(ctx, HostProgress_GetWatchedEntityIDs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hostProgressClient) HasWatchHistory(ctx context.Context, in *HasWatchHistoryRequest, opts ...grpc.CallOption) (*HasWatchHistoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HasWatchHistoryResponse)
+	err := c.cc.Invoke(ctx, HostProgress_HasWatchHistory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// HostProgressServer is the server API for HostProgress service.
+// All implementations must embed UnimplementedHostProgressServer
+// for forward compatibility.
+//
+// HostProgress provides read-only access to user watch progress data.
+// Plugins use this to query watch history for collaborative filtering
+// and personalized recommendations.
+type HostProgressServer interface {
+	// ListWatchedItems returns all watched items for a user.
+	// Useful for building collaborative filtering models based on viewing history.
+	ListWatchedItems(context.Context, *ListWatchedItemsRequest) (*ListWatchedItemsResponse, error)
+	// ListInProgressItems returns items the user is currently watching (partial progress).
+	// Useful for "continue watching" recommendations and understanding current interests.
+	ListInProgressItems(context.Context, *ListInProgressItemsRequest) (*ListInProgressItemsResponse, error)
+	// GetWatchedEntityIDs returns just the entity IDs of watched items.
+	// More efficient than ListWatchedItems when only IDs are needed.
+	GetWatchedEntityIDs(context.Context, *GetWatchedEntityIDsRequest) (*EntityIDsResponse, error)
+	// HasWatchHistory returns whether a user has any watch history.
+	HasWatchHistory(context.Context, *HasWatchHistoryRequest) (*HasWatchHistoryResponse, error)
+	mustEmbedUnimplementedHostProgressServer()
+}
+
+// UnimplementedHostProgressServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedHostProgressServer struct{}
+
+func (UnimplementedHostProgressServer) ListWatchedItems(context.Context, *ListWatchedItemsRequest) (*ListWatchedItemsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListWatchedItems not implemented")
+}
+func (UnimplementedHostProgressServer) ListInProgressItems(context.Context, *ListInProgressItemsRequest) (*ListInProgressItemsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListInProgressItems not implemented")
+}
+func (UnimplementedHostProgressServer) GetWatchedEntityIDs(context.Context, *GetWatchedEntityIDsRequest) (*EntityIDsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWatchedEntityIDs not implemented")
+}
+func (UnimplementedHostProgressServer) HasWatchHistory(context.Context, *HasWatchHistoryRequest) (*HasWatchHistoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method HasWatchHistory not implemented")
+}
+func (UnimplementedHostProgressServer) mustEmbedUnimplementedHostProgressServer() {}
+func (UnimplementedHostProgressServer) testEmbeddedByValue()                      {}
+
+// UnsafeHostProgressServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to HostProgressServer will
+// result in compilation errors.
+type UnsafeHostProgressServer interface {
+	mustEmbedUnimplementedHostProgressServer()
+}
+
+func RegisterHostProgressServer(s grpc.ServiceRegistrar, srv HostProgressServer) {
+	// If the following call pancis, it indicates UnimplementedHostProgressServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&HostProgress_ServiceDesc, srv)
+}
+
+func _HostProgress_ListWatchedItems_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWatchedItemsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostProgressServer).ListWatchedItems(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostProgress_ListWatchedItems_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostProgressServer).ListWatchedItems(ctx, req.(*ListWatchedItemsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostProgress_ListInProgressItems_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListInProgressItemsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostProgressServer).ListInProgressItems(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostProgress_ListInProgressItems_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostProgressServer).ListInProgressItems(ctx, req.(*ListInProgressItemsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostProgress_GetWatchedEntityIDs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWatchedEntityIDsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostProgressServer).GetWatchedEntityIDs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostProgress_GetWatchedEntityIDs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostProgressServer).GetWatchedEntityIDs(ctx, req.(*GetWatchedEntityIDsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HostProgress_HasWatchHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HasWatchHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostProgressServer).HasWatchHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostProgress_HasWatchHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostProgressServer).HasWatchHistory(ctx, req.(*HasWatchHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// HostProgress_ServiceDesc is the grpc.ServiceDesc for HostProgress service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var HostProgress_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "viewra.plugin.v1.HostProgress",
+	HandlerType: (*HostProgressServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListWatchedItems",
+			Handler:    _HostProgress_ListWatchedItems_Handler,
+		},
+		{
+			MethodName: "ListInProgressItems",
+			Handler:    _HostProgress_ListInProgressItems_Handler,
+		},
+		{
+			MethodName: "GetWatchedEntityIDs",
+			Handler:    _HostProgress_GetWatchedEntityIDs_Handler,
+		},
+		{
+			MethodName: "HasWatchHistory",
+			Handler:    _HostProgress_HasWatchHistory_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/proto/plugin/host_services.proto",
+}

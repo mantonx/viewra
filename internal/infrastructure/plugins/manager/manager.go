@@ -49,6 +49,9 @@ type HostWeatherServer interface{}
 // HostRatingsServer is an interface for the host ratings server functionality.
 type HostRatingsServer interface{}
 
+// HostProgressServer is an interface for the host progress server functionality.
+type HostProgressServer interface{}
+
 // Manager manages plugin lifecycle and provides access to plugin services.
 type Manager struct {
 	// plugins maps plugin ID to instance.
@@ -86,6 +89,9 @@ type Manager struct {
 
 	// hostRatingsServer provides user ratings access for plugins.
 	hostRatingsServer HostRatingsServer
+
+	// hostProgressServer provides watch progress access for plugins.
+	hostProgressServer HostProgressServer
 
 	// hostPluginsServer provides capability-based plugin discovery.
 	hostPluginsServer HostPluginsServer
@@ -154,6 +160,10 @@ type ManagerConfig struct {
 	// HostRatingsServer provides user ratings access for plugins.
 	// If nil, plugins will not be able to access user ratings.
 	HostRatingsServer HostRatingsServer
+
+	// HostProgressServer provides watch progress access for plugins.
+	// If nil, plugins will not be able to access watch history.
+	HostProgressServer HostProgressServer
 }
 
 // NewManager creates a new plugin manager.
@@ -199,6 +209,7 @@ func NewManager(cfg ManagerConfig, logger *slog.Logger) (*Manager, error) {
 		hostStorageServer:        cfg.HostStorageServer,
 		hostWeatherServer:        cfg.HostWeatherServer,
 		hostRatingsServer:        cfg.HostRatingsServer,
+		hostProgressServer:       cfg.HostProgressServer,
 		routeRegistry:            routeRegistry,
 		capabilityRegistry:       capabilityRegistry,
 		providerRegistry:         providerRegistry,
@@ -477,6 +488,11 @@ func Handshake() plugin.HandshakeConfig {
 // SetHostDataServer sets the host data server.
 func (m *Manager) SetHostDataServer(server HostDataServer) {
 	m.hostDataServer = server
+	if server != nil {
+		m.logger.Info("HostDataServer set successfully", "type", fmt.Sprintf("%T", server))
+	} else {
+		m.logger.Warn("SetHostDataServer called with nil server")
+	}
 }
 
 // SetHostPluginsServer sets the host plugins server.
@@ -542,6 +558,11 @@ func (m *Manager) GetHostWeatherServer() HostWeatherServer {
 // GetHostRatingsServer returns the host ratings server.
 func (m *Manager) GetHostRatingsServer() HostRatingsServer {
 	return m.hostRatingsServer
+}
+
+// GetHostProgressServer returns the host progress server.
+func (m *Manager) GetHostProgressServer() HostProgressServer {
+	return m.hostProgressServer
 }
 
 // GetRateLimiter returns the rate limiter.

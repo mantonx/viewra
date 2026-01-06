@@ -141,6 +141,7 @@ export * from './githubComMantonxViewraInternalApplicationTvTVShowDetailResponse
 export * from './githubComMantonxViewraInternalApplicationTvTVShowSummary'
 export * from './githubComMantonxViewraInternalDomainCommonPaginationMetadata'
 export * from './githubComMantonxViewraInternalDomainEnrichmentQueueStats'
+export * from './githubComMantonxViewraInternalDomainHomeHeroData'
 export * from './githubComMantonxViewraInternalDomainHomeHomeMeta'
 export * from './githubComMantonxViewraInternalDomainHomeHomeResponse'
 export * from './githubComMantonxViewraInternalDomainHomePreferencesInfo'

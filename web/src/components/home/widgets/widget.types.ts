@@ -86,6 +86,17 @@ export interface TrendingItem {
 }
 
 /**
+ * Recommendation item from plugins (generic media item with reason)
+ */
+export interface RecommendationItem {
+  entity_type: 'movie' | 'tv_show'
+  entity_id: number
+  title: string
+  year?: number
+  reason?: string
+}
+
+/**
  * Widget data responses from plugin endpoints
  */
 export interface SearchHeroData {
@@ -97,11 +108,78 @@ export interface SearchHeroData {
 export interface MediaRowData {
   title: string
   subtitle?: string
+  /** Generic items array (from recommendations plugin) */
+  items?: RecommendationItem[]
   /** Movie data for rendering */
   movies?: import('@/lib/types/movies').Movie[]
   /** TV show data for rendering */
   shows?: import('@/lib/types/tv').TVShowSummary[]
   see_all_url?: string
+}
+
+/**
+ * Progress information for continue watching items
+ */
+export interface MediaProgress {
+  /** Progress percentage (0-100) */
+  percent: number
+  /** Current playback position in seconds */
+  position_seconds: number
+  /** Total duration in seconds */
+  duration_seconds: number
+  /** Human-readable remaining time (e.g., "1h 23m left") */
+  remaining_text?: string
+}
+
+/**
+ * Episode context for TV shows in continue watching
+ */
+export interface EpisodeContext {
+  /** Season number */
+  season: number
+  /** Episode number within the season */
+  episode: number
+  /** Episode title */
+  episode_title?: string
+  /** TV show title */
+  show_title: string
+  /** Media ID of the episode (for direct playback) */
+  episode_media_id: number
+}
+
+/**
+ * Item in the continue watching row with progress and episode info
+ */
+export interface ContinueWatchingItem {
+  /** Media type: "movie" or "tv_show" */
+  entity_type: 'movie' | 'tv_show'
+  /** Database ID (movie ID or show ID) */
+  entity_id: number
+  /** Display title */
+  title: string
+  /** Release/air year */
+  year?: number
+  /** URL to backdrop/fanart image (16:9) */
+  backdrop_url?: string
+  /** Playback progress information */
+  progress: MediaProgress
+  /** Episode details for TV shows (null for movies) */
+  episode_context?: EpisodeContext
+  /** When this item was last watched */
+  last_watched_at: string
+}
+
+/**
+ * Continue watching row data
+ */
+export interface ContinueWatchingData {
+  title: string
+  /** New format: array of continue watching items with progress */
+  items?: ContinueWatchingItem[]
+  /** Legacy format: movie data */
+  movies?: import('@/lib/types/movies').Movie[]
+  /** Legacy format: TV show data */
+  shows?: import('@/lib/types/tv').TVShowSummary[]
 }
 
 export interface TrendingRowData {
@@ -125,8 +203,36 @@ export interface HomeSection {
   location: WidgetLocationValue
   priority: number
   plugin_id: string
-  data: SearchHeroData | MediaRowData | TrendingRowData | FeaturedRowData
+  data: SearchHeroData | MediaRowData | TrendingRowData | FeaturedRowData | ContinueWatchingData
   cache_ttl_seconds?: number
+}
+
+/**
+ * Hero data for the home screen backdrop
+ */
+export interface HeroData {
+  /** Media ID to fetch backdrop from */
+  backdrop_media_id?: number
+  /** Type of media (movie or tv_show) */
+  backdrop_media_type?: 'movie' | 'tv_show'
+  /** Time-based greeting (Good morning, etc.) */
+  greeting?: string
+  /** Formatted date (Saturday, January 4) */
+  date_text?: string
+}
+
+/**
+ * Home screen response metadata
+ */
+export interface HomeMeta {
+  generated_at: string
+  user_context?: {
+    has_watch_history: boolean
+    has_ratings: boolean
+    time_of_day?: string
+    season?: string
+  }
+  hero?: HeroData
 }
 
 /**
@@ -137,6 +243,7 @@ export interface HomeResponse {
   user_id: string
   client_type: string
   cached_at?: number
+  meta?: HomeMeta
 }
 
 /**

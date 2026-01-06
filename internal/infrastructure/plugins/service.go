@@ -80,6 +80,12 @@ type HostRatingsServer = host.RatingsServer
 // NewHostRatingsServer creates a new host ratings server.
 var NewHostRatingsServer = host.NewRatingsServer
 
+// HostProgressServer provides watch progress access to plugins.
+type HostProgressServer = host.ProgressServer
+
+// NewHostProgressServer creates a new host progress server.
+var NewHostProgressServer = host.NewProgressServer
+
 // GRPCEnricher wraps a gRPC EnricherClient to implement the application Enricher interface.
 type GRPCEnricher = pluginsgrpc.Enricher
 
@@ -113,15 +119,18 @@ type (
 	HostPluginsGRPCPlugin = pluginsgrpc.HostPluginsPlugin
 	// HostRatingsGRPCPlugin is the go-plugin implementation for the HostRatings service.
 	HostRatingsGRPCPlugin = pluginsgrpc.HostRatingsPlugin
+	// HostProgressGRPCPlugin is the go-plugin implementation for the HostProgress service.
+	HostProgressGRPCPlugin = pluginsgrpc.HostProgressPlugin
 	// PluginProviderGRPCPlugin is the go-plugin implementation for the PluginProvider service.
 	PluginProviderGRPCPlugin = pluginsgrpc.PluginProviderPlugin
 
 	// Broker info types
-	HostDataBrokerInfo    = pluginsgrpc.HostDataBrokerInfo
-	HostStorageBrokerInfo = pluginsgrpc.HostStorageBrokerInfo
-	HostWeatherBrokerInfo = pluginsgrpc.HostWeatherBrokerInfo
-	HostPluginsBrokerInfo = pluginsgrpc.HostPluginsBrokerInfo
-	HostRatingsBrokerInfo = pluginsgrpc.HostRatingsBrokerInfo
+	HostDataBrokerInfo     = pluginsgrpc.HostDataBrokerInfo
+	HostStorageBrokerInfo  = pluginsgrpc.HostStorageBrokerInfo
+	HostWeatherBrokerInfo  = pluginsgrpc.HostWeatherBrokerInfo
+	HostPluginsBrokerInfo  = pluginsgrpc.HostPluginsBrokerInfo
+	HostRatingsBrokerInfo  = pluginsgrpc.HostRatingsBrokerInfo
+	HostProgressBrokerInfo = pluginsgrpc.HostProgressBrokerInfo
 
 	// Factory creates go-plugin Plugin instances for the plugin manager.
 	Factory = pluginsgrpc.Factory

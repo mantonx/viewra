@@ -8,7 +8,8 @@ package sqlc_postgres
 import (
 	"context"
 	"database/sql"
-	"strings"
+
+	"github.com/lib/pq"
 )
 
 const countSearchTVShowsByTitle = `-- name: CountSearchTVShowsByTitle :one
@@ -1851,8 +1852,8 @@ SELECT
 FROM tv_shows s
 WHERE (s.library_id = $1::bigint OR $1::bigint = 0)
   AND s.genre ILIKE '%' || $2 || '%'
-  AND s.id NOT IN ($3)
-ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title)
+  AND NOT (s.id = ANY($3::bigint[]))
+ORDER BY COALESCE(s.rating, 0) * LOG(COALESCE(s.rating_votes, 0) + 1) DESC, s.created_at DESC
 LIMIT $4::bigint
 `
 
@@ -1869,20 +1870,12 @@ type ListTVShowsByGenreParams struct {
 // exclude_ids: array of show IDs to exclude
 // limit: maximum number of results
 func (q *Queries) ListTVShowsByGenre(ctx context.Context, arg ListTVShowsByGenreParams) ([]TvShow, error) {
-	query := listTVShowsByGenre
-	var queryParams []interface{}
-	queryParams = append(queryParams, arg.LibraryID)
-	queryParams = append(queryParams, arg.Genre)
-	if len(arg.ExcludeIds) > 0 {
-		for _, v := range arg.ExcludeIds {
-			queryParams = append(queryParams, v)
-		}
-		query = strings.Replace(query, "/*SLICE:exclude_ids*/?", strings.Repeat(",?", len(arg.ExcludeIds))[1:], 1)
-	} else {
-		query = strings.Replace(query, "/*SLICE:exclude_ids*/?", "NULL", 1)
-	}
-	queryParams = append(queryParams, arg.Limit)
-	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	rows, err := q.db.QueryContext(ctx, listTVShowsByGenre,
+		arg.LibraryID,
+		arg.Genre,
+		pq.Array(arg.ExcludeIds),
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}

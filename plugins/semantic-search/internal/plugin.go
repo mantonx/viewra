@@ -118,9 +118,15 @@ func (p *SemanticSearchPlugin) Initialize(ctx context.Context, dataDir string, c
 	// Initialize services
 	p.initializeServices()
 
-	p.Log().Debug("Semantic Search plugin initialized",
+	// Log service availability for debugging
+	p.Log().Info("Semantic Search plugin initialized",
 		"auto_index", p.config.Indexing.AutoIndex,
 		"mood_tags_enabled", p.config.MoodTags.Enabled,
+		"has_plugins", p.plugins != nil,
+		"has_data", p.data != nil,
+		"has_vector", p.vector != nil,
+		"has_embedding_service", p.embeddingService != nil,
+		"has_indexing_service", p.indexingService != nil,
 	)
 
 	return nil
@@ -287,8 +293,14 @@ func (p *SemanticSearchPlugin) Search(ctx context.Context, req *sdk.SemanticSear
 	// Start with the original query
 	query := req.Query
 
+	// Check for "similar to" / "movies like X" patterns BEFORE query rewriting
+	// These queries should use FindSimilar, not semantic search
+	intent := detectQueryIntent(query)
+	skipRewriting := intent.isSimilarSearch
+
 	// Use LLM to rewrite query for better intent matching
-	if queryRewriter != nil {
+	// Skip rewriting for "similar to" queries since we need the original title
+	if queryRewriter != nil && !skipRewriting {
 		rewrittenQuery := queryRewriter.Rewrite(ctx, query)
 		if rewrittenQuery != query {
 			p.Log().Debug("LLM rewrote query",
@@ -300,7 +312,8 @@ func (p *SemanticSearchPlugin) Search(ctx context.Context, req *sdk.SemanticSear
 	}
 
 	// Enrich the query with context if user ID is provided
-	if contextEnricher != nil && req.UserID != "" {
+	// Skip enrichment for "similar to" queries
+	if contextEnricher != nil && req.UserID != "" && !skipRewriting {
 		qc, err := contextEnricher.GetContext(ctx, req.UserID)
 		if err != nil {
 			p.Log().Debug("failed to get context for query enrichment", "error", err)

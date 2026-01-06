@@ -22,8 +22,15 @@ Shape depends on Type. */
   hidden?: boolean
   /** ID is a unique identifier for this section. */
   id?: string
-  /** Position is the order in which sections appear. */
+  /** Location specifies where the section appears.
+Values: "homepage-top", "homepage-sections" */
+  location?: string
+  /** PluginID is the plugin that provides this section. */
+  plugin_id?: string
+  /** Position is the order in which sections appear (after user prefs applied). */
   position?: number
+  /** Priority is the widget's base priority (higher = earlier). */
+  priority?: number
   /** Type determines how the section is rendered.
 Values: "search-hero", "featured-row", "continue-row", "media-row" */
   type?: string

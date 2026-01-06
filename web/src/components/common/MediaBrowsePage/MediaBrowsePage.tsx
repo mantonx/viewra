@@ -239,42 +239,48 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
   })
 
   // Client-side sorting (backend supports title_asc/title_desc, other sorts handled here)
-  const sortedItems = [...filteredItems].sort((a, b) => {
-    const [field, direction] = sortBy.split('-')
+  // Skip sorting when there's an active search with serverSideSearch enabled,
+  // because semantic search returns results ordered by relevance.
+  // Check multiple sources (searchQuery, initialSearch, debouncedSearchQuery) to handle timing edge cases.
+  const hasActiveSearch = searchQuery !== '' || initialSearch !== '' || debouncedSearchQuery !== ''
+  const sortedItems = (serverSideSearch && hasActiveSearch)
+    ? filteredItems
+    : [...filteredItems].sort((a, b) => {
+        const [field, direction] = sortBy.split('-')
 
-    let aVal: string | number
-    let bVal: string | number
+        let aVal: string | number
+        let bVal: string | number
 
-    switch (field) {
-      case 'title':
-        aVal = (a.title || a.name || '').toLowerCase()
-        bVal = (b.title || b.name || '').toLowerCase()
-        break
-      case 'year':
-        aVal = (a as T & { year?: number }).year || 0
-        bVal = (b as T & { year?: number }).year || 0
-        break
-      case 'added':
-        aVal = (a as T & { created_at?: string; date_added?: string }).created_at || (a as T & { created_at?: string; date_added?: string }).date_added || 0
-        bVal = (b as T & { created_at?: string; date_added?: string }).created_at || (b as T & { created_at?: string; date_added?: string }).date_added || 0
-        break
-      case 'rating':
-        aVal = (a as T & { rating?: number; imdb_rating?: number }).rating || (a as T & { rating?: number; imdb_rating?: number }).imdb_rating || 0
-        bVal = (b as T & { rating?: number; imdb_rating?: number }).rating || (b as T & { rating?: number; imdb_rating?: number }).imdb_rating || 0
-        break
-      default:
-        aVal = (a.title || a.name || '').toLowerCase()
-        bVal = (b.title || b.name || '').toLowerCase()
-    }
+        switch (field) {
+          case 'title':
+            aVal = (a.title || a.name || '').toLowerCase()
+            bVal = (b.title || b.name || '').toLowerCase()
+            break
+          case 'year':
+            aVal = (a as T & { year?: number }).year || 0
+            bVal = (b as T & { year?: number }).year || 0
+            break
+          case 'added':
+            aVal = (a as T & { created_at?: string; date_added?: string }).created_at || (a as T & { created_at?: string; date_added?: string }).date_added || 0
+            bVal = (b as T & { created_at?: string; date_added?: string }).created_at || (b as T & { created_at?: string; date_added?: string }).date_added || 0
+            break
+          case 'rating':
+            aVal = (a as T & { rating?: number; imdb_rating?: number }).rating || (a as T & { rating?: number; imdb_rating?: number }).imdb_rating || 0
+            bVal = (b as T & { rating?: number; imdb_rating?: number }).rating || (b as T & { rating?: number; imdb_rating?: number }).imdb_rating || 0
+            break
+          default:
+            aVal = (a.title || a.name || '').toLowerCase()
+            bVal = (b.title || b.name || '').toLowerCase()
+        }
 
-    if (aVal < bVal) {
-      return direction === 'asc' ? -1 : 1
-    }
-    if (aVal > bVal) {
-      return direction === 'asc' ? 1 : -1
-    }
-    return 0
-  })
+        if (aVal < bVal) {
+          return direction === 'asc' ? -1 : 1
+        }
+        if (aVal > bVal) {
+          return direction === 'asc' ? 1 : -1
+        }
+        return 0
+      })
 
   // Loading and error states
   if (isLoading) {

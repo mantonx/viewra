@@ -19,6 +19,12 @@ type MediaItemWithTime struct {
 	Movie     *movies.MovieResponse
 	TVShow    *tv.TVShowSummary
 	CreatedAt time.Time
+
+	// Progress contains playback progress (for continue watching).
+	Progress *home.MediaProgress
+
+	// EpisodeContext contains episode details for TV shows (for continue watching).
+	EpisodeContext *home.EpisodeContext
 }
 
 // RecentlyAddedServiceImpl implements RecentlyAddedService.

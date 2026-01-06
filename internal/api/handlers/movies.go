@@ -33,10 +33,10 @@ func NewMoviesHandler(
 
 // List handles GET /api/movies
 // @Summary List movies
-// @Description Returns a list of all movies in a specific library with optional pagination
+// @Description Returns a list of movies with optional library filter and pagination. If library_id is omitted or 0, returns movies from all libraries.
 // @Tags movies
 // @Produce json
-// @Param library_id query int true "Library ID to filter movies"
+// @Param library_id query int false "Library ID to filter movies (0 or omit for all libraries)"
 // @Param q query string false "Search query to filter movies by title"
 // @Param limit query int false "Number of items per page (default: 50, max: 200)"
 // @Param offset query int false "Number of items to skip (default: 0)"
@@ -46,10 +46,8 @@ func NewMoviesHandler(
 // @Failure 500 {object} APIError
 // @Router /api/movies [get]
 func (h *MoviesHandler) List(c *gin.Context) {
-	libraryID, ok := getRequiredQueryInt64(c, "library_id")
-	if !ok {
-		return
-	}
+	// library_id is optional - 0 means all libraries
+	libraryID, _ := getOptionalQueryInt64(c, "library_id")
 
 	// Parse optional pagination parameters
 	pagination := parsePaginationParams(c)
@@ -126,10 +124,10 @@ func (h *MoviesHandler) Get(c *gin.Context) {
 
 // Search handles GET /api/movies/search
 // @Summary Search movies
-// @Description Searches for movies by title in a specific library with optional pagination
+// @Description Searches for movies by title with optional library filter and pagination. If library_id is omitted or 0, searches all libraries.
 // @Tags movies
 // @Produce json
-// @Param library_id query int true "Library ID to search in"
+// @Param library_id query int false "Library ID to search in (0 or omit for all libraries)"
 // @Param q query string true "Search query (title)"
 // @Param limit query int false "Number of items per page (default: 50, max: 200)"
 // @Param offset query int false "Number of items to skip (default: 0)"
@@ -138,10 +136,8 @@ func (h *MoviesHandler) Get(c *gin.Context) {
 // @Failure 500 {object} APIError
 // @Router /api/movies/search [get]
 func (h *MoviesHandler) Search(c *gin.Context) {
-	libraryID, ok := getRequiredQueryInt64(c, "library_id")
-	if !ok {
-		return
-	}
+	// library_id is optional - 0 means all libraries
+	libraryID, _ := getOptionalQueryInt64(c, "library_id")
 
 	query := c.Query("q")
 	if query == "" {
@@ -176,10 +172,10 @@ func (h *MoviesHandler) Search(c *gin.Context) {
 
 // ListIDs handles GET /api/movies/ids
 // @Summary List movie IDs
-// @Description Returns a list of movie IDs only for prefetching images with optional pagination
+// @Description Returns a list of movie IDs only for prefetching images with optional pagination. If library_id is omitted or 0, returns IDs from all libraries.
 // @Tags movies
 // @Produce json
-// @Param library_id query int true "Library ID to filter movies"
+// @Param library_id query int false "Library ID to filter movies (0 or omit for all libraries)"
 // @Param limit query int false "Number of items per page (default: 50, max: 200)"
 // @Param offset query int false "Number of items to skip (default: 0)"
 // @Param sort query string false "Sort order: title_asc or title_desc (default: title_asc)"
@@ -188,10 +184,8 @@ func (h *MoviesHandler) Search(c *gin.Context) {
 // @Failure 500 {object} APIError
 // @Router /api/movies/ids [get]
 func (h *MoviesHandler) ListIDs(c *gin.Context) {
-	libraryID, ok := getRequiredQueryInt64(c, "library_id")
-	if !ok {
-		return
-	}
+	// library_id is optional - 0 means all libraries
+	libraryID, _ := getOptionalQueryInt64(c, "library_id")
 
 	// Parse optional pagination parameters
 	pagination := parsePaginationParams(c)

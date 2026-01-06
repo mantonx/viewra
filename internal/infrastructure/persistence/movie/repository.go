@@ -175,9 +175,8 @@ func (r *Repository) CountSearchMoviesByTitle(ctx context.Context, libraryID int
 	searchPattern := "%" + query + "%"
 
 	return r.Q().CountSearchMoviesByTitle(ctx, unified.CountSearchMoviesByTitleParams{
-		LibraryID:     libraryID,
-		Title:         searchPattern,
-		OriginalTitle: common.NullString(searchPattern),
+		LibraryID: libraryID,
+		Query:     searchPattern,
 	})
 }
 
@@ -190,11 +189,10 @@ func (r *Repository) SearchMoviesByTitlePaginated(ctx context.Context, libraryID
 	searchPattern := "%" + query + "%"
 
 	rows, err := r.Q().SearchMoviesByTitlePaginated(ctx, unified.SearchMoviesByTitlePaginatedParams{
-		LibraryID:     libraryID,
-		Title:         searchPattern,
-		OriginalTitle: common.NullString(searchPattern),
-		Limit:         int64(pagination.Limit),
-		Offset:        int64(pagination.Offset),
+		LibraryID: libraryID,
+		Query:     searchPattern,
+		Limit:     int64(pagination.Limit),
+		Offset:    int64(pagination.Offset),
 	})
 	if err != nil {
 		return nil, err

@@ -147,6 +147,13 @@ func (m *Manager) buildPluginMap(pluginID string, hostServiceLogger *slog.Logger
 		}
 	}
 
+	// Add host progress service if available
+	if m.hostProgressServer != nil {
+		if p := m.pluginFactory.NewHostProgressGRPCPlugin(m.hostProgressServer, hostServiceLogger); p != nil {
+			pluginMap["host_progress"] = p
+		}
+	}
+
 	return pluginMap
 }
 
@@ -283,15 +290,16 @@ func (m *Manager) initializePlugin(
 
 	// Call Initialize on the plugin
 	initResp, err := instance.CoreClient.Initialize(ctx, &pluginv1.InitRequest{
-		HostVersion:         m.hostVersion,
-		DataDir:             dataDir,
-		Config:              configBytes,
-		HostStorageBrokerId: brokerIDs.storage,
-		HostDataBrokerId:    brokerIDs.data,
-		HostWeatherBrokerId: brokerIDs.weather,
-		HostPluginsBrokerId: brokerIDs.plugins,
-		HostRatingsBrokerId: brokerIDs.ratings,
-		SystemInfo:          m.systemInfo,
+		HostVersion:          m.hostVersion,
+		DataDir:              dataDir,
+		Config:               configBytes,
+		HostStorageBrokerId:  brokerIDs.storage,
+		HostDataBrokerId:     brokerIDs.data,
+		HostWeatherBrokerId:  brokerIDs.weather,
+		HostPluginsBrokerId:  brokerIDs.plugins,
+		HostRatingsBrokerId:  brokerIDs.ratings,
+		HostProgressBrokerId: brokerIDs.progress,
+		SystemInfo:           m.systemInfo,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to initialize plugin: %w", err)
@@ -305,11 +313,12 @@ func (m *Manager) initializePlugin(
 
 // hostBrokerIDs holds broker IDs for host services.
 type hostBrokerIDs struct {
-	storage uint32
-	data    uint32
-	weather uint32
-	plugins uint32
-	ratings uint32
+	storage  uint32
+	data     uint32
+	weather  uint32
+	plugins  uint32
+	ratings  uint32
+	progress uint32
 }
 
 // dispenseHostServices dispenses all host services and returns their broker IDs.
@@ -339,6 +348,11 @@ func (m *Manager) dispenseHostServices(pluginID string, rpcClient plugin.ClientP
 	// Dispense host ratings
 	if m.hostRatingsServer != nil {
 		ids.ratings = m.dispenseHostService(pluginID, rpcClient, "host_ratings")
+	}
+
+	// Dispense host progress
+	if m.hostProgressServer != nil {
+		ids.progress = m.dispenseHostService(pluginID, rpcClient, "host_progress")
 	}
 
 	return ids

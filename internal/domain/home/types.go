@@ -94,6 +94,24 @@ type HomeMeta struct {
 
 	// UserContext contains information about the user's context.
 	UserContext *UserContext `json:"user_context,omitempty"`
+
+	// Hero contains data for the hero backdrop section.
+	Hero *HeroData `json:"hero,omitempty"`
+}
+
+// HeroData contains information for the hero backdrop section.
+type HeroData struct {
+	// BackdropMediaID is the media ID to fetch backdrop from.
+	BackdropMediaID int64 `json:"backdrop_media_id,omitempty"`
+
+	// BackdropMediaType is the type of media (movie or tv_show).
+	BackdropMediaType string `json:"backdrop_media_type,omitempty"`
+
+	// Greeting is a time-based greeting (Good morning, Good afternoon, etc.).
+	Greeting string `json:"greeting,omitempty"`
+
+	// DateText is the formatted current date (Saturday, January 4).
+	DateText string `json:"date_text,omitempty"`
 }
 
 // UserContext describes the user's current context for personalization.
@@ -202,4 +220,54 @@ type MediaProgress struct {
 
 	// DurationSeconds is the total duration in seconds.
 	DurationSeconds int `json:"duration_seconds"`
+
+	// RemainingText is a human-readable remaining time (e.g., "1h 23m left").
+	RemainingText string `json:"remaining_text,omitempty"`
+}
+
+// EpisodeContext provides context about the current episode for TV shows.
+type EpisodeContext struct {
+	// Season is the season number.
+	Season int `json:"season"`
+
+	// Episode is the episode number within the season.
+	Episode int `json:"episode"`
+
+	// EpisodeTitle is the title of the episode.
+	EpisodeTitle string `json:"episode_title,omitempty"`
+
+	// ShowTitle is the title of the TV show.
+	ShowTitle string `json:"show_title"`
+
+	// EpisodeMediaID is the media ID of the episode (for direct playback).
+	EpisodeMediaID int64 `json:"episode_media_id"`
+}
+
+// ContinueWatchingItem represents an item in the continue watching row.
+// This provides a richer structure than the generic MediaItem.
+type ContinueWatchingItem struct {
+	// EntityType is the media type: "movie" or "tv_show".
+	EntityType string `json:"entity_type"`
+
+	// EntityID is the database ID (movie ID or show ID).
+	EntityID int64 `json:"entity_id"`
+
+	// Title is the display title.
+	Title string `json:"title"`
+
+	// Year is the release/air year.
+	Year int `json:"year,omitempty"`
+
+	// BackdropURL is the URL to the backdrop/fanart image (16:9).
+	BackdropURL string `json:"backdrop_url,omitempty"`
+
+	// Progress contains playback progress information.
+	Progress *MediaProgress `json:"progress"`
+
+	// EpisodeContext provides episode details for TV shows.
+	// Nil for movies.
+	EpisodeContext *EpisodeContext `json:"episode_context,omitempty"`
+
+	// LastWatchedAt is when this item was last watched.
+	LastWatchedAt time.Time `json:"last_watched_at"`
 }

@@ -9,14 +9,14 @@
 export interface GithubComMantonxViewraPkgPluginSdkTrendingItem {
   /** ExternalID is the external identifier in format "source:id".
 Example: "tmdb:12345", "imdb:tt1234567" */
-  externalID?: string
+  external_id?: string
   /** LocalID is the matched local library ID (filled in by the core service).
 Nil if not matched to local library. */
-  localID?: number
+  local_id?: number
   /** LocalMatched indicates whether this item was matched to the local library. */
-  localMatched?: boolean
+  local_matched?: boolean
   /** MediaType is "movie" or "tv". */
-  mediaType?: string
+  media_type?: string
   /** Overview is a brief description/plot summary. */
   overview?: string
   /** Popularity is the provider-specific popularity score.
@@ -24,7 +24,7 @@ Higher is more popular. Scale varies by provider. */
   popularity?: number
   /** PosterPath is the external URL to the poster image.
 Example: "https://image.tmdb.org/t/p/w500/abc123.jpg" */
-  posterPath?: string
+  poster_path?: string
   /** Title is the display title. */
   title?: string
   /** Year is the release/air year. */

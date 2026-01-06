@@ -1848,7 +1848,7 @@ FROM tv_shows s
 WHERE (s.library_id = ?1 OR ?1 = 0)
   AND s.genre LIKE '%' || ?2 || '%'
   AND s.id NOT IN (/*SLICE:exclude_ids*/?)
-ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) COLLATE NOCASE
+ORDER BY COALESCE(s.rating, 0) * (COALESCE(s.rating_votes, 0) + 1) DESC, s.created_at DESC
 LIMIT ?4
 `
 

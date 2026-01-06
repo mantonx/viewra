@@ -1359,3 +1359,159 @@ Apply to ViewRA:
 - Genre/tag-based community profiles (sparse, interpretable)
 - Real-time profile updates on watch completion
 - Explainable recommendations: "Because you like Sci-Fi"
+
+---
+
+## Implementation Progress
+
+### Status Summary
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1: User Embedding Average | PENDING | 1-2 days - no training required |
+| Phase 1.5: SAR Collaborative Filtering | PENDING | 1-2 days - matrix operations only |
+| Phase 2: BPR Collaborative Filtering | DEFERRED | 3-5 days - implement if SAR insufficient |
+| Phase 3: Hybrid Scoring | PENDING | 1-2 days - combine all signals |
+| Phase 4: Enhancements | PENDING | 2-3 days - cold start, persistence |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| SAR vs BPR first | **SAR first** | Simpler (~150 lines), no ML training, faster iteration |
+| BPR implementation | **Deferred** | Implement only if SAR quality insufficient |
+| HostProgress service | **Yes** | Needed for SAR to access watch history from plugin |
+| Unit tests | **Yes** | Test SAR, hybrid scoring, edge cases |
+
+### Infrastructure Dependencies
+
+| Dependency | Status | Notes |
+|------------|--------|-------|
+| HostProgress gRPC service | PENDING | New service like HostRatings |
+| ProgressClient in SDK | PENDING | `pkg/plugin/sdk/progress.go` |
+| Plugin Files SDK | EXISTS | For model persistence |
+| pgvector | EXISTS | For factor storage if using BPR |
+
+### Phase 1: User Embedding Average - Task Breakdown
+
+**Files to Create:**
+- [ ] `plugins/recommendations/internal/user_embedding.go`
+  - `UserEmbeddingService` struct
+  - `GenerateUserEmbedding()` - weighted average of liked item embeddings
+  - `weightedAverage()` - helper for combining embeddings
+
+**Files to Modify:**
+- [ ] `plugins/recommendations/internal/recommendations.go` - add `getUserEmbeddingRecommendations()`
+- [ ] `plugins/recommendations/internal/plugin.go` - wire UserEmbeddingService
+
+**Tests:**
+- [ ] `plugins/recommendations/internal/user_embedding_test.go`
+
+### Phase 1.5: SAR - Task Breakdown
+
+**Infrastructure:**
+- [ ] Add HostProgress proto messages to `api/proto/plugin/host_services.proto`
+  - `ListWatchHistoryRequest`, `ListWatchHistoryResponse`, `WatchHistoryItem`
+- [ ] Create `internal/infrastructure/plugins/host/progress.go` - HostProgress server
+- [ ] Create `pkg/plugin/sdk/progress.go` - ProgressClient for plugins
+- [ ] Wire HostProgress in `manager/loader.go`, `grpc/factory.go`
+- [ ] Add `host_progress_broker_id` to `InitRequest` proto
+- [ ] Update SDK `HostServices` with `Progress` field
+
+**SAR Implementation:**
+- [ ] Create `plugins/recommendations/internal/cf/types.go`
+  - `Interaction` struct (UserID, ItemID, Timestamp, Weight)
+- [ ] Create `plugins/recommendations/internal/cf/sar.go`
+  - `SARModel` struct (similarity, affinity, itemCounts maps)
+  - `NewSARModel()` constructor
+  - `Build()` - compute item-item Jaccard similarity + user-item affinity
+  - `Recommend()` - score items by affinity × similarity
+  - `topK()` helper
+
+**Integration:**
+- [ ] Add `getSARRecommendations()` to `recommendations.go`
+- [ ] Initialize SAR model in plugin startup
+- [ ] Add scheduled rebuild (nightly)
+
+**Tests:**
+- [ ] `plugins/recommendations/internal/cf/sar_test.go`
+  - Test with known interactions
+  - Test cold start (no history)
+  - Test exclusion of already-watched items
+
+### Phase 3: Hybrid Scoring - Task Breakdown
+
+**Files to Create:**
+- [ ] `plugins/recommendations/internal/hybrid.go`
+  - `HybridScorer` struct with configurable weights
+  - `Score()` - combine CF + semantic + exploration
+  - `mergeAndDeduplicate()` - combine sources, remove duplicates
+
+**Integration:**
+- [ ] Update `GetForYou()` in `recommendations.go` to use hybrid scoring
+- [ ] Add fallback chain: hybrid → semantic → genre → popular
+
+**Tests:**
+- [ ] `plugins/recommendations/internal/hybrid_test.go`
+  - Test weight distribution
+  - Test deduplication
+  - Test fallback behavior
+
+### Phase 4: Enhancements - Task Breakdown
+
+**Cold Start:**
+- [ ] Add `getPopularItems()` method for new users
+- [ ] Return trending/popular when no ratings or history
+
+**Implicit Feedback:**
+- [ ] Weight watch completion in SAR affinity scores
+  - >90% completion: +1.0
+  - 50-90%: +0.7
+  - <20%: -0.3
+  - Rewatch: +1.5
+- [ ] Weight explicit ratings higher
+  - Favorite: 2.0, Upvote: 1.0, Downvote: -1.0
+
+**Model Persistence:**
+- [ ] Save SAR model to plugin data directory
+- [ ] Load on plugin startup
+- [ ] Track last rebuild timestamp
+- [ ] Scheduled nightly rebuild
+
+### Files to Create (Summary)
+
+| File | Phase | Lines (est.) |
+|------|-------|--------------|
+| `internal/infrastructure/plugins/host/progress.go` | 1.5 | ~150 |
+| `pkg/plugin/sdk/progress.go` | 1.5 | ~100 |
+| `plugins/recommendations/internal/user_embedding.go` | 1 | ~80 |
+| `plugins/recommendations/internal/cf/types.go` | 1.5 | ~30 |
+| `plugins/recommendations/internal/cf/sar.go` | 1.5 | ~150 |
+| `plugins/recommendations/internal/hybrid.go` | 3 | ~100 |
+| `plugins/recommendations/internal/user_embedding_test.go` | 1 | ~50 |
+| `plugins/recommendations/internal/cf/sar_test.go` | 1.5 | ~100 |
+| `plugins/recommendations/internal/hybrid_test.go` | 3 | ~80 |
+
+### Files to Modify (Summary)
+
+| File | Phase | Changes |
+|------|-------|---------|
+| `api/proto/plugin/host_services.proto` | 1.5 | Add HostProgress service |
+| `api/proto/plugin/plugin_core.proto` | 1.5 | Add host_progress_broker_id |
+| `internal/infrastructure/plugins/grpc/plugin.go` | 1.5 | Add HostProgressPlugin |
+| `internal/infrastructure/plugins/grpc/factory.go` | 1.5 | Add NewHostProgressGRPCPlugin |
+| `internal/infrastructure/plugins/manager/loader.go` | 1.5 | Wire HostProgress |
+| `internal/app/services/services.go` | 1.5 | Create HostProgress server |
+| `pkg/plugin/sdk/host.go` | 1.5 | Add Progress to HostServices |
+| `plugins/recommendations/internal/recommendations.go` | 1, 1.5, 3 | User embedding, SAR, hybrid |
+| `plugins/recommendations/internal/plugin.go` | 1, 1.5, 4 | Wire services, scheduling |
+
+### Deferred: Phase 2 (BPR)
+
+BPR will only be implemented if SAR recommendation quality is insufficient. Tasks if needed:
+
+- [ ] `plugins/recommendations/internal/cf/bpr.go` (~200 lines)
+- [ ] `plugins/recommendations/internal/cf/model.go` (~100 lines)
+- [ ] `plugins/recommendations/internal/cf/trainer.go` (~100 lines)
+- [ ] `plugins/recommendations/internal/cf/sampler.go` (~50 lines)
+- [ ] `plugins/recommendations/internal/cf/bpr_test.go`

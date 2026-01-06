@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Library, Film, Tv, Music, RefreshCw, AlertCircle } from 'lucide-react'
-import { SearchHero, WidgetSection, WidgetLocation } from '@/components/home'
+import { SearchHero, WidgetSection, WidgetLocation, HeroBackdrop } from '@/components/home'
 import { useSearchHeroData, useHomeSections, BatchImagesProvider, BatchProgressProvider } from '@/lib/hooks'
 import { cn } from '@/lib/utils'
-import type { MediaRowData } from '@/components/home/widgets/widget.types'
+import type { MediaRowData, ContinueWatchingData } from '@/components/home/widgets/widget.types'
 
 /**
  * Home - Main landing page with search and widget-based content rows
@@ -23,21 +23,29 @@ export const Home = () => {
   // Sections for the main content area
   const sections = homeSections?.sections ?? []
 
+  // Extract hero data from response metadata
+  const heroData = homeSections?.meta?.hero
+
   // Extract all media IDs from sections for batch loading
   const mediaIds = useMemo(() => {
     const ids: number[] = []
     for (const section of sections) {
-      const data = section.data as MediaRowData
-      // Extract from full movie/show data
-      if (data?.movies) {
-        ids.push(...data.movies.map((m) => m.id))
+      // Handle MediaRowData (movies, shows, and recommendation items)
+      const mediaData = section.data as MediaRowData
+      if (mediaData?.movies) {
+        ids.push(...mediaData.movies.map((m) => m.id))
       }
-      if (data?.shows) {
-        ids.push(...data.shows.filter((s) => s.id).map((s) => s.id!))
+      if (mediaData?.shows) {
+        ids.push(...mediaData.shows.filter((s) => s.id).map((s) => s.id!))
       }
-      // Extract from legacy items
-      if (data?.items) {
-        ids.push(...data.items.map((i) => i.entity_id))
+      if (mediaData?.items) {
+        ids.push(...mediaData.items.map((i) => i.entity_id))
+      }
+
+      // Handle ContinueWatchingData with items array
+      const continueData = section.data as ContinueWatchingData
+      if (continueData?.items) {
+        ids.push(...continueData.items.map((i) => i.entity_id))
       }
     }
     return ids
@@ -62,11 +70,21 @@ export const Home = () => {
   return (
     <BatchImagesProvider mediaIds={mediaIds}>
       <BatchProgressProvider mediaIds={mediaIds}>
-        <div className="h-full overflow-auto">
-          <div className="page-enter">
+        <div className="relative h-full overflow-auto">
+          {/* Hero Backdrop */}
+          {heroData?.backdrop_media_id && heroData?.backdrop_media_type && (
+            <HeroBackdrop
+              mediaId={heroData.backdrop_media_id}
+              mediaType={heroData.backdrop_media_type}
+              greeting={heroData.greeting}
+              dateText={heroData.date_text}
+            />
+          )}
+
+          <div className="relative z-10 page-enter">
             {/* Search Hero */}
             {!isLoadingSearch && searchHeroData && (
-              <div className="p-8 pb-4">
+              <div className={cn('p-8 pb-4', heroData?.backdrop_media_id && 'pt-24')}>
                 <SearchHero data={searchHeroData} />
               </div>
             )}

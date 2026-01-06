@@ -1114,35 +1114,31 @@ The recommendations plugin couldn't directly query the `user_ratings` table beca
 - [ ] Keyboard navigation - Focus states, tab order
 - [ ] Responsive testing - All breakpoints
 
-### Phase 6: Plugin-to-Plugin VectorSearch Communication - PENDING
+### Phase 6: Plugin-to-Plugin VectorSearch Communication - COMPLETE
 
-The recommendations plugin needs to call `FindSimilar` on the semantic-search plugin to generate AI-powered recommendations. Currently, the `getSimilarItems()` and `getGenreBasedRecommendations()` methods in the recommendations plugin are stubbed out.
+The recommendations plugin can now call `FindSimilar` on the semantic-search plugin to generate AI-powered recommendations. When semantic search is unavailable, it falls back to genre-based recommendations.
 
-**Problem:**
-- The semantic-search plugin implements `VectorSearchPlugin` interface with `FindSimilar` method
-- The existing `InvokeCapability` in `HostPlugins` only works with `PluginProvider` (chat, embedding)
-- No mechanism exists for plugins to invoke `VectorSearchClient` methods on other plugins
+**Implementation Summary:**
 
-**Solution: Add VectorSearch capability invocation**
+The `InvokeVectorSearch` RPC enables plugins to invoke vector search methods on other plugins that provide the `vector_search` capability. The recommendations plugin uses this to call `FindSimilar()` on the semantic-search plugin.
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Add `InvokeVectorSearch` RPC to HostPlugins | PENDING | New proto RPC for vector search invocation |
-| Add `ListMediaByGenre` RPC to HostData | PENDING | For genre-based fallback recommendations |
-| Modify `ListMoviesByGenre` SQL query | PENDING | Add limit, exclude_ids, optional library_id |
-| Add `ListTVShowsByGenre` SQL query | PENDING | New query for TV shows |
-| Add `VectorSearchClient` to Instance | PENDING | types.go field for plugins with vector_search |
-| Add `VectorSearchPlugin` gRPC plugin | PENDING | grpc/plugin.go client wrapper |
-| Wire VectorSearch in loader | PENDING | Dispense for plugins declaring vector_search |
-| Implement `InvokeVectorSearch` server | PENDING | host/plugins.go method |
-| Implement `ListMediaByGenre` server | PENDING | host/data.go method |
-| Add `ListMediaByGenre` to querier | PENDING | querier/querier.go implementation |
-| Update movie repository | PENDING | New method signature for ListMoviesByGenre |
-| Add `FindSimilar` to SDK PluginsClient | PENDING | plugins_client.go method |
-| Add `ListMediaByGenre` to SDK DataClient | PENDING | host.go method |
-| Add `vector_search` to semantic-search manifest | PENDING | plugin.yml provides field |
-| Implement `getSimilarItems()` in recommendations | PENDING | Use semantic search via SDK |
-| Implement `getGenreBasedRecommendations()` | PENDING | Genre-based fallback |
+| Add `InvokeVectorSearch` RPC to HostPlugins | DONE | `api/proto/plugin/host_services.proto` |
+| Add `ListMediaByGenre` RPC to HostData | DONE | `api/proto/plugin/host_services.proto` |
+| Add `VectorSearchClient` to Instance | DONE | `internal/infrastructure/plugins/types/types.go` |
+| Add `VectorSearchPlugin` gRPC plugin | DONE | `internal/infrastructure/plugins/grpc/plugin.go` |
+| Wire VectorSearch in loader | DONE | `internal/infrastructure/plugins/manager/loader.go` |
+| Implement `InvokeVectorSearch` server | DONE | `internal/infrastructure/plugins/host/plugins.go:569` |
+| Implement `ListMediaByGenre` server | DONE | `internal/infrastructure/plugins/host/data.go:305` |
+| Add `ListMediaByGenre` to querier | DONE | `internal/infrastructure/plugins/querier/querier.go:311` |
+| Add `FindSimilar` to SDK PluginsClient | DONE | `pkg/plugin/sdk/plugins_client.go:470` |
+| Add `SemanticSearch` to SDK PluginsClient | DONE | `pkg/plugin/sdk/plugins_client.go:524` |
+| Add `IsVectorSearchAvailable` to SDK | DONE | `pkg/plugin/sdk/plugins_client.go:457` |
+| Add `ListMediaByGenre` to SDK DataClient | DONE | `pkg/plugin/sdk/host.go:138` |
+| Add `vector_search` to semantic-search manifest | DONE | `plugins/semantic-search/plugin.yml:25` |
+| Implement `getSimilarItems()` in recommendations | DONE | `plugins/recommendations/internal/recommendations.go:182` |
+| Implement `getGenreBasedRecommendations()` | DONE | `plugins/recommendations/internal/recommendations.go:253` |
 
 **Architecture:**
 
@@ -1171,80 +1167,128 @@ The recommendations plugin needs to call `FindSimilar` on the semantic-search pl
 └───────────────────────────────────────────────┘
 ```
 
-**Proto changes (`api/proto/plugin/host_services.proto`):**
+**SDK Usage in Recommendations Plugin:**
 
-```protobuf
-// In HostPlugins service:
-rpc InvokeVectorSearch(VectorSearchInvokeRequest) returns (VectorSearchInvokeResponse);
-
-// In HostData service:
-rpc ListMediaByGenre(ListMediaByGenreRequest) returns (MediaList);
-
-// New messages:
-message VectorSearchInvokeRequest {
-  string method = 1;  // "FindSimilar" or "Search"
-  string preferred_plugin = 2;
-  FindSimilarRequest find_similar = 10;
-  SemanticSearchRequest search = 11;
+```go
+// Check if vector search is available
+if s.plugins.IsVectorSearchAvailable(ctx) {
+    // Use semantic search for high-quality similarity
+    results, _, err := s.plugins.FindSimilar(ctx, entityType, entityID, limit)
+    if err == nil {
+        return convertResults(results)
+    }
 }
 
-message VectorSearchInvokeResponse {
-  string provider_plugin = 1;
-  SemanticSearchResponse response = 2;
-  CapabilityError error = 3;
-}
-
-message ListMediaByGenreRequest {
-  string media_type = 1;  // "movie" or "tv_show"
-  string genre = 2;
-  int32 limit = 3;
-  repeated int64 exclude_ids = 4;
-  int64 library_id = 5;  // 0 = all libraries
-}
+// Fallback to genre-based recommendations
+return s.getGenreBasedRecommendationsForItem(ctx, baseItem, exclude, limit)
 ```
 
-**SQL changes:**
+**Fallback Flow:**
 
-SQLite `ListMoviesByGenre` (breaking change):
-```sql
-WHERE (med.library_id = sqlc.arg(library_id) OR sqlc.arg(library_id) = 0)
-  AND m.genre LIKE '%' || sqlc.arg(genre) || '%'
-  AND med.id NOT IN (SELECT value FROM json_each(sqlc.arg(exclude_ids_json)))
-LIMIT sqlc.arg(limit);
-```
+1. Check `IsVectorSearchAvailable()` - returns true if semantic-search plugin is enabled
+2. If available, call `FindSimilar()` via `InvokeVectorSearch` RPC
+3. If unavailable or fails, use `ListMediaByGenre()` for genre-based fallback
+4. Genre fallback queries movies/shows matching the base item's genres
 
-Postgres `ListMoviesByGenre` (breaking change):
-```sql
-WHERE ($1::bigint = 0 OR med.library_id = $1)
-  AND m.genre ILIKE '%' || @genre || '%'
-  AND med.id != ALL(@exclude_ids::bigint[])
-LIMIT @limit;
-```
+---
 
-New `ListTVShowsByGenre` queries for both SQLite and Postgres.
+## Master Implementation Tracker
 
-**Files to create:**
-- None (all modifications to existing files)
+This section tracks the full implementation across all parts of the home-screen-recommendations documentation.
 
-**Files to modify:**
+### Overall Status
 
-| File | Changes |
-|------|---------|
-| `api/proto/plugin/host_services.proto` | Add `InvokeVectorSearch`, `ListMediaByGenre` RPCs and messages |
-| `internal/infrastructure/database/queries/sqlite/movies.sql` | Update `ListMoviesByGenre` |
-| `internal/infrastructure/database/queries/sqlite/tv_shows.sql` | Add `ListTVShowsByGenre` |
-| `internal/infrastructure/database/queries/postgres/movies.sql` | Update `ListMoviesByGenre` |
-| `internal/infrastructure/database/queries/postgres/tv_shows.sql` | Add `ListTVShowsByGenre` |
-| `internal/infrastructure/plugins/types/types.go` | Add `VectorSearchClient` field |
-| `internal/infrastructure/plugins/grpc/plugin.go` | Add `VectorSearchPlugin` struct |
-| `internal/infrastructure/plugins/grpc/factory.go` | Add `NewVectorSearchGRPCPlugin()` |
-| `internal/infrastructure/plugins/manager/factory.go` | Add interface method |
-| `internal/infrastructure/plugins/manager/loader.go` | Wire `vector_search` dispensing |
-| `internal/infrastructure/plugins/host/plugins.go` | Add `InvokeVectorSearch()`, `findVectorSearchProvider()` |
-| `internal/infrastructure/plugins/host/data.go` | Add `ListMediaByGenre()` interface and implementation |
-| `internal/infrastructure/plugins/querier/querier.go` | Add `ListMediaByGenre()` implementation |
-| `internal/infrastructure/persistence/movie/repository.go` | Update `ListMoviesByGenre()` signature |
-| `pkg/plugin/sdk/plugins_client.go` | Add `FindSimilar()`, `SemanticSearch()`, `IsVectorSearchAvailable()` |
-| `pkg/plugin/sdk/host.go` | Add `ListMediaByGenre()` to DataClient |
-| `plugins/semantic-search/plugin.yml` | Add `vector_search` to provides |
-| `plugins/recommendations/internal/recommendations.go` | Implement `getSimilarItems()`, `getGenreBasedRecommendations()` |
+| Part | Description | Status | Progress |
+|------|-------------|--------|----------|
+| Part 1 | Core infrastructure, ratings, widgets, plugin comms | COMPLETE | 6/6 phases |
+| Part 2 | UX enhancements (continue watching, hero, polish) | PENDING | 0/5 phases |
+| Part 4 | Collaborative filtering algorithms (SAR, BPR, hybrid) | PENDING | 0/4 phases |
+
+### Part 1 Phases (COMPLETE)
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| Phase 1 | Core Infrastructure (ratings, migrations, API) | COMPLETE |
+| Phase 2 | Core Widgets (continue-watching, recently-added, favorites) | COMPLETE |
+| Phase 3 | Update Recommendations Plugin (use SDK, HostRatings) | COMPLETE |
+| Phase 4 | Frontend Widget System | COMPLETE |
+| Phase 5 | Frontend Polish (scroll, loading, error states) | PARTIAL |
+| Phase 6 | Plugin-to-Plugin VectorSearch Communication | COMPLETE |
+
+**Part 1 Remaining:**
+- [ ] Keyboard navigation (focus states, arrow key navigation)
+- [ ] Responsive testing (all breakpoints)
+
+### Part 2 Phases (PENDING)
+
+| Phase | Description | Status | Est. Effort |
+|-------|-------------|--------|-------------|
+| Phase 1 | Continue Watching Redesign | PENDING | 1-1.5 days |
+| Phase 2 | Hero Backdrop | PENDING | 0.5 days |
+| Phase 3 | Row Polish (NewBadge, counts, MarkWatched) | PENDING | 0.5 days |
+| Phase 4 | Empty States Enhancement | COMPLETE | - |
+| Phase 5 | Distinguishing Features (time-based ordering, keyboard) | PENDING | 0.5 days |
+
+**Part 2 Tasks:**
+- [ ] Add progress data to continue watching response (backend)
+- [ ] Create `FormatRemainingTime()` helper
+- [ ] Create `ContinueWatchingCard` component (horizontal 16:9 with progress bar)
+- [ ] Update `ContinueRow` to use horizontal cards
+- [ ] Add `EpisodeContext` type for TV episode info
+- [ ] Add `HeroData` to home response (backdrop, greeting, date)
+- [ ] Create `HeroBackdrop` component
+- [ ] Create `NewBadge` component
+- [ ] Create `MarkWatchedButton` component
+- [ ] Add item counts to row headers
+- [ ] Add keyboard navigation to `ScrollableRow`
+- [ ] Add focus styles to cards
+
+### Part 4 Phases (PENDING)
+
+| Phase | Description | Status | Est. Effort |
+|-------|-------------|--------|-------------|
+| Phase 1 | User Embedding Average | PENDING | 1-2 days |
+| Phase 1.5 | SAR Collaborative Filtering | PENDING | 1-2 days |
+| Phase 2 | BPR Collaborative Filtering | DEFERRED | 3-5 days |
+| Phase 3 | Hybrid Scoring | PENDING | 1-2 days |
+| Phase 4 | Enhancements (cold start, persistence) | PENDING | 2-3 days |
+
+**Part 4 Tasks:**
+- [ ] Create `HostProgress` gRPC service (expose watch history to plugins)
+- [ ] Add `ProgressClient` to plugin SDK
+- [ ] Create `user_embedding.go` (taste profiles from liked items)
+- [ ] Create `cf/sar.go` (SAR algorithm implementation)
+- [ ] Create `cf/types.go` (interaction types)
+- [ ] Create `hybrid.go` (combine CF + semantic + exploration)
+- [ ] Add unit tests for SAR, hybrid scoring
+- [ ] Implement cold start handling (popular items for new users)
+- [ ] Integrate implicit feedback (watch completion %)
+- [ ] Add model persistence
+
+**Note:** BPR is deferred until SAR is tested. If SAR provides sufficient recommendation quality, BPR may not be needed.
+
+### Infrastructure Dependencies
+
+| Dependency | Required By | Status |
+|------------|-------------|--------|
+| HostProgress gRPC service | Part 4 (SAR, implicit feedback) | PENDING |
+| Plugin Files SDK | Part 4 (model persistence) | EXISTS |
+| pgvector | Part 4 (factor storage) | EXISTS |
+
+### Execution Order
+
+| Order | Task | Part | Effort |
+|-------|------|------|--------|
+| 1 | Continue Watching Redesign | Part 2 Phase 1 | 1-1.5 days |
+| 2 | Hero Backdrop | Part 2 Phase 2 | 0.5 days |
+| 3 | Row Polish | Part 2 Phase 3 | 0.5 days |
+| 4 | Keyboard & Responsive | Part 1 Phase 5 + Part 2 Phase 5 | 0.5 days |
+| 5 | HostProgress Service | Infrastructure | 0.5-1 day |
+| 6 | User Embedding Average | Part 4 Phase 1 | 1-2 days |
+| 7 | SAR Collaborative Filtering | Part 4 Phase 1.5 | 1-2 days |
+| 8 | Hybrid Scoring | Part 4 Phase 3 | 1-2 days |
+| 9 | CF Unit Tests | Part 4 | 0.5 days |
+| 10 | CF Enhancements | Part 4 Phase 4 | 2-3 days |
+| 11 | BPR (if needed) | Part 4 Phase 2 | 3-5 days |
+
+**Total Estimated Effort: 8-10 days (core) or 13-15 days (with BPR)**

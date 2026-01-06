@@ -852,3 +852,119 @@ const handleKeyDown = (e: React.KeyboardEvent) => {
 5. **Phase 5: Distinguishing Features** (Nice to Have) - 1 day
 
 **Total estimated time: 3-4 days**
+
+---
+
+## Implementation Progress
+
+### Status Summary
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1: Continue Watching | COMPLETE | Horizontal 16:9 cards with progress bars |
+| Phase 2: Hero Backdrop | COMPLETE | Dynamic backdrop from continue watching |
+| Phase 3: Row Polish | PENDING | NewBadge, counts, MarkWatched |
+| Phase 4: Empty States | COMPLETE | Done in Part 1 Phase 5 |
+| Phase 5: Distinguishing Features | PENDING | Time-based ordering, keyboard nav |
+
+### Resolved Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Horizontal vs Vertical for Continue Watching | **Horizontal 16:9** | Industry standard, shows scene context, progress bar visible |
+| Next Up Row | **Defer** | Include episode context in Continue Watching for now |
+| BlurHash | **Defer** | Nice-to-have, not critical for v1 |
+| Movie logos | **Fallback to text** | Only show if available |
+
+### Phase 1: Continue Watching - Task Breakdown (COMPLETE)
+
+**Backend:**
+- [x] Modify `GetContinueWatchingFull()` to include progress data from `WatchProgress`
+- [x] Add `MediaProgress` struct with percent, position_seconds, duration_seconds, remaining_text
+- [x] Add `EpisodeContext` struct for TV shows (season, episode, title)
+- [x] Add `ContinueWatchingItem` struct for richer response data
+- [x] Create `internal/application/home/format.go` with `FormatRemainingTime()` and `CalculateProgressPercent()`
+- [x] Create `internal/application/home/format_test.go` with unit tests
+- [x] Update `getContinueWatchingData()` to return `items` array with progress
+- [x] Include backdrop URL for each item
+
+**Frontend:**
+- [x] Create `ContinueWatchingCard.tsx` with horizontal 16:9 aspect ratio
+- [x] Add progress bar component at bottom of card
+- [x] Add "X min left" text display (remaining_text from backend)
+- [x] Add episode badge (S2 E4) for TV shows
+- [x] Add play button overlay on hover
+- [x] Update `ContinueRow.tsx` to use `ContinueWatchingCard`
+- [x] Update `widget.types.ts` with `ContinueWatchingItem`, `MediaProgress`, `EpisodeContext` types
+- [x] Backward compatibility: falls back to MediaRow for legacy data format
+
+### Phase 2: Hero Backdrop - Task Breakdown (COMPLETE)
+
+**Backend:**
+- [x] Add `HeroData` struct to `internal/domain/home/types.go`
+- [x] Add `buildHeroData()` method to home service
+- [x] Add `Hero` field to `HomeMeta` in response
+- [x] Add `getGreeting()` helper for time-based greetings
+- [x] Source backdrop from first continue watching or trending (with fallback)
+
+**Frontend:**
+- [x] Create `HeroBackdrop.tsx` component
+- [x] Fetch backdrop image based on media type (movie/tv_show)
+- [x] Apply blur, desaturation, gradient overlays
+- [x] Add side vignette effect
+- [x] Update `Home.tsx` to render hero backdrop
+- [x] Add greeting text (Good morning/afternoon/evening)
+- [x] Add date text (Saturday, January 4)
+- [x] Add `HeroData` and `HomeMeta` types to widget.types.ts
+- [x] Export `HeroBackdrop` from components/home
+
+### Phase 3: Row Polish - Task Breakdown
+
+**Frontend:**
+- [ ] Create `NewBadge/NewBadge.tsx` component (7-day threshold)
+- [ ] Create `NewBadge/index.ts` export
+- [ ] Create `MarkWatchedButton/MarkWatchedButton.tsx` component
+- [ ] Create `MarkWatchedButton/index.ts` export
+- [ ] Update `MediaRow.tsx` header with item counts
+- [ ] Apply `NewBadge` to recently added items
+- [ ] Export new components from `media/index.ts`
+
+### Phase 5: Distinguishing Features - Task Breakdown
+
+**Backend:**
+- [ ] Enhance `applySmartDefaults()` with time-based priority adjustments
+
+**Frontend:**
+- [ ] Add `onKeyDown` handler to `ScrollableRow`
+- [ ] Implement Arrow Left/Right focus navigation
+- [ ] Implement Enter to trigger click
+- [ ] Add `focus-visible` ring styles to `MediaCard`
+- [ ] Add `tabIndex={0}` to make cards focusable
+- [ ] Add focus styles to `ContinueWatchingCard`
+
+### Files to Create
+
+| File | Phase | Purpose |
+|------|-------|---------|
+| `internal/application/home/format.go` | 1 | Time formatting helpers |
+| `web/src/components/home/widgets/ContinueWatchingCard.tsx` | 1 | Horizontal card with progress |
+| `web/src/components/home/HeroBackdrop.tsx` | 2 | Backdrop with blur/gradient |
+| `web/src/components/media/NewBadge/NewBadge.tsx` | 3 | "New" indicator |
+| `web/src/components/media/NewBadge/index.ts` | 3 | Export |
+| `web/src/components/media/MarkWatchedButton/MarkWatchedButton.tsx` | 3 | Quick action |
+| `web/src/components/media/MarkWatchedButton/index.ts` | 3 | Export |
+
+### Files to Modify
+
+| File | Phase | Changes |
+|------|-------|---------|
+| `internal/application/home/continue_watching.go` | 1 | Add progress data |
+| `internal/application/home/service.go` | 1, 2 | Enriched data, hero data |
+| `internal/domain/home/types.go` | 1, 2 | EpisodeContext, HeroData |
+| `web/src/components/home/widgets/ContinueRow.tsx` | 1 | Use horizontal cards |
+| `web/src/components/home/widgets/widget.types.ts` | 1 | ContinueWatchingItem type |
+| `web/src/views/home/Home.tsx` | 2 | Hero backdrop, greeting |
+| `web/src/components/home/widgets/MediaRow.tsx` | 3 | Counts, new badges |
+| `web/src/components/media/index.ts` | 3 | New exports |
+| `web/src/components/common/ScrollableRow/ScrollableRow.tsx` | 5 | Keyboard nav |
+| `web/src/components/media/MediaCard/MediaCard.tsx` | 5 | Focus styles |

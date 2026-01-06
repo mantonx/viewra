@@ -18,7 +18,8 @@ import (
 type WidgetDataFetcher interface {
 	// FetchWidgetData fetches data for a widget.
 	// The path is the widget's configured endpoint (e.g., "/recommendations").
-	FetchWidgetData(ctx context.Context, pluginID, path, userID, clientType string) (map[string]any, error)
+	// The params map contains additional query parameters from endpoint_params config.
+	FetchWidgetData(ctx context.Context, pluginID, path, userID, clientType string, params map[string]string) (map[string]any, error)
 }
 
 // ContinueWatchingService provides continue watching data.
@@ -458,12 +459,25 @@ func (s *Service) getWidgetData(ctx context.Context, widget *registry.Registered
 		return s.getBuiltinWidgetData(ctx, widget, userID)
 	}
 
+	// Get endpoint_params if configured (for widgets that need query params)
+	var endpointParams map[string]string
+	if paramsRaw, ok := widget.Widget.Config["endpoint_params"]; ok {
+		if paramsMap, ok := paramsRaw.(map[string]any); ok {
+			endpointParams = make(map[string]string)
+			for k, v := range paramsMap {
+				if str, ok := v.(string); ok {
+					endpointParams[k] = str
+				}
+			}
+		}
+	}
+
 	// Fetch from plugin
 	if s.widgetDataFetcher == nil {
 		return nil, fmt.Errorf("no widget data fetcher configured")
 	}
 
-	return s.widgetDataFetcher.FetchWidgetData(ctx, widget.PluginID, endpoint, userID, clientType)
+	return s.widgetDataFetcher.FetchWidgetData(ctx, widget.PluginID, endpoint, userID, clientType, endpointParams)
 }
 
 // getBuiltinWidgetData handles built-in widget types.
@@ -489,29 +503,79 @@ func (s *Service) getBuiltinWidgetData(ctx context.Context, widget *registry.Reg
 }
 
 // getContinueWatchingData gets continue watching data with full typed objects.
+// Returns data in two formats:
+// - "items": array of ContinueWatchingItem for the new horizontal card layout
+// - "movies"/"shows": legacy format for backward compatibility
 func (s *Service) getContinueWatchingData(ctx context.Context, userID string) (map[string]any, error) {
 	if s.continueWatching == nil {
-		return map[string]any{"title": "Continue Watching", "movies": []any{}, "shows": []any{}}, nil
+		return map[string]any{
+			"title":  "Continue Watching",
+			"items":  []any{},
+			"movies": []any{},
+			"shows":  []any{},
+		}, nil
 	}
 
-	items, err := s.continueWatching.GetContinueWatchingFull(ctx, userID, 20)
+	mediaItems, err := s.continueWatching.GetContinueWatchingFull(ctx, userID, 20)
 	if err != nil {
 		return nil, err
 	}
 
-	// Separate into typed arrays for frontend
+	// Build the new items array with ContinueWatchingItem format
+	items := make([]*home.ContinueWatchingItem, 0, len(mediaItems))
+	// Also keep legacy format for backward compatibility
 	movieItems := make([]any, 0)
 	showItems := make([]any, 0)
-	for _, item := range items {
+
+	for _, item := range mediaItems {
 		if item.Type == "movie" && item.Movie != nil {
+			// Add to legacy format
 			movieItems = append(movieItems, item.Movie)
+
+			// Build backdrop URL
+			backdropURL := ""
+			if item.Movie.ID > 0 {
+				backdropURL = fmt.Sprintf("/api/movies/%d/images/fanart", item.Movie.ID)
+			}
+
+			// Add to new items format
+			items = append(items, &home.ContinueWatchingItem{
+				EntityType:     "movie",
+				EntityID:       int64(item.Movie.ID),
+				Title:          item.Movie.Title,
+				Year:           item.Movie.Year,
+				BackdropURL:    backdropURL,
+				Progress:       item.Progress,
+				EpisodeContext: nil,
+				LastWatchedAt:  item.CreatedAt,
+			})
 		} else if item.Type == "tv_show" && item.TVShow != nil {
+			// Add to legacy format
 			showItems = append(showItems, item.TVShow)
+
+			// Build backdrop URL
+			backdropURL := ""
+			if item.TVShow.ID > 0 {
+				backdropURL = fmt.Sprintf("/api/tv/shows/%d/images/fanart", item.TVShow.ID)
+			}
+
+			// Add to new items format
+			items = append(items, &home.ContinueWatchingItem{
+				EntityType:     "tv_show",
+				EntityID:       item.TVShow.ID,
+				Title:          item.TVShow.Title,
+				Year:           item.TVShow.Year,
+				BackdropURL:    backdropURL,
+				Progress:       item.Progress,
+				EpisodeContext: item.EpisodeContext,
+				LastWatchedAt:  item.CreatedAt,
+			})
 		}
 	}
 
 	return map[string]any{
 		"title":  "Continue Watching",
+		"items":  items,
 		"movies": movieItems,
 		"shows":  showItems,
 	}, nil
@@ -650,6 +714,61 @@ func (s *Service) buildMeta(ctx context.Context, userID string) *home.HomeMeta {
 			TimeOfDay:       getTimeOfDay(),
 			Season:          getSeason(),
 		},
+		Hero: s.buildHeroData(ctx, userID),
+	}
+}
+
+// buildHeroData builds the hero backdrop data.
+// Sources backdrop from continue watching (first item) or trending.
+func (s *Service) buildHeroData(ctx context.Context, userID string) *home.HeroData {
+	hero := &home.HeroData{
+		Greeting: getGreeting(),
+		DateText: time.Now().Format("Monday, January 2"),
+	}
+
+	// Try to get backdrop from continue watching (most relevant to user)
+	if s.continueWatching != nil {
+		items, err := s.continueWatching.GetContinueWatchingFull(ctx, userID, 1)
+		if err == nil && len(items) > 0 {
+			item := items[0]
+			if item.Type == "movie" && item.Movie != nil {
+				hero.BackdropMediaID = int64(item.Movie.ID)
+				hero.BackdropMediaType = "movie"
+				return hero
+			} else if item.Type == "tv_show" && item.TVShow != nil {
+				hero.BackdropMediaID = item.TVShow.ID
+				hero.BackdropMediaType = "tv_show"
+				return hero
+			}
+		}
+	}
+
+	// Fallback to trending if no continue watching
+	if s.trending != nil && s.trending.HasProvider() {
+		result, err := s.trending.GetTrending(ctx, "all", 1)
+		if err == nil && len(result.Items) > 0 && result.Items[0].LocalID != nil {
+			hero.BackdropMediaID = int64(*result.Items[0].LocalID)
+			hero.BackdropMediaType = result.Items[0].MediaType
+			return hero
+		}
+	}
+
+	// No backdrop available
+	return hero
+}
+
+// getGreeting returns a time-based greeting.
+func getGreeting() string {
+	hour := time.Now().Hour()
+	switch {
+	case hour >= 5 && hour < 12:
+		return "Good morning"
+	case hour >= 12 && hour < 17:
+		return "Good afternoon"
+	case hour >= 17 && hour < 21:
+		return "Good evening"
+	default:
+		return "Good night"
 	}
 }
 

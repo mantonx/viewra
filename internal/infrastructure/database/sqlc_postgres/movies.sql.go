@@ -8,17 +8,19 @@ package sqlc_postgres
 import (
 	"context"
 	"database/sql"
-	"strings"
+
+	"github.com/lib/pq"
 )
 
 const countMoviesByLibrary = `-- name: CountMoviesByLibrary :one
 SELECT COUNT(*)
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = $1
+WHERE (med.library_id = $1::bigint OR $1::bigint = 0)
   AND med.is_extra = 0
 `
 
+// library_id: 0 means all libraries
 func (q *Queries) CountMoviesByLibrary(ctx context.Context, libraryID int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countMoviesByLibrary, libraryID)
 	var count int64
@@ -30,19 +32,19 @@ const countSearchMoviesByTitle = `-- name: CountSearchMoviesByTitle :one
 SELECT COUNT(*)
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = $1
+WHERE (med.library_id = $1::bigint OR $1::bigint = 0)
   AND med.is_extra = 0
-  AND (med.title ILIKE $2 OR m.original_title ILIKE $3)
+  AND (med.title ILIKE $2 OR m.original_title ILIKE $2)
 `
 
 type CountSearchMoviesByTitleParams struct {
-	LibraryID     int64          `json:"library_id"`
-	Title         string         `json:"title"`
-	OriginalTitle sql.NullString `json:"original_title"`
+	LibraryID int64  `json:"library_id"`
+	Query     string `json:"query"`
 }
 
+// library_id: 0 means all libraries
 func (q *Queries) CountSearchMoviesByTitle(ctx context.Context, arg CountSearchMoviesByTitleParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countSearchMoviesByTitle, arg.LibraryID, arg.Title, arg.OriginalTitle)
+	row := q.db.QueryRowContext(ctx, countSearchMoviesByTitle, arg.LibraryID, arg.Query)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -340,21 +342,21 @@ const listMovieIDsByLibraryPaginated = `-- name: ListMovieIDsByLibraryPaginated 
 SELECT med.id
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = $1
+WHERE (med.library_id = $1::bigint OR $1::bigint = 0)
   AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
-LIMIT $2::bigint OFFSET $3::bigint
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListMovieIDsByLibraryPaginatedParams struct {
 	LibraryID int64 `json:"library_id"`
-
-	Limit  int64 `json:"limit"`
-	Offset int64 `json:"offset"`
+	Offset    int64 `json:"offset"`
+	Limit     int64 `json:"limit"`
 }
 
+// library_id: 0 means all libraries
 func (q *Queries) ListMovieIDsByLibraryPaginated(ctx context.Context, arg ListMovieIDsByLibraryPaginatedParams) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, listMovieIDsByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listMovieIDsByLibraryPaginated, arg.LibraryID, arg.Offset, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -380,21 +382,21 @@ const listMovieIDsByLibraryPaginatedDesc = `-- name: ListMovieIDsByLibraryPagina
 SELECT med.id
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = $1
+WHERE (med.library_id = $1::bigint OR $1::bigint = 0)
   AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) DESC
-LIMIT $2::bigint OFFSET $3::bigint
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListMovieIDsByLibraryPaginatedDescParams struct {
 	LibraryID int64 `json:"library_id"`
-
-	Limit  int64 `json:"limit"`
-	Offset int64 `json:"offset"`
+	Offset    int64 `json:"offset"`
+	Limit     int64 `json:"limit"`
 }
 
+// library_id: 0 means all libraries
 func (q *Queries) ListMovieIDsByLibraryPaginatedDesc(ctx context.Context, arg ListMovieIDsByLibraryPaginatedDescParams) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, listMovieIDsByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listMovieIDsByLibraryPaginatedDesc, arg.LibraryID, arg.Offset, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -457,10 +459,10 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE (med.library_id = $1::bigint OR $1::bigint = 0)
-  AND med.is_extra = false
+  AND med.is_extra = 0
   AND m.genre ILIKE '%' || $2 || '%'
-  AND med.id NOT IN ($3)
-ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title)
+  AND NOT (med.id = ANY($3::bigint[]))
+ORDER BY COALESCE(m.rating, 0) * LOG(COALESCE(m.rating_votes, 0) + 1) DESC, med.date_added DESC
 LIMIT $4::bigint
 `
 
@@ -538,20 +540,12 @@ type ListMoviesByGenreRow struct {
 // exclude_ids: array of media IDs to exclude
 // limit: maximum number of results
 func (q *Queries) ListMoviesByGenre(ctx context.Context, arg ListMoviesByGenreParams) ([]ListMoviesByGenreRow, error) {
-	query := listMoviesByGenre
-	var queryParams []interface{}
-	queryParams = append(queryParams, arg.LibraryID)
-	queryParams = append(queryParams, arg.Genre)
-	if len(arg.ExcludeIds) > 0 {
-		for _, v := range arg.ExcludeIds {
-			queryParams = append(queryParams, v)
-		}
-		query = strings.Replace(query, "/*SLICE:exclude_ids*/?", strings.Repeat(",?", len(arg.ExcludeIds))[1:], 1)
-	} else {
-		query = strings.Replace(query, "/*SLICE:exclude_ids*/?", "NULL", 1)
-	}
-	queryParams = append(queryParams, arg.Limit)
-	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	rows, err := q.db.QueryContext(ctx, listMoviesByGenre,
+		arg.LibraryID,
+		arg.Genre,
+		pq.Array(arg.ExcludeIds),
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -860,17 +854,16 @@ SELECT
     med.updated_at
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = $1
+WHERE (med.library_id = $1::bigint OR $1::bigint = 0)
   AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
-LIMIT $2::bigint OFFSET $3::bigint
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListMoviesByLibraryPaginatedParams struct {
 	LibraryID int64 `json:"library_id"`
-
-	Limit  int64 `json:"limit"`
-	Offset int64 `json:"offset"`
+	Offset    int64 `json:"offset"`
+	Limit     int64 `json:"limit"`
 }
 
 type ListMoviesByLibraryPaginatedRow struct {
@@ -934,8 +927,9 @@ type ListMoviesByLibraryPaginatedRow struct {
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
 }
 
+// library_id: 0 means all libraries
 func (q *Queries) ListMoviesByLibraryPaginated(ctx context.Context, arg ListMoviesByLibraryPaginatedParams) ([]ListMoviesByLibraryPaginatedRow, error) {
-	rows, err := q.db.QueryContext(ctx, listMoviesByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listMoviesByLibraryPaginated, arg.LibraryID, arg.Offset, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -1056,17 +1050,16 @@ SELECT
     med.updated_at
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = $1
+WHERE (med.library_id = $1::bigint OR $1::bigint = 0)
   AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) DESC
-LIMIT $2::bigint OFFSET $3::bigint
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListMoviesByLibraryPaginatedDescParams struct {
 	LibraryID int64 `json:"library_id"`
-
-	Limit  int64 `json:"limit"`
-	Offset int64 `json:"offset"`
+	Offset    int64 `json:"offset"`
+	Limit     int64 `json:"limit"`
 }
 
 type ListMoviesByLibraryPaginatedDescRow struct {
@@ -1130,8 +1123,9 @@ type ListMoviesByLibraryPaginatedDescRow struct {
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
 }
 
+// library_id: 0 means all libraries
 func (q *Queries) ListMoviesByLibraryPaginatedDesc(ctx context.Context, arg ListMoviesByLibraryPaginatedDescParams) ([]ListMoviesByLibraryPaginatedDescRow, error) {
-	rows, err := q.db.QueryContext(ctx, listMoviesByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listMoviesByLibraryPaginatedDesc, arg.LibraryID, arg.Offset, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -1830,20 +1824,18 @@ SELECT
     med.updated_at
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = $1
+WHERE (med.library_id = $1::bigint OR $1::bigint = 0)
   AND med.is_extra = 0
-  AND (med.title ILIKE $2 OR m.original_title ILIKE $3)
+  AND (med.title ILIKE $2 OR m.original_title ILIKE $2)
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) ASC
-LIMIT $4::bigint OFFSET $5::bigint
+LIMIT $4::bigint OFFSET $3::bigint
 `
 
 type SearchMoviesByTitlePaginatedParams struct {
-	LibraryID     int64          `json:"library_id"`
-	Title         string         `json:"title"`
-	OriginalTitle sql.NullString `json:"original_title"`
-
-	Limit  int64 `json:"limit"`
-	Offset int64 `json:"offset"`
+	LibraryID int64  `json:"library_id"`
+	Query     string `json:"query"`
+	Offset    int64  `json:"offset"`
+	Limit     int64  `json:"limit"`
 }
 
 type SearchMoviesByTitlePaginatedRow struct {
@@ -1907,13 +1899,13 @@ type SearchMoviesByTitlePaginatedRow struct {
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
 }
 
+// library_id: 0 means all libraries
 func (q *Queries) SearchMoviesByTitlePaginated(ctx context.Context, arg SearchMoviesByTitlePaginatedParams) ([]SearchMoviesByTitlePaginatedRow, error) {
 	rows, err := q.db.QueryContext(ctx, searchMoviesByTitlePaginated,
 		arg.LibraryID,
-		arg.Title,
-		arg.OriginalTitle,
-
-		arg.Limit, arg.Offset,
+		arg.Query,
+		arg.Offset,
+		arg.Limit,
 	)
 	if err != nil {
 		return nil, err

@@ -219,7 +219,7 @@ WHERE (med.library_id = sqlc.arg(library_id) OR sqlc.arg(library_id) = 0)
   AND med.is_extra = 0
   AND m.genre LIKE '%' || sqlc.arg(genre) || '%'
   AND med.id NOT IN (sqlc.slice('exclude_ids'))
-ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE
+ORDER BY COALESCE(m.rating, 0) * (COALESCE(m.rating_votes, 0) + 1) DESC, med.date_added DESC
 LIMIT sqlc.arg(limit);
 
 -- name: ListMoviesByYear :many
@@ -268,6 +268,7 @@ WHERE med.library_id = ?
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE;
 
 -- name: ListMoviesByLibraryPaginated :many
+-- library_id: 0 means all libraries
 SELECT
     m.*,
     med.id as media_id,
@@ -307,12 +308,13 @@ SELECT
     med.updated_at
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = ?
+WHERE (med.library_id = sqlc.arg(library_id) OR sqlc.arg(library_id) = 0)
   AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE ASC
-LIMIT ? OFFSET ?;
+LIMIT sqlc.arg(limit) OFFSET sqlc.arg(offset);
 
 -- name: ListMoviesByLibraryPaginatedDesc :many
+-- library_id: 0 means all libraries
 SELECT
     m.*,
     med.id as media_id,
@@ -352,27 +354,30 @@ SELECT
     med.updated_at
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = ?
+WHERE (med.library_id = sqlc.arg(library_id) OR sqlc.arg(library_id) = 0)
   AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE DESC
-LIMIT ? OFFSET ?;
+LIMIT sqlc.arg(limit) OFFSET sqlc.arg(offset);
 
 -- name: CountMoviesByLibrary :one
+-- library_id: 0 means all libraries
 SELECT COUNT(*)
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = ?
+WHERE (med.library_id = sqlc.arg(library_id) OR sqlc.arg(library_id) = 0)
   AND med.is_extra = 0;
 
 -- name: CountSearchMoviesByTitle :one
+-- library_id: 0 means all libraries
 SELECT COUNT(*)
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = ?
+WHERE (med.library_id = sqlc.arg(library_id) OR sqlc.arg(library_id) = 0)
   AND med.is_extra = 0
-  AND (med.title LIKE ? OR m.original_title LIKE ?);
+  AND (med.title LIKE sqlc.arg(query) OR m.original_title LIKE sqlc.arg(query));
 
 -- name: SearchMoviesByTitlePaginated :many
+-- library_id: 0 means all libraries
 SELECT
     m.*,
     med.id as media_id,
@@ -412,33 +417,35 @@ SELECT
     med.updated_at
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = ?
+WHERE (med.library_id = sqlc.arg(library_id) OR sqlc.arg(library_id) = 0)
   AND med.is_extra = 0
-  AND (med.title LIKE ? OR m.original_title LIKE ?)
+  AND (med.title LIKE sqlc.arg(query) OR m.original_title LIKE sqlc.arg(query))
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE ASC
-LIMIT ? OFFSET ?;
+LIMIT sqlc.arg(limit) OFFSET sqlc.arg(offset);
 
 -- name: DeleteMovie :exec
 DELETE FROM movies
 WHERE media_id = ?;
 
 -- name: ListMovieIDsByLibraryPaginated :many
+-- library_id: 0 means all libraries
 SELECT med.id
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = ?
+WHERE (med.library_id = sqlc.arg(library_id) OR sqlc.arg(library_id) = 0)
   AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE ASC
-LIMIT ? OFFSET ?;
+LIMIT sqlc.arg(limit) OFFSET sqlc.arg(offset);
 
 -- name: ListMovieIDsByLibraryPaginatedDesc :many
+-- library_id: 0 means all libraries
 SELECT med.id
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = ?
+WHERE (med.library_id = sqlc.arg(library_id) OR sqlc.arg(library_id) = 0)
   AND med.is_extra = 0
 ORDER BY COALESCE(NULLIF(m.sort_title, ''), med.title) COLLATE NOCASE DESC
-LIMIT ? OFFSET ?;
+LIMIT sqlc.arg(limit) OFFSET sqlc.arg(offset);
 
 -- name: SearchMoviesGlobal :many
 -- Searches movies across all libraries (for plugin use)

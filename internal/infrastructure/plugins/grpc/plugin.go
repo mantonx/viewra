@@ -392,6 +392,51 @@ type HostRatingsBrokerInfo struct {
 	BrokerID uint32
 }
 
+// HostProgressPlugin is the go-plugin implementation for the HostProgress service.
+// On the host side, this starts a gRPC server on a broker ID that the plugin can connect to.
+// This provides read-only access to user watch progress for recommendations.
+type HostProgressPlugin struct {
+	plugin.Plugin
+	Impl   pluginv1.HostProgressServer
+	Logger *slog.Logger
+}
+
+func (p *HostProgressPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
+	// Plugin side - we don't serve, the host does
+	return nil
+}
+
+func (p *HostProgressPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+	// Host side - start a server on a broker ID that the plugin can connect to
+	if p.Impl == nil {
+		// No implementation provided - return nil (progress not available)
+		return (*HostProgressBrokerInfo)(nil), nil
+	}
+
+	// Get a unique broker ID
+	brokerID := broker.NextId()
+
+	// Start the progress server on this broker ID with logging interceptor
+	go broker.AcceptAndServe(brokerID, func(opts []grpc.ServerOption) *grpc.Server {
+		if p.Logger != nil {
+			opts = append(opts,
+				grpc.UnaryInterceptor(LoggingInterceptor(p.Logger)),
+				grpc.StreamInterceptor(LoggingStreamInterceptor(p.Logger)),
+			)
+		}
+		s := grpc.NewServer(opts...)
+		pluginv1.RegisterHostProgressServer(s, p.Impl)
+		return s
+	})
+
+	return &HostProgressBrokerInfo{BrokerID: brokerID}, nil
+}
+
+// HostProgressBrokerInfo contains the broker ID for connecting to the host progress service.
+type HostProgressBrokerInfo struct {
+	BrokerID uint32
+}
+
 // VectorSearchPlugin is the go-plugin implementation for the VectorSearch service.
 // On the host side, this is used to dispense a client for calling the plugin's VectorSearch methods.
 // The plugin serves this service; the host is a client only.

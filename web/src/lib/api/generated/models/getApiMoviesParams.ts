@@ -8,9 +8,9 @@
 
 export type GetApiMoviesParams = {
   /**
-   * Library ID to filter movies
+   * Library ID to filter movies (0 or omit for all libraries)
    */
-  library_id: number
+  library_id?: number
   /**
    * Search query to filter movies by title
    */

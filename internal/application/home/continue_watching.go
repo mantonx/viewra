@@ -7,6 +7,7 @@ import (
 
 	"github.com/mantonx/viewra/internal/application/movies"
 	"github.com/mantonx/viewra/internal/application/tv"
+	"github.com/mantonx/viewra/internal/domain/home"
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/domain/progress"
 )
@@ -61,6 +62,16 @@ func (s *ContinueWatchingServiceImpl) GetContinueWatchingFull(ctx context.Contex
 			continue
 		}
 
+		// Build progress info
+		positionSecs := int(p.ProgressSeconds)
+		durationSecs := int(p.DurationSeconds)
+		progressInfo := &home.MediaProgress{
+			Percent:         CalculateProgressPercent(positionSecs, durationSecs),
+			PositionSeconds: positionSecs,
+			DurationSeconds: durationSecs,
+			RemainingText:   FormatRemainingTime(positionSecs, durationSecs),
+		}
+
 		switch mediaInfo.Type {
 		case "movie":
 			if s.movieRepo != nil {
@@ -71,11 +82,12 @@ func (s *ContinueWatchingServiceImpl) GetContinueWatchingFull(ctx context.Contex
 						Type:      "movie",
 						Movie:     &resp,
 						CreatedAt: p.UpdatedAt,
+						Progress:  progressInfo,
 					})
 				}
 			}
 		case "tv_episode":
-			// For TV episodes, we need to get the show
+			// For TV episodes, we need to get the show and episode details
 			if s.tvRepo != nil {
 				episode, err := s.tvRepo.GetTVEpisodeByID(ctx, p.MediaID)
 				if err == nil && episode != nil {
@@ -88,10 +100,22 @@ func (s *ContinueWatchingServiceImpl) GetContinueWatchingFull(ctx context.Contex
 					show, err := s.tvRepo.GetTVShowByID(ctx, episode.ShowID)
 					if err == nil {
 						summary := tv.ToTVShowSummary(&show)
+
+						// Build episode context
+						episodeContext := &home.EpisodeContext{
+							Season:         episode.Season,
+							Episode:        episode.Episode,
+							EpisodeTitle:   episode.EpisodeTitle,
+							ShowTitle:      show.Title,
+							EpisodeMediaID: p.MediaID,
+						}
+
 						items = append(items, MediaItemWithTime{
-							Type:      "tv_show",
-							TVShow:    &summary,
-							CreatedAt: p.UpdatedAt,
+							Type:           "tv_show",
+							TVShow:         &summary,
+							CreatedAt:      p.UpdatedAt,
+							Progress:       progressInfo,
+							EpisodeContext: episodeContext,
 						})
 					}
 				}

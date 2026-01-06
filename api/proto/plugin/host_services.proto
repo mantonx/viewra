@@ -712,6 +712,84 @@ message HasRatingsResponse {
   bool has_ratings = 1;
 }
 
+// HostProgress provides read-only access to user watch progress data.
+// Plugins use this to query watch history for collaborative filtering
+// and personalized recommendations.
+service HostProgress {
+  // ListWatchedItems returns all watched items for a user.
+  // Useful for building collaborative filtering models based on viewing history.
+  rpc ListWatchedItems(ListWatchedItemsRequest) returns (ListWatchedItemsResponse);
+
+  // ListInProgressItems returns items the user is currently watching (partial progress).
+  // Useful for "continue watching" recommendations and understanding current interests.
+  rpc ListInProgressItems(ListInProgressItemsRequest) returns (ListInProgressItemsResponse);
+
+  // GetWatchedEntityIDs returns just the entity IDs of watched items.
+  // More efficient than ListWatchedItems when only IDs are needed.
+  rpc GetWatchedEntityIDs(GetWatchedEntityIDsRequest) returns (EntityIDsResponse);
+
+  // HasWatchHistory returns whether a user has any watch history.
+  rpc HasWatchHistory(HasWatchHistoryRequest) returns (HasWatchHistoryResponse);
+}
+
+// HostProgress messages
+
+// ListWatchedItemsRequest filters watched items for a user.
+message ListWatchedItemsRequest {
+  string user_id = 1;            // Required: the user ID (string for flexibility)
+  string media_type = 2;         // Optional: filter by media type (movie, tv_show, tv_episode)
+  int32 limit = 3;               // Optional: max results (default: 100)
+  int32 offset = 4;              // Optional: pagination offset
+}
+
+// ListWatchedItemsResponse contains the user's watched items.
+message ListWatchedItemsResponse {
+  repeated WatchProgressItem items = 1;
+  int32 total = 2;               // Total count for pagination
+}
+
+// ListInProgressItemsRequest filters in-progress items for a user.
+message ListInProgressItemsRequest {
+  string user_id = 1;            // Required: the user ID
+  string media_type = 2;         // Optional: filter by media type
+  int32 limit = 3;               // Optional: max results (default: 100)
+  int32 offset = 4;              // Optional: pagination offset
+}
+
+// ListInProgressItemsResponse contains the user's in-progress items.
+message ListInProgressItemsResponse {
+  repeated WatchProgressItem items = 1;
+  int32 total = 2;               // Total count for pagination
+}
+
+// WatchProgressItem represents a single watch progress record.
+message WatchProgressItem {
+  int64 media_id = 1;
+  string media_type = 2;         // movie, tv_show, tv_episode
+  double progress_seconds = 3;   // Current playback position
+  double duration_seconds = 4;   // Total duration
+  double progress_percent = 5;   // Progress as percentage (0-100)
+  bool is_watched = 6;           // True if marked as watched
+  int64 last_watched_at = 7;     // Unix timestamp of last watch
+}
+
+// GetWatchedEntityIDsRequest retrieves entity IDs of watched items.
+message GetWatchedEntityIDsRequest {
+  string user_id = 1;            // Required: the user ID
+  string media_type = 2;         // Optional: filter by media type
+  int32 limit = 3;               // Optional: max results (default: 1000)
+}
+
+// HasWatchHistoryRequest checks if a user has any watch history.
+message HasWatchHistoryRequest {
+  string user_id = 1;
+}
+
+// HasWatchHistoryResponse indicates whether the user has watch history.
+message HasWatchHistoryResponse {
+  bool has_watch_history = 1;
+}
+
 // --- VectorSearch Invocation Messages ---
 
 // VectorSearchInvokeRequest requests a vector search operation on a plugin providing vector_search capability.

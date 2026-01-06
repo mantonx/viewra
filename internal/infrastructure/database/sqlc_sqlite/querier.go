@@ -44,6 +44,7 @@ type Querier interface {
 	CountLibraryWarnings(ctx context.Context, libraryID int64) (int64, error)
 	CountMediaByType(ctx context.Context, arg CountMediaByTypeParams) (int64, error)
 	CountMediaInLibrary(ctx context.Context, libraryID int64) (int64, error)
+	// library_id: 0 means all libraries
 	CountMoviesByLibrary(ctx context.Context, libraryID int64) (int64, error)
 	CountMusicTracksByLibrary(ctx context.Context, libraryID int64) (int64, error)
 	// Count images for entities that no longer exist (for reporting before cleanup).
@@ -54,6 +55,7 @@ type Querier interface {
 	CountScanJobsByLibrary(ctx context.Context, libraryID int64) (int64, error)
 	CountSchedulerExecutionsByTask(ctx context.Context, taskID string) (int64, error)
 	CountSearchArtistsByName(ctx context.Context, arg CountSearchArtistsByNameParams) (int64, error)
+	// library_id: 0 means all libraries
 	CountSearchMoviesByTitle(ctx context.Context, arg CountSearchMoviesByTitleParams) (int64, error)
 	CountSearchTVShowsByTitle(ctx context.Context, arg CountSearchTVShowsByTitleParams) (int64, error)
 	CountSessionsByUserID(ctx context.Context, userID int64) (int64, error)
@@ -406,7 +408,9 @@ type Querier interface {
 	ListMediaByLibrary(ctx context.Context, libraryID int64) ([]Medium, error)
 	ListMediaByType(ctx context.Context, arg ListMediaByTypeParams) ([]Medium, error)
 	ListMonitoredLibraries(ctx context.Context) ([]Library, error)
+	// library_id: 0 means all libraries
 	ListMovieIDsByLibraryPaginated(ctx context.Context, arg ListMovieIDsByLibraryPaginatedParams) ([]int64, error)
+	// library_id: 0 means all libraries
 	ListMovieIDsByLibraryPaginatedDesc(ctx context.Context, arg ListMovieIDsByLibraryPaginatedDescParams) ([]int64, error)
 	// Lists movies matching a genre pattern with optional library filter and exclusion list.
 	// library_id: 0 means all libraries
@@ -415,7 +419,9 @@ type Querier interface {
 	// limit: maximum number of results
 	ListMoviesByGenre(ctx context.Context, arg ListMoviesByGenreParams) ([]ListMoviesByGenreRow, error)
 	ListMoviesByLibrary(ctx context.Context, libraryID int64) ([]ListMoviesByLibraryRow, error)
+	// library_id: 0 means all libraries
 	ListMoviesByLibraryPaginated(ctx context.Context, arg ListMoviesByLibraryPaginatedParams) ([]ListMoviesByLibraryPaginatedRow, error)
+	// library_id: 0 means all libraries
 	ListMoviesByLibraryPaginatedDesc(ctx context.Context, arg ListMoviesByLibraryPaginatedDescParams) ([]ListMoviesByLibraryPaginatedDescRow, error)
 	ListMoviesByYear(ctx context.Context, arg ListMoviesByYearParams) ([]ListMoviesByYearRow, error)
 	ListMusicTracksByAlbum(ctx context.Context, arg ListMusicTracksByAlbumParams) ([]ListMusicTracksByAlbumRow, error)
@@ -513,6 +519,7 @@ type Querier interface {
 	SearchByKeyword(ctx context.Context, keyword string) ([]SearchByKeywordRow, error)
 	SearchByLocationKeyword(ctx context.Context, keyword string) ([]SearchByLocationKeywordRow, error)
 	SearchMoviesByTitle(ctx context.Context, arg SearchMoviesByTitleParams) ([]SearchMoviesByTitleRow, error)
+	// library_id: 0 means all libraries
 	SearchMoviesByTitlePaginated(ctx context.Context, arg SearchMoviesByTitlePaginatedParams) ([]SearchMoviesByTitlePaginatedRow, error)
 	// Searches movies across all libraries (for plugin use)
 	SearchMoviesGlobal(ctx context.Context, arg SearchMoviesGlobalParams) ([]SearchMoviesGlobalRow, error)

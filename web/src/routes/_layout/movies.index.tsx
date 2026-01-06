@@ -28,8 +28,9 @@ const Movies = () => {
   const urlMovieId = search.id
   const urlTimePosition = search.t
 
-  // Use library filter to get the active library ID
-  const { libraryId } = useLibraryFilter('movies')
+  // Library filter is available for future use if we add a library selector
+  // For now, we query all libraries (library_id = 0 or omitted)
+  const _libraryFilter = useLibraryFilter('movies')
 
   // URL state handlers
   const handleSearchChange = useCallback(
@@ -140,7 +141,7 @@ const Movies = () => {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteMovies({ libraryId, sort: apiSort, search: debouncedSearch, pageSize: 100 })
+  } = useInfiniteMovies({ sort: apiSort, search: debouncedSearch, pageSize: 100 })
 
   const allMovies = useMemo(() => data ? flattenMovies(data.pages) : [], [data])
 

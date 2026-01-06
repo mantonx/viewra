@@ -35,7 +35,7 @@ import { customInstance } from '../../mutator/index'
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
 
 /**
- * Returns a list of all movies in a specific library with optional pagination
+ * Returns a list of movies with optional library filter and pagination. If library_id is omitted or 0, returns movies from all libraries.
  * @summary List movies
  */
 export type getApiMoviesResponse200 = {
@@ -62,7 +62,7 @@ export type getApiMoviesResponseError = (getApiMoviesResponse400 | getApiMoviesR
 
 export type getApiMoviesResponse = getApiMoviesResponseSuccess | getApiMoviesResponseError
 
-export const getGetApiMoviesUrl = (params: GetApiMoviesParams) => {
+export const getGetApiMoviesUrl = (params?: GetApiMoviesParams) => {
   const normalizedParams = new URLSearchParams()
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -77,7 +77,7 @@ export const getGetApiMoviesUrl = (params: GetApiMoviesParams) => {
 }
 
 export const getApiMovies = async (
-  params: GetApiMoviesParams,
+  params?: GetApiMoviesParams,
   options?: RequestInit
 ): Promise<getApiMoviesResponse> => {
   return customInstance<getApiMoviesResponse>(getGetApiMoviesUrl(params), {
@@ -94,7 +94,7 @@ export const getGetApiMoviesQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMovies>>,
   TError = InternalApiHandlersAPIError,
 >(
-  params: GetApiMoviesParams,
+  params?: GetApiMoviesParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMovies>>, TError, TData>>
     request?: SecondParameter<typeof customInstance>
@@ -121,7 +121,7 @@ export function useGetApiMovies<
   TData = Awaited<ReturnType<typeof getApiMovies>>,
   TError = InternalApiHandlersAPIError,
 >(
-  params: GetApiMoviesParams,
+  params: undefined | GetApiMoviesParams,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMovies>>, TError, TData>> &
       Pick<
@@ -140,7 +140,7 @@ export function useGetApiMovies<
   TData = Awaited<ReturnType<typeof getApiMovies>>,
   TError = InternalApiHandlersAPIError,
 >(
-  params: GetApiMoviesParams,
+  params?: GetApiMoviesParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMovies>>, TError, TData>> &
       Pick<
@@ -159,7 +159,7 @@ export function useGetApiMovies<
   TData = Awaited<ReturnType<typeof getApiMovies>>,
   TError = InternalApiHandlersAPIError,
 >(
-  params: GetApiMoviesParams,
+  params?: GetApiMoviesParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMovies>>, TError, TData>>
     request?: SecondParameter<typeof customInstance>
@@ -174,7 +174,7 @@ export function useGetApiMovies<
   TData = Awaited<ReturnType<typeof getApiMovies>>,
   TError = InternalApiHandlersAPIError,
 >(
-  params: GetApiMoviesParams,
+  params?: GetApiMoviesParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMovies>>, TError, TData>>
     request?: SecondParameter<typeof customInstance>
@@ -193,7 +193,7 @@ export function useGetApiMovies<
 }
 
 /**
- * Returns a list of movie IDs only for prefetching images with optional pagination
+ * Returns a list of movie IDs only for prefetching images with optional pagination. If library_id is omitted or 0, returns IDs from all libraries.
  * @summary List movie IDs
  */
 export type getApiMoviesIdsResponse200 = {
@@ -223,7 +223,7 @@ export type getApiMoviesIdsResponseError = (
 
 export type getApiMoviesIdsResponse = getApiMoviesIdsResponseSuccess | getApiMoviesIdsResponseError
 
-export const getGetApiMoviesIdsUrl = (params: GetApiMoviesIdsParams) => {
+export const getGetApiMoviesIdsUrl = (params?: GetApiMoviesIdsParams) => {
   const normalizedParams = new URLSearchParams()
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -238,7 +238,7 @@ export const getGetApiMoviesIdsUrl = (params: GetApiMoviesIdsParams) => {
 }
 
 export const getApiMoviesIds = async (
-  params: GetApiMoviesIdsParams,
+  params?: GetApiMoviesIdsParams,
   options?: RequestInit
 ): Promise<getApiMoviesIdsResponse> => {
   return customInstance<getApiMoviesIdsResponse>(getGetApiMoviesIdsUrl(params), {
@@ -255,7 +255,7 @@ export const getGetApiMoviesIdsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMoviesIds>>,
   TError = InternalApiHandlersAPIError,
 >(
-  params: GetApiMoviesIdsParams,
+  params?: GetApiMoviesIdsParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMoviesIds>>, TError, TData>>
     request?: SecondParameter<typeof customInstance>
@@ -282,7 +282,7 @@ export function useGetApiMoviesIds<
   TData = Awaited<ReturnType<typeof getApiMoviesIds>>,
   TError = InternalApiHandlersAPIError,
 >(
-  params: GetApiMoviesIdsParams,
+  params: undefined | GetApiMoviesIdsParams,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMoviesIds>>, TError, TData>> &
       Pick<
@@ -301,7 +301,7 @@ export function useGetApiMoviesIds<
   TData = Awaited<ReturnType<typeof getApiMoviesIds>>,
   TError = InternalApiHandlersAPIError,
 >(
-  params: GetApiMoviesIdsParams,
+  params?: GetApiMoviesIdsParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMoviesIds>>, TError, TData>> &
       Pick<
@@ -320,7 +320,7 @@ export function useGetApiMoviesIds<
   TData = Awaited<ReturnType<typeof getApiMoviesIds>>,
   TError = InternalApiHandlersAPIError,
 >(
-  params: GetApiMoviesIdsParams,
+  params?: GetApiMoviesIdsParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMoviesIds>>, TError, TData>>
     request?: SecondParameter<typeof customInstance>
@@ -335,7 +335,7 @@ export function useGetApiMoviesIds<
   TData = Awaited<ReturnType<typeof getApiMoviesIds>>,
   TError = InternalApiHandlersAPIError,
 >(
-  params: GetApiMoviesIdsParams,
+  params?: GetApiMoviesIdsParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMoviesIds>>, TError, TData>>
     request?: SecondParameter<typeof customInstance>
@@ -354,7 +354,7 @@ export function useGetApiMoviesIds<
 }
 
 /**
- * Searches for movies by title in a specific library with optional pagination
+ * Searches for movies by title with optional library filter and pagination. If library_id is omitted or 0, searches all libraries.
  * @summary Search movies
  */
 export type getApiMoviesSearchResponse200 = {

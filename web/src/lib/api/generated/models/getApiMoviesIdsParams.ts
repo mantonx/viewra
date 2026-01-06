@@ -8,9 +8,9 @@
 
 export type GetApiMoviesIdsParams = {
   /**
-   * Library ID to filter movies
+   * Library ID to filter movies (0 or omit for all libraries)
    */
-  library_id: number
+  library_id?: number
   /**
    * Number of items per page (default: 50, max: 200)
    */

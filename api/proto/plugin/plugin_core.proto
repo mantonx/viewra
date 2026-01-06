@@ -85,6 +85,10 @@ message InitRequest {
   // Broker ID for host ratings service (0 = not available)
   // Plugin can dial this ID to get a HostRatingsClient for user ratings access
   uint32 host_ratings_broker_id = 11;
+
+  // Broker ID for host progress service (0 = not available)
+  // Plugin can dial this ID to get a HostProgressClient for watch history access
+  uint32 host_progress_broker_id = 12;
 }
 
 // SystemInfo contains host system resource information.

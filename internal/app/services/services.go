@@ -91,6 +91,10 @@ type Services struct {
 	// Plugin manager for external plugins
 	PluginManager *plugins.Manager
 
+	// HostPluginsServer provides capability-based plugin discovery and invocation.
+	// Stored separately from PluginManager to preserve concrete type for InvokeVectorSearch.
+	HostPluginsServer *plugins.HostPluginsServer
+
 	// Location services for weather context
 	LocationRepo   *location.Repository
 	WeatherService *weather.Service
@@ -165,7 +169,7 @@ func BuildServices(
 	weatherService := weather.NewService(logger.With("component", "weather"))
 
 	// Initialize plugin manager
-	pluginManager := initPluginManager(cfg, repos, db, dbDriver, locationRepo, weatherService, eventBus, settingsService, logger)
+	pluginManager, hostPluginsServer := initPluginManager(cfg, repos, db, dbDriver, locationRepo, weatherService, eventBus, settingsService, logger)
 
 	// Initialize file monitor service
 	fileMonitor := monitor.NewService(repos.Library, repos.Media, pipelineManager, eventBus, logger.With("component", "file-monitor"))
@@ -192,6 +196,7 @@ func BuildServices(
 		EnqueueBuffer:     enqueueBuffer,
 		EnricherRegistry:  enricherRegistry,
 		PluginManager:     pluginManager,
+		HostPluginsServer: hostPluginsServer,
 		LocationRepo:      locationRepo,
 		WeatherService:    weatherService,
 		FileMonitor:       fileMonitor,
@@ -400,6 +405,7 @@ func initEnrichmentPipeline(
 }
 
 // initPluginManager initializes the plugin manager and related services.
+// Returns both the manager and the host plugins server (for semantic search invocation).
 func initPluginManager(
 	cfg *config.Config,
 	repos *repositories.Repositories,
@@ -410,9 +416,9 @@ func initPluginManager(
 	eventBus *events.Bus,
 	settingsService *settings.Service,
 	logger *slog.Logger,
-) *plugins.Manager {
+) (*plugins.Manager, *plugins.HostPluginsServer) {
 	if !cfg.Plugins.Enabled {
-		return nil
+		return nil, nil
 	}
 
 	pluginLogger := logger.With("component", "plugin-manager")
@@ -435,6 +441,9 @@ func initPluginManager(
 	// Create host ratings server for user preferences access
 	hostRatingsServer := plugins.NewHostRatingsServer(repos.Ratings, logger.With("component", "host-ratings"))
 
+	// Create host progress server for watch history access
+	hostProgressServer := plugins.NewHostProgressServer(repos.Progress, repos.Media, logger.With("component", "host-progress"))
+
 	// Create host data server for media querying
 	var hostDataServer *plugins.HostDataServer
 	if repos.PluginMediaQuerier != nil {
@@ -443,16 +452,17 @@ func initPluginManager(
 
 	// Create plugin manager
 	pluginManager, err := plugins.NewManager(plugins.ManagerConfig{
-		PluginDir:         cfg.Plugins.Dir,
-		StorageDir:        cfg.Plugins.StorageDir,
-		HostVersion:       version.Version,
-		HostStorageServer: hostStorageServer,
-		HostWeatherServer: hostWeatherServer,
-		HostRatingsServer: hostRatingsServer,
+		PluginDir:          cfg.Plugins.Dir,
+		StorageDir:         cfg.Plugins.StorageDir,
+		HostVersion:        version.Version,
+		HostStorageServer:  hostStorageServer,
+		HostWeatherServer:  hostWeatherServer,
+		HostRatingsServer:  hostRatingsServer,
+		HostProgressServer: hostProgressServer,
 	}, pluginLogger)
 	if err != nil {
 		logger.Warn("Failed to create plugin manager", "error", err)
-		return nil
+		return nil, nil
 	}
 
 	// Set the plugin factory for creating gRPC plugin instances
@@ -462,6 +472,11 @@ func initPluginManager(
 	if hostDataServer != nil {
 		pluginManager.SetHostDataServer(hostDataServer)
 	}
+
+	// Create and wire host plugins server for capability-based plugin discovery
+	// This allows plugins to discover and invoke other plugins via capabilities
+	hostPluginsServer := plugins.NewHostPluginsServer(pluginManager, logger.With("component", "host-plugins"))
+	pluginManager.SetHostPluginsServer(hostPluginsServer)
 
 	// Wire event bus
 	pluginManager.SetPublisher(eventBus)
@@ -498,7 +513,7 @@ func initPluginManager(
 	)
 	pluginManager.SetHTTPProxy(httpProxy)
 
-	return pluginManager
+	return pluginManager, hostPluginsServer
 }
 
 // ensureDirectory creates a directory if it doesn't exist

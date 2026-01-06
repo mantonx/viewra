@@ -114,6 +114,22 @@ func (f *Factory) NewHostRatingsGRPCPlugin(impl manager.HostRatingsServer, logge
 	}
 }
 
+// NewHostProgressGRPCPlugin creates a new HostProgressPlugin.
+// The impl parameter is a marker interface from manager package.
+func (f *Factory) NewHostProgressGRPCPlugin(impl manager.HostProgressServer, logger *slog.Logger) plugin.Plugin {
+	if impl == nil {
+		return nil
+	}
+	server, ok := impl.(pluginv1.HostProgressServer)
+	if !ok {
+		return nil
+	}
+	return &HostProgressPlugin{
+		Impl:   server,
+		Logger: logger,
+	}
+}
+
 // NewVectorSearchGRPCPlugin creates a new VectorSearchPlugin for client-side dispensing.
 // This is a client-only plugin - the plugin side serves VectorSearch, host side gets client.
 func (f *Factory) NewVectorSearchGRPCPlugin() plugin.Plugin {
@@ -150,6 +166,10 @@ func (f *Factory) GetBrokerID(brokerInfo interface{}) uint32 {
 			return info.BrokerID
 		}
 	case *HostRatingsBrokerInfo:
+		if info != nil {
+			return info.BrokerID
+		}
+	case *HostProgressBrokerInfo:
 		if info != nil {
 			return info.BrokerID
 		}

@@ -651,5 +651,5 @@ FROM tv_shows s
 WHERE (s.library_id = sqlc.arg(library_id) OR sqlc.arg(library_id) = 0)
   AND s.genre LIKE '%' || sqlc.arg(genre) || '%'
   AND s.id NOT IN (sqlc.slice('exclude_ids'))
-ORDER BY COALESCE(NULLIF(s.sort_title, ''), s.title) COLLATE NOCASE
+ORDER BY COALESCE(s.rating, 0) * (COALESCE(s.rating_votes, 0) + 1) DESC, s.created_at DESC
 LIMIT sqlc.arg(limit);
