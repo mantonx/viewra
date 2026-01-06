@@ -33,6 +33,228 @@ We evaluated adding Bleve (embedded) or Meilisearch (external) for BM25 full-tex
 
 ---
 
+## Search Scenario Taxonomy
+
+Comprehensive coverage of what users actually try to do in a media server.
+
+### Coverage Matrix
+
+| # | Scenario | Status | Implementation |
+|---|----------|--------|----------------|
+| 1 | **Exact/Navigational** | ✅ Planned | Autocomplete → entity_id |
+| 2 | **Search-as-You-Type** | ✅ Planned | FTS5 trigram |
+| 3 | **Fuzzy/Typo Tolerance** | ✅ Covered | Embeddings + autocomplete prevention |
+| 4 | **Semantic/Vibe Discovery** | ✅ Covered | Core strength (embeddings + mood) |
+| 5 | **Similarity ("More Like This")** | ✅ Covered | FindSimilar with entity_id |
+| 6 | **Structured/Faceted** | ✅ Covered | Intent detection (decade, genre, language) |
+| 7 | **Mixed NL + Structure** | ✅ Covered | Intent + semantic + boosts |
+| 8 | **Disambiguation** | ✅ Planned | Entity ID flow ("It", "Up", "Her") |
+| 9 | **Negative/Exclusion** | ✅ Covered | `extractNegativeTerms()`, mood-implied |
+| 10 | **Playback Constraints** | ❌ Missing | Codec, HDR, subtitle filters |
+| 11 | **Collections/Franchises** | ⚠️ Partial | Data exists, not exposed |
+| 12 | **Role-Qualified People** | ⚠️ Partial | Writer/producer yes, composer no |
+| 13 | **Language/Title Variants** | ✅ Planned | original_title in FTS5 |
+| 14 | **Zero-Result Recovery** | ❌ Missing | Need relaxation + explanation |
+| 15 | **Session Refinement** | ❌ Missing | Incremental constraints |
+| 16 | **Quality Ranking** | ✅ Planned | With guardrails |
+| 17 | **Personalization** | ✅ Planned | Future phase |
+
+### Scenario Details
+
+#### 1. Exact/Navigational Search ✅
+User knows what they want.
+
+**Examples**: "Alien", "Aliens 1986", "The Godfather Part II", "Spielberg"
+
+**Implementation**: Autocomplete with entity_id resolution. Highest-frequency path.
+
+#### 2. Search-as-You-Type ✅
+User explores or avoids typos.
+
+**Examples**: "spiel", "scar jo", "lord ring", "pt anderson", "rdj"
+
+**Implementation**: FTS5 trigram + alias expansion + tiered ranking.
+
+#### 3. Fuzzy/Typo Tolerance ✅
+User makes mistakes.
+
+**Examples**: "Spielburg", "Scorsesee", "Shindlers List"
+
+**Implementation**: Semantic embeddings handle this naturally. Autocomplete prevents most typos.
+
+#### 4. Semantic/Vibe Discovery ✅
+User describes a feeling or mood.
+
+**Examples**: "movies for a rainy day", "comfort movies", "slow atmospheric sci-fi"
+
+**Implementation**: Embedding similarity + mood tags + context enrichment (weather, time, season).
+This is the flagship differentiator.
+
+#### 5. Similarity Search ✅
+User likes something and wants more.
+
+**Examples**: "movies like Cocktail", "films similar to Heat", "more like Parasite"
+
+**Implementation**: `extractSimilarToTitle()` → entity_id → `FindSimilar()`.
+String fallback only if ID resolution fails.
+
+#### 6. Structured/Faceted Queries ✅
+User specifies explicit constraints.
+
+**Examples**: "90s teen movies", "French horror", "A24 sci-fi", "Korean thrillers"
+
+**Implementation**: Intent detection extracts decade, genre, language, studio → filters + semantic ranking.
+
+#### 7. Mixed Natural Language + Structure ✅
+User blends vibes with constraints.
+
+**Examples**: "90s Spielberg movies", "funny but not stupid action movies"
+
+**Implementation**: Intent extraction + semantic candidates + keyword boosts + diversity penalties.
+This is the hardest and most valuable class.
+
+#### 8. Disambiguation ✅
+Short words with overloaded meaning.
+
+**Examples**: "It", "Up", "Her", "Cars"
+
+**Implementation**: Autocomplete → entity_id. Most search systems fail here; we solve it explicitly.
+
+#### 9. Negative/Exclusion Queries ✅
+User knows what they don't want.
+
+**Examples**: "rainy day movies not horror", "comedies without subtitles"
+
+**Implementation**: `extractNegativeTerms()` detects "no", "without", "not", "avoid", "excluding".
+`extractMoodImpliedNegatives()` handles implicit exclusions ("cozy" → no horror).
+
+**Current patterns** (from code):
+```go
+{"no ", ""},           // "no horror"
+{"not ", ""},          // "not scary"
+{"without ", ""},      // "without violence"
+{"non-", ""},          // "non-violent"
+{"avoid ", ""},        // "avoid gore"
+{"excluding ", ""},    // "excluding thrillers"
+```
+
+#### 10. Playback/Availability Constraints ❌ MISSING
+User wants something they can actually watch.
+
+**Examples**: "4K Dolby Vision", "Direct Play on this device", "has subtitles"
+
+**Should filter by**: codec, container, HDR format, audio format, subtitle presence, transcode vs direct play.
+
+**Status**: Not implemented. High importance for media server UX.
+
+**Implementation plan**:
+- Add `SearchParams.PlaybackConstraints` struct
+- Query media table for codec/resolution/HDR info
+- Apply as hard filters before ranking
+
+#### 11. Collections/Franchises ⚠️ PARTIAL
+User wants grouped content.
+
+**Examples**: "all Mission: Impossible movies", "Harry Potter in order", "Pixar movies"
+
+**Status**: TMDb data exists in DB, studio detection works ("Pixar movies"), but franchise/collection queries not explicit.
+
+**Implementation plan**:
+- Add collection/franchise to autocomplete suggestions
+- Add `isCollectionSearch` intent
+
+#### 12. Role-Qualified People Queries ⚠️ PARTIAL
+User searches by specific contribution.
+
+**Examples**: "movies written by Aaron Sorkin", "music by Hans Zimmer", "cinematography by Roger Deakins"
+
+**Currently supported** (from code):
+- ✅ Director: "directed by X", "X movies" 
+- ✅ Actor: "starring X", "with X", "featuring X"
+- ✅ Writer: "written by X", "screenplay by X"
+- ✅ Producer: "produced by X", "from producer X"
+
+**Missing**:
+- ❌ Composer: "music by X", "score by X"
+- ❌ Cinematographer: "cinematography by X", "shot by X"
+
+**Implementation plan**: Add patterns to `detectQueryIntent()`:
+```go
+composerPatterns := []string{"music by ", "score by ", "composed by ", "composer "}
+cinematographerPatterns := []string{"cinematography by ", "shot by ", "filmed by ", "dp "}
+```
+
+DB already has `credit_type = 'composer'` in credits table.
+
+#### 13. Language/Title Variants ✅
+User uses alternate titles or languages.
+
+**Examples**: Original-language titles, translated titles, regional names
+
+**Implementation**: Include `original_title` in FTS5 autocomplete index.
+
+#### 14. Zero-Result Recovery ❌ MISSING
+System helps when nothing matches.
+
+**Examples**: Over-constrained queries, rare combinations
+
+**Should do**:
+1. Detect zero results
+2. Progressively relax filters (decade → ±5 years, genre → parent genre)
+3. Lower similarity threshold slightly
+4. Return results with explanation of what changed
+
+**Implementation plan**:
+- Add to `SearchService.Search()` after initial query
+- Log relaxation decisions
+- Include in `/explain` endpoint
+
+#### 15. Session Refinement ❌ MISSING
+User iterates instead of retyping.
+
+**Examples**: "rainy day movies" → "more funny" → "just 90s" → "with Tom Cruise"
+
+**Should support**:
+- Session-level context (previous query, previous results)
+- Previous embedding reuse
+- Incremental constraint updates
+- "more like result #3" patterns
+
+**Status**: Not implemented. Very high "feels smart" UX payoff.
+
+**Implementation plan**:
+- Add `SearchParams.SessionID` and `SearchParams.PreviousQuery`
+- Store session context in plugin DB
+- Merge constraints from follow-up queries
+
+#### 16. Quality Ranking ✅
+User expects "good stuff first."
+
+**Implementation**: Final-stage quality boost with guardrails (capped at ±15%, requires vote threshold).
+
+#### 17. Personalization ✅
+System adapts to the user.
+
+**Examples**: "movies I'd like", "stuff like what I watch"
+
+**Status**: Planned for future phase. Pipeline supports it cleanly.
+
+---
+
+### Priority: Must-Add Scenarios
+
+Based on gap analysis, these need implementation:
+
+| Priority | Scenario | Effort | Impact |
+|----------|----------|--------|--------|
+| **P1** | Role-Qualified (composer) | Low | Medium |
+| **P2** | Zero-Result Recovery | Medium | High |
+| **P2** | Playback Constraints | Medium | High (media server specific) |
+| **P3** | Collections/Franchises | Low | Medium |
+| **P4** | Session Refinement | High | Very High |
+
+---
+
 ## Current State Analysis
 
 ### What's Working Well
@@ -892,7 +1114,335 @@ func mergeConfigs(defaults, user *BoostConfig) *BoostConfig {
 
 ---
 
-## Phase 6: Personalization (Future)
+## Phase 6: Composer/Cinematographer Queries
+
+### Problem
+Users search by specific creative roles beyond director/actor/writer.
+
+**Currently missing**:
+- "music by Hans Zimmer"
+- "score by John Williams" 
+- "cinematography by Roger Deakins"
+- "shot by Emmanuel Lubezki"
+
+### Solution
+Add intent patterns for composer and cinematographer roles.
+
+### Implementation
+
+```go
+// Add to detectQueryIntent()
+composerPatterns := []string{"music by ", "score by ", "composed by ", "composer "}
+for _, p := range composerPatterns {
+    if idx := strings.Index(queryLower, p); idx >= 0 {
+        intent.isComposerSearch = true
+        name := strings.TrimSpace(queryLower[idx+len(p):])
+        name = cleanPersonName(name)
+        if name != "" {
+            intent.composerName = name
+        }
+        break
+    }
+}
+
+cinematographerPatterns := []string{"cinematography by ", "shot by ", "filmed by ", "dp "}
+for _, p := range cinematographerPatterns {
+    if idx := strings.Index(queryLower, p); idx >= 0 {
+        intent.isCinematographerSearch = true
+        name := strings.TrimSpace(queryLower[idx+len(p):])
+        name = cleanPersonName(name)
+        if name != "" {
+            intent.cinematographerName = name
+        }
+        break
+    }
+}
+```
+
+**DB support**: `credits.credit_type = 'composer'` already exists. Need to add cinematographer or use `job` field.
+
+### Implementation Tasks
+
+- [ ] Add `isComposerSearch`, `composerName` to queryIntent
+- [ ] Add `isCinematographerSearch`, `cinematographerName` to queryIntent
+- [ ] Add pattern detection in `detectQueryIntent()`
+- [ ] Add boost logic in `applyKeywordBoost()` for composer/cinematographer matches
+- [ ] Verify credits table has necessary data (may need cinematographer credit_type)
+
+---
+
+## Phase 7: Zero-Result Recovery
+
+### Problem
+Over-constrained queries return nothing, frustrating users.
+
+**Examples**:
+- "1950s Korean horror" (rare combination)
+- "movies directed by and starring Tom Hanks" (doesn't exist)
+
+### Solution
+When results are empty, progressively relax constraints and explain what changed.
+
+### Algorithm
+
+```go
+func (s *SearchService) searchWithRecovery(ctx context.Context, params SearchParams) (*SearchResponse, error) {
+    // First attempt: exact query
+    results, err := s.search(ctx, params)
+    if err != nil {
+        return nil, err
+    }
+    
+    if len(results) > 0 {
+        return &SearchResponse{Results: results}, nil
+    }
+    
+    // Zero results - try relaxation
+    relaxations := []relaxationStrategy{
+        relaxDecade,        // 1950s → 1945-1965
+        relaxLanguage,      // Korean → Asian
+        relaxGenreToParent, // horror → thriller
+        lowerSimilarity,    // 0.35 → 0.25
+    }
+    
+    var explanation []string
+    relaxedParams := params
+    
+    for _, relax := range relaxations {
+        relaxedParams, changed := relax(relaxedParams)
+        if changed {
+            explanation = append(explanation, relax.Description())
+        }
+        
+        results, err = s.search(ctx, relaxedParams)
+        if err != nil {
+            continue
+        }
+        
+        if len(results) > 0 {
+            return &SearchResponse{
+                Results:     results,
+                Relaxed:     true,
+                Explanation: explanation,
+            }, nil
+        }
+    }
+    
+    // Still nothing - return empty with full explanation
+    return &SearchResponse{
+        Results:     nil,
+        Relaxed:     true,
+        Explanation: append(explanation, "No results found even after relaxing all constraints"),
+    }, nil
+}
+```
+
+### Relaxation Strategies
+
+| Strategy | Before | After | Description |
+|----------|--------|-------|-------------|
+| `relaxDecade` | 1950s | 1945-1965 | Expand decade by ±5 years |
+| `relaxLanguage` | Korean | Korean, Japanese, Chinese | Expand to region |
+| `relaxGenreToParent` | horror | horror, thriller | Add parent genres |
+| `lowerSimilarity` | 0.35 | 0.25 | Accept lower similarity |
+| `removeNegatives` | "no horror" | (removed) | Try without exclusions |
+
+### Implementation Tasks
+
+- [ ] Add `SearchResponse.Relaxed` and `SearchResponse.Explanation` fields
+- [ ] Implement `relaxDecade()` strategy
+- [ ] Implement `relaxLanguage()` strategy (define region mappings)
+- [ ] Implement `relaxGenreToParent()` strategy (define genre hierarchy)
+- [ ] Implement `lowerSimilarity()` strategy
+- [ ] Add relaxation info to `/explain` endpoint
+- [ ] Frontend: Show "Showing results for relaxed query" banner
+
+---
+
+## Phase 8: Playback Constraints
+
+### Problem
+Users want to filter by what their device can actually play.
+
+**Examples**:
+- "4K movies"
+- "Dolby Vision content"
+- "movies with subtitles"
+- "direct play on my TV"
+
+### Solution
+Add playback-aware filters that query media file metadata.
+
+### API
+
+Add to `SearchParams`:
+```go
+type PlaybackConstraints struct {
+    MinResolution    string   // "720p", "1080p", "4k"
+    MaxResolution    string
+    HDRFormats       []string // ["dolby_vision", "hdr10", "hdr10+"]
+    AudioFormats     []string // ["atmos", "truehd", "dts-hd"]
+    HasSubtitles     *bool
+    SubtitleLanguage string
+    DirectPlayOnly   bool     // Requires device capabilities
+    MaxBitrate       int64    // For bandwidth constraints
+}
+```
+
+### Implementation
+
+```go
+func (s *SearchService) applyPlaybackFilters(results []SearchResult, constraints PlaybackConstraints) []SearchResult {
+    if constraints.isEmpty() {
+        return results
+    }
+    
+    filtered := make([]SearchResult, 0, len(results))
+    for _, r := range results {
+        media, err := s.getMediaDetails(r.EntityID)
+        if err != nil {
+            continue
+        }
+        
+        if constraints.MinResolution != "" && !meetsResolution(media, constraints.MinResolution) {
+            continue
+        }
+        
+        if len(constraints.HDRFormats) > 0 && !hasHDRFormat(media, constraints.HDRFormats) {
+            continue
+        }
+        
+        if constraints.HasSubtitles != nil && *constraints.HasSubtitles && !hasSubtitles(media) {
+            continue
+        }
+        
+        filtered = append(filtered, r)
+    }
+    
+    return filtered
+}
+```
+
+### Data Requirements
+
+Need to query from `media` table:
+- `width`, `height` → resolution
+- Need HDR metadata (may require schema addition)
+- Need to query `subtitle_tracks` table
+
+### Implementation Tasks
+
+- [ ] Add `PlaybackConstraints` to `SearchParams`
+- [ ] Add resolution filter (already have width/height in media table)
+- [ ] Add HDR filter (may need to add hdr_format column to media)
+- [ ] Add subtitle filter (query subtitle_tracks table)
+- [ ] Add audio format filter (query audio_tracks table)
+- [ ] Document direct-play detection (requires device capability info)
+
+---
+
+## Phase 9: Session Refinement
+
+### Problem
+Users want to iteratively refine searches without retyping everything.
+
+**Examples**:
+- "rainy day movies" → "more funny" → "just 90s" → "with Tom Cruise"
+- "action movies" → "not so violent" → "more like result #3"
+
+### Solution
+Maintain session context that carries forward constraints.
+
+### Session State
+
+```go
+type SearchSession struct {
+    ID              string
+    UserID          string
+    CreatedAt       time.Time
+    LastQueryAt     time.Time
+    
+    // Accumulated constraints
+    BaseQuery       string      // Original semantic query
+    BaseEmbedding   []float32   // Cached for reuse
+    Genres          []string    // Accumulated genre filters
+    NegativeGenres  []string    // Accumulated exclusions
+    Decade          *DecadeInfo // If specified
+    Person          *PersonInfo // If specified
+    
+    // Result context
+    LastResults     []int64     // Entity IDs from last search
+    HighlightedID   int64       // "more like #3" reference
+}
+```
+
+### Follow-Up Query Patterns
+
+| Pattern | Example | Action |
+|---------|---------|--------|
+| Additive constraint | "just 90s" | Add decade filter |
+| Negative constraint | "not so violent" | Add to negative genres |
+| Reference result | "more like #3" | Use result[2] for FindSimilar |
+| Mood modifier | "more funny" | Blend with comedy embedding |
+| Reset | "start over" | Clear session |
+
+### Implementation
+
+```go
+func (s *SearchService) SearchWithSession(ctx context.Context, params SearchParams) (*SearchResponse, error) {
+    session := s.getOrCreateSession(ctx, params.SessionID, params.UserID)
+    
+    // Detect follow-up patterns
+    followUp := parseFollowUpQuery(params.Query)
+    
+    switch followUp.Type {
+    case FollowUpAddConstraint:
+        session.mergeConstraint(followUp.Constraint)
+        // Reuse base embedding, apply new filter
+        
+    case FollowUpMoreLike:
+        if followUp.ResultIndex < len(session.LastResults) {
+            return s.FindSimilar(ctx, EntityMovie, session.LastResults[followUp.ResultIndex], params.Limit)
+        }
+        
+    case FollowUpReset:
+        session.clear()
+        
+    default:
+        // New query - reset session but keep user context
+        session.setBaseQuery(params.Query)
+    }
+    
+    results, err := s.searchWithSession(ctx, session, params)
+    if err != nil {
+        return nil, err
+    }
+    
+    // Store result IDs for follow-up references
+    session.LastResults = extractIDs(results)
+    s.saveSession(ctx, session)
+    
+    return &SearchResponse{
+        Results:   results,
+        SessionID: session.ID,
+    }, nil
+}
+```
+
+### Implementation Tasks
+
+- [ ] Add `SearchSession` struct and storage (plugin SQLite)
+- [ ] Add `SessionID` to `SearchParams` and response
+- [ ] Implement follow-up query pattern detection
+- [ ] Implement constraint merging logic
+- [ ] Implement "more like #N" pattern
+- [ ] Add session TTL and cleanup
+- [ ] Frontend: Track session ID across searches
+- [ ] Frontend: Show "Refining: [constraints]" indicator
+
+---
+
+## Phase 10: Personalization (Future)
 
 ### Overview
 Boost results based on user's watch history and ratings. **Lower priority** - implement after core search is solid.
@@ -927,23 +1477,48 @@ Boost results based on user's watch history and ratings. **Lower priority** - im
 | Phase | Effort | Impact | Priority | Status |
 |-------|--------|--------|----------|--------|
 | Query Embedding Cache | Low | High | P0 | ✅ Done |
-| Autocomplete | Medium | High | **P1** | Pending |
+| Negative/Exclusion Queries | - | - | - | ✅ Already Implemented |
+| Autocomplete (FTS5) | Medium | High | **P1** | Pending |
 | Query Explain | Low | Medium | **P1** | Pending |
+| Composer/Cinematographer | Low | Medium | **P1** | Pending |
 | Search History | Low | Medium | P2 | Pending |
 | Quality Signals | Low | Medium | P2 | Pending |
+| Zero-Result Recovery | Medium | High | P2 | Pending |
 | Externalize Config | Medium | Medium | P3 | Pending |
-| Personalization | High | High | P4 | Future |
+| Playback Constraints | Medium | High | P3 | Pending |
+| Collections/Franchises | Low | Medium | P3 | Pending |
+| Session Refinement | High | Very High | P4 | Future |
+| Personalization | High | High | P5 | Future |
 
 ### Recommended Order
 
 1. **Autocomplete with FTS5** - Prevents typos, handles mid-word matching at scale, entity resolution
 2. **Query Explain** - Enables debugging and validates ranking pipeline
-3. **Quality Signals** - Cheap win once we can explain/verify ranking behavior
-4. **Search History** - Feeds into autocomplete, improves UX
-5. **Externalize Config + Versioning** - Enables tuning without code changes
-6. **Personalization** - Major feature, requires more infrastructure
+3. **Composer/Cinematographer** - Quick win, extends existing intent detection
+4. **Quality Signals** - Cheap win once we can explain/verify ranking behavior
+5. **Zero-Result Recovery** - Prevents frustration, uses explain infrastructure
+6. **Search History** - Feeds into autocomplete, improves UX
+7. **Externalize Config + Versioning** - Enables tuning without code changes
+8. **Playback Constraints** - Media-server differentiator
+9. **Session Refinement** - Highest UX payoff, most complex
+10. **Personalization** - Major feature, requires more infrastructure
 
 > **Note**: Autocomplete is both the highest impact AND highest risk item. If FTS5 becomes problematic at scale, that's when we'd revisit Meilisearch - but only for autocomplete, not core search.
+
+### What's Already Working
+
+Based on code analysis, these scenarios are **already implemented**:
+
+| Scenario | Implementation |
+|----------|----------------|
+| Negative/Exclusion | `extractNegativeTerms()`, `extractMoodImpliedNegatives()` |
+| Writer queries | "written by X", "screenplay by X" patterns |
+| Producer queries | "produced by X", "from producer X" patterns |
+| Language detection | Intent detection + boost |
+| Studio detection | "Pixar movies", "A24 films" patterns |
+| Decade detection | "90s movies", "1980s films" patterns |
+| Similar-to queries | `extractSimilarToTitle()` → `FindSimilar()` |
+| Context enrichment | Weather, time-of-day, season, holidays |
 
 ---
 
