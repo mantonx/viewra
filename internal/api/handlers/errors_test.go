@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	domainLibrary "github.com/mantonx/viewra/internal/domain/library"
 	domainMedia "github.com/mantonx/viewra/internal/domain/media"
+	domainScanner "github.com/mantonx/viewra/internal/domain/scanner"
 )
 
 func TestHandleError(t *testing.T) {
@@ -143,6 +144,50 @@ func TestHandleError(t *testing.T) {
 			expectedError:  "Media file already exists",
 		},
 
+		// Scanner errors
+		{
+			name:           "scan job not found",
+			err:            domainScanner.ErrNotFound,
+			expectedStatus: http.StatusNotFound,
+			expectedError:  "Scan job not found",
+		},
+		{
+			name:           "scan already running",
+			err:            domainScanner.ErrAlreadyRunning,
+			expectedStatus: http.StatusConflict,
+			expectedError:  "A scan is already running for this library",
+		},
+		{
+			name:           "scan not running",
+			err:            domainScanner.ErrNotRunning,
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "Scan is not running",
+		},
+		{
+			name:           "invalid scan path",
+			err:            domainScanner.ErrInvalidPath,
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "Invalid scan path",
+		},
+		{
+			name:           "scan path not exist",
+			err:            domainScanner.ErrPathNotExist,
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "Invalid scan path",
+		},
+		{
+			name:           "scan path not directory",
+			err:            domainScanner.ErrPathNotDirectory,
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "Invalid scan path",
+		},
+		{
+			name:           "invalid scan status",
+			err:            domainScanner.ErrInvalidStatus,
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "Invalid scan status",
+		},
+
 		// Generic error
 		{
 			name:           "internal server error",
@@ -187,6 +232,76 @@ func TestHandleError(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetRequestID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("with request_id in context", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("request_id", "test-request-123")
+
+		got := getRequestID(c)
+		if got != "test-request-123" {
+			t.Errorf("getRequestID() = %q, want %q", got, "test-request-123")
+		}
+	})
+
+	t.Run("without request_id in context", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		got := getRequestID(c)
+		if got != "" {
+			t.Errorf("getRequestID() = %q, want empty string", got)
+		}
+	})
+
+	t.Run("with non-string request_id in context", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("request_id", 12345) // int, not string
+
+		got := getRequestID(c)
+		if got != "" {
+			t.Errorf("getRequestID() = %q, want empty string for non-string", got)
+		}
+	})
+}
+
+func TestRespondError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("sends correct status and APIError", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("request_id", "req-456")
+
+		respondError(c, http.StatusBadRequest, "INVALID_INPUT", "The input is invalid")
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("respondError() status = %d, want %d", w.Code, http.StatusBadRequest)
+		}
+
+		var apiErr APIError
+		if err := json.Unmarshal(w.Body.Bytes(), &apiErr); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		if apiErr.Code != "INVALID_INPUT" {
+			t.Errorf("apiErr.Code = %q, want %q", apiErr.Code, "INVALID_INPUT")
+		}
+		if apiErr.Message != "The input is invalid" {
+			t.Errorf("apiErr.Message = %q, want %q", apiErr.Message, "The input is invalid")
+		}
+		if apiErr.RequestID != "req-456" {
+			t.Errorf("apiErr.RequestID = %q, want %q", apiErr.RequestID, "req-456")
+		}
+		if apiErr.Timestamp.IsZero() {
+			t.Error("apiErr.Timestamp should be set")
+		}
+	})
 }
 
 func TestHandleError_WrappedErrors(t *testing.T) {

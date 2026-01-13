@@ -145,6 +145,9 @@ func TestEstimateReleaseDate(t *testing.T) {
 func TestCalculatePriorityFromMetadata(t *testing.T) {
 	now := time.Now()
 	currentYear := now.Year()
+	// Use last year for "recent but past" releases since EstimateReleaseDate uses July 1
+	// which would be in the future if we're early in the current year
+	lastYear := now.Year() - 1
 	oldYear := 1999
 
 	tests := []struct {
@@ -172,10 +175,10 @@ func TestCalculatePriorityFromMetadata(t *testing.T) {
 			expected: PriorityOlder, // Both release and addition are old
 		},
 		{
-			name:     "current year release added last month gets this year priority (release wins)",
-			year:     &currentYear,
+			name:     "last year release added last month gets this year priority (release wins)",
+			year:     &lastYear,
 			addedAt:  now.Add(-60 * 24 * time.Hour),
-			expected: PriorityThisYear, // Release = this year, added = this year, same tier
+			expected: PriorityThisYear, // Release = last year (within 365 days), added = within year
 		},
 		{
 			name:     "no year but added this week gets this week priority",

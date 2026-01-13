@@ -17,7 +17,7 @@ func TestNewService(t *testing.T) {
 	defer db.Close()
 
 	maintenanceMgr := system.NewMaintenanceManager()
-	svc := NewService(db, "sqlite", maintenanceMgr)
+	svc := NewService(db, "sqlite", maintenanceMgr, nil)
 
 	if svc == nil {
 		t.Fatal("Expected non-nil service")
@@ -37,7 +37,7 @@ func TestService_IsInProgress(t *testing.T) {
 	defer db.Close()
 
 	maintenanceMgr := system.NewMaintenanceManager()
-	svc := NewService(db, "sqlite", maintenanceMgr)
+	svc := NewService(db, "sqlite", maintenanceMgr, nil)
 
 	if svc.IsInProgress() {
 		t.Error("Expected IsInProgress to be false initially")
@@ -52,7 +52,7 @@ func TestService_TestConnection_InvalidDriver(t *testing.T) {
 	defer db.Close()
 
 	maintenanceMgr := system.NewMaintenanceManager()
-	svc := NewService(db, "sqlite", maintenanceMgr)
+	svc := NewService(db, "sqlite", maintenanceMgr, nil)
 
 	result := svc.TestConnection(context.Background(), TargetConfig{
 		Driver: "invalid",
@@ -71,7 +71,7 @@ func TestService_TestConnection_SQLite(t *testing.T) {
 	defer db.Close()
 
 	maintenanceMgr := system.NewMaintenanceManager()
-	svc := NewService(db, "sqlite", maintenanceMgr)
+	svc := NewService(db, "sqlite", maintenanceMgr, nil)
 
 	result := svc.TestConnection(context.Background(), TargetConfig{
 		Driver: "sqlite",
@@ -101,7 +101,7 @@ func TestService_Estimate(t *testing.T) {
 	}
 
 	maintenanceMgr := system.NewMaintenanceManager()
-	svc := NewService(db, "sqlite", maintenanceMgr)
+	svc := NewService(db, "sqlite", maintenanceMgr, nil)
 
 	estimate, err := svc.Estimate(context.Background(), "postgres")
 	if err != nil {

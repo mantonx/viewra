@@ -23,12 +23,13 @@ type TVRepository struct {
 	nextSeasonID  int64
 
 	// Error injection
-	CreateErr error
-	GetErr    error
-	ListErr   error
-	UpdateErr error
-	SearchErr error
-	CountErr  error
+	CreateErr                error
+	GetErr                   error
+	ListErr                  error
+	UpdateErr                error
+	SearchErr                error
+	CountErr                 error
+	ListRecentlyAddedShowsErr error
 }
 
 // NewTVRepository creates a new mock TV repository.
@@ -514,6 +515,27 @@ func (r *TVRepository) ListTVSeasonsByShow(ctx context.Context, showID int64) ([
 	for _, season := range r.seasons {
 		if season.ShowID == showID {
 			result = append(result, season)
+		}
+	}
+
+	return result, nil
+}
+
+// ListRecentlyAddedShows returns recently added TV shows across all libraries.
+func (r *TVRepository) ListRecentlyAddedShows(ctx context.Context, limit int) ([]media.TVShow, error) {
+	if r.ListRecentlyAddedShowsErr != nil {
+		return nil, r.ListRecentlyAddedShowsErr
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Collect all shows and return up to limit
+	var result []media.TVShow
+	for _, show := range r.shows {
+		result = append(result, show)
+		if len(result) >= limit {
+			break
 		}
 	}
 

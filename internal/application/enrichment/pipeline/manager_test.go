@@ -386,6 +386,15 @@ func (r *mockPipelineRepo) Disable(ctx context.Context, stageID int64) error {
 	return errors.New("stage not found")
 }
 
+func (r *mockPipelineRepo) ShiftPositions(ctx context.Context, mediaType enrichment.MediaType, fromPosition int) error {
+	for _, s := range r.stages {
+		if s.MediaType == mediaType && s.Position >= fromPosition {
+			s.Position++
+		}
+	}
+	return nil
+}
+
 // mockEnricher is a configurable mock Enricher.
 type mockEnricher struct {
 	stage       string

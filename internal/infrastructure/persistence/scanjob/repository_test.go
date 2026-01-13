@@ -73,6 +73,7 @@ func setupTestDB(t *testing.T) *common.BaseRepository {
 		files_skipped INTEGER DEFAULT 0,
 		discovery_errors INTEGER DEFAULT 0,
 		discovery_warnings INTEGER DEFAULT 0,
+		target_paths TEXT,
 		FOREIGN KEY (library_id) REFERENCES libraries(id) ON DELETE CASCADE
 	);
 
