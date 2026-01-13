@@ -192,6 +192,7 @@ type TVShow struct {
 
 	// Timestamps
 	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // TVShowWithCounts represents a TV show with aggregated season and episode counts

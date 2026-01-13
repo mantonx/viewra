@@ -168,3 +168,19 @@ FROM credits c
 JOIN people p ON c.person_id = p.id
 WHERE c.media_type = ? AND c.entity_id = ? AND c.credit_type = 'creator'
 ORDER BY c.billing_order, p.name;
+
+-- name: GetCrewByJob :many
+-- Fetches crew members by department and job (e.g., Sound/Original Music Composer, Camera/Director of Photography)
+SELECT
+    c.*,
+    p.id as person_id,
+    p.name as person_name,
+    p.sort_name as person_sort_name,
+    p.photo_path as person_photo_path,
+    p.photo_url as person_photo_url,
+    p.imdb_id as person_imdb_id,
+    p.tmdb_id as person_tmdb_id
+FROM credits c
+JOIN people p ON c.person_id = p.id
+WHERE c.media_type = ? AND c.entity_id = ? AND c.department = ? AND c.job = ?
+ORDER BY c.billing_order, p.name;

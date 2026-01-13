@@ -57,6 +57,47 @@ type MediaDetailsInfo struct {
 	// Keywords for search (from TMDB)
 	LocationKeywords []string // Location-related keywords (cities, countries, etc.)
 	ThemeKeywords    []string // Non-location keywords (themes, moods, plot elements)
+
+	// Crew credits for specialized searches
+	Composers        []string // Music composers
+	Cinematographers []string // Directors of Photography
+
+	// Playback information for filtering by technical specs
+	PlaybackInfo *PlaybackInfoData
+}
+
+// PlaybackInfoData contains technical playback metadata for filtering.
+type PlaybackInfoData struct {
+	// Video specs
+	Width           int
+	Height          int
+	ResolutionLabel string
+	HDRFormat       string
+	VideoCodec      string
+	Bitrate         int64
+
+	// Audio and subtitle tracks
+	AudioTracks    []AudioTrackInfo
+	SubtitleTracks []SubtitleTrackInfo
+}
+
+// AudioTrackInfo represents an audio stream in a media file.
+type AudioTrackInfo struct {
+	Codec         string
+	Channels      int
+	ChannelLayout string
+	Language      string
+	IsDefault     bool
+	IsCommentary  bool
+}
+
+// SubtitleTrackInfo represents a subtitle stream in a media file.
+type SubtitleTrackInfo struct {
+	Language   string
+	Codec      string
+	IsForced   bool
+	IsSDH      bool
+	IsExternal bool
 }
 
 // CastMemberInfo represents a cast member.

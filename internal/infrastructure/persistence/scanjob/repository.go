@@ -3,6 +3,7 @@ package scanjob
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 
 	"github.com/mantonx/viewra/internal/domain/scanner"
@@ -19,6 +20,16 @@ func NewRepository(db *common.BaseRepository) *Repository {
 
 // Create creates a new scan job
 func (r *Repository) Create(ctx context.Context, job *scanner.ScanJob) error {
+	// Encode target paths as JSON if present
+	var targetPathsJSON sql.NullString
+	if len(job.TargetPaths) > 0 {
+		data, err := json.Marshal(job.TargetPaths)
+		if err != nil {
+			return fmt.Errorf("failed to marshal target paths: %w", err)
+		}
+		targetPathsJSON = sql.NullString{String: string(data), Valid: true}
+	}
+
 	result, err := r.Q().CreateScanJob(ctx, unified.CreateScanJobParams{
 		LibraryID:      job.LibraryID,
 		Status:         string(job.Status),
@@ -31,6 +42,7 @@ func (r *Repository) Create(ctx context.Context, job *scanner.ScanJob) error {
 		Phase:          common.NullString(string(job.Phase)),
 		EstimatedTotal: sql.NullInt64{Int64: job.EstimatedTotal, Valid: true},
 		DiscoveryDone:  common.NullInt64FromBool(job.DiscoveryDone),
+		TargetPaths:    targetPathsJSON,
 	})
 	if err != nil {
 		return err
@@ -152,6 +164,16 @@ func (r *Repository) DeleteOld(ctx context.Context, libraryID int64, retentionMi
 
 // convertToScanJob converts a unified ScanJob to domain ScanJob
 func convertToScanJob(row unified.ScanJob) *scanner.ScanJob {
+	// Decode target paths from JSON if present
+	var targetPaths []string
+	if row.TargetPaths.Valid && row.TargetPaths.String != "" {
+		if err := json.Unmarshal([]byte(row.TargetPaths.String), &targetPaths); err != nil {
+			// Log error but don't fail - just leave targetPaths empty
+			// In production, we might want to log this with a proper logger
+			targetPaths = nil
+		}
+	}
+
 	return &scanner.ScanJob{
 		ID:             row.ID,
 		LibraryID:      row.LibraryID,
@@ -170,6 +192,7 @@ func convertToScanJob(row unified.ScanJob) *scanner.ScanJob {
 		Phase:          scanner.ScanPhase(common.ParseNullString(row.Phase)),
 		EstimatedTotal: row.EstimatedTotal.Int64,
 		DiscoveryDone:  row.DiscoveryDone.Int64 != 0,
+		TargetPaths:    targetPaths,
 	}
 }
 

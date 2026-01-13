@@ -24,6 +24,8 @@ func (m *Manager) resolveLoadOrder(
 
 	for pluginID, info := range pluginInfoMap {
 		var deps []string
+
+		// Process structured Dependencies field
 		for _, dep := range info.manifest.Dependencies {
 			// Find plugins that provide this capability
 			providers := capabilityProviders[dep.Capability]
@@ -41,6 +43,19 @@ func (m *Manager) resolveLoadOrder(
 			// Add all providers as dependencies (any one of them can satisfy it)
 			deps = append(deps, providers...)
 		}
+
+		// Process simple Requires field (all entries are required)
+		if _, wasSkipped := skipped[pluginID]; !wasSkipped {
+			for _, capability := range info.manifest.Requires {
+				providers := capabilityProviders[capability]
+				if len(providers) == 0 {
+					skipped[pluginID] = fmt.Sprintf("required capability '%s' not provided by any plugin", capability)
+					break
+				}
+				deps = append(deps, providers...)
+			}
+		}
+
 		if _, wasSkipped := skipped[pluginID]; !wasSkipped {
 			dependencies[pluginID] = deps
 		}

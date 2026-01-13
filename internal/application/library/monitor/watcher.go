@@ -10,6 +10,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/mantonx/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/infrastructure/system"
 )
 
 // WatcherMode indicates whether to use fsnotify or polling.
@@ -90,17 +91,35 @@ func (w *LibraryWatcher) Start(ctx context.Context) error {
 	w.ctx, w.cancel = context.WithCancel(ctx)
 	w.stats.StartedAt = time.Now()
 
-	// Try fsnotify first, fall back to polling if it fails
-	// (e.g., on network drives where fsnotify doesn't work)
-	if err := w.startFsnotify(); err != nil {
-		w.logger.Warn("Failed to start fsnotify, falling back to polling",
-			"error", err)
+	// Detect storage type - network mounts (CIFS, NFS, SMB) require polling
+	// because fsnotify doesn't reliably receive events from network filesystems
+	storageProfile := system.ProfileStorage(ctx, w.library.Path)
+	usePolling := storageProfile.IsRemote
+
+	w.logger.Debug("Detected storage for library",
+		"library_path", w.library.Path,
+		"storage_type", storageProfile.Type,
+		"is_remote", storageProfile.IsRemote)
+
+	if usePolling {
+		// Force polling mode for network storage
 		w.mode = WatcherModePolling
 		w.stats.Mode = WatcherModePolling
 		w.startPolling()
+		w.logger.Info("Using polling mode for network storage",
+			"storage_type", storageProfile.Type)
 	} else {
-		w.mode = WatcherModeFsnotify
-		w.stats.Mode = WatcherModeFsnotify
+		// Try fsnotify first for local storage, fall back to polling if it fails
+		if err := w.startFsnotify(); err != nil {
+			w.logger.Warn("Failed to start fsnotify, falling back to polling",
+				"error", err)
+			w.mode = WatcherModePolling
+			w.stats.Mode = WatcherModePolling
+			w.startPolling()
+		} else {
+			w.mode = WatcherModeFsnotify
+			w.stats.Mode = WatcherModeFsnotify
+		}
 	}
 
 	pollingInterval := time.Duration(w.config.PollingIntervalMinutes) * time.Minute
@@ -380,7 +399,11 @@ func (w *LibraryWatcher) poll(initial bool) {
 	w.mu.Unlock()
 
 	if !initial {
-		w.logger.Debug("Poll completed",
+		w.logger.Info("Poll completed",
+			"files", filesScanned,
+			"duration_ms", time.Since(startTime).Milliseconds())
+	} else {
+		w.logger.Info("Initial poll completed (baseline established)",
 			"files", filesScanned,
 			"duration_ms", time.Since(startTime).Milliseconds())
 	}

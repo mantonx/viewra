@@ -102,6 +102,18 @@ func (q *DBMediaQuerier) getMovieDetailsDirectly(ctx context.Context, id int64, 
 		details.ThemeKeywords = themeKeywords
 	}
 
+	// Fetch composers and cinematographers for specialized searches
+	composers, cinematographers := q.getCrewForEntity(ctx, "movie", id)
+	if len(composers) > 0 {
+		details.Composers = composers
+	}
+	if len(cinematographers) > 0 {
+		details.Cinematographers = cinematographers
+	}
+
+	// Fetch playback info for technical filtering (4K, HDR, subtitles, etc.)
+	details.PlaybackInfo = q.getPlaybackInfoForMedia(ctx, id)
+
 	return details, nil
 }
 

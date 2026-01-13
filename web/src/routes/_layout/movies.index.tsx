@@ -6,6 +6,7 @@ import { MovieListItem } from '@/components/movies'
 import { VideoPlayerContainer } from '@/components/media'
 import { MediaBrowsePage, VirtualMediaGrid } from '@/components/common'
 import { useMediaPlayback, useLibraryFilter, useInfiniteMovies, flattenMovies, BatchImagesProvider, BatchProgressProvider, useDebounce } from '@/lib/hooks'
+import { useSearch } from '@/lib/search'
 import { moviesApi } from '@/lib/api/movies'
 import { logger } from '@/lib/utils/logger'
 import type { FilterState, ViewMode } from '@/components/common'
@@ -133,7 +134,17 @@ const Movies = () => {
   // Debounce search query to avoid too many API calls while typing
   const debouncedSearch = useDebounce(search.q || '', 300)
 
-  // Use infinite scroll for movies with server-side search
+  // Use search abstraction layer (automatically uses enhanced search if available)
+  const {
+    data: searchResult,
+    isLoading: isSearchLoading,
+    error: searchError,
+  } = useSearch<Movie>(debouncedSearch, {
+    entityTypes: ['movie'],
+    limit: 100,
+  })
+
+  // Use infinite scroll for movies when there's no search query
   const {
     data,
     isLoading,
@@ -143,7 +154,17 @@ const Movies = () => {
     isFetchingNextPage,
   } = useInfiniteMovies({ sort: apiSort, search: debouncedSearch, pageSize: 100 })
 
-  const allMovies = useMemo(() => data ? flattenMovies(data.pages) : [], [data])
+  // Choose data source: search results when querying, infinite scroll otherwise
+  const allMovies = useMemo(() => {
+    if (debouncedSearch && searchResult) {
+      return searchResult.items
+    }
+    return data ? flattenMovies(data.pages) : []
+  }, [debouncedSearch, searchResult, data])
+
+  // Combine loading and error states
+  const combinedLoading = debouncedSearch ? isSearchLoading : isLoading
+  const combinedError = debouncedSearch ? searchError : error
 
   // Extract unique genres, year range, and quality options from movies
   const { genres, yearRange, qualityOptions } = useMemo(() => {
@@ -411,8 +432,9 @@ const Movies = () => {
         emptyTitle="No movies found"
         emptyDescription="Add a library with movies and scan it to see your movies here."
         data={allMovies}
-        isLoading={isLoading}
-        error={error}
+        isLoading={combinedLoading}
+        error={combinedError}
+        searchEnhancement={searchResult?.enhancement}
         renderItem={(movie) => (
           <MovieCard
             key={movie.id}

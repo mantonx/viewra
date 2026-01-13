@@ -464,7 +464,7 @@ ORDER BY m.sort_title, med.title
 LIMIT sqlc.arg('limit')::bigint;
 
 -- name: ListRecentlyAddedMovies :many
--- Returns recently added movies across all libraries, ordered by creation date
+-- Returns recently added movies across all libraries, ordered by most recently updated
 SELECT
     m.*,
     med.id as media_id,
@@ -505,7 +505,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.is_extra = 0
-ORDER BY med.created_at DESC
+ORDER BY med.updated_at DESC
 LIMIT $1::bigint;
 
 -- name: ListDistinctMovieGenres :many

@@ -56,4 +56,7 @@ export interface MediaBrowsePageProps<T extends { id: number; title?: string; na
   customHeader?: ReactNode
   customEmpty?: ReactNode
   customGridRenderer?: ReactNode // For virtual scrolling
+
+  // Search enhancement slot (populated by search plugins)
+  searchEnhancement?: ReactNode
 }

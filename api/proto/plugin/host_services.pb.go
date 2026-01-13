@@ -694,6 +694,11 @@ type MediaDetails struct {
 	LocationKeywords []string `protobuf:"bytes,41,rep,name=location_keywords,json=locationKeywords,proto3" json:"location_keywords,omitempty"` // e.g., ["new york city", "manhattan", "paris"]
 	// Theme/topic keywords (from TMDB) - non-location keywords for thematic search
 	ThemeKeywords []string `protobuf:"bytes,42,rep,name=theme_keywords,json=themeKeywords,proto3" json:"theme_keywords,omitempty"` // e.g., ["redemption", "friendship", "prison escape"]
+	// Crew credits for specialized searches
+	Composers        []string `protobuf:"bytes,43,rep,name=composers,proto3" json:"composers,omitempty"`               // Music composers (Original Music Composer job)
+	Cinematographers []string `protobuf:"bytes,44,rep,name=cinematographers,proto3" json:"cinematographers,omitempty"` // Directors of Photography (Camera department)
+	// Playback information for filtering by technical specs
+	PlaybackInfo  *PlaybackInfo `protobuf:"bytes,50,opt,name=playback_info,json=playbackInfo,proto3" json:"playback_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -924,6 +929,294 @@ func (x *MediaDetails) GetThemeKeywords() []string {
 	return nil
 }
 
+func (x *MediaDetails) GetComposers() []string {
+	if x != nil {
+		return x.Composers
+	}
+	return nil
+}
+
+func (x *MediaDetails) GetCinematographers() []string {
+	if x != nil {
+		return x.Cinematographers
+	}
+	return nil
+}
+
+func (x *MediaDetails) GetPlaybackInfo() *PlaybackInfo {
+	if x != nil {
+		return x.PlaybackInfo
+	}
+	return nil
+}
+
+// PlaybackInfo contains technical playback metadata for filtering.
+// Used for queries like "4K movies", "Dolby Vision content", "movies with subtitles".
+type PlaybackInfo struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Video specs
+	Width           int32  `protobuf:"varint,1,opt,name=width,proto3" json:"width,omitempty"`                                           // Video width in pixels
+	Height          int32  `protobuf:"varint,2,opt,name=height,proto3" json:"height,omitempty"`                                         // Video height in pixels
+	ResolutionLabel string `protobuf:"bytes,3,opt,name=resolution_label,json=resolutionLabel,proto3" json:"resolution_label,omitempty"` // "SD", "720p", "1080p", "4K", "8K"
+	HdrFormat       string `protobuf:"bytes,4,opt,name=hdr_format,json=hdrFormat,proto3" json:"hdr_format,omitempty"`                   // "SDR", "HDR10", "HDR10+", "Dolby Vision", "HLG"
+	VideoCodec      string `protobuf:"bytes,5,opt,name=video_codec,json=videoCodec,proto3" json:"video_codec,omitempty"`                // "h264", "hevc", "av1", etc.
+	Bitrate         int64  `protobuf:"varint,6,opt,name=bitrate,proto3" json:"bitrate,omitempty"`                                       // Video bitrate in bits/second
+	// Audio tracks
+	AudioTracks []*AudioTrack `protobuf:"bytes,10,rep,name=audio_tracks,json=audioTracks,proto3" json:"audio_tracks,omitempty"`
+	// Subtitle tracks
+	SubtitleTracks []*SubtitleTrack `protobuf:"bytes,11,rep,name=subtitle_tracks,json=subtitleTracks,proto3" json:"subtitle_tracks,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *PlaybackInfo) Reset() {
+	*x = PlaybackInfo{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlaybackInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlaybackInfo) ProtoMessage() {}
+
+func (x *PlaybackInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlaybackInfo.ProtoReflect.Descriptor instead.
+func (*PlaybackInfo) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *PlaybackInfo) GetWidth() int32 {
+	if x != nil {
+		return x.Width
+	}
+	return 0
+}
+
+func (x *PlaybackInfo) GetHeight() int32 {
+	if x != nil {
+		return x.Height
+	}
+	return 0
+}
+
+func (x *PlaybackInfo) GetResolutionLabel() string {
+	if x != nil {
+		return x.ResolutionLabel
+	}
+	return ""
+}
+
+func (x *PlaybackInfo) GetHdrFormat() string {
+	if x != nil {
+		return x.HdrFormat
+	}
+	return ""
+}
+
+func (x *PlaybackInfo) GetVideoCodec() string {
+	if x != nil {
+		return x.VideoCodec
+	}
+	return ""
+}
+
+func (x *PlaybackInfo) GetBitrate() int64 {
+	if x != nil {
+		return x.Bitrate
+	}
+	return 0
+}
+
+func (x *PlaybackInfo) GetAudioTracks() []*AudioTrack {
+	if x != nil {
+		return x.AudioTracks
+	}
+	return nil
+}
+
+func (x *PlaybackInfo) GetSubtitleTracks() []*SubtitleTrack {
+	if x != nil {
+		return x.SubtitleTracks
+	}
+	return nil
+}
+
+// AudioTrack represents an audio stream in a media file.
+type AudioTrack struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Codec         string                 `protobuf:"bytes,1,opt,name=codec,proto3" json:"codec,omitempty"`                                      // "aac", "ac3", "eac3", "truehd", "dts", "dts-hd", "flac"
+	Channels      int32                  `protobuf:"varint,2,opt,name=channels,proto3" json:"channels,omitempty"`                               // Number of channels (2, 6, 8, etc.)
+	ChannelLayout string                 `protobuf:"bytes,3,opt,name=channel_layout,json=channelLayout,proto3" json:"channel_layout,omitempty"` // "stereo", "5.1", "7.1", "Atmos"
+	Language      string                 `protobuf:"bytes,4,opt,name=language,proto3" json:"language,omitempty"`                                // ISO 639-1/2 code, e.g., "en", "eng"
+	IsDefault     bool                   `protobuf:"varint,5,opt,name=is_default,json=isDefault,proto3" json:"is_default,omitempty"`
+	IsCommentary  bool                   `protobuf:"varint,6,opt,name=is_commentary,json=isCommentary,proto3" json:"is_commentary,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AudioTrack) Reset() {
+	*x = AudioTrack{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AudioTrack) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AudioTrack) ProtoMessage() {}
+
+func (x *AudioTrack) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AudioTrack.ProtoReflect.Descriptor instead.
+func (*AudioTrack) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *AudioTrack) GetCodec() string {
+	if x != nil {
+		return x.Codec
+	}
+	return ""
+}
+
+func (x *AudioTrack) GetChannels() int32 {
+	if x != nil {
+		return x.Channels
+	}
+	return 0
+}
+
+func (x *AudioTrack) GetChannelLayout() string {
+	if x != nil {
+		return x.ChannelLayout
+	}
+	return ""
+}
+
+func (x *AudioTrack) GetLanguage() string {
+	if x != nil {
+		return x.Language
+	}
+	return ""
+}
+
+func (x *AudioTrack) GetIsDefault() bool {
+	if x != nil {
+		return x.IsDefault
+	}
+	return false
+}
+
+func (x *AudioTrack) GetIsCommentary() bool {
+	if x != nil {
+		return x.IsCommentary
+	}
+	return false
+}
+
+// SubtitleTrack represents a subtitle stream in a media file.
+type SubtitleTrack struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Language      string                 `protobuf:"bytes,1,opt,name=language,proto3" json:"language,omitempty"` // ISO 639-1/2 code
+	Codec         string                 `protobuf:"bytes,2,opt,name=codec,proto3" json:"codec,omitempty"`       // "srt", "ass", "pgs", "vobsub"
+	IsForced      bool                   `protobuf:"varint,3,opt,name=is_forced,json=isForced,proto3" json:"is_forced,omitempty"`
+	IsSdh         bool                   `protobuf:"varint,4,opt,name=is_sdh,json=isSdh,proto3" json:"is_sdh,omitempty"`                // Subtitles for Deaf/Hard of Hearing
+	IsExternal    bool                   `protobuf:"varint,5,opt,name=is_external,json=isExternal,proto3" json:"is_external,omitempty"` // External file vs embedded
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubtitleTrack) Reset() {
+	*x = SubtitleTrack{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubtitleTrack) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubtitleTrack) ProtoMessage() {}
+
+func (x *SubtitleTrack) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubtitleTrack.ProtoReflect.Descriptor instead.
+func (*SubtitleTrack) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *SubtitleTrack) GetLanguage() string {
+	if x != nil {
+		return x.Language
+	}
+	return ""
+}
+
+func (x *SubtitleTrack) GetCodec() string {
+	if x != nil {
+		return x.Codec
+	}
+	return ""
+}
+
+func (x *SubtitleTrack) GetIsForced() bool {
+	if x != nil {
+		return x.IsForced
+	}
+	return false
+}
+
+func (x *SubtitleTrack) GetIsSdh() bool {
+	if x != nil {
+		return x.IsSdh
+	}
+	return false
+}
+
+func (x *SubtitleTrack) GetIsExternal() bool {
+	if x != nil {
+		return x.IsExternal
+	}
+	return false
+}
+
 // MediaCastMember represents an actor in a movie/show.
 // Simpler than enricher's CastMember - just what's needed for indexing.
 type MediaCastMember struct {
@@ -936,7 +1229,7 @@ type MediaCastMember struct {
 
 func (x *MediaCastMember) Reset() {
 	*x = MediaCastMember{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[11]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -948,7 +1241,7 @@ func (x *MediaCastMember) String() string {
 func (*MediaCastMember) ProtoMessage() {}
 
 func (x *MediaCastMember) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[11]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -961,7 +1254,7 @@ func (x *MediaCastMember) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MediaCastMember.ProtoReflect.Descriptor instead.
 func (*MediaCastMember) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{11}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *MediaCastMember) GetName() string {
@@ -990,7 +1283,7 @@ type MediaDetailsList struct {
 
 func (x *MediaDetailsList) Reset() {
 	*x = MediaDetailsList{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[12]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1002,7 +1295,7 @@ func (x *MediaDetailsList) String() string {
 func (*MediaDetailsList) ProtoMessage() {}
 
 func (x *MediaDetailsList) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[12]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1015,7 +1308,7 @@ func (x *MediaDetailsList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MediaDetailsList.ProtoReflect.Descriptor instead.
 func (*MediaDetailsList) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{12}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *MediaDetailsList) GetItems() []*MediaDetails {
@@ -1048,7 +1341,7 @@ type KVKey struct {
 
 func (x *KVKey) Reset() {
 	*x = KVKey{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[13]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1060,7 +1353,7 @@ func (x *KVKey) String() string {
 func (*KVKey) ProtoMessage() {}
 
 func (x *KVKey) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[13]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1073,7 +1366,7 @@ func (x *KVKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KVKey.ProtoReflect.Descriptor instead.
 func (*KVKey) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{13}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *KVKey) GetKey() string {
@@ -1093,7 +1386,7 @@ type KVValue struct {
 
 func (x *KVValue) Reset() {
 	*x = KVValue{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[14]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1105,7 +1398,7 @@ func (x *KVValue) String() string {
 func (*KVValue) ProtoMessage() {}
 
 func (x *KVValue) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[14]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1118,7 +1411,7 @@ func (x *KVValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KVValue.ProtoReflect.Descriptor instead.
 func (*KVValue) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{14}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *KVValue) GetValue() []byte {
@@ -1146,7 +1439,7 @@ type KVEntry struct {
 
 func (x *KVEntry) Reset() {
 	*x = KVEntry{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[15]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1158,7 +1451,7 @@ func (x *KVEntry) String() string {
 func (*KVEntry) ProtoMessage() {}
 
 func (x *KVEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[15]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1171,7 +1464,7 @@ func (x *KVEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KVEntry.ProtoReflect.Descriptor instead.
 func (*KVEntry) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{15}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *KVEntry) GetKey() string {
@@ -1205,7 +1498,7 @@ type KVListRequest struct {
 
 func (x *KVListRequest) Reset() {
 	*x = KVListRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[16]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1217,7 +1510,7 @@ func (x *KVListRequest) String() string {
 func (*KVListRequest) ProtoMessage() {}
 
 func (x *KVListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[16]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1230,7 +1523,7 @@ func (x *KVListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KVListRequest.ProtoReflect.Descriptor instead.
 func (*KVListRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{16}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *KVListRequest) GetPrefix() string {
@@ -1256,7 +1549,7 @@ type KVKeyList struct {
 
 func (x *KVKeyList) Reset() {
 	*x = KVKeyList{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[17]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1268,7 +1561,7 @@ func (x *KVKeyList) String() string {
 func (*KVKeyList) ProtoMessage() {}
 
 func (x *KVKeyList) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[17]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1281,7 +1574,7 @@ func (x *KVKeyList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KVKeyList.ProtoReflect.Descriptor instead.
 func (*KVKeyList) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{17}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *KVKeyList) GetKeys() []string {
@@ -1300,7 +1593,7 @@ type DatabasePath struct {
 
 func (x *DatabasePath) Reset() {
 	*x = DatabasePath{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[18]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1312,7 +1605,7 @@ func (x *DatabasePath) String() string {
 func (*DatabasePath) ProtoMessage() {}
 
 func (x *DatabasePath) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[18]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1325,7 +1618,7 @@ func (x *DatabasePath) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DatabasePath.ProtoReflect.Descriptor instead.
 func (*DatabasePath) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{18}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *DatabasePath) GetPath() string {
@@ -1345,7 +1638,7 @@ type SchemaVersion struct {
 
 func (x *SchemaVersion) Reset() {
 	*x = SchemaVersion{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[19]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1357,7 +1650,7 @@ func (x *SchemaVersion) String() string {
 func (*SchemaVersion) ProtoMessage() {}
 
 func (x *SchemaVersion) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[19]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1370,7 +1663,7 @@ func (x *SchemaVersion) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SchemaVersion.ProtoReflect.Descriptor instead.
 func (*SchemaVersion) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{19}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *SchemaVersion) GetVersion() int32 {
@@ -1398,7 +1691,7 @@ type DatabaseStats struct {
 
 func (x *DatabaseStats) Reset() {
 	*x = DatabaseStats{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[20]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1410,7 +1703,7 @@ func (x *DatabaseStats) String() string {
 func (*DatabaseStats) ProtoMessage() {}
 
 func (x *DatabaseStats) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[20]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1423,7 +1716,7 @@ func (x *DatabaseStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DatabaseStats.ProtoReflect.Descriptor instead.
 func (*DatabaseStats) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{20}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *DatabaseStats) GetSizeBytes() int64 {
@@ -1457,7 +1750,7 @@ type SQLRequest struct {
 
 func (x *SQLRequest) Reset() {
 	*x = SQLRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[21]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1469,7 +1762,7 @@ func (x *SQLRequest) String() string {
 func (*SQLRequest) ProtoMessage() {}
 
 func (x *SQLRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[21]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1482,7 +1775,7 @@ func (x *SQLRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SQLRequest.ProtoReflect.Descriptor instead.
 func (*SQLRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{21}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *SQLRequest) GetSql() string {
@@ -1515,7 +1808,7 @@ type SQLValue struct {
 
 func (x *SQLValue) Reset() {
 	*x = SQLValue{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[22]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1527,7 +1820,7 @@ func (x *SQLValue) String() string {
 func (*SQLValue) ProtoMessage() {}
 
 func (x *SQLValue) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[22]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1540,7 +1833,7 @@ func (x *SQLValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SQLValue.ProtoReflect.Descriptor instead.
 func (*SQLValue) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{22}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *SQLValue) GetValue() isSQLValue_Value {
@@ -1639,7 +1932,7 @@ type SQLExecResult struct {
 
 func (x *SQLExecResult) Reset() {
 	*x = SQLExecResult{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[23]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1651,7 +1944,7 @@ func (x *SQLExecResult) String() string {
 func (*SQLExecResult) ProtoMessage() {}
 
 func (x *SQLExecResult) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[23]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1664,7 +1957,7 @@ func (x *SQLExecResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SQLExecResult.ProtoReflect.Descriptor instead.
 func (*SQLExecResult) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{23}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *SQLExecResult) GetRowsAffected() int64 {
@@ -1691,7 +1984,7 @@ type SQLQueryResult struct {
 
 func (x *SQLQueryResult) Reset() {
 	*x = SQLQueryResult{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[24]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1703,7 +1996,7 @@ func (x *SQLQueryResult) String() string {
 func (*SQLQueryResult) ProtoMessage() {}
 
 func (x *SQLQueryResult) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[24]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1716,7 +2009,7 @@ func (x *SQLQueryResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SQLQueryResult.ProtoReflect.Descriptor instead.
 func (*SQLQueryResult) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{24}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *SQLQueryResult) GetColumns() []string {
@@ -1742,7 +2035,7 @@ type SQLRow struct {
 
 func (x *SQLRow) Reset() {
 	*x = SQLRow{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[25]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1754,7 +2047,7 @@ func (x *SQLRow) String() string {
 func (*SQLRow) ProtoMessage() {}
 
 func (x *SQLRow) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[25]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1767,7 +2060,7 @@ func (x *SQLRow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SQLRow.ProtoReflect.Descriptor instead.
 func (*SQLRow) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{25}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *SQLRow) GetValues() []*SQLValue {
@@ -1790,7 +2083,7 @@ type VectorStoreRequest struct {
 
 func (x *VectorStoreRequest) Reset() {
 	*x = VectorStoreRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[26]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1802,7 +2095,7 @@ func (x *VectorStoreRequest) String() string {
 func (*VectorStoreRequest) ProtoMessage() {}
 
 func (x *VectorStoreRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[26]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1815,7 +2108,7 @@ func (x *VectorStoreRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VectorStoreRequest.ProtoReflect.Descriptor instead.
 func (*VectorStoreRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{26}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *VectorStoreRequest) GetEntityType() string {
@@ -1862,7 +2155,7 @@ type VectorStoreBatchRequest struct {
 
 func (x *VectorStoreBatchRequest) Reset() {
 	*x = VectorStoreBatchRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[27]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1874,7 +2167,7 @@ func (x *VectorStoreBatchRequest) String() string {
 func (*VectorStoreBatchRequest) ProtoMessage() {}
 
 func (x *VectorStoreBatchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[27]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1887,7 +2180,7 @@ func (x *VectorStoreBatchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VectorStoreBatchRequest.ProtoReflect.Descriptor instead.
 func (*VectorStoreBatchRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{27}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *VectorStoreBatchRequest) GetEmbeddings() []*VectorStoreRequest {
@@ -1910,7 +2203,7 @@ type VectorSearchRequest struct {
 
 func (x *VectorSearchRequest) Reset() {
 	*x = VectorSearchRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[28]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1922,7 +2215,7 @@ func (x *VectorSearchRequest) String() string {
 func (*VectorSearchRequest) ProtoMessage() {}
 
 func (x *VectorSearchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[28]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1935,7 +2228,7 @@ func (x *VectorSearchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VectorSearchRequest.ProtoReflect.Descriptor instead.
 func (*VectorSearchRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{28}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *VectorSearchRequest) GetQueryVector() []float32 {
@@ -1984,7 +2277,7 @@ type VectorTextSearchRequest struct {
 
 func (x *VectorTextSearchRequest) Reset() {
 	*x = VectorTextSearchRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[29]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1996,7 +2289,7 @@ func (x *VectorTextSearchRequest) String() string {
 func (*VectorTextSearchRequest) ProtoMessage() {}
 
 func (x *VectorTextSearchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[29]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2009,7 +2302,7 @@ func (x *VectorTextSearchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VectorTextSearchRequest.ProtoReflect.Descriptor instead.
 func (*VectorTextSearchRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{29}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *VectorTextSearchRequest) GetQuery() string {
@@ -2043,7 +2336,7 @@ type VectorSearchResponse struct {
 
 func (x *VectorSearchResponse) Reset() {
 	*x = VectorSearchResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[30]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2055,7 +2348,7 @@ func (x *VectorSearchResponse) String() string {
 func (*VectorSearchResponse) ProtoMessage() {}
 
 func (x *VectorSearchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[30]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2068,7 +2361,7 @@ func (x *VectorSearchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VectorSearchResponse.ProtoReflect.Descriptor instead.
 func (*VectorSearchResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{30}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *VectorSearchResponse) GetResults() []*VectorSearchResult {
@@ -2097,7 +2390,7 @@ type VectorSearchResult struct {
 
 func (x *VectorSearchResult) Reset() {
 	*x = VectorSearchResult{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[31]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2109,7 +2402,7 @@ func (x *VectorSearchResult) String() string {
 func (*VectorSearchResult) ProtoMessage() {}
 
 func (x *VectorSearchResult) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[31]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2122,7 +2415,7 @@ func (x *VectorSearchResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VectorSearchResult.ProtoReflect.Descriptor instead.
 func (*VectorSearchResult) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{31}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *VectorSearchResult) GetEntityType() string {
@@ -2163,7 +2456,7 @@ type VectorQuery struct {
 
 func (x *VectorQuery) Reset() {
 	*x = VectorQuery{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[32]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2175,7 +2468,7 @@ func (x *VectorQuery) String() string {
 func (*VectorQuery) ProtoMessage() {}
 
 func (x *VectorQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[32]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2188,7 +2481,7 @@ func (x *VectorQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VectorQuery.ProtoReflect.Descriptor instead.
 func (*VectorQuery) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{32}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *VectorQuery) GetEntityType() string {
@@ -2218,7 +2511,7 @@ type VectorGetResponse struct {
 
 func (x *VectorGetResponse) Reset() {
 	*x = VectorGetResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[33]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2230,7 +2523,7 @@ func (x *VectorGetResponse) String() string {
 func (*VectorGetResponse) ProtoMessage() {}
 
 func (x *VectorGetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[33]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2243,7 +2536,7 @@ func (x *VectorGetResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VectorGetResponse.ProtoReflect.Descriptor instead.
 func (*VectorGetResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{33}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *VectorGetResponse) GetExists() bool {
@@ -2290,7 +2583,7 @@ type VectorTypeQuery struct {
 
 func (x *VectorTypeQuery) Reset() {
 	*x = VectorTypeQuery{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[34]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2302,7 +2595,7 @@ func (x *VectorTypeQuery) String() string {
 func (*VectorTypeQuery) ProtoMessage() {}
 
 func (x *VectorTypeQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[34]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2315,7 +2608,7 @@ func (x *VectorTypeQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VectorTypeQuery.ProtoReflect.Descriptor instead.
 func (*VectorTypeQuery) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{34}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *VectorTypeQuery) GetEntityType() string {
@@ -2334,7 +2627,7 @@ type VectorDeleteResponse struct {
 
 func (x *VectorDeleteResponse) Reset() {
 	*x = VectorDeleteResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[35]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2346,7 +2639,7 @@ func (x *VectorDeleteResponse) String() string {
 func (*VectorDeleteResponse) ProtoMessage() {}
 
 func (x *VectorDeleteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[35]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2359,7 +2652,7 @@ func (x *VectorDeleteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VectorDeleteResponse.ProtoReflect.Descriptor instead.
 func (*VectorDeleteResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{35}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *VectorDeleteResponse) GetDeletedCount() int64 {
@@ -2378,7 +2671,7 @@ type VectorCountResponse struct {
 
 func (x *VectorCountResponse) Reset() {
 	*x = VectorCountResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[36]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2390,7 +2683,7 @@ func (x *VectorCountResponse) String() string {
 func (*VectorCountResponse) ProtoMessage() {}
 
 func (x *VectorCountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[36]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2403,7 +2696,7 @@ func (x *VectorCountResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VectorCountResponse.ProtoReflect.Descriptor instead.
 func (*VectorCountResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{36}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *VectorCountResponse) GetCount() int64 {
@@ -2422,7 +2715,7 @@ type UserId struct {
 
 func (x *UserId) Reset() {
 	*x = UserId{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[37]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2434,7 +2727,7 @@ func (x *UserId) String() string {
 func (*UserId) ProtoMessage() {}
 
 func (x *UserId) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[37]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2447,7 +2740,7 @@ func (x *UserId) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserId.ProtoReflect.Descriptor instead.
 func (*UserId) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{37}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *UserId) GetUserId() string {
@@ -2467,7 +2760,7 @@ type UserMetadataKey struct {
 
 func (x *UserMetadataKey) Reset() {
 	*x = UserMetadataKey{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[38]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2479,7 +2772,7 @@ func (x *UserMetadataKey) String() string {
 func (*UserMetadataKey) ProtoMessage() {}
 
 func (x *UserMetadataKey) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[38]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2492,7 +2785,7 @@ func (x *UserMetadataKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserMetadataKey.ProtoReflect.Descriptor instead.
 func (*UserMetadataKey) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{38}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *UserMetadataKey) GetUserId() string {
@@ -2519,7 +2812,7 @@ type UserMetadataValue struct {
 
 func (x *UserMetadataValue) Reset() {
 	*x = UserMetadataValue{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[39]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2531,7 +2824,7 @@ func (x *UserMetadataValue) String() string {
 func (*UserMetadataValue) ProtoMessage() {}
 
 func (x *UserMetadataValue) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[39]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2544,7 +2837,7 @@ func (x *UserMetadataValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserMetadataValue.ProtoReflect.Descriptor instead.
 func (*UserMetadataValue) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{39}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *UserMetadataValue) GetValue() []byte {
@@ -2572,7 +2865,7 @@ type UserMetadataEntry struct {
 
 func (x *UserMetadataEntry) Reset() {
 	*x = UserMetadataEntry{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[40]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2584,7 +2877,7 @@ func (x *UserMetadataEntry) String() string {
 func (*UserMetadataEntry) ProtoMessage() {}
 
 func (x *UserMetadataEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[40]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2597,7 +2890,7 @@ func (x *UserMetadataEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserMetadataEntry.ProtoReflect.Descriptor instead.
 func (*UserMetadataEntry) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{40}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *UserMetadataEntry) GetUserId() string {
@@ -2630,7 +2923,7 @@ type UserMetadataKeyList struct {
 
 func (x *UserMetadataKeyList) Reset() {
 	*x = UserMetadataKeyList{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[41]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2642,7 +2935,7 @@ func (x *UserMetadataKeyList) String() string {
 func (*UserMetadataKeyList) ProtoMessage() {}
 
 func (x *UserMetadataKeyList) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[41]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2655,7 +2948,7 @@ func (x *UserMetadataKeyList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserMetadataKeyList.ProtoReflect.Descriptor instead.
 func (*UserMetadataKeyList) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{41}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *UserMetadataKeyList) GetKeys() []string {
@@ -2675,7 +2968,7 @@ type ParseNFORequest struct {
 
 func (x *ParseNFORequest) Reset() {
 	*x = ParseNFORequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[42]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2687,7 +2980,7 @@ func (x *ParseNFORequest) String() string {
 func (*ParseNFORequest) ProtoMessage() {}
 
 func (x *ParseNFORequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[42]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2700,7 +2993,7 @@ func (x *ParseNFORequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ParseNFORequest.ProtoReflect.Descriptor instead.
 func (*ParseNFORequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{42}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ParseNFORequest) GetFilePath() string {
@@ -2740,7 +3033,7 @@ type NFOMetadata struct {
 
 func (x *NFOMetadata) Reset() {
 	*x = NFOMetadata{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[43]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2752,7 +3045,7 @@ func (x *NFOMetadata) String() string {
 func (*NFOMetadata) ProtoMessage() {}
 
 func (x *NFOMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[43]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2765,7 +3058,7 @@ func (x *NFOMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NFOMetadata.ProtoReflect.Descriptor instead.
 func (*NFOMetadata) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{43}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *NFOMetadata) GetFound() bool {
@@ -2885,7 +3178,7 @@ type NFOActor struct {
 
 func (x *NFOActor) Reset() {
 	*x = NFOActor{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[44]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2897,7 +3190,7 @@ func (x *NFOActor) String() string {
 func (*NFOActor) ProtoMessage() {}
 
 func (x *NFOActor) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[44]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2910,7 +3203,7 @@ func (x *NFOActor) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NFOActor.ProtoReflect.Descriptor instead.
 func (*NFOActor) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{44}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *NFOActor) GetName() string {
@@ -2951,7 +3244,7 @@ type ExtractImagesRequest struct {
 
 func (x *ExtractImagesRequest) Reset() {
 	*x = ExtractImagesRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[45]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2963,7 +3256,7 @@ func (x *ExtractImagesRequest) String() string {
 func (*ExtractImagesRequest) ProtoMessage() {}
 
 func (x *ExtractImagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[45]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2976,7 +3269,7 @@ func (x *ExtractImagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtractImagesRequest.ProtoReflect.Descriptor instead.
 func (*ExtractImagesRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{45}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *ExtractImagesRequest) GetFilePath() string {
@@ -3002,7 +3295,7 @@ type ExtractImagesResponse struct {
 
 func (x *ExtractImagesResponse) Reset() {
 	*x = ExtractImagesResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[46]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3014,7 +3307,7 @@ func (x *ExtractImagesResponse) String() string {
 func (*ExtractImagesResponse) ProtoMessage() {}
 
 func (x *ExtractImagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[46]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3027,7 +3320,7 @@ func (x *ExtractImagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtractImagesResponse.ProtoReflect.Descriptor instead.
 func (*ExtractImagesResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{46}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *ExtractImagesResponse) GetImages() []*ExtractedImage {
@@ -3049,7 +3342,7 @@ type ExtractedImage struct {
 
 func (x *ExtractedImage) Reset() {
 	*x = ExtractedImage{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[47]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3061,7 +3354,7 @@ func (x *ExtractedImage) String() string {
 func (*ExtractedImage) ProtoMessage() {}
 
 func (x *ExtractedImage) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[47]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3074,7 +3367,7 @@ func (x *ExtractedImage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtractedImage.ProtoReflect.Descriptor instead.
 func (*ExtractedImage) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{47}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *ExtractedImage) GetType() string {
@@ -3114,7 +3407,7 @@ type WeatherRequest struct {
 
 func (x *WeatherRequest) Reset() {
 	*x = WeatherRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[48]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3126,7 +3419,7 @@ func (x *WeatherRequest) String() string {
 func (*WeatherRequest) ProtoMessage() {}
 
 func (x *WeatherRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[48]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3139,7 +3432,7 @@ func (x *WeatherRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WeatherRequest.ProtoReflect.Descriptor instead.
 func (*WeatherRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{48}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *WeatherRequest) GetUserId() string {
@@ -3167,7 +3460,7 @@ type WeatherResponse struct {
 
 func (x *WeatherResponse) Reset() {
 	*x = WeatherResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[49]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3179,7 +3472,7 @@ func (x *WeatherResponse) String() string {
 func (*WeatherResponse) ProtoMessage() {}
 
 func (x *WeatherResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[49]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3192,7 +3485,7 @@ func (x *WeatherResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WeatherResponse.ProtoReflect.Descriptor instead.
 func (*WeatherResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{49}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *WeatherResponse) GetAvailable() bool {
@@ -3275,7 +3568,7 @@ type CapabilityRequest struct {
 
 func (x *CapabilityRequest) Reset() {
 	*x = CapabilityRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[50]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3287,7 +3580,7 @@ func (x *CapabilityRequest) String() string {
 func (*CapabilityRequest) ProtoMessage() {}
 
 func (x *CapabilityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[50]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3300,7 +3593,7 @@ func (x *CapabilityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CapabilityRequest.ProtoReflect.Descriptor instead.
 func (*CapabilityRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{50}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *CapabilityRequest) GetCapability() string {
@@ -3326,7 +3619,7 @@ type CapabilityListResponse struct {
 
 func (x *CapabilityListResponse) Reset() {
 	*x = CapabilityListResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[51]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3338,7 +3631,7 @@ func (x *CapabilityListResponse) String() string {
 func (*CapabilityListResponse) ProtoMessage() {}
 
 func (x *CapabilityListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[51]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3351,7 +3644,7 @@ func (x *CapabilityListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CapabilityListResponse.ProtoReflect.Descriptor instead.
 func (*CapabilityListResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{51}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *CapabilityListResponse) GetCapabilities() []*CapabilityInfo {
@@ -3371,7 +3664,7 @@ type CapabilityInfo struct {
 
 func (x *CapabilityInfo) Reset() {
 	*x = CapabilityInfo{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[52]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3383,7 +3676,7 @@ func (x *CapabilityInfo) String() string {
 func (*CapabilityInfo) ProtoMessage() {}
 
 func (x *CapabilityInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[52]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3396,7 +3689,7 @@ func (x *CapabilityInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CapabilityInfo.ProtoReflect.Descriptor instead.
 func (*CapabilityInfo) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{52}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *CapabilityInfo) GetName() string {
@@ -3425,7 +3718,7 @@ type PluginProviderInfo struct {
 
 func (x *PluginProviderInfo) Reset() {
 	*x = PluginProviderInfo{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[53]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3437,7 +3730,7 @@ func (x *PluginProviderInfo) String() string {
 func (*PluginProviderInfo) ProtoMessage() {}
 
 func (x *PluginProviderInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[53]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3450,7 +3743,7 @@ func (x *PluginProviderInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginProviderInfo.ProtoReflect.Descriptor instead.
 func (*PluginProviderInfo) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{53}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *PluginProviderInfo) GetPluginId() string {
@@ -3490,7 +3783,7 @@ type ProviderListResponse struct {
 
 func (x *ProviderListResponse) Reset() {
 	*x = ProviderListResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[54]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3502,7 +3795,7 @@ func (x *ProviderListResponse) String() string {
 func (*ProviderListResponse) ProtoMessage() {}
 
 func (x *ProviderListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[54]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3515,7 +3808,7 @@ func (x *ProviderListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProviderListResponse.ProtoReflect.Descriptor instead.
 func (*ProviderListResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{54}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *ProviderListResponse) GetProviders() []*PluginProviderInfo {
@@ -3536,7 +3829,7 @@ type CapabilityPreferenceRequest struct {
 
 func (x *CapabilityPreferenceRequest) Reset() {
 	*x = CapabilityPreferenceRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[55]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3548,7 +3841,7 @@ func (x *CapabilityPreferenceRequest) String() string {
 func (*CapabilityPreferenceRequest) ProtoMessage() {}
 
 func (x *CapabilityPreferenceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[55]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3561,7 +3854,7 @@ func (x *CapabilityPreferenceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CapabilityPreferenceRequest.ProtoReflect.Descriptor instead.
 func (*CapabilityPreferenceRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{55}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *CapabilityPreferenceRequest) GetCapability() string {
@@ -3588,7 +3881,7 @@ type CapabilityPreferencesResponse struct {
 
 func (x *CapabilityPreferencesResponse) Reset() {
 	*x = CapabilityPreferencesResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[56]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3600,7 +3893,7 @@ func (x *CapabilityPreferencesResponse) String() string {
 func (*CapabilityPreferencesResponse) ProtoMessage() {}
 
 func (x *CapabilityPreferencesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[56]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3613,7 +3906,7 @@ func (x *CapabilityPreferencesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CapabilityPreferencesResponse.ProtoReflect.Descriptor instead.
 func (*CapabilityPreferencesResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{56}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *CapabilityPreferencesResponse) GetPreferences() map[string]string {
@@ -3638,7 +3931,7 @@ type CapabilityInvokeRequest struct {
 
 func (x *CapabilityInvokeRequest) Reset() {
 	*x = CapabilityInvokeRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[57]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3650,7 +3943,7 @@ func (x *CapabilityInvokeRequest) String() string {
 func (*CapabilityInvokeRequest) ProtoMessage() {}
 
 func (x *CapabilityInvokeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[57]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3663,7 +3956,7 @@ func (x *CapabilityInvokeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CapabilityInvokeRequest.ProtoReflect.Descriptor instead.
 func (*CapabilityInvokeRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{57}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *CapabilityInvokeRequest) GetCapability() string {
@@ -3722,7 +4015,7 @@ type CapabilityInvokeResponse struct {
 
 func (x *CapabilityInvokeResponse) Reset() {
 	*x = CapabilityInvokeResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[58]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3734,7 +4027,7 @@ func (x *CapabilityInvokeResponse) String() string {
 func (*CapabilityInvokeResponse) ProtoMessage() {}
 
 func (x *CapabilityInvokeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[58]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3747,7 +4040,7 @@ func (x *CapabilityInvokeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CapabilityInvokeResponse.ProtoReflect.Descriptor instead.
 func (*CapabilityInvokeResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{58}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *CapabilityInvokeResponse) GetResponsePayload() []byte {
@@ -3798,7 +4091,7 @@ type CapabilityError struct {
 
 func (x *CapabilityError) Reset() {
 	*x = CapabilityError{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[59]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3810,7 +4103,7 @@ func (x *CapabilityError) String() string {
 func (*CapabilityError) ProtoMessage() {}
 
 func (x *CapabilityError) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[59]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3823,7 +4116,7 @@ func (x *CapabilityError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CapabilityError.ProtoReflect.Descriptor instead.
 func (*CapabilityError) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{59}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *CapabilityError) GetCode() CapabilityErrorCode {
@@ -3864,7 +4157,7 @@ type DescribeCapabilityRequest struct {
 
 func (x *DescribeCapabilityRequest) Reset() {
 	*x = DescribeCapabilityRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[60]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3876,7 +4169,7 @@ func (x *DescribeCapabilityRequest) String() string {
 func (*DescribeCapabilityRequest) ProtoMessage() {}
 
 func (x *DescribeCapabilityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[60]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3889,7 +4182,7 @@ func (x *DescribeCapabilityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DescribeCapabilityRequest.ProtoReflect.Descriptor instead.
 func (*DescribeCapabilityRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{60}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *DescribeCapabilityRequest) GetCapability() string {
@@ -3913,7 +4206,7 @@ type DescribeCapabilityResponse struct {
 
 func (x *DescribeCapabilityResponse) Reset() {
 	*x = DescribeCapabilityResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[61]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3925,7 +4218,7 @@ func (x *DescribeCapabilityResponse) String() string {
 func (*DescribeCapabilityResponse) ProtoMessage() {}
 
 func (x *DescribeCapabilityResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[61]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3938,7 +4231,7 @@ func (x *DescribeCapabilityResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DescribeCapabilityResponse.ProtoReflect.Descriptor instead.
 func (*DescribeCapabilityResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{61}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *DescribeCapabilityResponse) GetCapability() string {
@@ -3990,7 +4283,7 @@ type CapabilityMethodInfo struct {
 
 func (x *CapabilityMethodInfo) Reset() {
 	*x = CapabilityMethodInfo{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[62]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4002,7 +4295,7 @@ func (x *CapabilityMethodInfo) String() string {
 func (*CapabilityMethodInfo) ProtoMessage() {}
 
 func (x *CapabilityMethodInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[62]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4015,7 +4308,7 @@ func (x *CapabilityMethodInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CapabilityMethodInfo.ProtoReflect.Descriptor instead.
 func (*CapabilityMethodInfo) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{62}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *CapabilityMethodInfo) GetName() string {
@@ -4067,7 +4360,7 @@ type DescribeCapabilityProviderInfo struct {
 
 func (x *DescribeCapabilityProviderInfo) Reset() {
 	*x = DescribeCapabilityProviderInfo{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[63]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4079,7 +4372,7 @@ func (x *DescribeCapabilityProviderInfo) String() string {
 func (*DescribeCapabilityProviderInfo) ProtoMessage() {}
 
 func (x *DescribeCapabilityProviderInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[63]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4092,7 +4385,7 @@ func (x *DescribeCapabilityProviderInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DescribeCapabilityProviderInfo.ProtoReflect.Descriptor instead.
 func (*DescribeCapabilityProviderInfo) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{63}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *DescribeCapabilityProviderInfo) GetPluginId() string {
@@ -4142,7 +4435,7 @@ type ListRatingsRequest struct {
 
 func (x *ListRatingsRequest) Reset() {
 	*x = ListRatingsRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[64]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4154,7 +4447,7 @@ func (x *ListRatingsRequest) String() string {
 func (*ListRatingsRequest) ProtoMessage() {}
 
 func (x *ListRatingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[64]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4167,7 +4460,7 @@ func (x *ListRatingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRatingsRequest.ProtoReflect.Descriptor instead.
 func (*ListRatingsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{64}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *ListRatingsRequest) GetUserId() string {
@@ -4201,7 +4494,7 @@ type ListRatingsResponse struct {
 
 func (x *ListRatingsResponse) Reset() {
 	*x = ListRatingsResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[65]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4213,7 +4506,7 @@ func (x *ListRatingsResponse) String() string {
 func (*ListRatingsResponse) ProtoMessage() {}
 
 func (x *ListRatingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[65]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4226,7 +4519,7 @@ func (x *ListRatingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRatingsResponse.ProtoReflect.Descriptor instead.
 func (*ListRatingsResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{65}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *ListRatingsResponse) GetRatings() []*UserRating {
@@ -4252,7 +4545,7 @@ type UserRating struct {
 
 func (x *UserRating) Reset() {
 	*x = UserRating{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[66]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4264,7 +4557,7 @@ func (x *UserRating) String() string {
 func (*UserRating) ProtoMessage() {}
 
 func (x *UserRating) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[66]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4277,7 +4570,7 @@ func (x *UserRating) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserRating.ProtoReflect.Descriptor instead.
 func (*UserRating) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{66}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *UserRating) GetId() int64 {
@@ -4342,7 +4635,7 @@ type GetRatedEntityIDsRequest struct {
 
 func (x *GetRatedEntityIDsRequest) Reset() {
 	*x = GetRatedEntityIDsRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[67]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4354,7 +4647,7 @@ func (x *GetRatedEntityIDsRequest) String() string {
 func (*GetRatedEntityIDsRequest) ProtoMessage() {}
 
 func (x *GetRatedEntityIDsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[67]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4367,7 +4660,7 @@ func (x *GetRatedEntityIDsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRatedEntityIDsRequest.ProtoReflect.Descriptor instead.
 func (*GetRatedEntityIDsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{67}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *GetRatedEntityIDsRequest) GetUserId() string {
@@ -4410,7 +4703,7 @@ type GetPositivelyRatedIDsRequest struct {
 
 func (x *GetPositivelyRatedIDsRequest) Reset() {
 	*x = GetPositivelyRatedIDsRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[68]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4422,7 +4715,7 @@ func (x *GetPositivelyRatedIDsRequest) String() string {
 func (*GetPositivelyRatedIDsRequest) ProtoMessage() {}
 
 func (x *GetPositivelyRatedIDsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[68]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4435,7 +4728,7 @@ func (x *GetPositivelyRatedIDsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPositivelyRatedIDsRequest.ProtoReflect.Descriptor instead.
 func (*GetPositivelyRatedIDsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{68}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *GetPositivelyRatedIDsRequest) GetUserId() string {
@@ -4469,7 +4762,7 @@ type EntityIDsResponse struct {
 
 func (x *EntityIDsResponse) Reset() {
 	*x = EntityIDsResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[69]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4481,7 +4774,7 @@ func (x *EntityIDsResponse) String() string {
 func (*EntityIDsResponse) ProtoMessage() {}
 
 func (x *EntityIDsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[69]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4494,7 +4787,7 @@ func (x *EntityIDsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntityIDsResponse.ProtoReflect.Descriptor instead.
 func (*EntityIDsResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{69}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *EntityIDsResponse) GetEntityIds() []int64 {
@@ -4514,7 +4807,7 @@ type HasRatingsRequest struct {
 
 func (x *HasRatingsRequest) Reset() {
 	*x = HasRatingsRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[70]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4526,7 +4819,7 @@ func (x *HasRatingsRequest) String() string {
 func (*HasRatingsRequest) ProtoMessage() {}
 
 func (x *HasRatingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[70]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4539,7 +4832,7 @@ func (x *HasRatingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HasRatingsRequest.ProtoReflect.Descriptor instead.
 func (*HasRatingsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{70}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *HasRatingsRequest) GetUserId() string {
@@ -4559,7 +4852,7 @@ type HasRatingsResponse struct {
 
 func (x *HasRatingsResponse) Reset() {
 	*x = HasRatingsResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[71]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4571,7 +4864,7 @@ func (x *HasRatingsResponse) String() string {
 func (*HasRatingsResponse) ProtoMessage() {}
 
 func (x *HasRatingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[71]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4584,7 +4877,7 @@ func (x *HasRatingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HasRatingsResponse.ProtoReflect.Descriptor instead.
 func (*HasRatingsResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{71}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *HasRatingsResponse) GetHasRatings() bool {
@@ -4607,7 +4900,7 @@ type ListWatchedItemsRequest struct {
 
 func (x *ListWatchedItemsRequest) Reset() {
 	*x = ListWatchedItemsRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[72]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4619,7 +4912,7 @@ func (x *ListWatchedItemsRequest) String() string {
 func (*ListWatchedItemsRequest) ProtoMessage() {}
 
 func (x *ListWatchedItemsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[72]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4632,7 +4925,7 @@ func (x *ListWatchedItemsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListWatchedItemsRequest.ProtoReflect.Descriptor instead.
 func (*ListWatchedItemsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{72}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *ListWatchedItemsRequest) GetUserId() string {
@@ -4674,7 +4967,7 @@ type ListWatchedItemsResponse struct {
 
 func (x *ListWatchedItemsResponse) Reset() {
 	*x = ListWatchedItemsResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[73]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4686,7 +4979,7 @@ func (x *ListWatchedItemsResponse) String() string {
 func (*ListWatchedItemsResponse) ProtoMessage() {}
 
 func (x *ListWatchedItemsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[73]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4699,7 +4992,7 @@ func (x *ListWatchedItemsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListWatchedItemsResponse.ProtoReflect.Descriptor instead.
 func (*ListWatchedItemsResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{73}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *ListWatchedItemsResponse) GetItems() []*WatchProgressItem {
@@ -4729,7 +5022,7 @@ type ListInProgressItemsRequest struct {
 
 func (x *ListInProgressItemsRequest) Reset() {
 	*x = ListInProgressItemsRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[74]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4741,7 +5034,7 @@ func (x *ListInProgressItemsRequest) String() string {
 func (*ListInProgressItemsRequest) ProtoMessage() {}
 
 func (x *ListInProgressItemsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[74]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4754,7 +5047,7 @@ func (x *ListInProgressItemsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListInProgressItemsRequest.ProtoReflect.Descriptor instead.
 func (*ListInProgressItemsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{74}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *ListInProgressItemsRequest) GetUserId() string {
@@ -4796,7 +5089,7 @@ type ListInProgressItemsResponse struct {
 
 func (x *ListInProgressItemsResponse) Reset() {
 	*x = ListInProgressItemsResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[75]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4808,7 +5101,7 @@ func (x *ListInProgressItemsResponse) String() string {
 func (*ListInProgressItemsResponse) ProtoMessage() {}
 
 func (x *ListInProgressItemsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[75]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4821,7 +5114,7 @@ func (x *ListInProgressItemsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListInProgressItemsResponse.ProtoReflect.Descriptor instead.
 func (*ListInProgressItemsResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{75}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *ListInProgressItemsResponse) GetItems() []*WatchProgressItem {
@@ -4854,7 +5147,7 @@ type WatchProgressItem struct {
 
 func (x *WatchProgressItem) Reset() {
 	*x = WatchProgressItem{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[76]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4866,7 +5159,7 @@ func (x *WatchProgressItem) String() string {
 func (*WatchProgressItem) ProtoMessage() {}
 
 func (x *WatchProgressItem) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[76]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4879,7 +5172,7 @@ func (x *WatchProgressItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchProgressItem.ProtoReflect.Descriptor instead.
 func (*WatchProgressItem) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{76}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *WatchProgressItem) GetMediaId() int64 {
@@ -4943,7 +5236,7 @@ type GetWatchedEntityIDsRequest struct {
 
 func (x *GetWatchedEntityIDsRequest) Reset() {
 	*x = GetWatchedEntityIDsRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[77]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4955,7 +5248,7 @@ func (x *GetWatchedEntityIDsRequest) String() string {
 func (*GetWatchedEntityIDsRequest) ProtoMessage() {}
 
 func (x *GetWatchedEntityIDsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[77]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4968,7 +5261,7 @@ func (x *GetWatchedEntityIDsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWatchedEntityIDsRequest.ProtoReflect.Descriptor instead.
 func (*GetWatchedEntityIDsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{77}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *GetWatchedEntityIDsRequest) GetUserId() string {
@@ -5002,7 +5295,7 @@ type HasWatchHistoryRequest struct {
 
 func (x *HasWatchHistoryRequest) Reset() {
 	*x = HasWatchHistoryRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[78]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5014,7 +5307,7 @@ func (x *HasWatchHistoryRequest) String() string {
 func (*HasWatchHistoryRequest) ProtoMessage() {}
 
 func (x *HasWatchHistoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[78]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5027,7 +5320,7 @@ func (x *HasWatchHistoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HasWatchHistoryRequest.ProtoReflect.Descriptor instead.
 func (*HasWatchHistoryRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{78}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *HasWatchHistoryRequest) GetUserId() string {
@@ -5047,7 +5340,7 @@ type HasWatchHistoryResponse struct {
 
 func (x *HasWatchHistoryResponse) Reset() {
 	*x = HasWatchHistoryResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[79]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5059,7 +5352,7 @@ func (x *HasWatchHistoryResponse) String() string {
 func (*HasWatchHistoryResponse) ProtoMessage() {}
 
 func (x *HasWatchHistoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[79]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5072,7 +5365,7 @@ func (x *HasWatchHistoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HasWatchHistoryResponse.ProtoReflect.Descriptor instead.
 func (*HasWatchHistoryResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{79}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *HasWatchHistoryResponse) GetHasWatchHistory() bool {
@@ -5096,7 +5389,7 @@ type VectorSearchInvokeRequest struct {
 
 func (x *VectorSearchInvokeRequest) Reset() {
 	*x = VectorSearchInvokeRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[80]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5108,7 +5401,7 @@ func (x *VectorSearchInvokeRequest) String() string {
 func (*VectorSearchInvokeRequest) ProtoMessage() {}
 
 func (x *VectorSearchInvokeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[80]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5121,7 +5414,7 @@ func (x *VectorSearchInvokeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VectorSearchInvokeRequest.ProtoReflect.Descriptor instead.
 func (*VectorSearchInvokeRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{80}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *VectorSearchInvokeRequest) GetMethod() string {
@@ -5164,7 +5457,7 @@ type VectorSearchInvokeResponse struct {
 
 func (x *VectorSearchInvokeResponse) Reset() {
 	*x = VectorSearchInvokeResponse{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[81]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5176,7 +5469,7 @@ func (x *VectorSearchInvokeResponse) String() string {
 func (*VectorSearchInvokeResponse) ProtoMessage() {}
 
 func (x *VectorSearchInvokeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[81]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5189,7 +5482,7 @@ func (x *VectorSearchInvokeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VectorSearchInvokeResponse.ProtoReflect.Descriptor instead.
 func (*VectorSearchInvokeResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{81}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *VectorSearchInvokeResponse) GetProviderPlugin() string {
@@ -5227,7 +5520,7 @@ type ListMediaByGenreRequest struct {
 
 func (x *ListMediaByGenreRequest) Reset() {
 	*x = ListMediaByGenreRequest{}
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[82]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5239,7 +5532,7 @@ func (x *ListMediaByGenreRequest) String() string {
 func (*ListMediaByGenreRequest) ProtoMessage() {}
 
 func (x *ListMediaByGenreRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_host_services_proto_msgTypes[82]
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5252,7 +5545,7 @@ func (x *ListMediaByGenreRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMediaByGenreRequest.ProtoReflect.Descriptor instead.
 func (*ListMediaByGenreRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{82}
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *ListMediaByGenreRequest) GetMediaType() string {
@@ -5341,7 +5634,7 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\n" +
 	"library_id\x18\x01 \x01(\x03R\tlibraryId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\x05R\x06offset\"\x8c\b\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\"\x9b\t\n" +
 	"\fMediaDetails\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1d\n" +
 	"\n" +
@@ -5376,10 +5669,41 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\acountry\x18! \x01(\tR\acountry\x12!\n" +
 	"\frelease_type\x18\" \x01(\tR\vreleaseType\x12+\n" +
 	"\x11location_keywords\x18) \x03(\tR\x10locationKeywords\x12%\n" +
-	"\x0etheme_keywords\x18* \x03(\tR\rthemeKeywords\x1a>\n" +
+	"\x0etheme_keywords\x18* \x03(\tR\rthemeKeywords\x12\x1c\n" +
+	"\tcomposers\x18+ \x03(\tR\tcomposers\x12*\n" +
+	"\x10cinematographers\x18, \x03(\tR\x10cinematographers\x12C\n" +
+	"\rplayback_info\x182 \x01(\v2\x1e.viewra.plugin.v1.PlaybackInfoR\fplaybackInfo\x1a>\n" +
 	"\x10ExternalIdsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"9\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xcc\x02\n" +
+	"\fPlaybackInfo\x12\x14\n" +
+	"\x05width\x18\x01 \x01(\x05R\x05width\x12\x16\n" +
+	"\x06height\x18\x02 \x01(\x05R\x06height\x12)\n" +
+	"\x10resolution_label\x18\x03 \x01(\tR\x0fresolutionLabel\x12\x1d\n" +
+	"\n" +
+	"hdr_format\x18\x04 \x01(\tR\thdrFormat\x12\x1f\n" +
+	"\vvideo_codec\x18\x05 \x01(\tR\n" +
+	"videoCodec\x12\x18\n" +
+	"\abitrate\x18\x06 \x01(\x03R\abitrate\x12?\n" +
+	"\faudio_tracks\x18\n" +
+	" \x03(\v2\x1c.viewra.plugin.v1.AudioTrackR\vaudioTracks\x12H\n" +
+	"\x0fsubtitle_tracks\x18\v \x03(\v2\x1f.viewra.plugin.v1.SubtitleTrackR\x0esubtitleTracks\"\xc5\x01\n" +
+	"\n" +
+	"AudioTrack\x12\x14\n" +
+	"\x05codec\x18\x01 \x01(\tR\x05codec\x12\x1a\n" +
+	"\bchannels\x18\x02 \x01(\x05R\bchannels\x12%\n" +
+	"\x0echannel_layout\x18\x03 \x01(\tR\rchannelLayout\x12\x1a\n" +
+	"\blanguage\x18\x04 \x01(\tR\blanguage\x12\x1d\n" +
+	"\n" +
+	"is_default\x18\x05 \x01(\bR\tisDefault\x12#\n" +
+	"\ris_commentary\x18\x06 \x01(\bR\fisCommentary\"\x96\x01\n" +
+	"\rSubtitleTrack\x12\x1a\n" +
+	"\blanguage\x18\x01 \x01(\tR\blanguage\x12\x14\n" +
+	"\x05codec\x18\x02 \x01(\tR\x05codec\x12\x1b\n" +
+	"\tis_forced\x18\x03 \x01(\bR\bisForced\x12\x15\n" +
+	"\x06is_sdh\x18\x04 \x01(\bR\x05isSdh\x12\x1f\n" +
+	"\vis_external\x18\x05 \x01(\bR\n" +
+	"isExternal\"9\n" +
 	"\x0fMediaCastMember\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04role\x18\x02 \x01(\tR\x04role\"y\n" +
@@ -5819,7 +6143,7 @@ func file_api_proto_plugin_host_services_proto_rawDescGZIP() []byte {
 }
 
 var file_api_proto_plugin_host_services_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_proto_plugin_host_services_proto_msgTypes = make([]protoimpl.MessageInfo, 89)
+var file_api_proto_plugin_host_services_proto_msgTypes = make([]protoimpl.MessageInfo, 92)
 var file_api_proto_plugin_host_services_proto_goTypes = []any{
 	(CapabilityErrorCode)(0),               // 0: viewra.plugin.v1.CapabilityErrorCode
 	(*MediaQuery)(nil),                     // 1: viewra.plugin.v1.MediaQuery
@@ -5833,223 +6157,229 @@ var file_api_proto_plugin_host_services_proto_goTypes = []any{
 	(*FilePath)(nil),                       // 9: viewra.plugin.v1.FilePath
 	(*ListMediaRequest)(nil),               // 10: viewra.plugin.v1.ListMediaRequest
 	(*MediaDetails)(nil),                   // 11: viewra.plugin.v1.MediaDetails
-	(*MediaCastMember)(nil),                // 12: viewra.plugin.v1.MediaCastMember
-	(*MediaDetailsList)(nil),               // 13: viewra.plugin.v1.MediaDetailsList
-	(*KVKey)(nil),                          // 14: viewra.plugin.v1.KVKey
-	(*KVValue)(nil),                        // 15: viewra.plugin.v1.KVValue
-	(*KVEntry)(nil),                        // 16: viewra.plugin.v1.KVEntry
-	(*KVListRequest)(nil),                  // 17: viewra.plugin.v1.KVListRequest
-	(*KVKeyList)(nil),                      // 18: viewra.plugin.v1.KVKeyList
-	(*DatabasePath)(nil),                   // 19: viewra.plugin.v1.DatabasePath
-	(*SchemaVersion)(nil),                  // 20: viewra.plugin.v1.SchemaVersion
-	(*DatabaseStats)(nil),                  // 21: viewra.plugin.v1.DatabaseStats
-	(*SQLRequest)(nil),                     // 22: viewra.plugin.v1.SQLRequest
-	(*SQLValue)(nil),                       // 23: viewra.plugin.v1.SQLValue
-	(*SQLExecResult)(nil),                  // 24: viewra.plugin.v1.SQLExecResult
-	(*SQLQueryResult)(nil),                 // 25: viewra.plugin.v1.SQLQueryResult
-	(*SQLRow)(nil),                         // 26: viewra.plugin.v1.SQLRow
-	(*VectorStoreRequest)(nil),             // 27: viewra.plugin.v1.VectorStoreRequest
-	(*VectorStoreBatchRequest)(nil),        // 28: viewra.plugin.v1.VectorStoreBatchRequest
-	(*VectorSearchRequest)(nil),            // 29: viewra.plugin.v1.VectorSearchRequest
-	(*VectorTextSearchRequest)(nil),        // 30: viewra.plugin.v1.VectorTextSearchRequest
-	(*VectorSearchResponse)(nil),           // 31: viewra.plugin.v1.VectorSearchResponse
-	(*VectorSearchResult)(nil),             // 32: viewra.plugin.v1.VectorSearchResult
-	(*VectorQuery)(nil),                    // 33: viewra.plugin.v1.VectorQuery
-	(*VectorGetResponse)(nil),              // 34: viewra.plugin.v1.VectorGetResponse
-	(*VectorTypeQuery)(nil),                // 35: viewra.plugin.v1.VectorTypeQuery
-	(*VectorDeleteResponse)(nil),           // 36: viewra.plugin.v1.VectorDeleteResponse
-	(*VectorCountResponse)(nil),            // 37: viewra.plugin.v1.VectorCountResponse
-	(*UserId)(nil),                         // 38: viewra.plugin.v1.UserId
-	(*UserMetadataKey)(nil),                // 39: viewra.plugin.v1.UserMetadataKey
-	(*UserMetadataValue)(nil),              // 40: viewra.plugin.v1.UserMetadataValue
-	(*UserMetadataEntry)(nil),              // 41: viewra.plugin.v1.UserMetadataEntry
-	(*UserMetadataKeyList)(nil),            // 42: viewra.plugin.v1.UserMetadataKeyList
-	(*ParseNFORequest)(nil),                // 43: viewra.plugin.v1.ParseNFORequest
-	(*NFOMetadata)(nil),                    // 44: viewra.plugin.v1.NFOMetadata
-	(*NFOActor)(nil),                       // 45: viewra.plugin.v1.NFOActor
-	(*ExtractImagesRequest)(nil),           // 46: viewra.plugin.v1.ExtractImagesRequest
-	(*ExtractImagesResponse)(nil),          // 47: viewra.plugin.v1.ExtractImagesResponse
-	(*ExtractedImage)(nil),                 // 48: viewra.plugin.v1.ExtractedImage
-	(*WeatherRequest)(nil),                 // 49: viewra.plugin.v1.WeatherRequest
-	(*WeatherResponse)(nil),                // 50: viewra.plugin.v1.WeatherResponse
-	(*CapabilityRequest)(nil),              // 51: viewra.plugin.v1.CapabilityRequest
-	(*CapabilityListResponse)(nil),         // 52: viewra.plugin.v1.CapabilityListResponse
-	(*CapabilityInfo)(nil),                 // 53: viewra.plugin.v1.CapabilityInfo
-	(*PluginProviderInfo)(nil),             // 54: viewra.plugin.v1.PluginProviderInfo
-	(*ProviderListResponse)(nil),           // 55: viewra.plugin.v1.ProviderListResponse
-	(*CapabilityPreferenceRequest)(nil),    // 56: viewra.plugin.v1.CapabilityPreferenceRequest
-	(*CapabilityPreferencesResponse)(nil),  // 57: viewra.plugin.v1.CapabilityPreferencesResponse
-	(*CapabilityInvokeRequest)(nil),        // 58: viewra.plugin.v1.CapabilityInvokeRequest
-	(*CapabilityInvokeResponse)(nil),       // 59: viewra.plugin.v1.CapabilityInvokeResponse
-	(*CapabilityError)(nil),                // 60: viewra.plugin.v1.CapabilityError
-	(*DescribeCapabilityRequest)(nil),      // 61: viewra.plugin.v1.DescribeCapabilityRequest
-	(*DescribeCapabilityResponse)(nil),     // 62: viewra.plugin.v1.DescribeCapabilityResponse
-	(*CapabilityMethodInfo)(nil),           // 63: viewra.plugin.v1.CapabilityMethodInfo
-	(*DescribeCapabilityProviderInfo)(nil), // 64: viewra.plugin.v1.DescribeCapabilityProviderInfo
-	(*ListRatingsRequest)(nil),             // 65: viewra.plugin.v1.ListRatingsRequest
-	(*ListRatingsResponse)(nil),            // 66: viewra.plugin.v1.ListRatingsResponse
-	(*UserRating)(nil),                     // 67: viewra.plugin.v1.UserRating
-	(*GetRatedEntityIDsRequest)(nil),       // 68: viewra.plugin.v1.GetRatedEntityIDsRequest
-	(*GetPositivelyRatedIDsRequest)(nil),   // 69: viewra.plugin.v1.GetPositivelyRatedIDsRequest
-	(*EntityIDsResponse)(nil),              // 70: viewra.plugin.v1.EntityIDsResponse
-	(*HasRatingsRequest)(nil),              // 71: viewra.plugin.v1.HasRatingsRequest
-	(*HasRatingsResponse)(nil),             // 72: viewra.plugin.v1.HasRatingsResponse
-	(*ListWatchedItemsRequest)(nil),        // 73: viewra.plugin.v1.ListWatchedItemsRequest
-	(*ListWatchedItemsResponse)(nil),       // 74: viewra.plugin.v1.ListWatchedItemsResponse
-	(*ListInProgressItemsRequest)(nil),     // 75: viewra.plugin.v1.ListInProgressItemsRequest
-	(*ListInProgressItemsResponse)(nil),    // 76: viewra.plugin.v1.ListInProgressItemsResponse
-	(*WatchProgressItem)(nil),              // 77: viewra.plugin.v1.WatchProgressItem
-	(*GetWatchedEntityIDsRequest)(nil),     // 78: viewra.plugin.v1.GetWatchedEntityIDsRequest
-	(*HasWatchHistoryRequest)(nil),         // 79: viewra.plugin.v1.HasWatchHistoryRequest
-	(*HasWatchHistoryResponse)(nil),        // 80: viewra.plugin.v1.HasWatchHistoryResponse
-	(*VectorSearchInvokeRequest)(nil),      // 81: viewra.plugin.v1.VectorSearchInvokeRequest
-	(*VectorSearchInvokeResponse)(nil),     // 82: viewra.plugin.v1.VectorSearchInvokeResponse
-	(*ListMediaByGenreRequest)(nil),        // 83: viewra.plugin.v1.ListMediaByGenreRequest
-	nil,                                    // 84: viewra.plugin.v1.Media.ExternalIdsEntry
-	nil,                                    // 85: viewra.plugin.v1.MediaDetails.ExternalIdsEntry
-	nil,                                    // 86: viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
-	nil,                                    // 87: viewra.plugin.v1.CapabilityPreferencesResponse.PreferencesEntry
-	nil,                                    // 88: viewra.plugin.v1.CapabilityInvokeRequest.MetadataEntry
-	nil,                                    // 89: viewra.plugin.v1.CapabilityInvokeResponse.MetadataEntry
-	(*FindSimilarRequest)(nil),             // 90: viewra.plugin.v1.FindSimilarRequest
-	(*SemanticSearchRequest)(nil),          // 91: viewra.plugin.v1.SemanticSearchRequest
-	(*SemanticSearchResponse)(nil),         // 92: viewra.plugin.v1.SemanticSearchResponse
-	(*Empty)(nil),                          // 93: viewra.plugin.v1.Empty
+	(*PlaybackInfo)(nil),                   // 12: viewra.plugin.v1.PlaybackInfo
+	(*AudioTrack)(nil),                     // 13: viewra.plugin.v1.AudioTrack
+	(*SubtitleTrack)(nil),                  // 14: viewra.plugin.v1.SubtitleTrack
+	(*MediaCastMember)(nil),                // 15: viewra.plugin.v1.MediaCastMember
+	(*MediaDetailsList)(nil),               // 16: viewra.plugin.v1.MediaDetailsList
+	(*KVKey)(nil),                          // 17: viewra.plugin.v1.KVKey
+	(*KVValue)(nil),                        // 18: viewra.plugin.v1.KVValue
+	(*KVEntry)(nil),                        // 19: viewra.plugin.v1.KVEntry
+	(*KVListRequest)(nil),                  // 20: viewra.plugin.v1.KVListRequest
+	(*KVKeyList)(nil),                      // 21: viewra.plugin.v1.KVKeyList
+	(*DatabasePath)(nil),                   // 22: viewra.plugin.v1.DatabasePath
+	(*SchemaVersion)(nil),                  // 23: viewra.plugin.v1.SchemaVersion
+	(*DatabaseStats)(nil),                  // 24: viewra.plugin.v1.DatabaseStats
+	(*SQLRequest)(nil),                     // 25: viewra.plugin.v1.SQLRequest
+	(*SQLValue)(nil),                       // 26: viewra.plugin.v1.SQLValue
+	(*SQLExecResult)(nil),                  // 27: viewra.plugin.v1.SQLExecResult
+	(*SQLQueryResult)(nil),                 // 28: viewra.plugin.v1.SQLQueryResult
+	(*SQLRow)(nil),                         // 29: viewra.plugin.v1.SQLRow
+	(*VectorStoreRequest)(nil),             // 30: viewra.plugin.v1.VectorStoreRequest
+	(*VectorStoreBatchRequest)(nil),        // 31: viewra.plugin.v1.VectorStoreBatchRequest
+	(*VectorSearchRequest)(nil),            // 32: viewra.plugin.v1.VectorSearchRequest
+	(*VectorTextSearchRequest)(nil),        // 33: viewra.plugin.v1.VectorTextSearchRequest
+	(*VectorSearchResponse)(nil),           // 34: viewra.plugin.v1.VectorSearchResponse
+	(*VectorSearchResult)(nil),             // 35: viewra.plugin.v1.VectorSearchResult
+	(*VectorQuery)(nil),                    // 36: viewra.plugin.v1.VectorQuery
+	(*VectorGetResponse)(nil),              // 37: viewra.plugin.v1.VectorGetResponse
+	(*VectorTypeQuery)(nil),                // 38: viewra.plugin.v1.VectorTypeQuery
+	(*VectorDeleteResponse)(nil),           // 39: viewra.plugin.v1.VectorDeleteResponse
+	(*VectorCountResponse)(nil),            // 40: viewra.plugin.v1.VectorCountResponse
+	(*UserId)(nil),                         // 41: viewra.plugin.v1.UserId
+	(*UserMetadataKey)(nil),                // 42: viewra.plugin.v1.UserMetadataKey
+	(*UserMetadataValue)(nil),              // 43: viewra.plugin.v1.UserMetadataValue
+	(*UserMetadataEntry)(nil),              // 44: viewra.plugin.v1.UserMetadataEntry
+	(*UserMetadataKeyList)(nil),            // 45: viewra.plugin.v1.UserMetadataKeyList
+	(*ParseNFORequest)(nil),                // 46: viewra.plugin.v1.ParseNFORequest
+	(*NFOMetadata)(nil),                    // 47: viewra.plugin.v1.NFOMetadata
+	(*NFOActor)(nil),                       // 48: viewra.plugin.v1.NFOActor
+	(*ExtractImagesRequest)(nil),           // 49: viewra.plugin.v1.ExtractImagesRequest
+	(*ExtractImagesResponse)(nil),          // 50: viewra.plugin.v1.ExtractImagesResponse
+	(*ExtractedImage)(nil),                 // 51: viewra.plugin.v1.ExtractedImage
+	(*WeatherRequest)(nil),                 // 52: viewra.plugin.v1.WeatherRequest
+	(*WeatherResponse)(nil),                // 53: viewra.plugin.v1.WeatherResponse
+	(*CapabilityRequest)(nil),              // 54: viewra.plugin.v1.CapabilityRequest
+	(*CapabilityListResponse)(nil),         // 55: viewra.plugin.v1.CapabilityListResponse
+	(*CapabilityInfo)(nil),                 // 56: viewra.plugin.v1.CapabilityInfo
+	(*PluginProviderInfo)(nil),             // 57: viewra.plugin.v1.PluginProviderInfo
+	(*ProviderListResponse)(nil),           // 58: viewra.plugin.v1.ProviderListResponse
+	(*CapabilityPreferenceRequest)(nil),    // 59: viewra.plugin.v1.CapabilityPreferenceRequest
+	(*CapabilityPreferencesResponse)(nil),  // 60: viewra.plugin.v1.CapabilityPreferencesResponse
+	(*CapabilityInvokeRequest)(nil),        // 61: viewra.plugin.v1.CapabilityInvokeRequest
+	(*CapabilityInvokeResponse)(nil),       // 62: viewra.plugin.v1.CapabilityInvokeResponse
+	(*CapabilityError)(nil),                // 63: viewra.plugin.v1.CapabilityError
+	(*DescribeCapabilityRequest)(nil),      // 64: viewra.plugin.v1.DescribeCapabilityRequest
+	(*DescribeCapabilityResponse)(nil),     // 65: viewra.plugin.v1.DescribeCapabilityResponse
+	(*CapabilityMethodInfo)(nil),           // 66: viewra.plugin.v1.CapabilityMethodInfo
+	(*DescribeCapabilityProviderInfo)(nil), // 67: viewra.plugin.v1.DescribeCapabilityProviderInfo
+	(*ListRatingsRequest)(nil),             // 68: viewra.plugin.v1.ListRatingsRequest
+	(*ListRatingsResponse)(nil),            // 69: viewra.plugin.v1.ListRatingsResponse
+	(*UserRating)(nil),                     // 70: viewra.plugin.v1.UserRating
+	(*GetRatedEntityIDsRequest)(nil),       // 71: viewra.plugin.v1.GetRatedEntityIDsRequest
+	(*GetPositivelyRatedIDsRequest)(nil),   // 72: viewra.plugin.v1.GetPositivelyRatedIDsRequest
+	(*EntityIDsResponse)(nil),              // 73: viewra.plugin.v1.EntityIDsResponse
+	(*HasRatingsRequest)(nil),              // 74: viewra.plugin.v1.HasRatingsRequest
+	(*HasRatingsResponse)(nil),             // 75: viewra.plugin.v1.HasRatingsResponse
+	(*ListWatchedItemsRequest)(nil),        // 76: viewra.plugin.v1.ListWatchedItemsRequest
+	(*ListWatchedItemsResponse)(nil),       // 77: viewra.plugin.v1.ListWatchedItemsResponse
+	(*ListInProgressItemsRequest)(nil),     // 78: viewra.plugin.v1.ListInProgressItemsRequest
+	(*ListInProgressItemsResponse)(nil),    // 79: viewra.plugin.v1.ListInProgressItemsResponse
+	(*WatchProgressItem)(nil),              // 80: viewra.plugin.v1.WatchProgressItem
+	(*GetWatchedEntityIDsRequest)(nil),     // 81: viewra.plugin.v1.GetWatchedEntityIDsRequest
+	(*HasWatchHistoryRequest)(nil),         // 82: viewra.plugin.v1.HasWatchHistoryRequest
+	(*HasWatchHistoryResponse)(nil),        // 83: viewra.plugin.v1.HasWatchHistoryResponse
+	(*VectorSearchInvokeRequest)(nil),      // 84: viewra.plugin.v1.VectorSearchInvokeRequest
+	(*VectorSearchInvokeResponse)(nil),     // 85: viewra.plugin.v1.VectorSearchInvokeResponse
+	(*ListMediaByGenreRequest)(nil),        // 86: viewra.plugin.v1.ListMediaByGenreRequest
+	nil,                                    // 87: viewra.plugin.v1.Media.ExternalIdsEntry
+	nil,                                    // 88: viewra.plugin.v1.MediaDetails.ExternalIdsEntry
+	nil,                                    // 89: viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
+	nil,                                    // 90: viewra.plugin.v1.CapabilityPreferencesResponse.PreferencesEntry
+	nil,                                    // 91: viewra.plugin.v1.CapabilityInvokeRequest.MetadataEntry
+	nil,                                    // 92: viewra.plugin.v1.CapabilityInvokeResponse.MetadataEntry
+	(*FindSimilarRequest)(nil),             // 93: viewra.plugin.v1.FindSimilarRequest
+	(*SemanticSearchRequest)(nil),          // 94: viewra.plugin.v1.SemanticSearchRequest
+	(*SemanticSearchResponse)(nil),         // 95: viewra.plugin.v1.SemanticSearchResponse
+	(*Empty)(nil),                          // 96: viewra.plugin.v1.Empty
 }
 var file_api_proto_plugin_host_services_proto_depIdxs = []int32{
-	84, // 0: viewra.plugin.v1.Media.external_ids:type_name -> viewra.plugin.v1.Media.ExternalIdsEntry
+	87, // 0: viewra.plugin.v1.Media.external_ids:type_name -> viewra.plugin.v1.Media.ExternalIdsEntry
 	5,  // 1: viewra.plugin.v1.MediaList.items:type_name -> viewra.plugin.v1.Media
-	85, // 2: viewra.plugin.v1.MediaDetails.external_ids:type_name -> viewra.plugin.v1.MediaDetails.ExternalIdsEntry
-	12, // 3: viewra.plugin.v1.MediaDetails.cast:type_name -> viewra.plugin.v1.MediaCastMember
-	11, // 4: viewra.plugin.v1.MediaDetailsList.items:type_name -> viewra.plugin.v1.MediaDetails
-	23, // 5: viewra.plugin.v1.SQLRequest.args:type_name -> viewra.plugin.v1.SQLValue
-	26, // 6: viewra.plugin.v1.SQLQueryResult.rows:type_name -> viewra.plugin.v1.SQLRow
-	23, // 7: viewra.plugin.v1.SQLRow.values:type_name -> viewra.plugin.v1.SQLValue
-	27, // 8: viewra.plugin.v1.VectorStoreBatchRequest.embeddings:type_name -> viewra.plugin.v1.VectorStoreRequest
-	32, // 9: viewra.plugin.v1.VectorSearchResponse.results:type_name -> viewra.plugin.v1.VectorSearchResult
-	86, // 10: viewra.plugin.v1.NFOMetadata.external_ids:type_name -> viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
-	45, // 11: viewra.plugin.v1.NFOMetadata.actors:type_name -> viewra.plugin.v1.NFOActor
-	48, // 12: viewra.plugin.v1.ExtractImagesResponse.images:type_name -> viewra.plugin.v1.ExtractedImage
-	53, // 13: viewra.plugin.v1.CapabilityListResponse.capabilities:type_name -> viewra.plugin.v1.CapabilityInfo
-	54, // 14: viewra.plugin.v1.CapabilityInfo.providers:type_name -> viewra.plugin.v1.PluginProviderInfo
-	54, // 15: viewra.plugin.v1.ProviderListResponse.providers:type_name -> viewra.plugin.v1.PluginProviderInfo
-	87, // 16: viewra.plugin.v1.CapabilityPreferencesResponse.preferences:type_name -> viewra.plugin.v1.CapabilityPreferencesResponse.PreferencesEntry
-	88, // 17: viewra.plugin.v1.CapabilityInvokeRequest.metadata:type_name -> viewra.plugin.v1.CapabilityInvokeRequest.MetadataEntry
-	60, // 18: viewra.plugin.v1.CapabilityInvokeResponse.error:type_name -> viewra.plugin.v1.CapabilityError
-	89, // 19: viewra.plugin.v1.CapabilityInvokeResponse.metadata:type_name -> viewra.plugin.v1.CapabilityInvokeResponse.MetadataEntry
-	0,  // 20: viewra.plugin.v1.CapabilityError.code:type_name -> viewra.plugin.v1.CapabilityErrorCode
-	63, // 21: viewra.plugin.v1.DescribeCapabilityResponse.methods:type_name -> viewra.plugin.v1.CapabilityMethodInfo
-	64, // 22: viewra.plugin.v1.DescribeCapabilityResponse.providers:type_name -> viewra.plugin.v1.DescribeCapabilityProviderInfo
-	67, // 23: viewra.plugin.v1.ListRatingsResponse.ratings:type_name -> viewra.plugin.v1.UserRating
-	77, // 24: viewra.plugin.v1.ListWatchedItemsResponse.items:type_name -> viewra.plugin.v1.WatchProgressItem
-	77, // 25: viewra.plugin.v1.ListInProgressItemsResponse.items:type_name -> viewra.plugin.v1.WatchProgressItem
-	90, // 26: viewra.plugin.v1.VectorSearchInvokeRequest.find_similar:type_name -> viewra.plugin.v1.FindSimilarRequest
-	91, // 27: viewra.plugin.v1.VectorSearchInvokeRequest.search:type_name -> viewra.plugin.v1.SemanticSearchRequest
-	92, // 28: viewra.plugin.v1.VectorSearchInvokeResponse.response:type_name -> viewra.plugin.v1.SemanticSearchResponse
-	60, // 29: viewra.plugin.v1.VectorSearchInvokeResponse.error:type_name -> viewra.plugin.v1.CapabilityError
-	1,  // 30: viewra.plugin.v1.HostData.GetMedia:input_type -> viewra.plugin.v1.MediaQuery
-	1,  // 31: viewra.plugin.v1.HostData.GetMediaDetails:input_type -> viewra.plugin.v1.MediaQuery
-	3,  // 32: viewra.plugin.v1.HostData.GetMediaByExternalId:input_type -> viewra.plugin.v1.ExternalIdQuery
-	4,  // 33: viewra.plugin.v1.HostData.SearchMedia:input_type -> viewra.plugin.v1.SearchQuery
-	10, // 34: viewra.plugin.v1.HostData.ListMediaByLibrary:input_type -> viewra.plugin.v1.ListMediaRequest
-	7,  // 35: viewra.plugin.v1.HostData.GetLibrary:input_type -> viewra.plugin.v1.LibraryId
-	2,  // 36: viewra.plugin.v1.HostData.GetFilePath:input_type -> viewra.plugin.v1.MediaId
-	83, // 37: viewra.plugin.v1.HostData.ListMediaByGenre:input_type -> viewra.plugin.v1.ListMediaByGenreRequest
-	14, // 38: viewra.plugin.v1.HostStorage.KVGet:input_type -> viewra.plugin.v1.KVKey
-	16, // 39: viewra.plugin.v1.HostStorage.KVSet:input_type -> viewra.plugin.v1.KVEntry
-	14, // 40: viewra.plugin.v1.HostStorage.KVDelete:input_type -> viewra.plugin.v1.KVKey
-	17, // 41: viewra.plugin.v1.HostStorage.KVList:input_type -> viewra.plugin.v1.KVListRequest
-	93, // 42: viewra.plugin.v1.HostStorage.GetDatabasePath:input_type -> viewra.plugin.v1.Empty
-	20, // 43: viewra.plugin.v1.HostStorage.RegisterSchema:input_type -> viewra.plugin.v1.SchemaVersion
-	93, // 44: viewra.plugin.v1.HostStorage.GetDatabaseStats:input_type -> viewra.plugin.v1.Empty
-	22, // 45: viewra.plugin.v1.HostStorage.ExecuteSQL:input_type -> viewra.plugin.v1.SQLRequest
-	22, // 46: viewra.plugin.v1.HostStorage.QuerySQL:input_type -> viewra.plugin.v1.SQLRequest
-	27, // 47: viewra.plugin.v1.HostStorage.VectorStoreEmbedding:input_type -> viewra.plugin.v1.VectorStoreRequest
-	28, // 48: viewra.plugin.v1.HostStorage.VectorStoreBatch:input_type -> viewra.plugin.v1.VectorStoreBatchRequest
-	29, // 49: viewra.plugin.v1.HostStorage.VectorSearch:input_type -> viewra.plugin.v1.VectorSearchRequest
-	30, // 50: viewra.plugin.v1.HostStorage.VectorSearchText:input_type -> viewra.plugin.v1.VectorTextSearchRequest
-	33, // 51: viewra.plugin.v1.HostStorage.VectorGet:input_type -> viewra.plugin.v1.VectorQuery
-	33, // 52: viewra.plugin.v1.HostStorage.VectorDelete:input_type -> viewra.plugin.v1.VectorQuery
-	35, // 53: viewra.plugin.v1.HostStorage.VectorDeleteByType:input_type -> viewra.plugin.v1.VectorTypeQuery
-	35, // 54: viewra.plugin.v1.HostStorage.VectorCount:input_type -> viewra.plugin.v1.VectorTypeQuery
-	39, // 55: viewra.plugin.v1.HostUserMetadata.Get:input_type -> viewra.plugin.v1.UserMetadataKey
-	41, // 56: viewra.plugin.v1.HostUserMetadata.Set:input_type -> viewra.plugin.v1.UserMetadataEntry
-	39, // 57: viewra.plugin.v1.HostUserMetadata.Delete:input_type -> viewra.plugin.v1.UserMetadataKey
-	38, // 58: viewra.plugin.v1.HostUserMetadata.ListKeys:input_type -> viewra.plugin.v1.UserId
-	43, // 59: viewra.plugin.v1.HostFileParser.ParseNFO:input_type -> viewra.plugin.v1.ParseNFORequest
-	46, // 60: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:input_type -> viewra.plugin.v1.ExtractImagesRequest
-	49, // 61: viewra.plugin.v1.HostWeather.GetCurrentWeather:input_type -> viewra.plugin.v1.WeatherRequest
-	65, // 62: viewra.plugin.v1.HostRatings.ListRatings:input_type -> viewra.plugin.v1.ListRatingsRequest
-	68, // 63: viewra.plugin.v1.HostRatings.GetRatedEntityIDs:input_type -> viewra.plugin.v1.GetRatedEntityIDsRequest
-	69, // 64: viewra.plugin.v1.HostRatings.GetPositivelyRatedIDs:input_type -> viewra.plugin.v1.GetPositivelyRatedIDsRequest
-	71, // 65: viewra.plugin.v1.HostRatings.HasRatings:input_type -> viewra.plugin.v1.HasRatingsRequest
-	93, // 66: viewra.plugin.v1.HostPlugins.ListCapabilities:input_type -> viewra.plugin.v1.Empty
-	51, // 67: viewra.plugin.v1.HostPlugins.ListProviders:input_type -> viewra.plugin.v1.CapabilityRequest
-	56, // 68: viewra.plugin.v1.HostPlugins.SetCapabilityPreference:input_type -> viewra.plugin.v1.CapabilityPreferenceRequest
-	56, // 69: viewra.plugin.v1.HostPlugins.ClearCapabilityPreference:input_type -> viewra.plugin.v1.CapabilityPreferenceRequest
-	93, // 70: viewra.plugin.v1.HostPlugins.GetCapabilityPreferences:input_type -> viewra.plugin.v1.Empty
-	58, // 71: viewra.plugin.v1.HostPlugins.InvokeCapability:input_type -> viewra.plugin.v1.CapabilityInvokeRequest
-	58, // 72: viewra.plugin.v1.HostPlugins.InvokeCapabilityStream:input_type -> viewra.plugin.v1.CapabilityInvokeRequest
-	61, // 73: viewra.plugin.v1.HostPlugins.DescribeCapability:input_type -> viewra.plugin.v1.DescribeCapabilityRequest
-	81, // 74: viewra.plugin.v1.HostPlugins.InvokeVectorSearch:input_type -> viewra.plugin.v1.VectorSearchInvokeRequest
-	73, // 75: viewra.plugin.v1.HostProgress.ListWatchedItems:input_type -> viewra.plugin.v1.ListWatchedItemsRequest
-	75, // 76: viewra.plugin.v1.HostProgress.ListInProgressItems:input_type -> viewra.plugin.v1.ListInProgressItemsRequest
-	78, // 77: viewra.plugin.v1.HostProgress.GetWatchedEntityIDs:input_type -> viewra.plugin.v1.GetWatchedEntityIDsRequest
-	79, // 78: viewra.plugin.v1.HostProgress.HasWatchHistory:input_type -> viewra.plugin.v1.HasWatchHistoryRequest
-	5,  // 79: viewra.plugin.v1.HostData.GetMedia:output_type -> viewra.plugin.v1.Media
-	11, // 80: viewra.plugin.v1.HostData.GetMediaDetails:output_type -> viewra.plugin.v1.MediaDetails
-	5,  // 81: viewra.plugin.v1.HostData.GetMediaByExternalId:output_type -> viewra.plugin.v1.Media
-	6,  // 82: viewra.plugin.v1.HostData.SearchMedia:output_type -> viewra.plugin.v1.MediaList
-	13, // 83: viewra.plugin.v1.HostData.ListMediaByLibrary:output_type -> viewra.plugin.v1.MediaDetailsList
-	8,  // 84: viewra.plugin.v1.HostData.GetLibrary:output_type -> viewra.plugin.v1.Library
-	9,  // 85: viewra.plugin.v1.HostData.GetFilePath:output_type -> viewra.plugin.v1.FilePath
-	6,  // 86: viewra.plugin.v1.HostData.ListMediaByGenre:output_type -> viewra.plugin.v1.MediaList
-	15, // 87: viewra.plugin.v1.HostStorage.KVGet:output_type -> viewra.plugin.v1.KVValue
-	93, // 88: viewra.plugin.v1.HostStorage.KVSet:output_type -> viewra.plugin.v1.Empty
-	93, // 89: viewra.plugin.v1.HostStorage.KVDelete:output_type -> viewra.plugin.v1.Empty
-	18, // 90: viewra.plugin.v1.HostStorage.KVList:output_type -> viewra.plugin.v1.KVKeyList
-	19, // 91: viewra.plugin.v1.HostStorage.GetDatabasePath:output_type -> viewra.plugin.v1.DatabasePath
-	93, // 92: viewra.plugin.v1.HostStorage.RegisterSchema:output_type -> viewra.plugin.v1.Empty
-	21, // 93: viewra.plugin.v1.HostStorage.GetDatabaseStats:output_type -> viewra.plugin.v1.DatabaseStats
-	24, // 94: viewra.plugin.v1.HostStorage.ExecuteSQL:output_type -> viewra.plugin.v1.SQLExecResult
-	25, // 95: viewra.plugin.v1.HostStorage.QuerySQL:output_type -> viewra.plugin.v1.SQLQueryResult
-	93, // 96: viewra.plugin.v1.HostStorage.VectorStoreEmbedding:output_type -> viewra.plugin.v1.Empty
-	93, // 97: viewra.plugin.v1.HostStorage.VectorStoreBatch:output_type -> viewra.plugin.v1.Empty
-	31, // 98: viewra.plugin.v1.HostStorage.VectorSearch:output_type -> viewra.plugin.v1.VectorSearchResponse
-	31, // 99: viewra.plugin.v1.HostStorage.VectorSearchText:output_type -> viewra.plugin.v1.VectorSearchResponse
-	34, // 100: viewra.plugin.v1.HostStorage.VectorGet:output_type -> viewra.plugin.v1.VectorGetResponse
-	93, // 101: viewra.plugin.v1.HostStorage.VectorDelete:output_type -> viewra.plugin.v1.Empty
-	36, // 102: viewra.plugin.v1.HostStorage.VectorDeleteByType:output_type -> viewra.plugin.v1.VectorDeleteResponse
-	37, // 103: viewra.plugin.v1.HostStorage.VectorCount:output_type -> viewra.plugin.v1.VectorCountResponse
-	40, // 104: viewra.plugin.v1.HostUserMetadata.Get:output_type -> viewra.plugin.v1.UserMetadataValue
-	93, // 105: viewra.plugin.v1.HostUserMetadata.Set:output_type -> viewra.plugin.v1.Empty
-	93, // 106: viewra.plugin.v1.HostUserMetadata.Delete:output_type -> viewra.plugin.v1.Empty
-	42, // 107: viewra.plugin.v1.HostUserMetadata.ListKeys:output_type -> viewra.plugin.v1.UserMetadataKeyList
-	44, // 108: viewra.plugin.v1.HostFileParser.ParseNFO:output_type -> viewra.plugin.v1.NFOMetadata
-	47, // 109: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:output_type -> viewra.plugin.v1.ExtractImagesResponse
-	50, // 110: viewra.plugin.v1.HostWeather.GetCurrentWeather:output_type -> viewra.plugin.v1.WeatherResponse
-	66, // 111: viewra.plugin.v1.HostRatings.ListRatings:output_type -> viewra.plugin.v1.ListRatingsResponse
-	70, // 112: viewra.plugin.v1.HostRatings.GetRatedEntityIDs:output_type -> viewra.plugin.v1.EntityIDsResponse
-	70, // 113: viewra.plugin.v1.HostRatings.GetPositivelyRatedIDs:output_type -> viewra.plugin.v1.EntityIDsResponse
-	72, // 114: viewra.plugin.v1.HostRatings.HasRatings:output_type -> viewra.plugin.v1.HasRatingsResponse
-	52, // 115: viewra.plugin.v1.HostPlugins.ListCapabilities:output_type -> viewra.plugin.v1.CapabilityListResponse
-	55, // 116: viewra.plugin.v1.HostPlugins.ListProviders:output_type -> viewra.plugin.v1.ProviderListResponse
-	93, // 117: viewra.plugin.v1.HostPlugins.SetCapabilityPreference:output_type -> viewra.plugin.v1.Empty
-	93, // 118: viewra.plugin.v1.HostPlugins.ClearCapabilityPreference:output_type -> viewra.plugin.v1.Empty
-	57, // 119: viewra.plugin.v1.HostPlugins.GetCapabilityPreferences:output_type -> viewra.plugin.v1.CapabilityPreferencesResponse
-	59, // 120: viewra.plugin.v1.HostPlugins.InvokeCapability:output_type -> viewra.plugin.v1.CapabilityInvokeResponse
-	59, // 121: viewra.plugin.v1.HostPlugins.InvokeCapabilityStream:output_type -> viewra.plugin.v1.CapabilityInvokeResponse
-	62, // 122: viewra.plugin.v1.HostPlugins.DescribeCapability:output_type -> viewra.plugin.v1.DescribeCapabilityResponse
-	82, // 123: viewra.plugin.v1.HostPlugins.InvokeVectorSearch:output_type -> viewra.plugin.v1.VectorSearchInvokeResponse
-	74, // 124: viewra.plugin.v1.HostProgress.ListWatchedItems:output_type -> viewra.plugin.v1.ListWatchedItemsResponse
-	76, // 125: viewra.plugin.v1.HostProgress.ListInProgressItems:output_type -> viewra.plugin.v1.ListInProgressItemsResponse
-	70, // 126: viewra.plugin.v1.HostProgress.GetWatchedEntityIDs:output_type -> viewra.plugin.v1.EntityIDsResponse
-	80, // 127: viewra.plugin.v1.HostProgress.HasWatchHistory:output_type -> viewra.plugin.v1.HasWatchHistoryResponse
-	79, // [79:128] is the sub-list for method output_type
-	30, // [30:79] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	88, // 2: viewra.plugin.v1.MediaDetails.external_ids:type_name -> viewra.plugin.v1.MediaDetails.ExternalIdsEntry
+	15, // 3: viewra.plugin.v1.MediaDetails.cast:type_name -> viewra.plugin.v1.MediaCastMember
+	12, // 4: viewra.plugin.v1.MediaDetails.playback_info:type_name -> viewra.plugin.v1.PlaybackInfo
+	13, // 5: viewra.plugin.v1.PlaybackInfo.audio_tracks:type_name -> viewra.plugin.v1.AudioTrack
+	14, // 6: viewra.plugin.v1.PlaybackInfo.subtitle_tracks:type_name -> viewra.plugin.v1.SubtitleTrack
+	11, // 7: viewra.plugin.v1.MediaDetailsList.items:type_name -> viewra.plugin.v1.MediaDetails
+	26, // 8: viewra.plugin.v1.SQLRequest.args:type_name -> viewra.plugin.v1.SQLValue
+	29, // 9: viewra.plugin.v1.SQLQueryResult.rows:type_name -> viewra.plugin.v1.SQLRow
+	26, // 10: viewra.plugin.v1.SQLRow.values:type_name -> viewra.plugin.v1.SQLValue
+	30, // 11: viewra.plugin.v1.VectorStoreBatchRequest.embeddings:type_name -> viewra.plugin.v1.VectorStoreRequest
+	35, // 12: viewra.plugin.v1.VectorSearchResponse.results:type_name -> viewra.plugin.v1.VectorSearchResult
+	89, // 13: viewra.plugin.v1.NFOMetadata.external_ids:type_name -> viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
+	48, // 14: viewra.plugin.v1.NFOMetadata.actors:type_name -> viewra.plugin.v1.NFOActor
+	51, // 15: viewra.plugin.v1.ExtractImagesResponse.images:type_name -> viewra.plugin.v1.ExtractedImage
+	56, // 16: viewra.plugin.v1.CapabilityListResponse.capabilities:type_name -> viewra.plugin.v1.CapabilityInfo
+	57, // 17: viewra.plugin.v1.CapabilityInfo.providers:type_name -> viewra.plugin.v1.PluginProviderInfo
+	57, // 18: viewra.plugin.v1.ProviderListResponse.providers:type_name -> viewra.plugin.v1.PluginProviderInfo
+	90, // 19: viewra.plugin.v1.CapabilityPreferencesResponse.preferences:type_name -> viewra.plugin.v1.CapabilityPreferencesResponse.PreferencesEntry
+	91, // 20: viewra.plugin.v1.CapabilityInvokeRequest.metadata:type_name -> viewra.plugin.v1.CapabilityInvokeRequest.MetadataEntry
+	63, // 21: viewra.plugin.v1.CapabilityInvokeResponse.error:type_name -> viewra.plugin.v1.CapabilityError
+	92, // 22: viewra.plugin.v1.CapabilityInvokeResponse.metadata:type_name -> viewra.plugin.v1.CapabilityInvokeResponse.MetadataEntry
+	0,  // 23: viewra.plugin.v1.CapabilityError.code:type_name -> viewra.plugin.v1.CapabilityErrorCode
+	66, // 24: viewra.plugin.v1.DescribeCapabilityResponse.methods:type_name -> viewra.plugin.v1.CapabilityMethodInfo
+	67, // 25: viewra.plugin.v1.DescribeCapabilityResponse.providers:type_name -> viewra.plugin.v1.DescribeCapabilityProviderInfo
+	70, // 26: viewra.plugin.v1.ListRatingsResponse.ratings:type_name -> viewra.plugin.v1.UserRating
+	80, // 27: viewra.plugin.v1.ListWatchedItemsResponse.items:type_name -> viewra.plugin.v1.WatchProgressItem
+	80, // 28: viewra.plugin.v1.ListInProgressItemsResponse.items:type_name -> viewra.plugin.v1.WatchProgressItem
+	93, // 29: viewra.plugin.v1.VectorSearchInvokeRequest.find_similar:type_name -> viewra.plugin.v1.FindSimilarRequest
+	94, // 30: viewra.plugin.v1.VectorSearchInvokeRequest.search:type_name -> viewra.plugin.v1.SemanticSearchRequest
+	95, // 31: viewra.plugin.v1.VectorSearchInvokeResponse.response:type_name -> viewra.plugin.v1.SemanticSearchResponse
+	63, // 32: viewra.plugin.v1.VectorSearchInvokeResponse.error:type_name -> viewra.plugin.v1.CapabilityError
+	1,  // 33: viewra.plugin.v1.HostData.GetMedia:input_type -> viewra.plugin.v1.MediaQuery
+	1,  // 34: viewra.plugin.v1.HostData.GetMediaDetails:input_type -> viewra.plugin.v1.MediaQuery
+	3,  // 35: viewra.plugin.v1.HostData.GetMediaByExternalId:input_type -> viewra.plugin.v1.ExternalIdQuery
+	4,  // 36: viewra.plugin.v1.HostData.SearchMedia:input_type -> viewra.plugin.v1.SearchQuery
+	10, // 37: viewra.plugin.v1.HostData.ListMediaByLibrary:input_type -> viewra.plugin.v1.ListMediaRequest
+	7,  // 38: viewra.plugin.v1.HostData.GetLibrary:input_type -> viewra.plugin.v1.LibraryId
+	2,  // 39: viewra.plugin.v1.HostData.GetFilePath:input_type -> viewra.plugin.v1.MediaId
+	86, // 40: viewra.plugin.v1.HostData.ListMediaByGenre:input_type -> viewra.plugin.v1.ListMediaByGenreRequest
+	17, // 41: viewra.plugin.v1.HostStorage.KVGet:input_type -> viewra.plugin.v1.KVKey
+	19, // 42: viewra.plugin.v1.HostStorage.KVSet:input_type -> viewra.plugin.v1.KVEntry
+	17, // 43: viewra.plugin.v1.HostStorage.KVDelete:input_type -> viewra.plugin.v1.KVKey
+	20, // 44: viewra.plugin.v1.HostStorage.KVList:input_type -> viewra.plugin.v1.KVListRequest
+	96, // 45: viewra.plugin.v1.HostStorage.GetDatabasePath:input_type -> viewra.plugin.v1.Empty
+	23, // 46: viewra.plugin.v1.HostStorage.RegisterSchema:input_type -> viewra.plugin.v1.SchemaVersion
+	96, // 47: viewra.plugin.v1.HostStorage.GetDatabaseStats:input_type -> viewra.plugin.v1.Empty
+	25, // 48: viewra.plugin.v1.HostStorage.ExecuteSQL:input_type -> viewra.plugin.v1.SQLRequest
+	25, // 49: viewra.plugin.v1.HostStorage.QuerySQL:input_type -> viewra.plugin.v1.SQLRequest
+	30, // 50: viewra.plugin.v1.HostStorage.VectorStoreEmbedding:input_type -> viewra.plugin.v1.VectorStoreRequest
+	31, // 51: viewra.plugin.v1.HostStorage.VectorStoreBatch:input_type -> viewra.plugin.v1.VectorStoreBatchRequest
+	32, // 52: viewra.plugin.v1.HostStorage.VectorSearch:input_type -> viewra.plugin.v1.VectorSearchRequest
+	33, // 53: viewra.plugin.v1.HostStorage.VectorSearchText:input_type -> viewra.plugin.v1.VectorTextSearchRequest
+	36, // 54: viewra.plugin.v1.HostStorage.VectorGet:input_type -> viewra.plugin.v1.VectorQuery
+	36, // 55: viewra.plugin.v1.HostStorage.VectorDelete:input_type -> viewra.plugin.v1.VectorQuery
+	38, // 56: viewra.plugin.v1.HostStorage.VectorDeleteByType:input_type -> viewra.plugin.v1.VectorTypeQuery
+	38, // 57: viewra.plugin.v1.HostStorage.VectorCount:input_type -> viewra.plugin.v1.VectorTypeQuery
+	42, // 58: viewra.plugin.v1.HostUserMetadata.Get:input_type -> viewra.plugin.v1.UserMetadataKey
+	44, // 59: viewra.plugin.v1.HostUserMetadata.Set:input_type -> viewra.plugin.v1.UserMetadataEntry
+	42, // 60: viewra.plugin.v1.HostUserMetadata.Delete:input_type -> viewra.plugin.v1.UserMetadataKey
+	41, // 61: viewra.plugin.v1.HostUserMetadata.ListKeys:input_type -> viewra.plugin.v1.UserId
+	46, // 62: viewra.plugin.v1.HostFileParser.ParseNFO:input_type -> viewra.plugin.v1.ParseNFORequest
+	49, // 63: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:input_type -> viewra.plugin.v1.ExtractImagesRequest
+	52, // 64: viewra.plugin.v1.HostWeather.GetCurrentWeather:input_type -> viewra.plugin.v1.WeatherRequest
+	68, // 65: viewra.plugin.v1.HostRatings.ListRatings:input_type -> viewra.plugin.v1.ListRatingsRequest
+	71, // 66: viewra.plugin.v1.HostRatings.GetRatedEntityIDs:input_type -> viewra.plugin.v1.GetRatedEntityIDsRequest
+	72, // 67: viewra.plugin.v1.HostRatings.GetPositivelyRatedIDs:input_type -> viewra.plugin.v1.GetPositivelyRatedIDsRequest
+	74, // 68: viewra.plugin.v1.HostRatings.HasRatings:input_type -> viewra.plugin.v1.HasRatingsRequest
+	96, // 69: viewra.plugin.v1.HostPlugins.ListCapabilities:input_type -> viewra.plugin.v1.Empty
+	54, // 70: viewra.plugin.v1.HostPlugins.ListProviders:input_type -> viewra.plugin.v1.CapabilityRequest
+	59, // 71: viewra.plugin.v1.HostPlugins.SetCapabilityPreference:input_type -> viewra.plugin.v1.CapabilityPreferenceRequest
+	59, // 72: viewra.plugin.v1.HostPlugins.ClearCapabilityPreference:input_type -> viewra.plugin.v1.CapabilityPreferenceRequest
+	96, // 73: viewra.plugin.v1.HostPlugins.GetCapabilityPreferences:input_type -> viewra.plugin.v1.Empty
+	61, // 74: viewra.plugin.v1.HostPlugins.InvokeCapability:input_type -> viewra.plugin.v1.CapabilityInvokeRequest
+	61, // 75: viewra.plugin.v1.HostPlugins.InvokeCapabilityStream:input_type -> viewra.plugin.v1.CapabilityInvokeRequest
+	64, // 76: viewra.plugin.v1.HostPlugins.DescribeCapability:input_type -> viewra.plugin.v1.DescribeCapabilityRequest
+	84, // 77: viewra.plugin.v1.HostPlugins.InvokeVectorSearch:input_type -> viewra.plugin.v1.VectorSearchInvokeRequest
+	76, // 78: viewra.plugin.v1.HostProgress.ListWatchedItems:input_type -> viewra.plugin.v1.ListWatchedItemsRequest
+	78, // 79: viewra.plugin.v1.HostProgress.ListInProgressItems:input_type -> viewra.plugin.v1.ListInProgressItemsRequest
+	81, // 80: viewra.plugin.v1.HostProgress.GetWatchedEntityIDs:input_type -> viewra.plugin.v1.GetWatchedEntityIDsRequest
+	82, // 81: viewra.plugin.v1.HostProgress.HasWatchHistory:input_type -> viewra.plugin.v1.HasWatchHistoryRequest
+	5,  // 82: viewra.plugin.v1.HostData.GetMedia:output_type -> viewra.plugin.v1.Media
+	11, // 83: viewra.plugin.v1.HostData.GetMediaDetails:output_type -> viewra.plugin.v1.MediaDetails
+	5,  // 84: viewra.plugin.v1.HostData.GetMediaByExternalId:output_type -> viewra.plugin.v1.Media
+	6,  // 85: viewra.plugin.v1.HostData.SearchMedia:output_type -> viewra.plugin.v1.MediaList
+	16, // 86: viewra.plugin.v1.HostData.ListMediaByLibrary:output_type -> viewra.plugin.v1.MediaDetailsList
+	8,  // 87: viewra.plugin.v1.HostData.GetLibrary:output_type -> viewra.plugin.v1.Library
+	9,  // 88: viewra.plugin.v1.HostData.GetFilePath:output_type -> viewra.plugin.v1.FilePath
+	6,  // 89: viewra.plugin.v1.HostData.ListMediaByGenre:output_type -> viewra.plugin.v1.MediaList
+	18, // 90: viewra.plugin.v1.HostStorage.KVGet:output_type -> viewra.plugin.v1.KVValue
+	96, // 91: viewra.plugin.v1.HostStorage.KVSet:output_type -> viewra.plugin.v1.Empty
+	96, // 92: viewra.plugin.v1.HostStorage.KVDelete:output_type -> viewra.plugin.v1.Empty
+	21, // 93: viewra.plugin.v1.HostStorage.KVList:output_type -> viewra.plugin.v1.KVKeyList
+	22, // 94: viewra.plugin.v1.HostStorage.GetDatabasePath:output_type -> viewra.plugin.v1.DatabasePath
+	96, // 95: viewra.plugin.v1.HostStorage.RegisterSchema:output_type -> viewra.plugin.v1.Empty
+	24, // 96: viewra.plugin.v1.HostStorage.GetDatabaseStats:output_type -> viewra.plugin.v1.DatabaseStats
+	27, // 97: viewra.plugin.v1.HostStorage.ExecuteSQL:output_type -> viewra.plugin.v1.SQLExecResult
+	28, // 98: viewra.plugin.v1.HostStorage.QuerySQL:output_type -> viewra.plugin.v1.SQLQueryResult
+	96, // 99: viewra.plugin.v1.HostStorage.VectorStoreEmbedding:output_type -> viewra.plugin.v1.Empty
+	96, // 100: viewra.plugin.v1.HostStorage.VectorStoreBatch:output_type -> viewra.plugin.v1.Empty
+	34, // 101: viewra.plugin.v1.HostStorage.VectorSearch:output_type -> viewra.plugin.v1.VectorSearchResponse
+	34, // 102: viewra.plugin.v1.HostStorage.VectorSearchText:output_type -> viewra.plugin.v1.VectorSearchResponse
+	37, // 103: viewra.plugin.v1.HostStorage.VectorGet:output_type -> viewra.plugin.v1.VectorGetResponse
+	96, // 104: viewra.plugin.v1.HostStorage.VectorDelete:output_type -> viewra.plugin.v1.Empty
+	39, // 105: viewra.plugin.v1.HostStorage.VectorDeleteByType:output_type -> viewra.plugin.v1.VectorDeleteResponse
+	40, // 106: viewra.plugin.v1.HostStorage.VectorCount:output_type -> viewra.plugin.v1.VectorCountResponse
+	43, // 107: viewra.plugin.v1.HostUserMetadata.Get:output_type -> viewra.plugin.v1.UserMetadataValue
+	96, // 108: viewra.plugin.v1.HostUserMetadata.Set:output_type -> viewra.plugin.v1.Empty
+	96, // 109: viewra.plugin.v1.HostUserMetadata.Delete:output_type -> viewra.plugin.v1.Empty
+	45, // 110: viewra.plugin.v1.HostUserMetadata.ListKeys:output_type -> viewra.plugin.v1.UserMetadataKeyList
+	47, // 111: viewra.plugin.v1.HostFileParser.ParseNFO:output_type -> viewra.plugin.v1.NFOMetadata
+	50, // 112: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:output_type -> viewra.plugin.v1.ExtractImagesResponse
+	53, // 113: viewra.plugin.v1.HostWeather.GetCurrentWeather:output_type -> viewra.plugin.v1.WeatherResponse
+	69, // 114: viewra.plugin.v1.HostRatings.ListRatings:output_type -> viewra.plugin.v1.ListRatingsResponse
+	73, // 115: viewra.plugin.v1.HostRatings.GetRatedEntityIDs:output_type -> viewra.plugin.v1.EntityIDsResponse
+	73, // 116: viewra.plugin.v1.HostRatings.GetPositivelyRatedIDs:output_type -> viewra.plugin.v1.EntityIDsResponse
+	75, // 117: viewra.plugin.v1.HostRatings.HasRatings:output_type -> viewra.plugin.v1.HasRatingsResponse
+	55, // 118: viewra.plugin.v1.HostPlugins.ListCapabilities:output_type -> viewra.plugin.v1.CapabilityListResponse
+	58, // 119: viewra.plugin.v1.HostPlugins.ListProviders:output_type -> viewra.plugin.v1.ProviderListResponse
+	96, // 120: viewra.plugin.v1.HostPlugins.SetCapabilityPreference:output_type -> viewra.plugin.v1.Empty
+	96, // 121: viewra.plugin.v1.HostPlugins.ClearCapabilityPreference:output_type -> viewra.plugin.v1.Empty
+	60, // 122: viewra.plugin.v1.HostPlugins.GetCapabilityPreferences:output_type -> viewra.plugin.v1.CapabilityPreferencesResponse
+	62, // 123: viewra.plugin.v1.HostPlugins.InvokeCapability:output_type -> viewra.plugin.v1.CapabilityInvokeResponse
+	62, // 124: viewra.plugin.v1.HostPlugins.InvokeCapabilityStream:output_type -> viewra.plugin.v1.CapabilityInvokeResponse
+	65, // 125: viewra.plugin.v1.HostPlugins.DescribeCapability:output_type -> viewra.plugin.v1.DescribeCapabilityResponse
+	85, // 126: viewra.plugin.v1.HostPlugins.InvokeVectorSearch:output_type -> viewra.plugin.v1.VectorSearchInvokeResponse
+	77, // 127: viewra.plugin.v1.HostProgress.ListWatchedItems:output_type -> viewra.plugin.v1.ListWatchedItemsResponse
+	79, // 128: viewra.plugin.v1.HostProgress.ListInProgressItems:output_type -> viewra.plugin.v1.ListInProgressItemsResponse
+	73, // 129: viewra.plugin.v1.HostProgress.GetWatchedEntityIDs:output_type -> viewra.plugin.v1.EntityIDsResponse
+	83, // 130: viewra.plugin.v1.HostProgress.HasWatchHistory:output_type -> viewra.plugin.v1.HasWatchHistoryResponse
+	82, // [82:131] is the sub-list for method output_type
+	33, // [33:82] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_plugin_host_services_proto_init() }
@@ -6059,7 +6389,7 @@ func file_api_proto_plugin_host_services_proto_init() {
 	}
 	file_api_proto_plugin_common_proto_init()
 	file_api_proto_plugin_vector_search_proto_init()
-	file_api_proto_plugin_host_services_proto_msgTypes[22].OneofWrappers = []any{
+	file_api_proto_plugin_host_services_proto_msgTypes[25].OneofWrappers = []any{
 		(*SQLValue_StringValue)(nil),
 		(*SQLValue_IntValue)(nil),
 		(*SQLValue_DoubleValue)(nil),
@@ -6072,7 +6402,7 @@ func file_api_proto_plugin_host_services_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_plugin_host_services_proto_rawDesc), len(file_api_proto_plugin_host_services_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   89,
+			NumMessages:   92,
 			NumExtensions: 0,
 			NumServices:   8,
 		},

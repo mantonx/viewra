@@ -78,3 +78,5 @@ export {
   getSuggestionsQueryOptions,
   getSearchProviderInfoQueryOptions,
 } from './useWidgets'
+export { useAutocomplete } from './useAutocomplete'
+export type { AutocompleteSuggestion } from './useAutocomplete'

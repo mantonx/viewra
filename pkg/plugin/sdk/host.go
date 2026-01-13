@@ -197,6 +197,11 @@ type MediaDetails struct {
 	Producers        []string
 	LocationKeywords []string
 	ThemeKeywords    []string
+	Composers        []string // Music composers
+	Cinematographers []string // Directors of Photography
+
+	// Playback information for filtering by technical specs
+	PlaybackInfo *PlaybackInfo
 
 	// TV-specific
 	ShowTitle     string
@@ -209,6 +214,41 @@ type MediaDetails struct {
 	Biography   string
 	Country     string
 	ReleaseType string
+}
+
+// PlaybackInfo contains technical playback metadata for filtering.
+// Used for queries like "4K movies", "Dolby Vision content", "movies with subtitles".
+type PlaybackInfo struct {
+	// Video specs
+	Width           int    // Video width in pixels
+	Height          int    // Video height in pixels
+	ResolutionLabel string // "SD", "720p", "1080p", "4K", "8K"
+	HDRFormat       string // "SDR", "HDR10", "HDR10+", "Dolby Vision", "HLG"
+	VideoCodec      string // "h264", "hevc", "av1", etc.
+	Bitrate         int64  // Video bitrate in bits/second
+
+	// Audio and subtitle tracks
+	AudioTracks    []AudioTrack
+	SubtitleTracks []SubtitleTrack
+}
+
+// AudioTrack represents an audio stream in a media file.
+type AudioTrack struct {
+	Codec         string // "aac", "ac3", "eac3", "truehd", "dts", "dts-hd", "flac"
+	Channels      int    // Number of channels (2, 6, 8, etc.)
+	ChannelLayout string // "stereo", "5.1", "7.1", "Atmos"
+	Language      string // ISO 639-1/2 code, e.g., "en", "eng"
+	IsDefault     bool
+	IsCommentary  bool
+}
+
+// SubtitleTrack represents a subtitle stream in a media file.
+type SubtitleTrack struct {
+	Language   string // ISO 639-1/2 code
+	Codec      string // "srt", "ass", "pgs", "vobsub"
+	IsForced   bool
+	IsSDH      bool // Subtitles for Deaf/Hard of Hearing
+	IsExternal bool // External file vs embedded
 }
 
 // MediaList is a paginated list of media.
@@ -263,6 +303,9 @@ func protoToMediaDetails(m *pluginv1.MediaDetails) *MediaDetails {
 		Producers:        m.Producers,
 		LocationKeywords: m.LocationKeywords,
 		ThemeKeywords:    m.ThemeKeywords,
+		Composers:        m.Composers,
+		Cinematographers: m.Cinematographers,
+		PlaybackInfo:     protoToPlaybackInfo(m.PlaybackInfo),
 		ShowTitle:        m.ShowTitle,
 		SeasonNumber:     int(m.SeasonNumber),
 		EpisodeNumber:    int(m.EpisodeNumber),
@@ -271,6 +314,47 @@ func protoToMediaDetails(m *pluginv1.MediaDetails) *MediaDetails {
 		Biography:        m.Biography,
 		Country:          m.Country,
 		ReleaseType:      m.ReleaseType,
+	}
+}
+
+// protoToPlaybackInfo converts proto PlaybackInfo to SDK PlaybackInfo.
+func protoToPlaybackInfo(p *pluginv1.PlaybackInfo) *PlaybackInfo {
+	if p == nil {
+		return nil
+	}
+
+	audioTracks := make([]AudioTrack, len(p.AudioTracks))
+	for i, t := range p.AudioTracks {
+		audioTracks[i] = AudioTrack{
+			Codec:         t.Codec,
+			Channels:      int(t.Channels),
+			ChannelLayout: t.ChannelLayout,
+			Language:      t.Language,
+			IsDefault:     t.IsDefault,
+			IsCommentary:  t.IsCommentary,
+		}
+	}
+
+	subtitleTracks := make([]SubtitleTrack, len(p.SubtitleTracks))
+	for i, t := range p.SubtitleTracks {
+		subtitleTracks[i] = SubtitleTrack{
+			Language:   t.Language,
+			Codec:      t.Codec,
+			IsForced:   t.IsForced,
+			IsSDH:      t.IsSdh,
+			IsExternal: t.IsExternal,
+		}
+	}
+
+	return &PlaybackInfo{
+		Width:           int(p.Width),
+		Height:          int(p.Height),
+		ResolutionLabel: p.ResolutionLabel,
+		HDRFormat:       p.HdrFormat,
+		VideoCodec:      p.VideoCodec,
+		Bitrate:         p.Bitrate,
+		AudioTracks:     audioTracks,
+		SubtitleTracks:  subtitleTracks,
 	}
 }
 

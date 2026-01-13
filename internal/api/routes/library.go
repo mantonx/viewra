@@ -16,6 +16,7 @@ func RegisterLibraryRoutes(rg *gin.RouterGroup, handler *handlers.LibraryHandler
 
 	// Scan operations
 	libraries.POST("/:id/scan", handler.Scan)
+	libraries.POST("/:id/scan/targeted", handler.TargetedScan)
 	libraries.GET("/:id/scan/status", scanHandler.GetStatus)
 	libraries.GET("/:id/scan/history", scanHandler.GetHistory)
 	libraries.GET("/:id/scan/stream", scanHandler.StreamProgress)

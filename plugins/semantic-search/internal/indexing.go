@@ -332,6 +332,16 @@ func (s *IndexingService) buildMovieText(m *sdk.MediaDetails) string {
 		b.WriteString(fmt.Sprintf("Themes: %s\n", strings.Join(m.ThemeKeywords, ", ")))
 	}
 
+	// Composers (for "music by Hans Zimmer" searches)
+	if len(m.Composers) > 0 {
+		b.WriteString(fmt.Sprintf("Music by: %s\n", strings.Join(m.Composers, ", ")))
+	}
+
+	// Cinematographers (for "shot by Roger Deakins" searches)
+	if len(m.Cinematographers) > 0 {
+		b.WriteString(fmt.Sprintf("Cinematography by: %s\n", strings.Join(m.Cinematographers, ", ")))
+	}
+
 	return b.String()
 }
 
@@ -422,6 +432,16 @@ func (s *IndexingService) buildTVShowText(m *sdk.MediaDetails) string {
 	// Theme keywords (from TMDB) - themes, plot elements, character types, etc.
 	if len(m.ThemeKeywords) > 0 {
 		b.WriteString(fmt.Sprintf("Themes: %s\n", strings.Join(m.ThemeKeywords, ", ")))
+	}
+
+	// Composers (for "music by Hans Zimmer" searches)
+	if len(m.Composers) > 0 {
+		b.WriteString(fmt.Sprintf("Music by: %s\n", strings.Join(m.Composers, ", ")))
+	}
+
+	// Cinematographers (for "shot by Roger Deakins" searches)
+	if len(m.Cinematographers) > 0 {
+		b.WriteString(fmt.Sprintf("Cinematography by: %s\n", strings.Join(m.Cinematographers, ", ")))
 	}
 
 	return b.String()

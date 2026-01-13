@@ -10,8 +10,9 @@ INSERT INTO scan_jobs (
     started_at,
     phase,
     estimated_total,
-    discovery_done
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    discovery_done,
+    target_paths
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: GetScanJob :one

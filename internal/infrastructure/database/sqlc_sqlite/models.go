@@ -462,6 +462,7 @@ type ScanJob struct {
 	DirsScanned       sql.NullInt64   `json:"dirs_scanned"`
 	DirsSkipped       sql.NullInt64   `json:"dirs_skipped"`
 	FilesSkipped      sql.NullInt64   `json:"files_skipped"`
+	TargetPaths       sql.NullString  `json:"target_paths"`
 }
 
 type ScanState struct {

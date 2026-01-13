@@ -214,6 +214,8 @@ type Querier interface {
 	GetCreditsForEntity(ctx context.Context, arg GetCreditsForEntityParams) ([]GetCreditsForEntityRow, error)
 	GetCreditsForEntityByType(ctx context.Context, arg GetCreditsForEntityByTypeParams) ([]GetCreditsForEntityByTypeRow, error)
 	GetCreditsForPerson(ctx context.Context, personID int64) ([]GetCreditsForPersonRow, error)
+	// Fetches crew members by department and job (e.g., Sound/Original Music Composer, Camera/Director of Photography)
+	GetCrewByJob(ctx context.Context, arg GetCrewByJobParams) ([]GetCrewByJobRow, error)
 	// Get the currently processing enrichment item with its title for a library.
 	// Joins with media/tv_shows/tv_seasons/music tables to get the title.
 	// Returns the first processing item (by locked_at) for the library.
@@ -443,9 +445,9 @@ type Querier interface {
 	ListProcessingTranscodeJobs(ctx context.Context) ([]TranscodeJob, error)
 	ListQualitySwitchEventsBySessionID(ctx context.Context, sessionID string) ([]QualitySwitchEvent, error)
 	ListQueuedTranscodeJobs(ctx context.Context, limit int64) ([]TranscodeJob, error)
-	// Returns recently added movies across all libraries, ordered by creation date
+	// Returns recently added movies across all libraries, ordered by most recently updated
 	ListRecentlyAddedMovies(ctx context.Context, limit int64) ([]ListRecentlyAddedMoviesRow, error)
-	// Returns recently added TV shows across all libraries, ordered by newest episode date
+	// Returns recently added TV shows across all libraries, ordered by most recently updated
 	ListRecentlyAddedTVShows(ctx context.Context, limit int64) ([]ListRecentlyAddedTVShowsRow, error)
 	ListRunningScanJobs(ctx context.Context) ([]ScanJob, error)
 	ListScanJobsByLibrary(ctx context.Context, arg ListScanJobsByLibraryParams) ([]ScanJob, error)

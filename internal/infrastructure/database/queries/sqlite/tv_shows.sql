@@ -616,7 +616,7 @@ ORDER BY COALESCE(NULLIF(sort_title, ''), title) COLLATE NOCASE
 LIMIT ?;
 
 -- name: ListRecentlyAddedTVShows :many
--- Returns recently added TV shows across all libraries, ordered by newest episode date
+-- Returns recently added TV shows across all libraries, ordered by most recently updated
 SELECT
     s.id,
     s.library_id,
@@ -630,13 +630,9 @@ SELECT
     s.imdb_id,
     s.tmdb_id,
     s.created_at,
-    MAX(med.created_at) as latest_episode_added
+    s.updated_at
 FROM tv_shows s
-JOIN tv_episodes e ON s.id = e.show_id
-JOIN media med ON e.media_id = med.id
-WHERE med.is_extra = 0
-GROUP BY s.id
-ORDER BY latest_episode_added DESC
+ORDER BY s.updated_at DESC
 LIMIT ?;
 
 -- name: ListTVShowsByGenre :many

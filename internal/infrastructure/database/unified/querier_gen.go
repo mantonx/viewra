@@ -1284,6 +1284,14 @@ func (q *Querier) GetCreditsForPerson(ctx context.Context, personID int64) ([]sq
 	return q.sqlite.GetCreditsForPerson(ctx, personID)
 }
 
+func (q *Querier) GetCrewByJob(ctx context.Context, arg sqlc_sqlite.GetCrewByJobParams) ([]sqlc_sqlite.GetCrewByJobRow, error) {
+	if q.isPostgres {
+		r0, err := q.postgres.GetCrewByJob(ctx, sqlc_postgres.GetCrewByJobParams(arg))
+		return castSlice[sqlc_postgres.GetCrewByJobRow, sqlc_sqlite.GetCrewByJobRow](r0), err
+	}
+	return q.sqlite.GetCrewByJob(ctx, arg)
+}
+
 func (q *Querier) GetCurrentEnrichmentItem(ctx context.Context, libraryID sql.NullInt64) (sqlc_sqlite.GetCurrentEnrichmentItemRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetCurrentEnrichmentItem(ctx, libraryID)

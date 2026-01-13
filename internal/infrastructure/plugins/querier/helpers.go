@@ -157,6 +157,39 @@ func (q *DBMediaQuerier) getCreditsForEntity(ctx context.Context, mediaType stri
 	return cast, directors, writers, producers
 }
 
+// getCrewForEntity fetches composers and cinematographers from the credits table.
+// Composers are identified by department="Sound" and job="Original Music Composer".
+// Cinematographers are identified by department="Camera" and job="Director of Photography".
+func (q *DBMediaQuerier) getCrewForEntity(ctx context.Context, mediaType string, entityID int64) (composers, cinematographers []string) {
+	// Fetch composers (Sound department, Original Music Composer job)
+	composerRows, err := q.querier.GetCrewByJob(ctx, unified.GetCrewByJobParams{
+		MediaType:  mediaType,
+		EntityID:   entityID,
+		Department: common.NullString("Sound"),
+		Job:        common.NullString("Original Music Composer"),
+	})
+	if err == nil {
+		for _, row := range composerRows {
+			composers = append(composers, row.PersonName)
+		}
+	}
+
+	// Fetch cinematographers (Camera department, Director of Photography job)
+	dpRows, err := q.querier.GetCrewByJob(ctx, unified.GetCrewByJobParams{
+		MediaType:  mediaType,
+		EntityID:   entityID,
+		Department: common.NullString("Camera"),
+		Job:        common.NullString("Director of Photography"),
+	})
+	if err == nil {
+		for _, row := range dpRows {
+			cinematographers = append(cinematographers, row.PersonName)
+		}
+	}
+
+	return composers, cinematographers
+}
+
 // getPrimaryAudioLanguage fetches the primary audio track language for a media item.
 // This is used as a fallback when original_language is not set in metadata.
 // Returns the normalized ISO 639-1 code (e.g., "ko", "ja", "en") or empty string.
@@ -234,4 +267,77 @@ func (q *DBMediaQuerier) getThemeKeywordsForEntity(ctx context.Context, mediaTyp
 	}
 
 	return keywords
+}
+
+// getPlaybackInfoForMedia fetches playback information (video specs, audio/subtitle tracks) for a media item.
+// This is used for playback constraint filtering (e.g., "4K movies", "Dolby Vision", "movies with subtitles").
+func (q *DBMediaQuerier) getPlaybackInfoForMedia(ctx context.Context, mediaID int64) *PlaybackInfoData {
+	// Get media record for video specs
+	media, err := q.querier.GetMediaByID(ctx, mediaID)
+	if err != nil {
+		return nil
+	}
+
+	playback := &PlaybackInfoData{}
+
+	// Extract video specs from media record
+	if media.Width.Valid {
+		playback.Width = int(media.Width.Int64)
+	}
+	if media.Height.Valid {
+		playback.Height = int(media.Height.Int64)
+	}
+	if media.ResolutionLabel.Valid {
+		playback.ResolutionLabel = media.ResolutionLabel.String
+	}
+	if media.HdrFormat.Valid {
+		playback.HDRFormat = media.HdrFormat.String
+	}
+	if media.Codec.Valid {
+		playback.VideoCodec = media.Codec.String
+	}
+	if media.BitRate.Valid {
+		playback.Bitrate = media.BitRate.Int64
+	}
+
+	// Get audio tracks
+	audioTracks, err := q.querier.GetAudioTracksByMediaID(ctx, mediaID)
+	if err == nil {
+		for _, track := range audioTracks {
+			audioInfo := AudioTrackInfo{
+				Codec:        track.Codec,
+				Channels:     int(track.Channels),
+				IsDefault:    common.NullInt64ToBool(track.IsDefault),
+				IsCommentary: common.NullInt64ToBool(track.IsCommentary),
+			}
+			if track.ChannelLayout.Valid {
+				audioInfo.ChannelLayout = track.ChannelLayout.String
+			}
+			if track.Language.Valid {
+				audioInfo.Language = track.Language.String
+			}
+			playback.AudioTracks = append(playback.AudioTracks, audioInfo)
+		}
+	}
+
+	// Get subtitle tracks
+	subtitleTracks, err := q.querier.GetSubtitleTracksByMediaID(ctx, mediaID)
+	if err == nil {
+		for _, track := range subtitleTracks {
+			subInfo := SubtitleTrackInfo{
+				IsForced:   common.NullInt64ToBool(track.IsForced),
+				IsSDH:      common.NullInt64ToBool(track.IsSdh),
+				IsExternal: track.SourceType == "external",
+			}
+			if track.Language.Valid {
+				subInfo.Language = track.Language.String
+			}
+			if track.Codec.Valid {
+				subInfo.Codec = track.Codec.String
+			}
+			playback.SubtitleTracks = append(playback.SubtitleTracks, subInfo)
+		}
+	}
+
+	return playback
 }

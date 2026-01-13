@@ -21,13 +21,20 @@ type EnrichmentEnqueuer interface {
 	EnqueueStage(ctx context.Context, mediaID int64, libraryID int64, mediaType enrichment.MediaType, stage string, priority int) error
 }
 
+// ScanOrchestrator is the interface for triggering library scans.
+type ScanOrchestrator interface {
+	// StartTargetedScan initiates a scan for specific paths within a library.
+	StartTargetedScan(ctx context.Context, libraryID int64, targetPaths []string) (interface{}, error)
+}
+
 // Handler processes debounced file events and triggers appropriate enrichment.
 type Handler struct {
-	libraryRepo library.Repository
-	mediaRepo   media.Repository
-	enqueuer    EnrichmentEnqueuer
-	eventBus    domainevents.Publisher
-	logger      *slog.Logger
+	libraryRepo      library.Repository
+	mediaRepo        media.Repository
+	enqueuer         EnrichmentEnqueuer
+	scanOrchestrator ScanOrchestrator // For triggering targeted scans on new files
+	eventBus         domainevents.Publisher
+	logger           *slog.Logger
 
 	// Cache of library paths for efficient lookup
 	libraryCache   map[int64]*library.Library
@@ -39,16 +46,18 @@ func NewHandler(
 	libraryRepo library.Repository,
 	mediaRepo media.Repository,
 	enqueuer EnrichmentEnqueuer,
+	scanOrchestrator ScanOrchestrator,
 	eventBus domainevents.Publisher,
 	logger *slog.Logger,
 ) *Handler {
 	return &Handler{
-		libraryRepo:  libraryRepo,
-		mediaRepo:    mediaRepo,
-		enqueuer:     enqueuer,
-		eventBus:     eventBus,
-		logger:       logger.With("component", "monitor_handler"),
-		libraryCache: make(map[int64]*library.Library),
+		libraryRepo:      libraryRepo,
+		mediaRepo:        mediaRepo,
+		enqueuer:         enqueuer,
+		scanOrchestrator: scanOrchestrator,
+		eventBus:         eventBus,
+		logger:           logger.With("component", "monitor_handler"),
+		libraryCache:     make(map[int64]*library.Library),
 	}
 }
 
@@ -112,16 +121,28 @@ func (h *Handler) handleCreateOrModify(ctx context.Context, event DebouncedEvent
 	// For media files, we need to find the existing media item
 	// For NFO/images, we need to find the parent media item
 	mediaItem, err := h.findMediaItem(ctx, event, lib, relPath)
-	if err != nil {
+	if err != nil || mediaItem == nil {
 		h.logger.Debug("Could not find media item for file",
 			"path", relPath,
 			"error", err)
-		// If it's a new media file, we should trigger a mini-scan
-		// For now, just log - the full solution would involve the scanner
-		if event.ChangeType == FileChangeMedia && event.LastOp == OpCreate {
-			h.logger.Info("New media file detected - consider triggering rescan",
+		// If it's a new media file, trigger a targeted scan to process it
+		if event.ChangeType == FileChangeMedia && event.LastOp == OpCreate && h.scanOrchestrator != nil {
+			h.logger.Info("New media file detected - triggering targeted scan",
 				"library_id", lib.ID,
 				"path", relPath)
+
+			// Get parent directory for scanning
+			// This handles cases where multiple files might be added at once
+			parentDir := filepath.Dir(relPath)
+			targetPaths := []string{parentDir}
+
+			_, scanErr := h.scanOrchestrator.StartTargetedScan(ctx, lib.ID, targetPaths)
+			if scanErr != nil {
+				h.logger.Error("Failed to start targeted scan for new file",
+					"library_id", lib.ID,
+					"path", relPath,
+					"error", scanErr)
+			}
 		}
 		return nil
 	}

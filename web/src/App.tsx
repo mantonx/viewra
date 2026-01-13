@@ -7,6 +7,9 @@ import { ToastContainer, ConfirmDialog } from '@/components/ui'
 import { ThemeProvider, AuthProvider, ServerStatusProvider } from '@/contexts'
 import { ServerStatusOverlay } from '@/components/common'
 
+// Initialize all optional features/plugins
+import '@/features'
+
 // Create a new query client instance
 const queryClient = new QueryClient({
   defaultOptions: {

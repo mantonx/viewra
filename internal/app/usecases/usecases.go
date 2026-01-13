@@ -127,7 +127,7 @@ func BuildUseCases(
 	txManager *common.TxManager,
 	logger *slog.Logger,
 ) *UseCases {
-	return &UseCases{
+	useCases := &UseCases{
 		Library:            buildLibraryUseCases(repos, svcs, txManager, logger, cfg),
 		Media:              buildMediaUseCases(repos, svcs, txManager, logger, cfg.Images.CacheDir),
 		Movies:             buildMovieUseCases(repos),
@@ -141,6 +141,13 @@ func BuildUseCases(
 		ScanJob:            scanjob.NewService(repos.ScanJob, repos.Checkpoint, repos.ScanState, logger),
 		TranscodeAnalytics: transcodeanalytics.NewService(repos.TranscodeAnalytics, svcs.EventBus, logger),
 	}
+
+	// Wire up file monitor with scan orchestrator (resolves circular dependency)
+	if svcs.FileMonitor != nil && useCases.Library != nil && useCases.Library.Scan != nil {
+		svcs.FileMonitor.SetScanOrchestrator(useCases.Library.Scan)
+	}
+
+	return useCases
 }
 
 // buildLibraryUseCases creates library use cases

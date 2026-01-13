@@ -50,6 +50,10 @@ type ScanJob struct {
 	DirsScanned       int64 // Directories successfully scanned
 	DirsSkipped       int64 // Directories that couldn't be read
 	FilesSkipped      int64 // Files that couldn't be stat'd during discovery
+
+	// Targeted scanning (optional - if set, only scan these specific paths)
+	// Paths are relative to the library root
+	TargetPaths []string
 }
 
 // FileInfo represents a discovered file during scanning

@@ -570,6 +570,96 @@ func (q *Queries) GetCreditsForPerson(ctx context.Context, personID int64) ([]Ge
 	return items, nil
 }
 
+const getCrewByJob = `-- name: GetCrewByJob :many
+SELECT
+    c.id, c.person_id, c.media_type, c.entity_id, c.credit_type, c.character_name, c.department, c.job, c.billing_order, c.created_at,
+    p.id as person_id,
+    p.name as person_name,
+    p.sort_name as person_sort_name,
+    p.photo_path as person_photo_path,
+    p.photo_url as person_photo_url,
+    p.imdb_id as person_imdb_id,
+    p.tmdb_id as person_tmdb_id
+FROM credits c
+JOIN people p ON c.person_id = p.id
+WHERE c.media_type = ? AND c.entity_id = ? AND c.department = ? AND c.job = ?
+ORDER BY c.billing_order, p.name
+`
+
+type GetCrewByJobParams struct {
+	MediaType  string         `json:"media_type"`
+	EntityID   int64          `json:"entity_id"`
+	Department sql.NullString `json:"department"`
+	Job        sql.NullString `json:"job"`
+}
+
+type GetCrewByJobRow struct {
+	ID              int64          `json:"id"`
+	PersonID        int64          `json:"person_id"`
+	MediaType       string         `json:"media_type"`
+	EntityID        int64          `json:"entity_id"`
+	CreditType      string         `json:"credit_type"`
+	CharacterName   sql.NullString `json:"character_name"`
+	Department      sql.NullString `json:"department"`
+	Job             sql.NullString `json:"job"`
+	BillingOrder    sql.NullInt64  `json:"billing_order"`
+	CreatedAt       sql.NullTime   `json:"created_at"`
+	PersonID_2      int64          `json:"person_id_2"`
+	PersonName      string         `json:"person_name"`
+	PersonSortName  sql.NullString `json:"person_sort_name"`
+	PersonPhotoPath sql.NullString `json:"person_photo_path"`
+	PersonPhotoUrl  sql.NullString `json:"person_photo_url"`
+	PersonImdbID    sql.NullString `json:"person_imdb_id"`
+	PersonTmdbID    sql.NullInt64  `json:"person_tmdb_id"`
+}
+
+// Fetches crew members by department and job (e.g., Sound/Original Music Composer, Camera/Director of Photography)
+func (q *Queries) GetCrewByJob(ctx context.Context, arg GetCrewByJobParams) ([]GetCrewByJobRow, error) {
+	rows, err := q.db.QueryContext(ctx, getCrewByJob,
+		arg.MediaType,
+		arg.EntityID,
+		arg.Department,
+		arg.Job,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCrewByJobRow{}
+	for rows.Next() {
+		var i GetCrewByJobRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PersonID,
+			&i.MediaType,
+			&i.EntityID,
+			&i.CreditType,
+			&i.CharacterName,
+			&i.Department,
+			&i.Job,
+			&i.BillingOrder,
+			&i.CreatedAt,
+			&i.PersonID_2,
+			&i.PersonName,
+			&i.PersonSortName,
+			&i.PersonPhotoPath,
+			&i.PersonPhotoUrl,
+			&i.PersonImdbID,
+			&i.PersonTmdbID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDirectorsForEntity = `-- name: GetDirectorsForEntity :many
 SELECT
     c.id, c.person_id, c.media_type, c.entity_id, c.credit_type, c.character_name, c.department, c.job, c.billing_order, c.created_at,

@@ -283,6 +283,50 @@ func mediaDetailsToProto(d *MediaDetailsInfo) *pluginv1.MediaDetails {
 		ReleaseType:      d.ReleaseType,
 		LocationKeywords: d.LocationKeywords,
 		ThemeKeywords:    d.ThemeKeywords,
+		Composers:        d.Composers,
+		Cinematographers: d.Cinematographers,
+		PlaybackInfo:     playbackInfoToProto(d.PlaybackInfo),
+	}
+}
+
+// playbackInfoToProto converts PlaybackInfoData to proto PlaybackInfo.
+func playbackInfoToProto(p *querier.PlaybackInfoData) *pluginv1.PlaybackInfo {
+	if p == nil {
+		return nil
+	}
+
+	audioTracks := make([]*pluginv1.AudioTrack, len(p.AudioTracks))
+	for i, t := range p.AudioTracks {
+		audioTracks[i] = &pluginv1.AudioTrack{
+			Codec:         t.Codec,
+			Channels:      int32(t.Channels),
+			ChannelLayout: t.ChannelLayout,
+			Language:      t.Language,
+			IsDefault:     t.IsDefault,
+			IsCommentary:  t.IsCommentary,
+		}
+	}
+
+	subtitleTracks := make([]*pluginv1.SubtitleTrack, len(p.SubtitleTracks))
+	for i, t := range p.SubtitleTracks {
+		subtitleTracks[i] = &pluginv1.SubtitleTrack{
+			Language:   t.Language,
+			Codec:      t.Codec,
+			IsForced:   t.IsForced,
+			IsSdh:      t.IsSDH,
+			IsExternal: t.IsExternal,
+		}
+	}
+
+	return &pluginv1.PlaybackInfo{
+		Width:           int32(p.Width),
+		Height:          int32(p.Height),
+		ResolutionLabel: p.ResolutionLabel,
+		HdrFormat:       p.HDRFormat,
+		VideoCodec:      p.VideoCodec,
+		Bitrate:         p.Bitrate,
+		AudioTracks:     audioTracks,
+		SubtitleTracks:  subtitleTracks,
 	}
 }
 

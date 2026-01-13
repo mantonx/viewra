@@ -141,6 +141,7 @@ type (
 	GetCreatorsForEntityParams = sqlc_sqlite.GetCreatorsForEntityParams
 	GetCreditsForEntityByTypeParams = sqlc_sqlite.GetCreditsForEntityByTypeParams
 	GetCreditsForEntityParams = sqlc_sqlite.GetCreditsForEntityParams
+	GetCrewByJobParams = sqlc_sqlite.GetCrewByJobParams
 	GetDirectorsForEntityParams = sqlc_sqlite.GetDirectorsForEntityParams
 	GetEnrichmentJobByMediaAndStageParams = sqlc_sqlite.GetEnrichmentJobByMediaAndStageParams
 	GetEnrichmentStatusByMediaParams = sqlc_sqlite.GetEnrichmentStatusByMediaParams
@@ -324,6 +325,7 @@ type (
 	GetCreditsForEntityByTypeRow = sqlc_sqlite.GetCreditsForEntityByTypeRow
 	GetCreditsForEntityRow = sqlc_sqlite.GetCreditsForEntityRow
 	GetCreditsForPersonRow = sqlc_sqlite.GetCreditsForPersonRow
+	GetCrewByJobRow = sqlc_sqlite.GetCrewByJobRow
 	GetCurrentEnrichmentItemRow = sqlc_sqlite.GetCurrentEnrichmentItemRow
 	GetDirectorsForEntityRow = sqlc_sqlite.GetDirectorsForEntityRow
 	GetEnrichmentQueueStatsByMediaRow = sqlc_sqlite.GetEnrichmentQueueStatsByMediaRow

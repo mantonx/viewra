@@ -7,14 +7,14 @@ INSERT INTO media (
     codec, audio_codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format,
     color_space, color_primaries, thumbnail_path, type, source_type,
     resolution_label, quality_score, is_3d, stereo_mode, has_dash,
-    dash_manifest_path, transcoding_status, is_extra
+    dash_manifest_path, transcoding_status, is_extra, date_modified
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9, $10,
     $11, $12, $13, $14, $15, $16, $17,
     $18, $19, $20, $21, $22,
     $23, $24, $25, $26, $27,
-    $28, $29, $30
+    $28, $29, $30, $31
 ) RETURNING *;
 
 -- name: GetMediaByID :one
@@ -71,9 +71,9 @@ SET library_id = $1,
     dash_manifest_path = $28,
     transcoding_status = $29,
     is_extra = $30,
-    date_modified = CURRENT_TIMESTAMP,
+    date_modified = $31,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $31
+WHERE id = $32
 RETURNING *;
 
 -- name: DeleteMedia :exec

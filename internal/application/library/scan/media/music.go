@@ -116,6 +116,7 @@ func ProcessMusicTrack(
 		}
 	}
 
+	now := time.Now()
 	track := &media.MusicTrack{
 		Media: media.Media{
 			LibraryID:       libraryID,
@@ -129,8 +130,10 @@ func ProcessMusicTrack(
 			Bitrate:         result.Bitrate,
 			ContainerFormat: result.ContainerFormat,
 			Type:            "music_track",
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
+			DateAdded:       now,
+			DateModified:    &result.FileMTime,
+			CreatedAt:       now,
+			UpdatedAt:       now,
 		},
 		// Basic metadata
 		Artist:      artist,

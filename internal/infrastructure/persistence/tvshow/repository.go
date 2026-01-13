@@ -461,6 +461,7 @@ func (r *Repository) ListRecentlyAddedShows(ctx context.Context, limit int) ([]m
 			IMDbID:        common.ParseNullString(row.ImdbID),
 			TMDbID:        int(common.ParseNullInt64(row.TmdbID)),
 			CreatedAt:     common.ParseNullTime(row.CreatedAt),
+			UpdatedAt:     common.ParseNullTime(row.UpdatedAt),
 		}
 	}
 	return shows, nil

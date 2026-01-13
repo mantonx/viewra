@@ -44,7 +44,7 @@ func SettingsSchema() *sdk.Schema {
 		Property("exploration_weight", sdk.Integer().
 			Title("Exploration Weight").
 			Description("Weight for discovery of new content outside your usual preferences (0-100)").
-			Default(20).
+			Default(10).
 			Min(0).
 			Max(100)).
 		// Legacy algorithm weights (deprecated but kept for backwards compatibility)

@@ -172,7 +172,8 @@ func BuildServices(
 	pluginManager, hostPluginsServer := initPluginManager(cfg, repos, db, dbDriver, locationRepo, weatherService, eventBus, settingsService, logger)
 
 	// Initialize file monitor service
-	fileMonitor := monitor.NewService(repos.Library, repos.Media, pipelineManager, eventBus, logger.With("component", "file-monitor"))
+	// Note: scan orchestrator will be set later after use cases are created
+	fileMonitor := monitor.NewService(repos.Library, repos.Media, pipelineManager, nil, eventBus, logger.With("component", "file-monitor"))
 
 	// Initialize search service for fallback text search
 	searchService := appSearch.NewService(repos.Search, logger.With("component", "search"))

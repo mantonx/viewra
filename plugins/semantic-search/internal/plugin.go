@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/mantonx/viewra/pkg/plugin/sdk"
 	"gopkg.in/yaml.v3"
@@ -28,12 +29,13 @@ type SemanticSearchPlugin struct {
 	weather *sdk.WeatherClient // For weather/location context
 
 	// Services
-	embeddingService *EmbeddingService
-	searchService    *SearchService
-	indexingService  *IndexingService
-	moodTagService   *MoodTagService
-	contextEnricher  *ContextEnricher
-	queryRewriter    *QueryRewriter
+	embeddingService    *EmbeddingService
+	searchService       *SearchService
+	indexingService     *IndexingService
+	moodTagService      *MoodTagService
+	contextEnricher     *ContextEnricher
+	queryRewriter       *QueryRewriter
+	autocompleteService *AutocompleteService
 
 	mu sync.RWMutex
 }
@@ -153,6 +155,36 @@ func (p *SemanticSearchPlugin) runMigrations(ctx context.Context) error {
 			);
 			CREATE INDEX IF NOT EXISTS idx_mood_tags_entity ON mood_tags(entity_type, entity_id);
 			CREATE INDEX IF NOT EXISTS idx_mood_tags_tag ON mood_tags(tag)`,
+		},
+		{
+			// Migration 2: Autocomplete table (database-agnostic, no FTS5)
+			// Uses regular table with LIKE queries for prefix matching
+			Version: 2,
+			SQL: `CREATE TABLE IF NOT EXISTS autocomplete (
+				id INTEGER PRIMARY KEY,
+				name TEXT NOT NULL,
+				name_lower TEXT NOT NULL,
+				aliases TEXT,
+				type TEXT NOT NULL,
+				entity_id INTEGER NOT NULL,
+				subtype TEXT,
+				year INTEGER,
+				popularity REAL DEFAULT 0,
+				UNIQUE(type, entity_id)
+			);
+			CREATE INDEX IF NOT EXISTS idx_autocomplete_name ON autocomplete(name_lower);
+			CREATE INDEX IF NOT EXISTS idx_autocomplete_type ON autocomplete(type)`,
+		},
+		{
+			Version: 3,
+			SQL: `CREATE TABLE IF NOT EXISTS search_history (
+				id INTEGER PRIMARY KEY,
+				user_id TEXT NOT NULL,
+				query TEXT NOT NULL,
+				result_count INTEGER,
+				searched_at TEXT DEFAULT CURRENT_TIMESTAMP
+			);
+			CREATE INDEX IF NOT EXISTS idx_search_history_user ON search_history(user_id, searched_at)`,
 		},
 	}
 
@@ -454,10 +486,23 @@ func (p *SemanticSearchPlugin) IndexLibrary(ctx context.Context, req *sdk.IndexL
 		}, nil
 	}
 
+	// Get autocomplete service for population
+	p.mu.RLock()
+	autocompleteService := p.autocompleteService
+	p.mu.RUnlock()
+
 	// Start indexing in background
 	go func() {
-		if err := indexingService.IndexLibrary(context.Background(), req.LibraryID, req.LibraryType); err != nil {
+		bgCtx := context.Background()
+		if err := indexingService.IndexLibrary(bgCtx, req.LibraryID, req.LibraryType); err != nil {
 			p.Log().Error("library indexing failed", "library_id", req.LibraryID, "error", err)
+		}
+
+		// Also populate autocomplete index after vector indexing
+		if autocompleteService != nil {
+			if err := autocompleteService.PopulateFromLibrary(bgCtx, req.LibraryID); err != nil {
+				p.Log().Error("autocomplete population failed", "library_id", req.LibraryID, "error", err)
+			}
 		}
 	}()
 
@@ -492,6 +537,7 @@ func (p *SemanticSearchPlugin) GetRoutes() []sdk.Route {
 			Methods:     []string{"POST"},
 			AdminOnly:   false,
 			Description: "Perform semantic search across indexed media",
+			Capability:  "semantic_search",
 			AliasPath:   "/api/search",
 		},
 		{
@@ -560,6 +606,24 @@ func (p *SemanticSearchPlugin) GetRoutes() []sdk.Route {
 			AdminOnly:   true,
 			Description: "Cancel mood tag generation",
 		},
+		{
+			Path:        "/autocomplete",
+			Methods:     []string{"GET"},
+			AdminOnly:   false,
+			Description: "Get autocomplete suggestions for search queries",
+		},
+		{
+			Path:        "/history",
+			Methods:     []string{"DELETE"},
+			AdminOnly:   false,
+			Description: "Clear user's search history",
+		},
+		{
+			Path:        "/explain",
+			Methods:     []string{"GET"},
+			AdminOnly:   true,
+			Description: "Explain how a search query was processed (debug endpoint)",
+		},
 	}
 }
 
@@ -592,6 +656,12 @@ func (p *SemanticSearchPlugin) HandleHTTP(ctx context.Context, req *sdk.HTTPRequ
 		return p.handleMoodTagsStatus(ctx, req)
 	case "/mood-tags/cancel":
 		return p.handleMoodTagsCancel(ctx, req)
+	case "/autocomplete":
+		return p.handleAutocomplete(ctx, req)
+	case "/history":
+		return p.handleClearHistory(ctx, req)
+	case "/explain":
+		return p.handleExplain(ctx, req)
 	default:
 		return jsonResponse(http.StatusNotFound, map[string]string{
 			"error": "route not found",
@@ -612,6 +682,12 @@ func (p *SemanticSearchPlugin) initializeServices() {
 		p.embeddingService = NewEmbeddingService(p.plugins, logger)
 	}
 
+	// Load ranking configuration from data directory
+	rankingConfig, err := LoadRankingConfig(p.DataDir(), logger)
+	if err != nil {
+		logger.Warn("failed to load ranking config, using defaults", "error", err)
+	}
+
 	// Create search service (uses vector storage)
 	if p.embeddingService != nil && p.vector != nil {
 		p.searchService = NewSearchService(
@@ -620,6 +696,10 @@ func (p *SemanticSearchPlugin) initializeServices() {
 			p.config.Search,
 			logger,
 		)
+		// Set ranking config if loaded
+		if rankingConfig != nil {
+			p.searchService.SetRankingConfig(rankingConfig)
+		}
 	}
 
 	// Create indexing service (uses vector storage)
@@ -649,6 +729,11 @@ func (p *SemanticSearchPlugin) initializeServices() {
 	// Create query rewriter (uses chat capability)
 	// Note: QueryRewriter needs chat capability - disabled for now until refactored
 	p.queryRewriter = NewQueryRewriter(p.plugins, logger)
+
+	// Create autocomplete service (uses SQL for FTS5)
+	if p.sql != nil && p.data != nil {
+		p.autocompleteService = NewAutocompleteService(p.sql, p.data, logger)
+	}
 }
 
 // =============================================================================
@@ -661,25 +746,110 @@ func (p *SemanticSearchPlugin) handleSearch(ctx context.Context, req *sdk.HTTPRe
 	}
 
 	var searchReq struct {
-		Query       string   `json:"query"`
-		EntityTypes []string `json:"entity_types,omitempty"`
-		Limit       int      `json:"limit,omitempty"`
+		Query               string               `json:"query"`
+		EntityTypes         []string             `json:"entity_types,omitempty"`
+		Limit               int                  `json:"limit,omitempty"`
+		PlaybackConstraints *PlaybackConstraints `json:"playback_constraints,omitempty"`
 	}
 	if err := json.Unmarshal(req.Body, &searchReq); err != nil {
 		return jsonResponse(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 
-	resp, err := p.Search(ctx, &sdk.SemanticSearchRequest{
-		Query:       searchReq.Query,
-		EntityTypes: searchReq.EntityTypes,
-		Limit:       searchReq.Limit,
-		UserID:      req.UserID,
+	p.mu.Lock()
+	searchService := p.searchService
+	contextEnricher := p.contextEnricher
+	queryRewriter := p.queryRewriter
+	p.mu.Unlock()
+
+	if searchService == nil {
+		return jsonResponse(http.StatusServiceUnavailable, map[string]string{"error": "search service not initialized"})
+	}
+
+	// Start with the original query
+	query := searchReq.Query
+
+	// Check for "similar to" / "movies like X" patterns BEFORE query rewriting
+	intent := detectQueryIntent(query)
+	skipRewriting := intent.isSimilarSearch
+
+	// Use LLM to rewrite query for better intent matching
+	if queryRewriter != nil && !skipRewriting {
+		rewrittenQuery := queryRewriter.Rewrite(ctx, query)
+		if rewrittenQuery != query {
+			p.Log().Debug("LLM rewrote query",
+				"original", query,
+				"rewritten", rewrittenQuery,
+			)
+			query = rewrittenQuery
+		}
+	}
+
+	// Enrich the query with context if user ID is provided
+	if contextEnricher != nil && req.UserID != "" && !skipRewriting {
+		qc, err := contextEnricher.GetContext(ctx, req.UserID)
+		if err != nil {
+			p.Log().Debug("failed to get context for query enrichment", "error", err)
+		} else {
+			enrichedQuery := contextEnricher.EnrichQuery(query, qc)
+			if enrichedQuery != query {
+				p.Log().Debug("enriched search query",
+					"original", query,
+					"enriched", enrichedQuery,
+				)
+				query = enrichedQuery
+			}
+		}
+	}
+
+	// Convert entity types
+	entityTypes := make([]EntityType, len(searchReq.EntityTypes))
+	for i, t := range searchReq.EntityTypes {
+		entityTypes[i] = EntityType(t)
+	}
+
+	// Use SearchWithRecovery for HTTP endpoint to get recovery information
+	recoveryResult, err := searchService.SearchWithRecovery(ctx, SearchParams{
+		Query:               query,
+		EntityTypes:         entityTypes,
+		Limit:               searchReq.Limit,
+		PlaybackConstraints: searchReq.PlaybackConstraints,
 	})
 	if err != nil {
+		p.RecordError()
 		return jsonResponse(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
-	return jsonResponse(http.StatusOK, resp)
+	// Track the search in history
+	p.trackSearch(ctx, req.UserID, searchReq.Query, recoveryResult.Total)
+
+	// Build response with recovery information
+	sdkResults := make([]sdk.SemanticSearchResult, len(recoveryResult.Results))
+	for i, r := range recoveryResult.Results {
+		sdkResults[i] = sdk.SemanticSearchResult{
+			EntityType: string(r.EntityType),
+			EntityID:   r.EntityID,
+			Similarity: r.Similarity,
+			Text:       r.Text,
+		}
+	}
+
+	// Include recovery information in the response if any was applied
+	response := map[string]any{
+		"results": sdkResults,
+		"total":   recoveryResult.Total,
+	}
+
+	if len(recoveryResult.RecoveryApplied) > 0 {
+		response["recovery_applied"] = recoveryResult.RecoveryApplied
+		response["original_query"] = recoveryResult.OriginalQuery
+	}
+
+	// Include intent chips if any were detected
+	if len(recoveryResult.IntentChips) > 0 {
+		response["intent_chips"] = recoveryResult.IntentChips
+	}
+
+	return jsonResponse(http.StatusOK, response)
 }
 
 func (p *SemanticSearchPlugin) handleSimilar(ctx context.Context, req *sdk.HTTPRequest) (*sdk.HTTPResponse, error) {
@@ -1007,6 +1177,204 @@ func (p *SemanticSearchPlugin) handleMoodTagsCancel(ctx context.Context, req *sd
 }
 
 // =============================================================================
+// Search History
+// =============================================================================
+
+// trackSearch records a search query in the user's search history.
+// It deduplicates consecutive identical searches and keeps only the last 50 per user.
+func (p *SemanticSearchPlugin) trackSearch(ctx context.Context, userID, query string, resultCount int) {
+	// Skip tracking for anonymous users or empty queries
+	if userID == "" || query == "" {
+		return
+	}
+
+	p.mu.RLock()
+	sqlClient := p.sql
+	p.mu.RUnlock()
+
+	if sqlClient == nil {
+		return
+	}
+
+	// Normalize the query for deduplication
+	normalizedQuery := normalizeQueryForAutocomplete(query)
+	if normalizedQuery == "" {
+		return
+	}
+
+	// Check if the last search was identical (deduplicate consecutive searches)
+	rows, err := sqlClient.Query(ctx,
+		`SELECT query FROM search_history WHERE user_id = ? ORDER BY searched_at DESC LIMIT 1`,
+		userID)
+	if err == nil {
+		defer rows.Close()
+		if rows.Next() {
+			var lastQuery string
+			if err := rows.Scan(&lastQuery); err == nil {
+				if normalizeQueryForAutocomplete(lastQuery) == normalizedQuery {
+					// Same as last search, skip
+					return
+				}
+			}
+		}
+	}
+
+	// Insert the new search
+	_, _, err = sqlClient.Exec(ctx,
+		`INSERT INTO search_history (user_id, query, result_count) VALUES (?, ?, ?)`,
+		userID, query, resultCount)
+	if err != nil {
+		p.Log().Warn("failed to track search", "error", err)
+		return
+	}
+
+	// Keep only the last 50 searches per user
+	_, _, err = sqlClient.Exec(ctx,
+		`DELETE FROM search_history WHERE user_id = ? AND id NOT IN (
+			SELECT id FROM search_history WHERE user_id = ? ORDER BY searched_at DESC LIMIT 50
+		)`,
+		userID, userID)
+	if err != nil {
+		p.Log().Warn("failed to prune search history", "error", err)
+	}
+}
+
+// getRecentSearches retrieves the user's recent unique search queries.
+func (p *SemanticSearchPlugin) getRecentSearches(ctx context.Context, userID string, limit int) ([]RecentSearch, error) {
+	if userID == "" {
+		return nil, nil
+	}
+
+	p.mu.RLock()
+	sqlClient := p.sql
+	p.mu.RUnlock()
+
+	if sqlClient == nil {
+		return nil, nil
+	}
+
+	// Get distinct recent queries
+	rows, err := sqlClient.Query(ctx,
+		`SELECT query, searched_at FROM (
+			SELECT query, MAX(searched_at) as searched_at
+			FROM search_history
+			WHERE user_id = ?
+			GROUP BY query
+			ORDER BY searched_at DESC
+			LIMIT ?
+		) ORDER BY searched_at DESC`,
+		userID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query recent searches: %w", err)
+	}
+	defer rows.Close()
+
+	var results []RecentSearch
+	for rows.Next() {
+		var r RecentSearch
+		var searchedAt string
+		if err := rows.Scan(&r.Text, &searchedAt); err != nil {
+			continue
+		}
+		r.Type = "recent"
+		// Parse the timestamp
+		if t, err := time.Parse("2006-01-02 15:04:05", searchedAt); err == nil {
+			r.SearchedAt = t.Format(time.RFC3339)
+		} else {
+			r.SearchedAt = searchedAt
+		}
+		results = append(results, r)
+	}
+
+	return results, rows.Err()
+}
+
+func (p *SemanticSearchPlugin) handleClearHistory(ctx context.Context, req *sdk.HTTPRequest) (*sdk.HTTPResponse, error) {
+	if req.Method != "DELETE" {
+		return jsonResponse(http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+	}
+
+	userID := req.UserID
+	if userID == "" {
+		return jsonResponse(http.StatusBadRequest, map[string]string{"error": "user_id is required"})
+	}
+
+	p.mu.RLock()
+	sqlClient := p.sql
+	p.mu.RUnlock()
+
+	if sqlClient == nil {
+		return jsonResponse(http.StatusServiceUnavailable, map[string]string{"error": "database not available"})
+	}
+
+	result, _, err := sqlClient.Exec(ctx,
+		`DELETE FROM search_history WHERE user_id = ?`,
+		userID)
+	if err != nil {
+		return jsonResponse(http.StatusInternalServerError, map[string]string{"error": "failed to clear history"})
+	}
+
+	return jsonResponse(http.StatusOK, map[string]any{
+		"status":  "cleared",
+		"deleted": result,
+	})
+}
+
+func (p *SemanticSearchPlugin) handleExplain(ctx context.Context, req *sdk.HTTPRequest) (*sdk.HTTPResponse, error) {
+	if req.Method != "GET" {
+		return jsonResponse(http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+	}
+
+	// Parse query parameter
+	query := req.Query["q"]
+	if query == "" {
+		return jsonResponse(http.StatusBadRequest, map[string]string{
+			"error": "query parameter 'q' is required",
+		})
+	}
+
+	// Parse limit (default 5, max 20)
+	limit := 5
+	if limitStr := req.Query["limit"]; limitStr != "" {
+		if _, err := fmt.Sscanf(limitStr, "%d", &limit); err == nil {
+			if limit < 1 {
+				limit = 1
+			}
+			if limit > 20 {
+				limit = 20
+			}
+		}
+	}
+
+	p.mu.RLock()
+	searchService := p.searchService
+	p.mu.RUnlock()
+
+	if searchService == nil {
+		return jsonResponse(http.StatusServiceUnavailable, map[string]string{
+			"error": "search service not available",
+		})
+	}
+
+	result, err := searchService.Explain(ctx, query, limit)
+	if err != nil {
+		p.Log().Warn("explain failed", "query", query, "error", err)
+		return jsonResponse(http.StatusInternalServerError, map[string]string{
+			"error": err.Error(),
+		})
+	}
+
+	return jsonResponse(http.StatusOK, result)
+}
+
+// RecentSearch represents a recent search entry for autocomplete.
+type RecentSearch struct {
+	Type       string `json:"type"`        // Always "recent"
+	Text       string `json:"text"`        // The search query
+	SearchedAt string `json:"searched_at"` // ISO 8601 timestamp
+}
+
+// =============================================================================
 // Utility functions
 // =============================================================================
 
@@ -1096,3 +1464,107 @@ func jsonResponse(statusCode int, data any) (*sdk.HTTPResponse, error) {
 		Body:        body,
 	}, nil
 }
+
+func (p *SemanticSearchPlugin) handleAutocomplete(ctx context.Context, req *sdk.HTTPRequest) (*sdk.HTTPResponse, error) {
+	if req.Method != "GET" {
+		return jsonResponse(http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+	}
+
+	p.mu.RLock()
+	autocompleteService := p.autocompleteService
+	p.mu.RUnlock()
+
+	if autocompleteService == nil {
+		return jsonResponse(http.StatusServiceUnavailable, map[string]string{
+			"error": "autocomplete service not available",
+		})
+	}
+
+	// Parse query parameter
+	query := req.Query["q"]
+	if query == "" {
+		return jsonResponse(http.StatusBadRequest, map[string]string{
+			"error": "query parameter 'q' is required",
+		})
+	}
+
+	// Minimum query length
+	if len(query) < 2 {
+		return jsonResponse(http.StatusOK, map[string]any{
+			"suggestions": []AutocompleteResult{},
+			"query":       query,
+			"took_ms":     0,
+		})
+	}
+
+	// Parse limit (default 8, max 20)
+	limit := 8
+	if limitStr := req.Query["limit"]; limitStr != "" {
+		if l, err := fmt.Sscanf(limitStr, "%d", &limit); err == nil && l > 0 {
+			if limit > 20 {
+				limit = 20
+			}
+		}
+	}
+
+	// Parse types filter (default "all")
+	types := req.Query["types"]
+	if types == "" {
+		types = "all"
+	}
+
+	// Perform search and measure time
+	startTime := timeNow()
+
+	// Build combined suggestions: recent searches first, then autocomplete results
+	var suggestions []any
+
+	// Get recent searches (limit to 3) if user is authenticated
+	if req.UserID != "" {
+		recentSearches, err := p.getRecentSearches(ctx, req.UserID, 3)
+		if err != nil {
+			p.Log().Warn("failed to get recent searches", "error", err)
+		} else {
+			// Filter recent searches that match the current query prefix
+			queryLower := normalizeQueryForAutocomplete(query)
+			for _, recent := range recentSearches {
+				recentLower := normalizeQueryForAutocomplete(recent.Text)
+				if len(queryLower) <= len(recentLower) && recentLower[:len(queryLower)] == queryLower {
+					suggestions = append(suggestions, recent)
+				}
+			}
+		}
+	}
+
+	// Get autocomplete results
+	// Reduce limit by number of recent searches added
+	autocompleteLimit := limit - len(suggestions)
+	if autocompleteLimit > 0 {
+		results, err := autocompleteService.Search(ctx, query, autocompleteLimit, types)
+		if err != nil {
+			p.Log().Warn("autocomplete search failed", "query", query, "error", err)
+			return jsonResponse(http.StatusInternalServerError, map[string]string{
+				"error": "autocomplete search failed",
+			})
+		}
+		for _, r := range results {
+			suggestions = append(suggestions, r)
+		}
+	}
+
+	tookMs := timeNow().Sub(startTime).Milliseconds()
+
+	// Ensure we return an empty array, not null
+	if suggestions == nil {
+		suggestions = []any{}
+	}
+
+	return jsonResponse(http.StatusOK, map[string]any{
+		"suggestions": suggestions,
+		"query":       query,
+		"took_ms":     tookMs,
+	})
+}
+
+// timeNow is a variable for testing purposes
+var timeNow = time.Now

@@ -185,3 +185,44 @@ func (h *LibraryHandler) Scan(c *gin.Context) {
 
 	c.JSON(http.StatusAccepted, resp)
 }
+
+// TargetedScanRequest represents a request to scan specific paths
+type TargetedScanRequest struct {
+	TargetPaths []string `json:"target_paths" binding:"required,min=1"`
+}
+
+// TargetedScan handles POST /api/libraries/:id/scan/targeted
+// @Summary Start a targeted library scan
+// @Description Initiates a scan of specific paths within a library
+// @Tags libraries
+// @Accept json
+// @Produce json
+// @Param id path int true "Library ID"
+// @Param request body TargetedScanRequest true "Target paths to scan"
+// @Success 202 {object} library.StartScanResponse
+// @Failure 400 {object} APIError
+// @Failure 404 {object} APIError
+// @Failure 409 {object} APIError "Library is already being scanned"
+// @Failure 500 {object} APIError
+// @Router /api/libraries/{id}/scan/targeted [post]
+func (h *LibraryHandler) TargetedScan(c *gin.Context) {
+	id, err := parseID(c.Param("id"))
+	if err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_LIBRARY_ID", err.Error())
+		return
+	}
+
+	var req TargetedScanRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST_BODY", "Invalid request body: target_paths required")
+		return
+	}
+
+	resp, err := h.scanLibrary.StartTargetedScan(c.Request.Context(), id, req.TargetPaths)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusAccepted, resp)
+}

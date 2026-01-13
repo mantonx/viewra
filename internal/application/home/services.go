@@ -19,6 +19,7 @@ type MediaItemWithTime struct {
 	Movie     *movies.MovieResponse
 	TVShow    *tv.TVShowSummary
 	CreatedAt time.Time
+	UpdatedAt time.Time
 
 	// Progress contains playback progress (for continue watching).
 	Progress *home.MediaProgress
@@ -118,6 +119,7 @@ func (s *RecentlyAddedServiceImpl) GetRecentlyAddedFull(ctx context.Context, lim
 					Type:      "movie",
 					Movie:     &resp,
 					CreatedAt: m.CreatedAt,
+					UpdatedAt: m.Media.UpdatedAt,
 				})
 			}
 		}
@@ -133,14 +135,16 @@ func (s *RecentlyAddedServiceImpl) GetRecentlyAddedFull(ctx context.Context, lim
 					Type:      "tv_show",
 					TVShow:    &summary,
 					CreatedAt: show.CreatedAt,
+					UpdatedAt: show.UpdatedAt,
 				})
 			}
 		}
 	}
 
-	// Sort by CreatedAt descending
+	// Sort by UpdatedAt descending (most recently updated first)
+	// This includes both new additions AND re-scanned/re-enriched items
 	sort.Slice(items, func(i, j int) bool {
-		return items[i].CreatedAt.After(items[j].CreatedAt)
+		return items[i].UpdatedAt.After(items[j].UpdatedAt)
 	})
 
 	if len(items) > limit {

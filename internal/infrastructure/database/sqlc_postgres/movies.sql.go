@@ -1441,7 +1441,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.is_extra = 0
-ORDER BY med.created_at DESC
+ORDER BY med.updated_at DESC
 LIMIT $1::bigint
 `
 
@@ -1506,7 +1506,7 @@ type ListRecentlyAddedMoviesRow struct {
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
 }
 
-// Returns recently added movies across all libraries, ordered by creation date
+// Returns recently added movies across all libraries, ordered by most recently updated
 func (q *Queries) ListRecentlyAddedMovies(ctx context.Context, dollar_1 int64) ([]ListRecentlyAddedMoviesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listRecentlyAddedMovies, dollar_1)
 	if err != nil {

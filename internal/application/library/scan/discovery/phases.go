@@ -2,6 +2,8 @@ package discovery
 
 import (
 	"context"
+	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,13 +18,56 @@ type ProgressUpdater interface {
 	UpdateDiscoveryProgressAsync(ctx context.Context, jobID int64, phase scanner.ScanPhase, filesFound int64, estimatedTotal int64)
 }
 
+// shouldIncludeFile checks if a file should be included based on TargetPaths.
+// Returns true if TargetPaths is empty (scan all) or if the file matches one of the target paths.
+// Target paths can be:
+// - Directories: "Movies/Action" includes all files under that directory
+// - Files: "Movies/Drama/The Godfather.mkv" includes only that specific file
+func shouldIncludeFile(libraryRoot string, absolutePath string, targetPaths []string) bool {
+	// No target paths means scan everything
+	if len(targetPaths) == 0 {
+		return true
+	}
+
+	// Get relative path from library root
+	relPath, err := filepath.Rel(libraryRoot, absolutePath)
+	if err != nil {
+		// If we can't compute relative path, skip the file to be safe
+		return false
+	}
+
+	// Normalize path separators to forward slashes for comparison
+	relPath = filepath.ToSlash(relPath)
+
+	// Check if this file is under any of the target paths
+	for _, targetPath := range targetPaths {
+		targetPath = filepath.ToSlash(targetPath)
+
+		// Exact file match
+		if relPath == targetPath {
+			return true
+		}
+
+		// Directory match - file is under this directory
+		if strings.HasPrefix(relPath, targetPath+"/") {
+			return true
+		}
+	}
+
+	return false
+}
+
 // PhaseCountFiles performs a fast count pass to get accurate total for progress reporting.
 // This is Phase 1 of discovery.
 func PhaseCountFiles(ctx context.Context, dctx *Context, deps *Deps) int64 {
 	deps.Logger.Info("Counting media files", "library_id", dctx.Lib.ID, "path", dctx.Lib.Path)
 
 	totalFiles, err := dctx.Walker.Count(ctx, dctx.Lib.Path, func(fi scanner.FileInfo) bool {
-		return !fi.IsDir && deps.IsMediaFile(fi.Extension)
+		if fi.IsDir || !deps.IsMediaFile(fi.Extension) {
+			return false
+		}
+		// Apply target path filtering if set
+		return shouldIncludeFile(dctx.Lib.Path, fi.Path, dctx.CurrentJob.TargetPaths)
 	})
 
 	if err != nil {
@@ -80,6 +125,11 @@ func PhaseWalkDirectory(
 	// Walk directory tree
 	err := dctx.Walker.Walk(ctx, dctx.Lib.Path, func(fileInfo scanner.FileInfo) error {
 		if fileInfo.IsDir || !deps.IsMediaFile(fileInfo.Extension) {
+			return nil
+		}
+
+		// Apply target path filtering if set
+		if !shouldIncludeFile(dctx.Lib.Path, fileInfo.Path, dctx.CurrentJob.TargetPaths) {
 			return nil
 		}
 

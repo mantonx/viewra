@@ -299,6 +299,50 @@ message MediaDetails {
 
   // Theme/topic keywords (from TMDB) - non-location keywords for thematic search
   repeated string theme_keywords = 42;  // e.g., ["redemption", "friendship", "prison escape"]
+
+  // Crew credits for specialized searches
+  repeated string composers = 43;          // Music composers (Original Music Composer job)
+  repeated string cinematographers = 44;   // Directors of Photography (Camera department)
+
+  // Playback information for filtering by technical specs
+  PlaybackInfo playback_info = 50;
+}
+
+// PlaybackInfo contains technical playback metadata for filtering.
+// Used for queries like "4K movies", "Dolby Vision content", "movies with subtitles".
+message PlaybackInfo {
+  // Video specs
+  int32 width = 1;                    // Video width in pixels
+  int32 height = 2;                   // Video height in pixels
+  string resolution_label = 3;        // "SD", "720p", "1080p", "4K", "8K"
+  string hdr_format = 4;              // "SDR", "HDR10", "HDR10+", "Dolby Vision", "HLG"
+  string video_codec = 5;             // "h264", "hevc", "av1", etc.
+  int64 bitrate = 6;                  // Video bitrate in bits/second
+
+  // Audio tracks
+  repeated AudioTrack audio_tracks = 10;
+
+  // Subtitle tracks
+  repeated SubtitleTrack subtitle_tracks = 11;
+}
+
+// AudioTrack represents an audio stream in a media file.
+message AudioTrack {
+  string codec = 1;           // "aac", "ac3", "eac3", "truehd", "dts", "dts-hd", "flac"
+  int32 channels = 2;         // Number of channels (2, 6, 8, etc.)
+  string channel_layout = 3;  // "stereo", "5.1", "7.1", "Atmos"
+  string language = 4;        // ISO 639-1/2 code, e.g., "en", "eng"
+  bool is_default = 5;
+  bool is_commentary = 6;
+}
+
+// SubtitleTrack represents a subtitle stream in a media file.
+message SubtitleTrack {
+  string language = 1;        // ISO 639-1/2 code
+  string codec = 2;           // "srt", "ass", "pgs", "vobsub"
+  bool is_forced = 3;
+  bool is_sdh = 4;            // Subtitles for Deaf/Hard of Hearing
+  bool is_external = 5;       // External file vs embedded
 }
 
 // MediaCastMember represents an actor in a movie/show.

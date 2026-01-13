@@ -92,6 +92,7 @@ func ProcessTVEpisode(
 			showTitle, season, episodeNumber, episodeEndNumber, episodeTitle)
 	}
 
+	now := time.Now()
 	episode := &media.TVEpisode{
 		Media: media.Media{
 			LibraryID:       libraryID,
@@ -108,8 +109,10 @@ func ProcessTVEpisode(
 			Bitrate:         result.Bitrate,
 			FrameRate:       result.FrameRate,
 			ContainerFormat: result.ContainerFormat,
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
+			DateAdded:       now,
+			DateModified:    &result.FileMTime,
+			CreatedAt:       now,
+			UpdatedAt:       now,
 		},
 		ShowTitle:    showTitle,
 		Season:       season,
@@ -191,6 +194,7 @@ func ProcessMultiEpisodeFile(
 			epTitle = fmt.Sprintf("%s (Part %d)", episodeTitle, partNum)
 		}
 
+		now := time.Now()
 		episode := &media.TVEpisode{
 			Media: media.Media{
 				LibraryID:       libraryID,
@@ -207,8 +211,10 @@ func ProcessMultiEpisodeFile(
 				Bitrate:         result.Bitrate,
 				FrameRate:       result.FrameRate,
 				ContainerFormat: result.ContainerFormat,
-				CreatedAt:       time.Now(),
-				UpdatedAt:       time.Now(),
+				DateAdded:       now,
+				DateModified:    &result.FileMTime,
+				CreatedAt:       now,
+				UpdatedAt:       now,
 			},
 			ShowTitle:    showTitle,
 			Season:       season,

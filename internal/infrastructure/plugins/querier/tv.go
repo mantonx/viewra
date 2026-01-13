@@ -91,6 +91,15 @@ func (q *DBMediaQuerier) getTVShowDetailsDirectly(ctx context.Context, id int64,
 		details.ThemeKeywords = themeKeywords
 	}
 
+	// Fetch composers and cinematographers for specialized searches
+	composers, cinematographers := q.getCrewForEntity(ctx, "tv_show", id)
+	if len(composers) > 0 {
+		details.Composers = composers
+	}
+	if len(cinematographers) > 0 {
+		details.Cinematographers = cinematographers
+	}
+
 	return details, nil
 }
 
@@ -152,7 +161,13 @@ func (q *DBMediaQuerier) getTVEpisodeDetailsDirectly(ctx context.Context, id int
 		}, nil
 	}
 
-	return q.tvEpisodeRowToDetails(result, externalIDs), nil
+	details := q.tvEpisodeRowToDetails(result, externalIDs)
+
+	// Fetch playback info for technical filtering (4K, HDR, subtitles, etc.)
+	// Episodes have media files, so they have playback info
+	details.PlaybackInfo = q.getPlaybackInfoForMedia(ctx, result.MediaID)
+
+	return details, nil
 }
 
 func (q *DBMediaQuerier) getTVEpisodeDetails(ctx context.Context, id int64, basic *MediaInfo, externalIDs map[string]string) (*MediaDetailsInfo, error) {

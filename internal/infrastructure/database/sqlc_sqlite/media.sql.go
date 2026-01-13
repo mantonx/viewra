@@ -46,14 +46,14 @@ INSERT INTO media (
     codec, audio_codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format,
     color_space, color_primaries, thumbnail_path, type, source_type,
     resolution_label, quality_score, is_3d, stereo_mode, has_dash,
-    dash_manifest_path, transcoding_status, is_extra
+    dash_manifest_path, transcoding_status, is_extra, date_modified
 ) VALUES (
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
-    ?, ?, ?
+    ?, ?, ?, ?
 ) RETURNING id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at, is_extra, audio_codec
 `
 
@@ -88,6 +88,7 @@ type CreateMediaParams struct {
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
 	IsExtra           int64           `json:"is_extra"`
+	DateModified      sql.NullTime    `json:"date_modified"`
 }
 
 func (q *Queries) CreateMedia(ctx context.Context, arg CreateMediaParams) (Medium, error) {
@@ -122,6 +123,7 @@ func (q *Queries) CreateMedia(ctx context.Context, arg CreateMediaParams) (Mediu
 		arg.DashManifestPath,
 		arg.TranscodingStatus,
 		arg.IsExtra,
+		arg.DateModified,
 	)
 	var i Medium
 	err := row.Scan(
@@ -556,7 +558,7 @@ SET library_id = ?,
     dash_manifest_path = ?,
     transcoding_status = ?,
     is_extra = ?,
-    date_modified = CURRENT_TIMESTAMP,
+    date_modified = ?,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at, is_extra, audio_codec
@@ -593,6 +595,7 @@ type UpdateMediaParams struct {
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
 	IsExtra           int64           `json:"is_extra"`
+	DateModified      sql.NullTime    `json:"date_modified"`
 	ID                int64           `json:"id"`
 }
 
@@ -628,6 +631,7 @@ func (q *Queries) UpdateMedia(ctx context.Context, arg UpdateMediaParams) (Mediu
 		arg.DashManifestPath,
 		arg.TranscodingStatus,
 		arg.IsExtra,
+		arg.DateModified,
 		arg.ID,
 	)
 	var i Medium

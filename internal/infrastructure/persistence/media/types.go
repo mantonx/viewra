@@ -50,6 +50,8 @@ func mediumToDomain(sq unified.Medium) *media.Media {
 		HDRFormat:       sq.HdrFormat.String,
 		ColorSpace:      sq.ColorSpace.String,
 		ColorPrimaries:  sq.ColorPrimaries.String,
+		DateAdded:       common.ParseNullTime(sq.DateAdded),
+		DateModified:    common.ParseNullTimePtr(sq.DateModified),
 		CreatedAt:       common.ParseNullTime(sq.CreatedAt),
 		UpdatedAt:       common.ParseNullTime(sq.UpdatedAt),
 	}
@@ -88,6 +90,7 @@ func buildCreateParams(m *media.Media) unified.CreateMediaParams {
 		HasDash:           common.NullInt64FromBool(false),
 		DashManifestPath:  sql.NullString{},
 		TranscodingStatus: sql.NullString{},
+		DateModified:      common.NullTimePtr(m.DateModified),
 	}
 }
 
@@ -125,6 +128,7 @@ func buildUpdateParams(m *media.Media) unified.UpdateMediaParams {
 		HasDash:           params.HasDash,
 		DashManifestPath:  params.DashManifestPath,
 		TranscodingStatus: params.TranscodingStatus,
+		DateModified:      params.DateModified,
 		ID:                m.ID,
 	}
 }

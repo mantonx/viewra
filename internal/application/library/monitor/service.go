@@ -20,11 +20,12 @@ type EventBus interface {
 // Service manages filesystem monitoring for all libraries.
 // It coordinates watchers, debouncers, and event handlers.
 type Service struct {
-	libraryRepo library.Repository
-	mediaRepo   media.Repository
-	enqueuer    EnrichmentEnqueuer
-	eventBus    EventBus
-	logger      *slog.Logger
+	libraryRepo      library.Repository
+	mediaRepo        media.Repository
+	enqueuer         EnrichmentEnqueuer
+	scanOrchestrator ScanOrchestrator
+	eventBus         EventBus
+	logger           *slog.Logger
 
 	// Per-library watchers
 	watchers   map[int64]*LibraryWatcher
@@ -63,30 +64,41 @@ func DefaultServiceConfig() ServiceConfig {
 }
 
 // NewService creates a new file monitor service.
+// Note: scanOrchestrator can be nil initially and set later via SetScanOrchestrator.
 func NewService(
 	libraryRepo library.Repository,
 	mediaRepo media.Repository,
 	enqueuer EnrichmentEnqueuer,
+	scanOrchestrator ScanOrchestrator,
 	eventBus EventBus,
 	logger *slog.Logger,
 ) *Service {
 	return &Service{
-		libraryRepo: libraryRepo,
-		mediaRepo:   mediaRepo,
-		enqueuer:    enqueuer,
-		eventBus:    eventBus,
-		logger:      logger.With("component", "file_monitor"),
-		watchers:    make(map[int64]*LibraryWatcher),
-		debouncers:  make(map[int64]*Debouncer),
-		activeScans: make(map[int64]struct{}),
+		libraryRepo:      libraryRepo,
+		mediaRepo:        mediaRepo,
+		enqueuer:         enqueuer,
+		scanOrchestrator: scanOrchestrator,
+		eventBus:         eventBus,
+		logger:           logger.With("component", "file_monitor"),
+		watchers:         make(map[int64]*LibraryWatcher),
+		debouncers:       make(map[int64]*Debouncer),
+		activeScans:      make(map[int64]struct{}),
 		handler: NewHandler(
 			libraryRepo,
 			mediaRepo,
 			enqueuer,
+			scanOrchestrator,
 			eventBus,
 			logger,
 		),
 	}
+}
+
+// SetScanOrchestrator sets the scan orchestrator for triggering targeted scans.
+// This is called after the service is created to resolve circular dependencies.
+func (s *Service) SetScanOrchestrator(orchestrator ScanOrchestrator) {
+	s.scanOrchestrator = orchestrator
+	s.handler.scanOrchestrator = orchestrator
 }
 
 // Start begins monitoring all libraries that have monitoring enabled.

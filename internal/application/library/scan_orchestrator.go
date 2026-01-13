@@ -155,6 +155,69 @@ func (uc *ScanLibraryUseCase) StartScan(ctx context.Context, libraryID int64) (s
 	return scan.ToStartScanResponse(job), nil
 }
 
+// StartTargetedScan initiates a new scan for specific paths within a library.
+// This is used by the monitoring system to scan only changed/new files.
+// targetPaths are relative to the library root (e.g., "Movies/Action", "Movies/Drama/The Godfather.mkv").
+// Returns interface{} to avoid circular dependencies with monitor package (actual type is scan.StartScanResponse).
+func (uc *ScanLibraryUseCase) StartTargetedScan(ctx context.Context, libraryID int64, targetPaths []string) (interface{}, error) {
+	if len(targetPaths) == 0 {
+		return scan.StartScanResponse{}, fmt.Errorf("targetPaths cannot be empty")
+	}
+
+	lib, err := uc.mediaRepos.Library.GetByID(ctx, libraryID)
+	if err != nil {
+		return scan.StartScanResponse{}, fmt.Errorf("failed to get library: %w", err)
+	}
+
+	// Check if there's already a running scan for this library
+	running, err := uc.scanRepos.ScanJob.ListRunning(ctx)
+	if err != nil {
+		return scan.StartScanResponse{}, fmt.Errorf("failed to check running scans: %w", err)
+	}
+	for _, job := range running {
+		if job.LibraryID == libraryID {
+			return scan.StartScanResponse{}, scanner.ErrAlreadyRunning
+		}
+	}
+
+	if uc.logger == nil {
+		uc.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+
+	// For targeted scans, we don't use estimated total since we're only scanning specific paths
+	job := &scanner.ScanJob{
+		LibraryID:      libraryID,
+		Status:         scanner.ScanStatusRunning,
+		Progress:       0,
+		FilesFound:     0,
+		FilesProcessed: 0,
+		BytesProcessed: 0,
+		ErrorCount:     0,
+		StartedAt:      time.Now(),
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+		Phase:          scanner.ScanPhaseDiscovering,
+		EstimatedTotal: 0, // Don't estimate for targeted scans
+		DiscoveryDone:  false,
+		TargetPaths:    targetPaths, // Set the target paths for filtering
+	}
+
+	if err := uc.scanRepos.ScanJob.Create(ctx, job); err != nil {
+		return scan.StartScanResponse{}, fmt.Errorf("failed to create scan job: %w", err)
+	}
+
+	uc.logger.Info("Starting targeted scan",
+		"job_id", job.ID,
+		"library_id", libraryID,
+		"target_paths", targetPaths)
+
+	// Publish scan started event
+	uc.publishScanStarted(job)
+
+	uc.startScanBackground(job.ID, lib, "targeted scan goroutine panicked")
+	return scan.ToStartScanResponse(job), nil
+}
+
 // publishScanStarted publishes a scan.started event if EventBus is configured.
 func (uc *ScanLibraryUseCase) publishScanStarted(job *scanner.ScanJob) {
 	if uc.eventBus == nil {

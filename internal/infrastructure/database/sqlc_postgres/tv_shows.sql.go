@@ -1120,33 +1120,29 @@ SELECT
     s.imdb_id,
     s.tmdb_id,
     s.created_at,
-    MAX(med.created_at) as latest_episode_added
+    s.updated_at
 FROM tv_shows s
-JOIN tv_episodes e ON s.id = e.show_id
-JOIN media med ON e.media_id = med.id
-WHERE med.is_extra = 0
-GROUP BY s.id
-ORDER BY latest_episode_added DESC
+ORDER BY s.updated_at DESC
 LIMIT $1::bigint
 `
 
 type ListRecentlyAddedTVShowsRow struct {
-	ID                 int64          `json:"id"`
-	LibraryID          int64          `json:"library_id"`
-	Title              string         `json:"title"`
-	OriginalTitle      sql.NullString `json:"original_title"`
-	SortTitle          sql.NullString `json:"sort_title"`
-	Year               sql.NullInt64  `json:"year"`
-	Genre              sql.NullString `json:"genre"`
-	Plot               sql.NullString `json:"plot"`
-	ContentRating      sql.NullString `json:"content_rating"`
-	ImdbID             sql.NullString `json:"imdb_id"`
-	TmdbID             sql.NullInt64  `json:"tmdb_id"`
-	CreatedAt          sql.NullTime   `json:"created_at"`
-	LatestEpisodeAdded interface{}    `json:"latest_episode_added"`
+	ID            int64          `json:"id"`
+	LibraryID     int64          `json:"library_id"`
+	Title         string         `json:"title"`
+	OriginalTitle sql.NullString `json:"original_title"`
+	SortTitle     sql.NullString `json:"sort_title"`
+	Year          sql.NullInt64  `json:"year"`
+	Genre         sql.NullString `json:"genre"`
+	Plot          sql.NullString `json:"plot"`
+	ContentRating sql.NullString `json:"content_rating"`
+	ImdbID        sql.NullString `json:"imdb_id"`
+	TmdbID        sql.NullInt64  `json:"tmdb_id"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
+	UpdatedAt     sql.NullTime   `json:"updated_at"`
 }
 
-// Returns recently added TV shows across all libraries, ordered by newest episode date
+// Returns recently added TV shows across all libraries, ordered by most recently updated
 func (q *Queries) ListRecentlyAddedTVShows(ctx context.Context, limit int64) ([]ListRecentlyAddedTVShowsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listRecentlyAddedTVShows, limit)
 	if err != nil {
@@ -1169,7 +1165,7 @@ func (q *Queries) ListRecentlyAddedTVShows(ctx context.Context, limit int64) ([]
 			&i.ImdbID,
 			&i.TmdbID,
 			&i.CreatedAt,
-			&i.LatestEpisodeAdded,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

@@ -43,7 +43,7 @@ type MonitoringConfig struct {
 func DefaultMonitoringConfig() *MonitoringConfig {
 	return &MonitoringConfig{
 		Priority:               1000, // PriorityInteractive
-		PollingIntervalMinutes: 60,
+		PollingIntervalMinutes: 5,    // Poll every 5 minutes for network drives
 		DebounceSeconds:        5,
 	}
 }

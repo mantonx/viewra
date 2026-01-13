@@ -34,8 +34,10 @@ type Media struct {
 	ColorSpace     string // Color space (bt709, bt2020nc, etc.)
 	ColorPrimaries string // Color primaries (bt709, bt2020, etc.)
 
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	DateAdded    time.Time  // When the file was first added to the library
+	DateModified *time.Time // Last modification time of the file on disk (nil if unknown)
+	CreatedAt    time.Time  // When the database record was created
+	UpdatedAt    time.Time  // When the database record was last updated
 }
 
 // IsValid validates the media entity fields.

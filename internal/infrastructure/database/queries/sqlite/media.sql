@@ -5,14 +5,14 @@ INSERT INTO media (
     codec, audio_codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format,
     color_space, color_primaries, thumbnail_path, type, source_type,
     resolution_label, quality_score, is_3d, stereo_mode, has_dash,
-    dash_manifest_path, transcoding_status, is_extra
+    dash_manifest_path, transcoding_status, is_extra, date_modified
 ) VALUES (
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
-    ?, ?, ?
+    ?, ?, ?, ?
 ) RETURNING *;
 
 -- name: GetMediaByID :one
@@ -69,7 +69,7 @@ SET library_id = ?,
     dash_manifest_path = ?,
     transcoding_status = ?,
     is_extra = ?,
-    date_modified = CURRENT_TIMESTAMP,
+    date_modified = ?,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING *;

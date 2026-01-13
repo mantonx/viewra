@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/mantonx/viewra/pkg/plugin/sdk"
@@ -18,6 +21,7 @@ type SearchService struct {
 	maxLimit         int
 	minSimilarity    float32
 	logger           *slog.Logger
+	rankingConfig    *RankingConfig
 }
 
 // NewSearchService creates a new search service.
@@ -47,14 +51,64 @@ func NewSearchService(
 		maxLimit:         maxLimit,
 		minSimilarity:    minSimilarity,
 		logger:           logger,
+		rankingConfig:    nil, // Set via SetRankingConfig
 	}
+}
+
+// SetRankingConfig sets the ranking configuration for the search service.
+func (s *SearchService) SetRankingConfig(config *RankingConfig) {
+	s.rankingConfig = config
+}
+
+// getBoosts returns the boost weights, falling back to defaults if not configured.
+func (s *SearchService) getBoosts() *BoostWeights {
+	if s.rankingConfig != nil && s.rankingConfig.Boosts != nil {
+		return &s.rankingConfig.Boosts.Boosts
+	}
+	defaults := getDefaultBoostConfig()
+	return &defaults.Boosts
+}
+
+// getQualityConfig returns the quality boost config, falling back to defaults if not configured.
+func (s *SearchService) getQualityConfig() *QualityBoost {
+	if s.rankingConfig != nil && s.rankingConfig.Boosts != nil {
+		return &s.rankingConfig.Boosts.Quality
+	}
+	defaults := getDefaultBoostConfig()
+	return &defaults.Quality
+}
+
+// getDiversityConfig returns the diversity config, falling back to defaults if not configured.
+func (s *SearchService) getDiversityConfig() *Diversity {
+	if s.rankingConfig != nil && s.rankingConfig.Boosts != nil {
+		return &s.rankingConfig.Boosts.Diversity
+	}
+	defaults := getDefaultBoostConfig()
+	return &defaults.Diversity
+}
+
+// getKnownStudios returns the set of known studios for intent detection.
+func (s *SearchService) getKnownStudios() map[string]bool {
+	if s.rankingConfig != nil && s.rankingConfig.Studios != nil {
+		return s.rankingConfig.Studios
+	}
+	return studiosToMap(getDefaultStudios())
+}
+
+// getLanguageMap returns the language name mappings for intent detection.
+func (s *SearchService) getLanguageMap() map[string]string {
+	if s.rankingConfig != nil && s.rankingConfig.Languages != nil {
+		return s.rankingConfig.Languages
+	}
+	return getDefaultLanguages()
 }
 
 // SearchParams defines parameters for semantic search.
 type SearchParams struct {
-	Query       string
-	EntityTypes []EntityType
-	Limit       int
+	Query               string
+	EntityTypes         []EntityType
+	Limit               int
+	PlaybackConstraints *PlaybackConstraints // Optional playback filters (4K, HDR, subtitles, etc.)
 }
 
 // Search performs semantic search using the query text.
@@ -114,12 +168,13 @@ func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]Sear
 		fetchLimit = 200
 	}
 
-	// Determine minimum similarity - lower for person/studio searches
+	// Determine minimum similarity - lower for person/studio/collection searches
 	// to ensure we can find and boost relevant results
 	minSim := s.minSimilarity
 	if intent.isPersonSearch || intent.isStudioSearch || intent.isDirectorSearch ||
-		intent.isActorSearch || intent.isWriterSearch || intent.isProducerSearch {
-		minSim = 0.15 // Lower threshold for person/studio searches
+		intent.isActorSearch || intent.isWriterSearch || intent.isProducerSearch ||
+		intent.isCollectionSearch || intent.isComposerSearch || intent.isCinematographerSearch {
+		minSim = 0.15 // Lower threshold for person/studio/collection/crew searches
 	}
 
 	// Search using the vector client
@@ -221,7 +276,23 @@ func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]Sear
 	// Apply diversity penalty to avoid too many similar results
 	results = s.applyDiversityPenalty(results, limit)
 
-	// Final sort after diversity adjustment
+	// FINAL STAGE: Apply quality boost (with guardrails)
+	// This must be the last ranking stage before final sort.
+	// Quality boost is capped at ±15% and uses multiplicative scaling,
+	// ensuring it can only shuffle within similarity tiers, not override relevance.
+	results = s.applyQualityBoost(results)
+
+	// Apply playback constraints if specified (4K, HDR, subtitles, etc.)
+	// Use explicit constraints from params, or fall back to detected constraints from query
+	playbackConstraints := params.PlaybackConstraints
+	if (playbackConstraints == nil || playbackConstraints.IsEmpty()) && intent.isPlaybackSearch {
+		playbackConstraints = intent.playbackConstraints
+	}
+	if playbackConstraints != nil && !playbackConstraints.IsEmpty() {
+		results = s.applyPlaybackFilters(ctx, results, playbackConstraints)
+	}
+
+	// Final sort after all adjustments
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Similarity > results[j].Similarity
 	})
@@ -232,6 +303,691 @@ func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]Sear
 	}
 
 	return results, nil
+}
+
+// Explain runs the search pipeline and returns detailed breakdown of how the query was processed.
+// This is used for debugging search behavior via the /explain endpoint.
+func (s *SearchService) Explain(ctx context.Context, query string, limit int) (*ExplainResult, error) {
+	startTime := timeNow()
+
+	if s.embeddingService == nil || s.vector == nil {
+		return nil, fmt.Errorf("search service not properly initialized")
+	}
+
+	result := &ExplainResult{
+		Query:           query,
+		NormalizedQuery: query,
+		DetectedIntents: make(map[string]interface{}),
+		BoostsApplied:   []BoostExplain{},
+		TopResults:      []ResultExplain{},
+	}
+
+	// Detect query intent
+	intent := detectQueryIntent(query)
+
+	// Build detected intents map
+	if intent.isSimilarSearch {
+		result.DetectedIntents["similar_to"] = map[string]interface{}{
+			"title": intent.similarToTitle,
+		}
+		result.SearchMode = "similar_to"
+	} else {
+		result.SearchMode = "semantic"
+	}
+
+	if intent.isDirectorSearch && intent.directorName != "" {
+		result.DetectedIntents["director"] = map[string]interface{}{
+			"name": intent.directorName,
+		}
+		result.SearchMode = "semantic_with_filters"
+	}
+	if intent.isActorSearch && intent.actorName != "" {
+		result.DetectedIntents["actor"] = map[string]interface{}{
+			"name": intent.actorName,
+		}
+		result.SearchMode = "semantic_with_filters"
+	}
+	if intent.isWriterSearch && intent.writerName != "" {
+		result.DetectedIntents["writer"] = map[string]interface{}{
+			"name": intent.writerName,
+		}
+		result.SearchMode = "semantic_with_filters"
+	}
+	if intent.isProducerSearch && intent.producerName != "" {
+		result.DetectedIntents["producer"] = map[string]interface{}{
+			"name": intent.producerName,
+		}
+		result.SearchMode = "semantic_with_filters"
+	}
+	if intent.isStudioSearch && intent.studioName != "" {
+		result.DetectedIntents["studio"] = map[string]interface{}{
+			"name": intent.studioName,
+		}
+		result.SearchMode = "semantic_with_filters"
+	}
+	if intent.isPersonSearch && intent.personName != "" {
+		result.DetectedIntents["person"] = map[string]interface{}{
+			"name": intent.personName,
+			"type": "director_or_actor",
+		}
+		result.SearchMode = "semantic_with_filters"
+	}
+	if intent.isLanguageSearch && intent.languageName != "" {
+		result.DetectedIntents["language"] = map[string]interface{}{
+			"name": intent.languageName,
+		}
+		result.SearchMode = "semantic_with_filters"
+	}
+	if intent.isCollectionSearch && intent.collectionName != "" {
+		result.DetectedIntents["collection"] = map[string]interface{}{
+			"name":                intent.collectionName,
+			"wants_chronological": intent.wantsChronological,
+		}
+		result.SearchMode = "semantic_with_filters"
+	}
+	if intent.isComposerSearch && intent.composerName != "" {
+		result.DetectedIntents["composer"] = map[string]interface{}{
+			"name": intent.composerName,
+		}
+		result.SearchMode = "semantic_with_filters"
+	}
+	if intent.isCinematographerSearch && intent.cinematographerName != "" {
+		result.DetectedIntents["cinematographer"] = map[string]interface{}{
+			"name": intent.cinematographerName,
+		}
+		result.SearchMode = "semantic_with_filters"
+	}
+	if intent.isGenreSearch {
+		result.DetectedIntents["genre"] = map[string]interface{}{
+			"detected": true,
+		}
+	}
+
+	// Check for decade patterns in query
+	decadeInfo := extractDecadeFromQuery(query)
+	if decadeInfo != nil {
+		result.DetectedIntents["decade"] = decadeInfo
+		result.SearchMode = "semantic_with_filters"
+	}
+
+	// Apply limits
+	if limit <= 0 {
+		limit = s.defaultLimit
+	}
+	if limit > s.maxLimit {
+		limit = s.maxLimit
+	}
+
+	// Generate embedding (check cache status)
+	queryEmbedding, err := s.embeddingService.EmbedSingleCached(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("embed query: %w", err)
+	}
+	// Check if embedding was cached (we can infer this from timing, but for now assume not cached)
+	result.EmbeddingCached = s.embeddingService.IsCached(query)
+
+	// Determine minimum similarity
+	minSim := s.minSimilarity
+	if intent.isPersonSearch || intent.isStudioSearch || intent.isDirectorSearch ||
+		intent.isActorSearch || intent.isWriterSearch || intent.isProducerSearch ||
+		intent.isCollectionSearch || intent.isComposerSearch || intent.isCinematographerSearch {
+		minSim = 0.15
+	}
+
+	// Fetch more results for re-ranking
+	fetchLimit := limit * 5
+	if fetchLimit > 200 {
+		fetchLimit = 200
+	}
+
+	// Vector search
+	searchResp, err := s.vector.Search(ctx, sdk.VectorSearchRequest{
+		QueryVector:   queryEmbedding,
+		EntityTypes:   []string{string(EntityMovie), string(EntityTVShow)},
+		Limit:         fetchLimit,
+		MinSimilarity: minSim,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("search embeddings: %w", err)
+	}
+
+	result.VectorSearch = &VectorSearchExplain{
+		MinSimilarity:       minSim,
+		ResultsBeforeFilter: len(searchResp.Results),
+	}
+
+	// Convert to result map and track base similarities
+	resultMap := make(map[string]SearchResult)
+	baseSimilarities := make(map[string]float32)
+	for _, r := range searchResp.Results {
+		key := fmt.Sprintf("%s:%d", r.EntityType, r.EntityID)
+		resultMap[key] = SearchResult{
+			EntityType: EntityType(r.EntityType),
+			EntityID:   r.EntityID,
+			Similarity: r.Similarity,
+			Text:       r.Text,
+		}
+		baseSimilarities[key] = r.Similarity
+	}
+
+	// Text search for person/studio queries
+	if searchTerm := s.getTextSearchTerm(intent); searchTerm != "" {
+		textResp, err := s.vector.SearchText(ctx, searchTerm, []string{string(EntityMovie), string(EntityTVShow)}, 100)
+		if err == nil {
+			for _, r := range textResp.Results {
+				key := fmt.Sprintf("%s:%d", r.EntityType, r.EntityID)
+				if existing, found := resultMap[key]; found {
+					if r.Similarity > existing.Similarity {
+						resultMap[key] = SearchResult{
+							EntityType: EntityType(r.EntityType),
+							EntityID:   r.EntityID,
+							Similarity: r.Similarity,
+							Text:       r.Text,
+						}
+						baseSimilarities[key] = r.Similarity
+					}
+				} else {
+					resultMap[key] = SearchResult{
+						EntityType: EntityType(r.EntityType),
+						EntityID:   r.EntityID,
+						Similarity: 0.5,
+						Text:       r.Text,
+					}
+					baseSimilarities[key] = 0.5
+				}
+			}
+		}
+	}
+
+	result.VectorSearch.ResultsAfterFilter = len(resultMap)
+
+	// Convert map to slice
+	results := make([]SearchResult, 0, len(resultMap))
+	for _, r := range resultMap {
+		results = append(results, r)
+	}
+
+	// Apply keyword boost and track boost breakdown per result
+	queryLower := strings.ToLower(query)
+	boostBreakdowns := make(map[string]map[string]float32)
+	results, boostBreakdowns = s.applyKeywordBoostWithExplain(results, query, queryLower, baseSimilarities)
+
+	// Aggregate boost statistics
+	boostCounts := make(map[string]int)
+	boostTotals := make(map[string]float32)
+	boostTargets := make(map[string]string)
+
+	for _, breakdown := range boostBreakdowns {
+		for boostType, value := range breakdown {
+			if value != 0 {
+				boostCounts[boostType]++
+				boostTotals[boostType] += value
+			}
+		}
+	}
+
+	// Set boost targets based on intent
+	if intent.isDirectorSearch && intent.directorName != "" {
+		boostTargets["director_match"] = intent.directorName
+	}
+	if intent.isActorSearch && intent.actorName != "" {
+		boostTargets["actor_match"] = intent.actorName
+	}
+	if intent.isPersonSearch && intent.personName != "" {
+		boostTargets["person_match"] = intent.personName
+	}
+	if intent.isStudioSearch && intent.studioName != "" {
+		boostTargets["studio_match"] = intent.studioName
+	}
+	if intent.isLanguageSearch && intent.languageName != "" {
+		boostTargets["language_match"] = intent.languageName
+	}
+
+	// Build boosts applied list
+	for boostType, count := range boostCounts {
+		if count > 0 {
+			avgBoost := boostTotals[boostType] / float32(count)
+			result.BoostsApplied = append(result.BoostsApplied, BoostExplain{
+				Type:    boostType,
+				Target:  boostTargets[boostType],
+				Boost:   avgBoost,
+				Matches: count,
+			})
+		}
+	}
+
+	// Deduplicate
+	results = s.deduplicateByTitle(results)
+
+	// Sort by similarity
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Similarity > results[j].Similarity
+	})
+
+	// Apply diversity penalty
+	results = s.applyDiversityPenalty(results, limit)
+
+	// Track similarity before quality boost for explain output
+	preQualitySimilarities := make(map[string]float32)
+	for _, r := range results {
+		key := fmt.Sprintf("%s:%d", r.EntityType, r.EntityID)
+		preQualitySimilarities[key] = r.Similarity
+	}
+
+	// FINAL STAGE: Apply quality boost (with guardrails)
+	results = s.applyQualityBoost(results)
+
+	// Track quality boost amounts
+	qualityBoostCount := 0
+	for _, r := range results {
+		key := fmt.Sprintf("%s:%d", r.EntityType, r.EntityID)
+		if r.Similarity != preQualitySimilarities[key] {
+			qualityBoostCount++
+			// Add quality boost to breakdown
+			if boostBreakdowns[key] == nil {
+				boostBreakdowns[key] = make(map[string]float32)
+			}
+			boostBreakdowns[key]["quality_boost"] = r.Similarity - preQualitySimilarities[key]
+		}
+	}
+	if qualityBoostCount > 0 {
+		result.BoostsApplied = append(result.BoostsApplied, BoostExplain{
+			Type:    "quality_boost",
+			Target:  "rating/votes",
+			Boost:   0.15, // max possible boost
+			Matches: qualityBoostCount,
+		})
+	}
+
+	// Final sort
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Similarity > results[j].Similarity
+	})
+
+	// Apply limit
+	if len(results) > limit {
+		results = results[:limit]
+	}
+
+	result.FinalResults = len(results)
+
+	// Build top results with breakdown
+	for _, r := range results {
+		key := fmt.Sprintf("%s:%d", r.EntityType, r.EntityID)
+		title, year := extractTitleAndYear(r.Text)
+
+		resultExplain := ResultExplain{
+			Title:             title,
+			Year:              year,
+			BaseSimilarity:    baseSimilarities[key],
+			BoostedSimilarity: r.Similarity,
+			BoostBreakdown:    boostBreakdowns[key],
+		}
+		if resultExplain.BoostBreakdown == nil {
+			resultExplain.BoostBreakdown = make(map[string]float32)
+		}
+		result.TopResults = append(result.TopResults, resultExplain)
+	}
+
+	result.TookMs = timeNow().Sub(startTime).Milliseconds()
+
+	return result, nil
+}
+
+// applyKeywordBoostWithExplain is like applyKeywordBoost but also returns boost breakdown per result.
+func (s *SearchService) applyKeywordBoostWithExplain(
+	results []SearchResult,
+	queryOriginal, queryLower string,
+	baseSimilarities map[string]float32,
+) ([]SearchResult, map[string]map[string]float32) {
+	boostBreakdowns := make(map[string]map[string]float32)
+
+	// Get configurable boost weights
+	boosts := s.getBoosts()
+
+	queryTerms := extractSearchTerms(queryLower)
+	negativeTerms := extractNegativeTerms(queryLower)
+	queryGenres := extractGenresFromQuery(queryLower)
+	negativeGenres := extractNegativeGenres(queryLower)
+	intent := detectQueryIntentWithConfig(queryOriginal, s.getKnownStudios(), s.getLanguageMap())
+
+	hasStrongIntent := intent.isDirectorSearch || intent.isActorSearch ||
+		intent.isWriterSearch || intent.isProducerSearch ||
+		intent.isStudioSearch || intent.isPersonSearch || intent.isLanguageSearch ||
+		intent.isCollectionSearch || intent.isComposerSearch || intent.isCinematographerSearch
+
+	for i := range results {
+		key := fmt.Sprintf("%s:%d", results[i].EntityType, results[i].EntityID)
+		breakdown := make(map[string]float32)
+		textLower := strings.ToLower(results[i].Text)
+		boost := float32(0.0)
+		penalty := float32(0.0)
+
+		// Director boost
+		if intent.isDirectorSearch && intent.directorName != "" {
+			directorLine := extractLine(textLower, "directed by:")
+			if strings.Contains(directorLine, intent.directorName) {
+				boost += boosts.DirectorMatch
+				breakdown["director_match"] = boosts.DirectorMatch
+			} else {
+				penalty += boosts.DirectorMismatchPenalty
+				breakdown["director_mismatch"] = -boosts.DirectorMismatchPenalty
+			}
+		}
+
+		// Actor boost
+		if intent.isActorSearch && intent.actorName != "" {
+			castLine := extractLine(textLower, "cast:")
+			if strings.Contains(castLine, intent.actorName) {
+				boost += boosts.ActorMatch
+				breakdown["actor_match"] = boosts.ActorMatch
+			} else {
+				penalty += boosts.ActorMismatchPenalty
+				breakdown["actor_mismatch"] = -boosts.ActorMismatchPenalty
+			}
+		}
+
+		// Writer boost
+		if intent.isWriterSearch && intent.writerName != "" {
+			writerLine := extractLine(textLower, "written by:")
+			if strings.Contains(writerLine, intent.writerName) {
+				boost += boosts.WriterMatch
+				breakdown["writer_match"] = boosts.WriterMatch
+			} else {
+				penalty += boosts.WriterMismatchPenalty
+				breakdown["writer_mismatch"] = -boosts.WriterMismatchPenalty
+			}
+		}
+
+		// Producer boost
+		if intent.isProducerSearch && intent.producerName != "" {
+			producerLine := extractLine(textLower, "produced by:")
+			if strings.Contains(producerLine, intent.producerName) {
+				boost += boosts.ProducerMatch
+				breakdown["producer_match"] = boosts.ProducerMatch
+			} else {
+				penalty += boosts.ProducerMismatchPenalty
+				breakdown["producer_mismatch"] = -boosts.ProducerMismatchPenalty
+			}
+		}
+
+		// Studio boost
+		if intent.isStudioSearch && intent.studioName != "" {
+			studioLine := extractLine(textLower, "studios:")
+			if studioLine == "" {
+				studioLine = extractLine(textLower, "network:")
+			}
+			if strings.Contains(studioLine, intent.studioName) {
+				boost += boosts.StudioMatch
+				breakdown["studio_match"] = boosts.StudioMatch
+			} else {
+				penalty += boosts.StudioMismatchPenalty
+				breakdown["studio_mismatch"] = -boosts.StudioMismatchPenalty
+			}
+		}
+
+		// Person search boost
+		if intent.isPersonSearch && intent.personName != "" {
+			directorMatch := strings.Contains(extractLine(textLower, "directed by:"), intent.personName)
+			writerMatch := strings.Contains(extractLine(textLower, "written by:"), intent.personName)
+			producerMatch := strings.Contains(extractLine(textLower, "produced by:"), intent.personName)
+			castMatch := strings.Contains(extractLine(textLower, "cast:"), intent.personName)
+			studioMatch := strings.Contains(extractLine(textLower, "studios:"), intent.personName)
+
+			if directorMatch {
+				boost += boosts.PersonDirectorMatch
+				breakdown["person_director"] = boosts.PersonDirectorMatch
+			}
+			if writerMatch {
+				boost += boosts.PersonWriterMatch
+				breakdown["person_writer"] = boosts.PersonWriterMatch
+			}
+			if studioMatch {
+				boost += boosts.PersonStudioMatch
+				breakdown["person_studio"] = boosts.PersonStudioMatch
+			}
+			if producerMatch && !directorMatch && !writerMatch {
+				boost += boosts.PersonProducerMatch
+				breakdown["person_producer"] = boosts.PersonProducerMatch
+			}
+			if castMatch && !directorMatch && !writerMatch {
+				boost += boosts.PersonCastMatch
+				penalty += boosts.PersonCastPenalty
+				breakdown["person_cast"] = boosts.PersonCastMatch - boosts.PersonCastPenalty // net effect
+			}
+
+			foundInPeople := directorMatch || writerMatch || producerMatch || castMatch || studioMatch
+			if !foundInPeople {
+				penalty += boosts.PersonNotFoundPenalty
+				breakdown["person_not_found"] = -boosts.PersonNotFoundPenalty
+			}
+		}
+
+		// Language boost
+		if intent.isLanguageSearch && intent.languageName != "" {
+			languageLine := extractLine(textLower, "language:")
+			countryLine := extractLine(textLower, "country:")
+			typeLine := extractLine(textLower, "type:")
+
+			matchedLanguage := strings.Contains(languageLine, intent.languageName) ||
+				strings.Contains(countryLine, intent.languageName) ||
+				strings.Contains(typeLine, intent.languageName)
+
+			if matchedLanguage {
+				boost += boosts.LanguageMatch
+				breakdown["language_match"] = boosts.LanguageMatch
+			} else {
+				penalty += boosts.LanguageMismatchPenalty
+				breakdown["language_mismatch"] = -boosts.LanguageMismatchPenalty
+			}
+		}
+
+		// Composer boost (music by, score by, composed by)
+		if intent.isComposerSearch && intent.composerName != "" {
+			composerLine := extractLine(textLower, "music by:")
+			if strings.Contains(composerLine, intent.composerName) {
+				boost += boosts.ComposerMatch
+				breakdown["composer_match"] = boosts.ComposerMatch
+			} else {
+				penalty += boosts.ComposerMismatchPenalty
+				breakdown["composer_mismatch"] = -boosts.ComposerMismatchPenalty
+			}
+		}
+
+		// Cinematographer boost (cinematography by, shot by, dp)
+		if intent.isCinematographerSearch && intent.cinematographerName != "" {
+			cinematographerLine := extractLine(textLower, "cinematography by:")
+			if strings.Contains(cinematographerLine, intent.cinematographerName) {
+				boost += boosts.CinematographerMatch
+				breakdown["cinematographer_match"] = boosts.CinematographerMatch
+			} else {
+				penalty += boosts.CinematographerMismatchPenalty
+				breakdown["cinematographer_mismatch"] = -boosts.CinematographerMismatchPenalty
+			}
+		}
+
+		// Collection/franchise boost
+		if intent.isCollectionSearch && intent.collectionName != "" {
+			titleLine := extractLine(textLower, "title:")
+			collectionLine := extractLine(textLower, "collection:")
+
+			titleMatch := strings.Contains(titleLine, intent.collectionName)
+			collectionMatch := strings.Contains(collectionLine, intent.collectionName)
+
+			collectionWords := strings.Fields(intent.collectionName)
+			wordMatchCount := 0
+			for _, word := range collectionWords {
+				if len(word) >= 3 && strings.Contains(titleLine, word) {
+					wordMatchCount++
+				}
+			}
+			partialMatch := len(collectionWords) > 0 && wordMatchCount >= len(collectionWords)/2+1
+
+			if titleMatch || collectionMatch {
+				boost += 0.60
+				breakdown["collection_match"] = 0.60
+			} else if partialMatch {
+				boost += 0.40
+				breakdown["collection_partial"] = 0.40
+			} else {
+				penalty += 0.50
+				breakdown["collection_mismatch"] = -0.50
+			}
+		}
+
+		// Keyword term boost
+		matchCount := 0
+		termBoost := float32(0.0)
+		for _, term := range queryTerms {
+			if strings.Contains(textLower, term) {
+				matchCount++
+				if strings.Contains(extractLine(textLower, "title:"), term) {
+					termBoost += 0.15
+				} else if strings.Contains(extractLine(textLower, "directed by:"), term) {
+					termBoost += 0.12
+				} else if strings.Contains(extractLine(textLower, "written by:"), term) {
+					termBoost += 0.10
+				} else if strings.Contains(extractLine(textLower, "produced by:"), term) {
+					termBoost += 0.08
+				} else if strings.Contains(extractLine(textLower, "cast:"), term) {
+					termBoost += 0.10
+				} else if strings.Contains(extractLine(textLower, "studios:"), term) {
+					termBoost += 0.10
+				} else if strings.Contains(extractLine(textLower, "setting:"), term) {
+					termBoost += 0.10
+				} else {
+					termBoost += 0.05
+				}
+			}
+		}
+		if matchCount > 1 {
+			termBoost += float32(matchCount-1) * 0.03
+		}
+		if termBoost > 0 {
+			boost += termBoost
+			breakdown["keyword_match"] = termBoost
+		}
+
+		// Genre boost
+		if len(queryGenres) > 0 {
+			resultGenres := extractLine(textLower, "genre:")
+			genreMatches := 0
+			for _, g := range queryGenres {
+				if strings.Contains(resultGenres, g) {
+					genreMatches++
+				}
+			}
+			if genreMatches > 0 {
+				genreBoost := float32(genreMatches) * boosts.GenreMatch
+				boost += genreBoost
+				breakdown["genre_match"] = genreBoost
+			} else {
+				penalty += boosts.GenreMismatchPenalty
+				breakdown["genre_mismatch"] = -boosts.GenreMismatchPenalty
+			}
+		}
+
+		// Negative term penalty
+		for _, term := range negativeTerms {
+			if strings.Contains(textLower, term) {
+				penalty += 0.25
+				breakdown["negative_term"] = -0.25
+			}
+		}
+
+		// Negative genre penalty
+		if len(negativeGenres) > 0 {
+			resultGenres := extractLine(textLower, "genre:")
+			for _, g := range negativeGenres {
+				if strings.Contains(resultGenres, g) {
+					penalty += 0.40
+					breakdown["negative_genre"] = -0.40
+				}
+			}
+		}
+
+		// Apply boost with cap
+		maxBoost := float32(0.3)
+		if hasStrongIntent {
+			maxBoost = 0.6
+		}
+		if boost > maxBoost {
+			boost = maxBoost
+		}
+		results[i].Similarity += boost - penalty
+
+		// Cap at 1.0 and floor at 0
+		if results[i].Similarity > 1.0 {
+			results[i].Similarity = 1.0
+		}
+		if results[i].Similarity < 0 {
+			results[i].Similarity = 0
+		}
+
+		boostBreakdowns[key] = breakdown
+	}
+
+	return results, boostBreakdowns
+}
+
+// extractDecadeFromQuery extracts decade information from a query string.
+func extractDecadeFromQuery(query string) map[string]interface{} {
+	q := strings.ToLower(query)
+
+	// Patterns like "90s", "1990s", "nineties"
+	decadePatterns := map[string]struct {
+		value     string
+		yearStart int
+		yearEnd   int
+	}{
+		"50s": {"1950s", 1950, 1959}, "1950s": {"1950s", 1950, 1959}, "fifties": {"1950s", 1950, 1959},
+		"60s": {"1960s", 1960, 1969}, "1960s": {"1960s", 1960, 1969}, "sixties": {"1960s", 1960, 1969},
+		"70s": {"1970s", 1970, 1979}, "1970s": {"1970s", 1970, 1979}, "seventies": {"1970s", 1970, 1979},
+		"80s": {"1980s", 1980, 1989}, "1980s": {"1980s", 1980, 1989}, "eighties": {"1980s", 1980, 1989},
+		"90s": {"1990s", 1990, 1999}, "1990s": {"1990s", 1990, 1999}, "nineties": {"1990s", 1990, 1999},
+		"00s": {"2000s", 2000, 2009}, "2000s": {"2000s", 2000, 2009},
+		"2010s": {"2010s", 2010, 2019},
+		"2020s": {"2020s", 2020, 2029},
+	}
+
+	for pattern, info := range decadePatterns {
+		if strings.Contains(q, pattern) {
+			return map[string]interface{}{
+				"value":      info.value,
+				"year_start": info.yearStart,
+				"year_end":   info.yearEnd,
+			}
+		}
+	}
+
+	return nil
+}
+
+// extractTitleAndYear extracts title and year from embedding text.
+func extractTitleAndYear(text string) (string, int) {
+	titleLine := extractLine(strings.ToLower(text), "title:")
+	if titleLine == "" {
+		return "", 0
+	}
+
+	// Remove "title:" prefix
+	title := strings.TrimPrefix(titleLine, "title:")
+	title = strings.TrimSpace(title)
+
+	// Extract year from parentheses
+	year := 0
+	if start := strings.LastIndex(title, "("); start != -1 {
+		if end := strings.LastIndex(title, ")"); end > start {
+			yearStr := title[start+1 : end]
+			if len(yearStr) == 4 {
+				fmt.Sscanf(yearStr, "%d", &year)
+			}
+			// Remove year from title for cleaner display
+			title = strings.TrimSpace(title[:start])
+		}
+	}
+
+	return title, year
 }
 
 // getTextSearchTerm returns the text search term for person/studio searches.
@@ -258,32 +1014,277 @@ func (s *SearchService) getTextSearchTerm(intent queryIntent) string {
 	if intent.isLanguageSearch && intent.languageName != "" {
 		return intent.languageName
 	}
+	if intent.isCollectionSearch && intent.collectionName != "" {
+		return intent.collectionName
+	}
+	if intent.isComposerSearch && intent.composerName != "" {
+		return intent.composerName
+	}
+	if intent.isCinematographerSearch && intent.cinematographerName != "" {
+		return intent.cinematographerName
+	}
 	return ""
 }
 
 // detectQueryIntent identifies what type of search the user is performing.
 type queryIntent struct {
-	isDirectorSearch bool
-	isActorSearch    bool
-	isWriterSearch   bool
-	isProducerSearch bool
-	isStudioSearch   bool
-	isGenreSearch    bool
-	isLocationSearch bool
-	isPersonSearch   bool   // Generic person search (name + movies)
-	isLanguageSearch bool   // Searching by language (French films, Korean movies)
-	isSimilarSearch  bool   // "movies like X", "similar to X" - find similar to a specific title
-	directorName     string // extracted director name if searching by director
-	actorName        string // extracted actor name if searching by actor
-	writerName       string // extracted writer name
-	producerName     string // extracted producer name
-	studioName       string // extracted studio name
-	personName       string // generic person name (from "Name movies" pattern)
-	languageName     string // language being searched for (e.g., "french", "korean")
-	similarToTitle   string // extracted title for "similar to" searches
+	isDirectorSearch        bool
+	isActorSearch           bool
+	isWriterSearch          bool
+	isProducerSearch        bool
+	isComposerSearch        bool // Searching by composer (music by, score by)
+	isCinematographerSearch bool // Searching by cinematographer (shot by, cinematography by)
+	isStudioSearch          bool
+	isGenreSearch           bool
+	isLocationSearch        bool
+	isPersonSearch          bool                 // Generic person search (name + movies)
+	isLanguageSearch        bool                 // Searching by language (French films, Korean movies)
+	isSimilarSearch         bool                 // "movies like X", "similar to X" - find similar to a specific title
+	isCollectionSearch      bool                 // "all X movies", "X franchise", "X series"
+	isPlaybackSearch        bool                 // Searching by playback constraints (4K, HDR, subtitles)
+	directorName            string               // extracted director name if searching by director
+	actorName               string               // extracted actor name if searching by actor
+	writerName              string               // extracted writer name
+	producerName            string               // extracted producer name
+	composerName            string               // extracted composer name (music by X)
+	cinematographerName     string               // extracted cinematographer name (shot by X)
+	studioName              string               // extracted studio name
+	personName              string               // generic person name (from "Name movies" pattern)
+	languageName            string               // language being searched for (e.g., "french", "korean")
+	similarToTitle          string               // extracted title for "similar to" searches
+	collectionName          string               // extracted collection/franchise name
+	wantsChronological      bool                 // "in order", "chronologically"
+	playbackConstraints     *PlaybackConstraints // extracted playback constraints
+}
+
+// convertToIntentChips converts a queryIntent to user-facing IntentChips.
+// These chips show users what the system understood from their query.
+func (intent queryIntent) convertToIntentChips(query string) []IntentChip {
+	chips := []IntentChip{}
+	chipID := 0
+
+	// Priority 1: Similar-to queries (highest semantic intent)
+	if intent.isSimilarSearch && intent.similarToTitle != "" {
+		chipID++
+		chips = append(chips, IntentChip{
+			ID:        fmt.Sprintf("chip_%d", chipID),
+			Type:      "similar_to",
+			Value:     intent.similarToTitle,
+			Display:   fmt.Sprintf("Like \"%s\"", intent.similarToTitle),
+			Removable: true,
+		})
+	}
+
+	// Priority 2: Person searches (director, actor, etc.)
+	if intent.isDirectorSearch && intent.directorName != "" {
+		chipID++
+		chips = append(chips, IntentChip{
+			ID:        fmt.Sprintf("chip_%d", chipID),
+			Type:      "person",
+			Value:     intent.directorName,
+			Display:   intent.directorName,
+			Role:      "director",
+			Removable: true,
+		})
+	}
+	if intent.isActorSearch && intent.actorName != "" {
+		chipID++
+		chips = append(chips, IntentChip{
+			ID:        fmt.Sprintf("chip_%d", chipID),
+			Type:      "person",
+			Value:     intent.actorName,
+			Display:   intent.actorName,
+			Role:      "actor",
+			Removable: true,
+		})
+	}
+	if intent.isWriterSearch && intent.writerName != "" {
+		chipID++
+		chips = append(chips, IntentChip{
+			ID:        fmt.Sprintf("chip_%d", chipID),
+			Type:      "person",
+			Value:     intent.writerName,
+			Display:   intent.writerName,
+			Role:      "writer",
+			Removable: true,
+		})
+	}
+	if intent.isProducerSearch && intent.producerName != "" {
+		chipID++
+		chips = append(chips, IntentChip{
+			ID:        fmt.Sprintf("chip_%d", chipID),
+			Type:      "person",
+			Value:     intent.producerName,
+			Display:   intent.producerName,
+			Role:      "producer",
+			Removable: true,
+		})
+	}
+	if intent.isComposerSearch && intent.composerName != "" {
+		chipID++
+		chips = append(chips, IntentChip{
+			ID:        fmt.Sprintf("chip_%d", chipID),
+			Type:      "person",
+			Value:     intent.composerName,
+			Display:   intent.composerName,
+			Role:      "composer",
+			Removable: true,
+		})
+	}
+	if intent.isCinematographerSearch && intent.cinematographerName != "" {
+		chipID++
+		chips = append(chips, IntentChip{
+			ID:        fmt.Sprintf("chip_%d", chipID),
+			Type:      "person",
+			Value:     intent.cinematographerName,
+			Display:   intent.cinematographerName,
+			Role:      "cinematographer",
+			Removable: true,
+		})
+	}
+	if intent.isPersonSearch && intent.personName != "" {
+		chipID++
+		chips = append(chips, IntentChip{
+			ID:        fmt.Sprintf("chip_%d", chipID),
+			Type:      "person",
+			Value:     intent.personName,
+			Display:   intent.personName,
+			Role:      "",
+			Removable: true,
+		})
+	}
+
+	// Priority 3: Structural filters (genre, decade, studio, language)
+	// Extract decade from query
+	decadeInfo := extractDecadeFromQuery(query)
+	if decade, ok := decadeInfo["value"].(string); ok && decade != "" {
+		chipID++
+		// Extract display format (e.g., "90s" from "1990s")
+		displayDecade := decade
+		if strings.HasSuffix(decade, "s") && len(decade) == 5 {
+			// "1990s" -> "90s"
+			displayDecade = decade[2:]
+		}
+		// Get adjacent decades for refinements
+		adjacentDecades := []string{}
+		if strings.HasSuffix(decade, "s") {
+			// Parse the decade start year
+			baseYear := 0
+			fmt.Sscanf(decade, "%d", &baseYear)
+			if baseYear > 0 {
+				if baseYear >= 1960 {
+					prevDecade := baseYear - 10
+					adjacentDecades = append(adjacentDecades, fmt.Sprintf("%ds", prevDecade%100))
+				}
+				if baseYear <= 2010 {
+					nextDecade := baseYear + 10
+					adjacentDecades = append(adjacentDecades, fmt.Sprintf("%ds", nextDecade%100))
+				}
+			}
+		}
+		chips = append(chips, IntentChip{
+			ID:          fmt.Sprintf("chip_%d", chipID),
+			Type:        "decade",
+			Value:       decade,
+			Display:     displayDecade,
+			Removable:   true,
+			Refinements: adjacentDecades,
+		})
+	}
+
+	if intent.isStudioSearch && intent.studioName != "" {
+		chipID++
+		chips = append(chips, IntentChip{
+			ID:        fmt.Sprintf("chip_%d", chipID),
+			Type:      "studio",
+			Value:     intent.studioName,
+			Display:   intent.studioName,
+			Removable: true,
+		})
+	}
+
+	if intent.isLanguageSearch && intent.languageName != "" {
+		chipID++
+		chips = append(chips, IntentChip{
+			ID:        fmt.Sprintf("chip_%d", chipID),
+			Type:      "language",
+			Value:     intent.languageName,
+			Display:   intent.languageName,
+			Removable: true,
+		})
+	}
+
+	// Priority 4: Collection/franchise
+	if intent.isCollectionSearch && intent.collectionName != "" {
+		chipID++
+		chips = append(chips, IntentChip{
+			ID:        fmt.Sprintf("chip_%d", chipID),
+			Type:      "collection",
+			Value:     intent.collectionName,
+			Display:   intent.collectionName,
+			Removable: true,
+		})
+	}
+
+	// Priority 5: Playback constraints
+	if intent.isPlaybackSearch && intent.playbackConstraints != nil {
+		pc := intent.playbackConstraints
+		if pc.MinResolution != "" {
+			chipID++
+			chips = append(chips, IntentChip{
+				ID:        fmt.Sprintf("chip_%d", chipID),
+				Type:      "playback",
+				Value:     pc.MinResolution,
+				Display:   pc.MinResolution,
+				Removable: true,
+			})
+		}
+		if len(pc.HDRFormats) > 0 {
+			chipID++
+			chips = append(chips, IntentChip{
+				ID:        fmt.Sprintf("chip_%d", chipID),
+				Type:      "playback",
+				Value:     strings.Join(pc.HDRFormats, ","),
+				Display:   strings.Join(pc.HDRFormats, " / "),
+				Removable: true,
+			})
+		}
+		if pc.HasSubtitles != nil && *pc.HasSubtitles {
+			chipID++
+			chips = append(chips, IntentChip{
+				ID:        fmt.Sprintf("chip_%d", chipID),
+				Type:      "playback",
+				Value:     "has_subtitles",
+				Display:   "Has Subtitles",
+				Removable: true,
+			})
+		}
+	}
+
+	// Extract negative terms as exclusion chips
+	negativeTerms := extractNegativeTerms(query)
+	for _, term := range negativeTerms {
+		chipID++
+		chips = append(chips, IntentChip{
+			ID:        fmt.Sprintf("chip_%d", chipID),
+			Type:      "exclusion",
+			Value:     term,
+			Display:   fmt.Sprintf("Not %s", term),
+			Removable: true,
+		})
+	}
+
+	return chips
 }
 
 func detectQueryIntent(query string) queryIntent {
+	// Use default studios and languages for backward compatibility
+	return detectQueryIntentWithConfig(query, studiosToMap(getDefaultStudios()), getDefaultLanguages())
+}
+
+// detectQueryIntentWithConfig identifies what type of search the user is performing,
+// using the provided studios and languages maps for intent detection.
+func detectQueryIntentWithConfig(query string, knownStudios map[string]bool, languageMap map[string]string) queryIntent {
 	intent := queryIntent{}
 	q := strings.ToLower(query)
 
@@ -295,21 +1296,16 @@ func detectQueryIntent(query string) queryIntent {
 		return intent
 	}
 
-	// Known studio names for disambiguation - check these first before director patterns
-	knownStudios := map[string]bool{
-		"pixar": true, "disney": true, "marvel": true, "a24": true,
-		"ghibli": true, "dreamworks": true, "warner": true, "universal": true,
-		"paramount": true, "sony": true, "fox": true, "mgm": true,
-		"lionsgate": true, "miramax": true, "blumhouse": true, "netflix": true,
-		"hbo": true, "amazon": true, "apple": true, "hulu": true,
-		"lucasfilm": true, "dc": true, "legendary": true, "annapurna": true,
-		"neon": true, "searchlight": true, "focus": true, "studio ghibli": true,
-	}
+	// Check for collection/franchise patterns
+	// E.g., "all Mission Impossible movies", "Harry Potter in order", "Star Wars saga"
+	intent.collectionName, intent.isCollectionSearch = extractCollectionName(q)
+	intent.wantsChronological = detectChronologicalIntent(q)
 
-	// Studio patterns - check BEFORE director patterns to avoid "movies by Pixar" matching director
-	studioPatterns := []string{"from studio ", "studio ", " by pixar", " by disney", " by marvel",
-		" by a24", " by ghibli", " by dreamworks", " by warner", " by universal", " by paramount",
-		" by sony", " by fox", " by mgm", " by lionsgate", " by miramax", " by blumhouse"}
+	// Build studio patterns dynamically from known studios
+	studioPatterns := []string{"from studio ", "studio "}
+	for studio := range knownStudios {
+		studioPatterns = append(studioPatterns, " by "+studio)
+	}
 	for _, p := range studioPatterns {
 		if idx := strings.Index(q, p); idx != -1 {
 			intent.isStudioSearch = true
@@ -405,6 +1401,34 @@ func detectQueryIntent(query string) queryIntent {
 		}
 	}
 
+	// Composer patterns (music by, score by, composed by)
+	composerPatterns := []string{"music by ", "score by ", "composed by ", "composer "}
+	for _, p := range composerPatterns {
+		if idx := strings.Index(q, p); idx != -1 {
+			intent.isComposerSearch = true
+			name := strings.TrimSpace(q[idx+len(p):])
+			for _, suffix := range []string{" films", " movies", " film", " movie"} {
+				name = strings.TrimSuffix(name, suffix)
+			}
+			intent.composerName = name
+			break
+		}
+	}
+
+	// Cinematographer patterns (cinematography by, shot by, filmed by, dp)
+	cinematographerPatterns := []string{"cinematography by ", "shot by ", "dp ", "director of photography "}
+	for _, p := range cinematographerPatterns {
+		if idx := strings.Index(q, p); idx != -1 {
+			intent.isCinematographerSearch = true
+			name := strings.TrimSpace(q[idx+len(p):])
+			for _, suffix := range []string{" films", " movies", " film", " movie"} {
+				name = strings.TrimSuffix(name, suffix)
+			}
+			intent.cinematographerName = name
+			break
+		}
+	}
+
 	// Location patterns
 	locationPatterns := []string{"set in ", "filmed in ", "takes place in "}
 	for _, p := range locationPatterns {
@@ -415,41 +1439,7 @@ func detectQueryIntent(query string) queryIntent {
 	}
 
 	// Language/nationality patterns - detect queries like "French films", "Korean movies", "Japanese anime"
-	languageMap := map[string]string{
-		"french":     "french",
-		"korean":     "korean",
-		"japanese":   "japanese",
-		"chinese":    "chinese",
-		"spanish":    "spanish",
-		"italian":    "italian",
-		"german":     "german",
-		"russian":    "russian",
-		"indian":     "hindi",
-		"bollywood":  "hindi",
-		"swedish":    "swedish",
-		"danish":     "danish",
-		"norwegian":  "norwegian",
-		"thai":       "thai",
-		"turkish":    "turkish",
-		"portuguese": "portuguese",
-		"arabic":     "arabic",
-		"polish":     "polish",
-		"dutch":      "dutch",
-		"greek":      "greek",
-		"czech":      "czech",
-		"hungarian":  "hungarian",
-		"romanian":   "romanian",
-		"vietnamese": "vietnamese",
-		"indonesian": "indonesian",
-		"filipino":   "filipino",
-		"k-drama":    "korean",
-		"kdrama":     "korean",
-		"j-drama":    "japanese",
-		"jdrama":     "japanese",
-		"c-drama":    "chinese",
-		"cdrama":     "chinese",
-		"anime":      "japanese",
-	}
+	// Uses the languageMap passed as parameter for configurable language detection
 	for keyword, lang := range languageMap {
 		if strings.Contains(q, keyword) {
 			intent.isLanguageSearch = true
@@ -465,7 +1455,126 @@ func detectQueryIntent(query string) queryIntent {
 		intent.personName, intent.isPersonSearch = extractPersonFromNameMoviesPattern(query)
 	}
 
+	// Detect playback constraint patterns (4K, HDR, subtitles, etc.)
+	intent.playbackConstraints, intent.isPlaybackSearch = extractPlaybackConstraints(q)
+
 	return intent
+}
+
+// extractPlaybackConstraints extracts playback-related constraints from a query.
+// Detects patterns like "4K movies", "Dolby Vision content", "movies with subtitles".
+func extractPlaybackConstraints(query string) (*PlaybackConstraints, bool) {
+	constraints := &PlaybackConstraints{}
+	hasConstraints := false
+
+	// Resolution patterns
+	resolutionPatterns := map[string]string{
+		"4k":      "4K",
+		"uhd":     "4K",
+		"2160p":   "4K",
+		"1080p":   "1080p",
+		"full hd": "1080p",
+		"fhd":     "1080p",
+		"720p":    "720p",
+		"hd":      "720p",
+		"8k":      "8K",
+		"4320p":   "8K",
+	}
+
+	for pattern, resolution := range resolutionPatterns {
+		if strings.Contains(query, pattern) {
+			constraints.MinResolution = resolution
+			hasConstraints = true
+			break
+		}
+	}
+
+	// HDR format patterns
+	hdrPatterns := map[string]string{
+		"dolby vision": "Dolby Vision",
+		"dv":           "Dolby Vision",
+		"hdr10+":       "HDR10+",
+		"hdr10":        "HDR10",
+		"hdr":          "HDR10", // Generic HDR defaults to HDR10
+		"hlg":          "HLG",
+	}
+
+	for pattern, format := range hdrPatterns {
+		if strings.Contains(query, pattern) {
+			constraints.HDRFormats = append(constraints.HDRFormats, format)
+			hasConstraints = true
+		}
+	}
+
+	// Audio format patterns
+	audioPatterns := map[string]string{
+		"atmos":       "atmos",
+		"dolby atmos": "atmos",
+		"truehd":      "truehd",
+		"dts-hd":      "dts-hd",
+		"dts:x":       "dts:x",
+		"5.1":         "5.1",
+		"7.1":         "7.1",
+		"surround":    "5.1",
+	}
+
+	for pattern, format := range audioPatterns {
+		if strings.Contains(query, pattern) {
+			constraints.AudioFormats = append(constraints.AudioFormats, format)
+			hasConstraints = true
+		}
+	}
+
+	// Subtitle patterns
+	subtitlePatterns := []string{
+		"with subtitles",
+		"subtitled",
+		"with subs",
+		"has subtitles",
+	}
+
+	for _, pattern := range subtitlePatterns {
+		if strings.Contains(query, pattern) {
+			hasSubtitles := true
+			constraints.HasSubtitles = &hasSubtitles
+			hasConstraints = true
+			break
+		}
+	}
+
+	// Subtitle language patterns
+	subtitleLangPatterns := map[string]string{
+		"english subtitles":  "en",
+		"english subs":       "en",
+		"spanish subtitles":  "es",
+		"spanish subs":       "es",
+		"french subtitles":   "fr",
+		"french subs":        "fr",
+		"german subtitles":   "de",
+		"german subs":        "de",
+		"japanese subtitles": "ja",
+		"japanese subs":      "ja",
+		"korean subtitles":   "ko",
+		"korean subs":        "ko",
+		"chinese subtitles":  "zh",
+		"chinese subs":       "zh",
+	}
+
+	for pattern, lang := range subtitleLangPatterns {
+		if strings.Contains(query, pattern) {
+			constraints.SubtitleLanguage = lang
+			hasSubtitles := true
+			constraints.HasSubtitles = &hasSubtitles
+			hasConstraints = true
+			break
+		}
+	}
+
+	if !hasConstraints {
+		return nil, false
+	}
+
+	return constraints, true
 }
 
 // extractPersonFromNameMoviesPattern extracts a person name from "Name movies" pattern
@@ -629,12 +1738,161 @@ func extractSimilarToTitle(query string) (string, bool) {
 	return "", false
 }
 
+// extractCollectionName extracts a collection/franchise name from queries like
+// "all Mission Impossible movies", "Harry Potter in order", "Star Wars saga".
+// Returns the extracted collection name (normalized) and whether a pattern was found.
+func extractCollectionName(query string) (string, bool) {
+	q := strings.ToLower(query)
+
+	// Common abbreviations to expand for better matching
+	abbreviations := map[string]string{
+		"mcu":  "marvel cinematic universe",
+		"dceu": "dc extended universe",
+		"lotr": "lord of the rings",
+		"potc": "pirates of the caribbean",
+		"hp":   "harry potter",
+		"sw":   "star wars",
+		"mi":   "mission impossible",
+		"f&f":  "fast and furious",
+		"ff":   "fast and furious",
+	}
+
+	// Check for abbreviations first
+	for abbr, full := range abbreviations {
+		if strings.Contains(q, abbr) {
+			return full, true
+		}
+	}
+
+	// Patterns that indicate collection search with name BEFORE the keyword
+	// E.g., "star wars saga", "harry potter series", "mission impossible franchise"
+	suffixPatterns := []string{
+		" saga",
+		" trilogy",
+		" quadrilogy",
+		" pentalogy",
+		" hexalogy",
+		" franchise",
+		" collection",
+		" universe",
+	}
+
+	for _, suffix := range suffixPatterns {
+		if idx := strings.Index(q, suffix); idx != -1 {
+			name := strings.TrimSpace(q[:idx])
+			// Remove leading "the " if present
+			name = strings.TrimPrefix(name, "the ")
+			// Remove leading "complete " if present
+			name = strings.TrimPrefix(name, "complete ")
+			if len(name) >= 2 {
+				return name, true
+			}
+		}
+	}
+
+	// Patterns with name AFTER the keyword
+	// E.g., "all mission impossible movies", "every james bond film", "complete mcu"
+	prefixPatterns := []struct {
+		prefix string
+		suffix string // optional suffix to strip
+	}{
+		{"all ", " movies"},
+		{"all ", " films"},
+		{"all ", " movie"},
+		{"all ", " film"},
+		{"all ", ""},
+		{"every ", " movie"},
+		{"every ", " film"},
+		{"every ", " movies"},
+		{"every ", " films"},
+		{"every ", ""},
+		{"complete ", " movies"},
+		{"complete ", " films"},
+		{"complete ", ""},
+		{"entire ", " series"},
+		{"entire ", " franchise"},
+		{"entire ", ""},
+	}
+
+	for _, p := range prefixPatterns {
+		if strings.HasPrefix(q, p.prefix) {
+			name := strings.TrimPrefix(q, p.prefix)
+			if p.suffix != "" {
+				name = strings.TrimSuffix(name, p.suffix)
+			}
+			// Also strip common trailing words
+			for _, trail := range []string{" in order", " chronologically", " in sequence", " from first to last"} {
+				name = strings.TrimSuffix(name, trail)
+			}
+			name = strings.TrimSpace(name)
+			if len(name) >= 2 {
+				return name, true
+			}
+		}
+	}
+
+	// Handle "X series" pattern but NOT for TV series context
+	// "breaking bad series" = TV show, "mission impossible series" = collection
+	// Heuristic: if it contains common TV show indicators, skip
+	tvIndicators := []string{"season", "episode", "tv", "show", "watch"}
+	isTVContext := false
+	for _, indicator := range tvIndicators {
+		if strings.Contains(q, indicator) {
+			isTVContext = true
+			break
+		}
+	}
+
+	if !isTVContext {
+		if idx := strings.Index(q, " series"); idx != -1 {
+			// Check it's not "tv series" or "series finale" etc.
+			before := strings.TrimSpace(q[:idx])
+			if before != "tv" && before != "the" && len(before) >= 2 {
+				// Remove leading "the " if present
+				before = strings.TrimPrefix(before, "the ")
+				return before, true
+			}
+		}
+	}
+
+	return "", false
+}
+
+// detectChronologicalIntent checks if the user wants results in chronological order.
+func detectChronologicalIntent(query string) bool {
+	q := strings.ToLower(query)
+
+	chronoPatterns := []string{
+		"in order",
+		"chronologically",
+		"chronological order",
+		"in sequence",
+		"from first to last",
+		"in release order",
+		"release order",
+		"by release date",
+		"oldest to newest",
+		"oldest first",
+	}
+
+	for _, pattern := range chronoPatterns {
+		if strings.Contains(q, pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // applyKeywordBoost boosts results that contain query keywords in their text.
 // This helps surface exact matches for directors, actors, locations, genres.
 // Also applies penalties for negative signals (e.g., "without violence").
 // queryOriginal is the original query with case preserved (for proper noun detection).
 // queryLower is the lowercased query for matching.
 func (s *SearchService) applyKeywordBoost(results []SearchResult, queryOriginal, queryLower string) []SearchResult {
+	// Get configurable boost weights
+	boosts := s.getBoosts()
+
 	// Extract meaningful terms from query
 	queryTerms := extractSearchTerms(queryLower)
 
@@ -649,12 +1907,13 @@ func (s *SearchService) applyKeywordBoost(results []SearchResult, queryOriginal,
 
 	// Detect query intent for stronger boosting
 	// Pass original query to preserve case for proper noun detection
-	intent := detectQueryIntent(queryOriginal)
+	intent := detectQueryIntentWithConfig(queryOriginal, s.getKnownStudios(), s.getLanguageMap())
 
 	// Track if we have a strong intent-based search (needs higher boost cap)
 	hasStrongIntent := intent.isDirectorSearch || intent.isActorSearch ||
 		intent.isWriterSearch || intent.isProducerSearch ||
-		intent.isStudioSearch || intent.isPersonSearch || intent.isLanguageSearch
+		intent.isStudioSearch || intent.isPersonSearch || intent.isLanguageSearch ||
+		intent.isCollectionSearch || intent.isComposerSearch || intent.isCinematographerSearch
 
 	for i := range results {
 		textLower := strings.ToLower(results[i].Text)
@@ -665,9 +1924,9 @@ func (s *SearchService) applyKeywordBoost(results []SearchResult, queryOriginal,
 		if intent.isDirectorSearch && intent.directorName != "" {
 			directorLine := extractLine(textLower, "directed by:")
 			if strings.Contains(directorLine, intent.directorName) {
-				boost += 0.55 // Very strong boost for matching director
+				boost += boosts.DirectorMatch
 			} else {
-				penalty += 0.35 // Strong penalty for non-matching director
+				penalty += boosts.DirectorMismatchPenalty
 			}
 		}
 
@@ -675,9 +1934,9 @@ func (s *SearchService) applyKeywordBoost(results []SearchResult, queryOriginal,
 		if intent.isActorSearch && intent.actorName != "" {
 			castLine := extractLine(textLower, "cast:")
 			if strings.Contains(castLine, intent.actorName) {
-				boost += 0.50 // Strong boost for matching actor
+				boost += boosts.ActorMatch
 			} else {
-				penalty += 0.30 // Penalty for non-matching actor
+				penalty += boosts.ActorMismatchPenalty
 			}
 		}
 
@@ -685,9 +1944,9 @@ func (s *SearchService) applyKeywordBoost(results []SearchResult, queryOriginal,
 		if intent.isWriterSearch && intent.writerName != "" {
 			writerLine := extractLine(textLower, "written by:")
 			if strings.Contains(writerLine, intent.writerName) {
-				boost += 0.45 // Strong boost for matching writer
+				boost += boosts.WriterMatch
 			} else {
-				penalty += 0.25 // Penalty for non-matching writer
+				penalty += boosts.WriterMismatchPenalty
 			}
 		}
 
@@ -695,9 +1954,9 @@ func (s *SearchService) applyKeywordBoost(results []SearchResult, queryOriginal,
 		if intent.isProducerSearch && intent.producerName != "" {
 			producerLine := extractLine(textLower, "produced by:")
 			if strings.Contains(producerLine, intent.producerName) {
-				boost += 0.40 // Boost for matching producer
+				boost += boosts.ProducerMatch
 			} else {
-				penalty += 0.20 // Penalty for non-matching producer
+				penalty += boosts.ProducerMismatchPenalty
 			}
 		}
 
@@ -708,9 +1967,9 @@ func (s *SearchService) applyKeywordBoost(results []SearchResult, queryOriginal,
 				studioLine = extractLine(textLower, "network:")
 			}
 			if strings.Contains(studioLine, intent.studioName) {
-				boost += 0.50 // Strong boost for matching studio
+				boost += boosts.StudioMatch
 			} else {
-				penalty += 0.30 // Penalty for non-matching studio
+				penalty += boosts.StudioMismatchPenalty
 			}
 		}
 
@@ -730,29 +1989,29 @@ func (s *SearchService) applyKeywordBoost(results []SearchResult, queryOriginal,
 			// Secondary roles (producer, cast) get moderate boosts
 			// Cast-only matches (especially for common surnames) get weaker boosts
 			if directorMatch {
-				boost += 0.60 // Strongest boost - "Name films" usually means director
+				boost += boosts.PersonDirectorMatch
 			}
 			if writerMatch {
-				boost += 0.50
+				boost += boosts.PersonWriterMatch
 			}
 			if studioMatch {
-				boost += 0.55 // Strong for "Pixar movies" type queries
+				boost += boosts.PersonStudioMatch
 			}
 			if producerMatch && !directorMatch && !writerMatch {
 				// Only boost producer if not already director/writer
-				boost += 0.35
+				boost += boosts.PersonProducerMatch
 			}
 			if castMatch && !directorMatch && !writerMatch {
 				// Cast-only match gets smaller boost and penalty for not being primary
 				// This helps "Spielberg films" prioritize directed films over cameos
-				boost += 0.25
-				penalty += 0.15 // Slight penalty for cast-only match
+				boost += boosts.PersonCastMatch
+				penalty += boosts.PersonCastPenalty
 			}
 
 			// Strong penalty for not finding the person at all
 			foundInPeople := directorMatch || writerMatch || producerMatch || castMatch || studioMatch
 			if !foundInPeople {
-				penalty += 0.45
+				penalty += boosts.PersonNotFoundPenalty
 			}
 		}
 
@@ -767,9 +2026,59 @@ func (s *SearchService) applyKeywordBoost(results []SearchResult, queryOriginal,
 				strings.Contains(typeLine, intent.languageName)
 
 			if matchedLanguage {
-				boost += 0.55 // Strong boost for matching language/country
+				boost += boosts.LanguageMatch
 			} else {
-				penalty += 0.35 // Strong penalty for non-matching language
+				penalty += boosts.LanguageMismatchPenalty
+			}
+		}
+
+		// Composer boost (music by, score by, composed by)
+		if intent.isComposerSearch && intent.composerName != "" {
+			composerLine := extractLine(textLower, "music by:")
+			if strings.Contains(composerLine, intent.composerName) {
+				boost += boosts.ComposerMatch
+			} else {
+				penalty += boosts.ComposerMismatchPenalty
+			}
+		}
+
+		// Cinematographer boost (cinematography by, shot by, dp)
+		if intent.isCinematographerSearch && intent.cinematographerName != "" {
+			cinematographerLine := extractLine(textLower, "cinematography by:")
+			if strings.Contains(cinematographerLine, intent.cinematographerName) {
+				boost += boosts.CinematographerMatch
+			} else {
+				penalty += boosts.CinematographerMismatchPenalty
+			}
+		}
+
+		// For collection/franchise searches ("all Mission Impossible movies", "Harry Potter in order")
+		if intent.isCollectionSearch && intent.collectionName != "" {
+			titleLine := extractLine(textLower, "title:")
+			collectionLine := extractLine(textLower, "collection:")
+
+			// Check if title contains the collection name
+			titleMatch := strings.Contains(titleLine, intent.collectionName)
+			// Check if there's a collection field that matches
+			collectionMatch := strings.Contains(collectionLine, intent.collectionName)
+
+			// Also check individual words of the collection name for partial matches
+			// E.g., "mission impossible" should match "Mission: Impossible - Fallout"
+			collectionWords := strings.Fields(intent.collectionName)
+			wordMatchCount := 0
+			for _, word := range collectionWords {
+				if len(word) >= 3 && strings.Contains(titleLine, word) {
+					wordMatchCount++
+				}
+			}
+			partialMatch := len(collectionWords) > 0 && wordMatchCount >= len(collectionWords)/2+1
+
+			if titleMatch || collectionMatch {
+				boost += 0.60 // Very strong boost for exact collection match
+			} else if partialMatch {
+				boost += 0.40 // Good boost for partial match
+			} else {
+				penalty += 0.50 // Strong penalty for non-matching collection
 			}
 		}
 
@@ -814,11 +2123,11 @@ func (s *SearchService) applyKeywordBoost(results []SearchResult, queryOriginal,
 				}
 			}
 			if genreMatches > 0 {
-				boost += float32(genreMatches) * 0.20 // Very strong boost for matching genre
+				boost += float32(genreMatches) * boosts.GenreMatch
 			} else {
 				// Very strong penalty for results that don't match the requested genre
 				// This ensures non-matching genres are pushed to the bottom
-				penalty += 0.45
+				penalty += boosts.GenreMismatchPenalty
 			}
 		}
 
@@ -1145,6 +2454,9 @@ func (s *SearchService) applyDiversityPenalty(results []SearchResult, limit int)
 		return results
 	}
 
+	// Get configurable diversity settings
+	diversity := s.getDiversityConfig()
+
 	diverse := make([]SearchResult, 0, limit)
 	selectedDirectors := make(map[string]int)
 	selectedDecades := make(map[string]int)
@@ -1165,18 +2477,18 @@ func (s *SearchService) applyDiversityPenalty(results []SearchResult, limit int)
 
 		// Penalize if we already have movies by this director
 		if director != "" && selectedDirectors[director] > 0 {
-			penalty += float32(selectedDirectors[director]) * 0.03
+			penalty += float32(selectedDirectors[director]) * diversity.SameDirectorPenalty
 		}
 
 		// Penalize if we already have movies from this decade
 		if decade != "" && selectedDecades[decade] > 1 {
-			penalty += float32(selectedDecades[decade]-1) * 0.01
+			penalty += float32(selectedDecades[decade]-1) * diversity.SameDecadePenalty
 		}
 
 		// Light penalty for repeated genres (we want some genre coherence)
 		for genre := range selectedGenres {
 			if strings.Contains(genres, genre) && selectedGenres[genre] > 2 {
-				penalty += 0.01
+				penalty += diversity.SameGenrePenalty
 			}
 		}
 
@@ -1430,4 +2742,914 @@ func (s *SearchService) GetStatus(ctx context.Context) (*IndexingStatus, error) 
 	}
 
 	return status, nil
+}
+
+// ratingPattern matches "Rating: X.X/10 (N votes)" or "Rating: X.X (N votes)" patterns in text.
+var ratingPattern = regexp.MustCompile(`(?i)rating:\s*(\d+(?:\.\d+)?)\s*(?:/10)?\s*\((\d+)\s*votes?\)`)
+
+// extractRatingFromText extracts rating and vote count from embedding text.
+// Looks for patterns like "Rating: 8.5/10 (1234 votes)" or "Rating: 8.5 (1234 votes)".
+func extractRatingFromText(text string) (rating float32, votes int64) {
+	matches := ratingPattern.FindStringSubmatch(text)
+	if len(matches) < 3 {
+		return 0, 0
+	}
+
+	// Parse rating (first capture group)
+	if r, err := strconv.ParseFloat(matches[1], 32); err == nil {
+		rating = float32(r)
+		// Normalize to 0-10 scale if needed (some sources use 0-100)
+		if rating > 10 {
+			rating = rating / 10.0
+		}
+	}
+
+	// Parse vote count (second capture group)
+	if v, err := strconv.ParseInt(matches[2], 10, 64); err == nil {
+		votes = v
+	}
+
+	return rating, votes
+}
+
+// applyQualityBoost applies rating/popularity boost as the FINAL ranking stage.
+// Guardrails ensure quality never overrides a significantly better semantic match.
+//
+// Guardrails:
+//  1. Apply ONLY in final re-rank stage (after all other boosts)
+//  2. Cap impact at ±15% per result
+//  3. Require minimum vote threshold (100 votes) before applying
+//  4. Use multiplicative boost, not additive
+//
+// Example of correct behavior:
+//
+//	Query: "obscure 1970s Italian giallo horror"
+//	Deep Red (1975)      similarity=0.78, quality_boost=+3%  → 0.80 (wins)
+//	The Godfather (1972) similarity=0.45, quality_boost=+15% → 0.52 (loses)
+//
+// Quality boost helps break ties, not override relevance.
+func (s *SearchService) applyQualityBoost(results []SearchResult) []SearchResult {
+	// Get configurable quality settings
+	qualityConfig := s.getQualityConfig()
+
+	// Skip if quality boost is disabled
+	if !qualityConfig.Enabled {
+		return results
+	}
+
+	for i := range results {
+		// Extract rating info from text if not already populated
+		if results[i].Rating == 0 && results[i].VoteCount == 0 {
+			results[i].Rating, results[i].VoteCount = extractRatingFromText(results[i].Text)
+		}
+
+		rating := results[i].Rating
+		votes := results[i].VoteCount
+
+		// Guardrail 1: Only boost if we have enough confidence (minimum votes from config)
+		if votes < qualityConfig.MinVotes {
+			s.logger.Debug("quality boost skipped: insufficient votes",
+				"entityID", results[i].EntityID,
+				"votes", votes,
+				"minRequired", qualityConfig.MinVotes)
+			continue
+		}
+
+		// Guardrail 2: Normalized rating boost, max 10%
+		// Rating is 0-10 scale, so rating/10 gives 0-1, then multiply by 0.10 for max 10%
+		ratingBoost := (rating / 10.0) * 0.10
+
+		// Guardrail 3: Confidence factor based on vote count (log scale), max contribution 5%
+		// log10(100) = 2, log10(10000) = 4, so we divide by 4 to normalize
+		// This means 100 votes = 0.5 factor, 10000 votes = 1.0 factor
+		confidenceFactor := math.Min(math.Log10(float64(votes))/4.0, 1.0)
+
+		// Guardrail 4: Combined boost capped at max boost from config
+		totalBoost := math.Min(float64(ratingBoost)*confidenceFactor, float64(qualityConfig.MaxBoost))
+
+		// Guardrail 5: Soft boost - multiplicative, not additive
+		// A 0.4 similarity can become at most 0.46 (not 0.55)
+		// This ensures a 0.78 match can't be beaten by a 0.45 match even with max boost:
+		// 0.45 * 1.15 = 0.52 < 0.78
+		originalSimilarity := results[i].Similarity
+		results[i].Similarity *= (1 + float32(totalBoost))
+
+		s.logger.Debug("quality boost applied",
+			"entityID", results[i].EntityID,
+			"rating", rating,
+			"votes", votes,
+			"ratingBoost", ratingBoost,
+			"confidenceFactor", confidenceFactor,
+			"totalBoost", totalBoost,
+			"originalSimilarity", originalSimilarity,
+			"boostedSimilarity", results[i].Similarity)
+	}
+
+	// Re-sort after boosting (quality can shuffle within tiers, not across)
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Similarity > results[j].Similarity
+	})
+
+	return results
+}
+
+// SearchWithRecovery performs search with progressive relaxation on zero results.
+// It tries the normal search first, then progressively relaxes constraints if no results are found.
+// Recovery is NOT applied for "similar to" queries - they should fail gracefully.
+func (s *SearchService) SearchWithRecovery(ctx context.Context, params SearchParams) (*SearchResultWithRecovery, error) {
+	if s.embeddingService == nil || s.vector == nil {
+		return nil, fmt.Errorf("search service not properly initialized")
+	}
+
+	// Detect query intent to check for "similar to" queries
+	intent := detectQueryIntent(params.Query)
+
+	// Convert intent to chips for the response
+	intentChips := intent.convertToIntentChips(params.Query)
+
+	// Don't apply recovery for "similar to" queries - they should fail gracefully
+	if intent.isSimilarSearch {
+		results, err := s.Search(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+		return &SearchResultWithRecovery{
+			Results:     results,
+			Total:       len(results),
+			IntentChips: intentChips,
+		}, nil
+	}
+
+	// Try normal search first
+	results, err := s.Search(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	// If we got results, no recovery needed
+	if len(results) > 0 {
+		return &SearchResultWithRecovery{
+			Results:     results,
+			Total:       len(results),
+			IntentChips: intentChips,
+		}, nil
+	}
+
+	// Zero results - start progressive relaxation
+	s.logger.Info("zero results, starting recovery",
+		"query", params.Query,
+		"original_threshold", s.minSimilarity)
+
+	var recoveryActions []RecoveryAction
+	originalQuery := params.Query
+
+	// Step 1: Lower similarity threshold (from 0.3 to 0.2)
+	results, action := s.tryLowerThreshold(ctx, params)
+	if action != nil {
+		recoveryActions = append(recoveryActions, *action)
+		s.logger.Debug("recovery step: lowered threshold",
+			"original", action.Original,
+			"relaxed", action.Relaxed,
+			"results", len(results))
+	}
+	if len(results) > 0 {
+		return &SearchResultWithRecovery{
+			Results:         results,
+			Total:           len(results),
+			RecoveryApplied: recoveryActions,
+			OriginalQuery:   originalQuery,
+		}, nil
+	}
+
+	// Step 2: Relax decade filter (±5 years)
+	results, action = s.tryRelaxDecade(ctx, params)
+	if action != nil {
+		recoveryActions = append(recoveryActions, *action)
+		s.logger.Debug("recovery step: relaxed decade",
+			"original", action.Original,
+			"relaxed", action.Relaxed,
+			"results", len(results))
+	}
+	if len(results) > 0 {
+		return &SearchResultWithRecovery{
+			Results:         results,
+			Total:           len(results),
+			RecoveryApplied: recoveryActions,
+			OriginalQuery:   originalQuery,
+		}, nil
+	}
+
+	// Step 3: Relax genre filter (try parent genre or remove)
+	results, action = s.tryRelaxGenre(ctx, params)
+	if action != nil {
+		recoveryActions = append(recoveryActions, *action)
+		s.logger.Debug("recovery step: relaxed genre",
+			"original", action.Original,
+			"relaxed", action.Relaxed,
+			"results", len(results))
+	}
+	if len(results) > 0 {
+		return &SearchResultWithRecovery{
+			Results:         results,
+			Total:           len(results),
+			RecoveryApplied: recoveryActions,
+			OriginalQuery:   originalQuery,
+		}, nil
+	}
+
+	// Step 4: Remove person/studio filters, keep only semantic
+	results, action = s.tryRemovePersonFilters(ctx, params)
+	if action != nil {
+		recoveryActions = append(recoveryActions, *action)
+		s.logger.Debug("recovery step: removed person/studio filters",
+			"original", action.Original,
+			"relaxed", action.Relaxed,
+			"results", len(results))
+	}
+
+	return &SearchResultWithRecovery{
+		Results:         results,
+		Total:           len(results),
+		RecoveryApplied: recoveryActions,
+		OriginalQuery:   originalQuery,
+		IntentChips:     intentChips,
+	}, nil
+}
+
+// tryLowerThreshold attempts search with a lower similarity threshold.
+func (s *SearchService) tryLowerThreshold(ctx context.Context, params SearchParams) ([]SearchResult, *RecoveryAction) {
+	originalThreshold := s.minSimilarity
+	relaxedThreshold := float32(0.2)
+
+	// If already at or below relaxed threshold, skip
+	if originalThreshold <= relaxedThreshold {
+		return nil, nil
+	}
+
+	// Generate embedding for the query
+	queryEmbedding, err := s.embeddingService.EmbedSingleCached(ctx, params.Query)
+	if err != nil {
+		s.logger.Warn("failed to embed query for threshold recovery", "error", err)
+		return nil, nil
+	}
+
+	// Apply limits
+	limit := params.Limit
+	if limit <= 0 {
+		limit = s.defaultLimit
+	}
+	if limit > s.maxLimit {
+		limit = s.maxLimit
+	}
+
+	// Convert entity types to strings
+	entityTypeStrs := make([]string, len(params.EntityTypes))
+	for i, et := range params.EntityTypes {
+		entityTypeStrs[i] = string(et)
+	}
+
+	fetchLimit := limit * 5
+	if fetchLimit > 200 {
+		fetchLimit = 200
+	}
+
+	// Search with lower threshold
+	searchResp, err := s.vector.Search(ctx, sdk.VectorSearchRequest{
+		QueryVector:   queryEmbedding,
+		EntityTypes:   entityTypeStrs,
+		Limit:         fetchLimit,
+		MinSimilarity: relaxedThreshold,
+	})
+	if err != nil {
+		s.logger.Warn("threshold recovery search failed", "error", err)
+		return nil, nil
+	}
+
+	if len(searchResp.Results) == 0 {
+		return nil, &RecoveryAction{
+			Type:        "threshold",
+			Description: "Lowered similarity threshold",
+			Original:    fmt.Sprintf("%.2f", originalThreshold),
+			Relaxed:     fmt.Sprintf("%.2f", relaxedThreshold),
+		}
+	}
+
+	// Convert and process results
+	results := make([]SearchResult, 0, len(searchResp.Results))
+	for _, r := range searchResp.Results {
+		results = append(results, SearchResult{
+			EntityType: EntityType(r.EntityType),
+			EntityID:   r.EntityID,
+			Similarity: r.Similarity,
+			Text:       r.Text,
+		})
+	}
+
+	// Apply boosting and deduplication
+	queryLower := strings.ToLower(params.Query)
+	results = s.applyKeywordBoost(results, params.Query, queryLower)
+	results = s.deduplicateByTitle(results)
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Similarity > results[j].Similarity
+	})
+
+	if len(results) > limit {
+		results = results[:limit]
+	}
+
+	return results, &RecoveryAction{
+		Type:        "threshold",
+		Description: "Lowered similarity threshold",
+		Original:    fmt.Sprintf("%.2f", originalThreshold),
+		Relaxed:     fmt.Sprintf("%.2f", relaxedThreshold),
+	}
+}
+
+// tryRelaxDecade attempts search with an expanded decade range.
+func (s *SearchService) tryRelaxDecade(ctx context.Context, params SearchParams) ([]SearchResult, *RecoveryAction) {
+	// Extract decade from query
+	decadeInfo := extractDecadeFromQuery(params.Query)
+	if decadeInfo == nil {
+		return nil, nil // No decade filter to relax
+	}
+
+	yearStart, ok1 := decadeInfo["year_start"].(int)
+	yearEnd, ok2 := decadeInfo["year_end"].(int)
+	if !ok1 || !ok2 {
+		return nil, nil
+	}
+
+	// Expand by ±5 years
+	relaxedStart := yearStart - 5
+	relaxedEnd := yearEnd + 5
+
+	originalRange := fmt.Sprintf("%d-%d", yearStart, yearEnd)
+	relaxedRange := fmt.Sprintf("%d-%d", relaxedStart, relaxedEnd)
+
+	// Remove decade terms from query and search with broader semantic meaning
+	relaxedQuery := removeDecadeFromQuery(params.Query)
+	if relaxedQuery == params.Query {
+		return nil, nil // Couldn't remove decade
+	}
+
+	relaxedParams := SearchParams{
+		Query:       relaxedQuery,
+		EntityTypes: params.EntityTypes,
+		Limit:       params.Limit,
+	}
+
+	results, err := s.Search(ctx, relaxedParams)
+	if err != nil {
+		s.logger.Warn("decade recovery search failed", "error", err)
+		return nil, nil
+	}
+
+	// Filter results to the expanded decade range
+	filteredResults := make([]SearchResult, 0)
+	for _, r := range results {
+		_, year := extractTitleAndYear(r.Text)
+		if year >= relaxedStart && year <= relaxedEnd {
+			filteredResults = append(filteredResults, r)
+		}
+	}
+
+	return filteredResults, &RecoveryAction{
+		Type:        "decade",
+		Description: "Expanded decade range",
+		Original:    originalRange,
+		Relaxed:     relaxedRange,
+	}
+}
+
+// tryRelaxGenre attempts search with relaxed genre constraints.
+func (s *SearchService) tryRelaxGenre(ctx context.Context, params SearchParams) ([]SearchResult, *RecoveryAction) {
+	queryLower := strings.ToLower(params.Query)
+	genres := extractGenresFromQuery(queryLower)
+	if len(genres) == 0 {
+		return nil, nil // No genre filter to relax
+	}
+
+	// Try parent/broader genres
+	parentGenres := getParentGenres(genres)
+	if len(parentGenres) == 0 {
+		// No parent genres, try removing genre entirely
+		relaxedQuery := removeGenreFromQuery(params.Query)
+		if relaxedQuery == params.Query {
+			return nil, nil
+		}
+
+		relaxedParams := SearchParams{
+			Query:       relaxedQuery,
+			EntityTypes: params.EntityTypes,
+			Limit:       params.Limit,
+		}
+
+		results, err := s.Search(ctx, relaxedParams)
+		if err != nil {
+			s.logger.Warn("genre removal recovery search failed", "error", err)
+			return nil, nil
+		}
+
+		return results, &RecoveryAction{
+			Type:        "genre",
+			Description: "Removed genre filter",
+			Original:    strings.Join(genres, ", "),
+			Relaxed:     "any genre",
+		}
+	}
+
+	// Build query with parent genres
+	relaxedQuery := replaceGenresInQuery(params.Query, parentGenres)
+	relaxedParams := SearchParams{
+		Query:       relaxedQuery,
+		EntityTypes: params.EntityTypes,
+		Limit:       params.Limit,
+	}
+
+	results, err := s.Search(ctx, relaxedParams)
+	if err != nil {
+		s.logger.Warn("parent genre recovery search failed", "error", err)
+		return nil, nil
+	}
+
+	return results, &RecoveryAction{
+		Type:        "genre",
+		Description: "Expanded to related genres",
+		Original:    strings.Join(genres, ", "),
+		Relaxed:     strings.Join(parentGenres, ", "),
+	}
+}
+
+// tryRemovePersonFilters attempts search with person/studio filters removed.
+func (s *SearchService) tryRemovePersonFilters(ctx context.Context, params SearchParams) ([]SearchResult, *RecoveryAction) {
+	intent := detectQueryIntent(params.Query)
+
+	// Check if there are person/studio filters to remove
+	var filterType string
+	var filterValue string
+
+	if intent.isDirectorSearch && intent.directorName != "" {
+		filterType = "director"
+		filterValue = intent.directorName
+	} else if intent.isActorSearch && intent.actorName != "" {
+		filterType = "actor"
+		filterValue = intent.actorName
+	} else if intent.isWriterSearch && intent.writerName != "" {
+		filterType = "writer"
+		filterValue = intent.writerName
+	} else if intent.isProducerSearch && intent.producerName != "" {
+		filterType = "producer"
+		filterValue = intent.producerName
+	} else if intent.isStudioSearch && intent.studioName != "" {
+		filterType = "studio"
+		filterValue = intent.studioName
+	} else if intent.isPersonSearch && intent.personName != "" {
+		filterType = "person"
+		filterValue = intent.personName
+	} else {
+		return nil, nil // No person/studio filters to remove
+	}
+
+	// Remove person/studio references from query
+	relaxedQuery := removePersonFromQuery(params.Query, filterValue)
+	if relaxedQuery == "" || relaxedQuery == params.Query {
+		// If we can't simplify, try a very generic search
+		relaxedQuery = extractSemanticCore(params.Query)
+		if relaxedQuery == "" {
+			return nil, nil
+		}
+	}
+
+	relaxedParams := SearchParams{
+		Query:       relaxedQuery,
+		EntityTypes: params.EntityTypes,
+		Limit:       params.Limit,
+	}
+
+	results, err := s.Search(ctx, relaxedParams)
+	if err != nil {
+		s.logger.Warn("person filter removal recovery search failed", "error", err)
+		return nil, nil
+	}
+
+	return results, &RecoveryAction{
+		Type:        "filters",
+		Description: fmt.Sprintf("Removed %s filter", filterType),
+		Original:    filterValue,
+		Relaxed:     "semantic search only",
+	}
+}
+
+// removeDecadeFromQuery removes decade references from a query string.
+func removeDecadeFromQuery(query string) string {
+	q := strings.ToLower(query)
+
+	// Patterns to remove
+	decadePatterns := []string{
+		"50s", "1950s", "fifties",
+		"60s", "1960s", "sixties",
+		"70s", "1970s", "seventies",
+		"80s", "1980s", "eighties",
+		"90s", "1990s", "nineties",
+		"00s", "2000s",
+		"2010s",
+		"2020s",
+	}
+
+	result := q
+	for _, pattern := range decadePatterns {
+		result = strings.ReplaceAll(result, pattern, "")
+	}
+
+	// Clean up extra spaces
+	result = strings.Join(strings.Fields(result), " ")
+	return strings.TrimSpace(result)
+}
+
+// removeGenreFromQuery removes genre references from a query string.
+func removeGenreFromQuery(query string) string {
+	q := strings.ToLower(query)
+
+	genreWords := []string{
+		"action", "comedy", "comedies", "drama", "dramas", "horror", "thriller", "thrillers",
+		"romance", "romantic", "sci-fi", "scifi", "science fiction", "fantasy", "animation",
+		"animated", "documentary", "documentaries", "crime", "mystery", "western", "westerns",
+		"war", "musical", "musicals", "family", "adventure", "superhero",
+	}
+
+	result := q
+	for _, genre := range genreWords {
+		result = strings.ReplaceAll(result, genre, "")
+	}
+
+	// Clean up extra spaces
+	result = strings.Join(strings.Fields(result), " ")
+	return strings.TrimSpace(result)
+}
+
+// replaceGenresInQuery replaces specific genres with broader ones.
+func replaceGenresInQuery(query string, newGenres []string) string {
+	// First remove existing genres
+	result := removeGenreFromQuery(query)
+
+	// Add new genres
+	if len(newGenres) > 0 {
+		result = result + " " + strings.Join(newGenres, " ")
+	}
+
+	return strings.TrimSpace(result)
+}
+
+// getParentGenres returns broader genre categories for specific genres.
+func getParentGenres(genres []string) []string {
+	parentMap := map[string]string{
+		// Sub-genres to parent genres
+		"slasher":          "horror",
+		"psychological":    "thriller",
+		"rom-com":          "comedy",
+		"romcom":           "comedy",
+		"dark comedy":      "comedy",
+		"black comedy":     "comedy",
+		"action comedy":    "action",
+		"spy":              "thriller",
+		"heist":            "crime",
+		"noir":             "crime",
+		"neo-noir":         "crime",
+		"space opera":      "science fiction",
+		"cyberpunk":        "science fiction",
+		"dystopian":        "science fiction",
+		"post-apocalyptic": "science fiction",
+		"supernatural":     "horror",
+		"zombie":           "horror",
+		"vampire":          "horror",
+		"found footage":    "horror",
+		"martial arts":     "action",
+		"war":              "drama",
+		"historical":       "drama",
+		"biographical":     "drama",
+		"sports":           "drama",
+		"musical":          "drama",
+		"anime":            "animation",
+		"cartoon":          "animation",
+	}
+
+	parentGenres := make([]string, 0)
+	seen := make(map[string]bool)
+
+	for _, genre := range genres {
+		if parent, ok := parentMap[genre]; ok {
+			if !seen[parent] {
+				parentGenres = append(parentGenres, parent)
+				seen[parent] = true
+			}
+		}
+	}
+
+	return parentGenres
+}
+
+// removePersonFromQuery removes person/studio name references from a query.
+func removePersonFromQuery(query, personName string) string {
+	q := strings.ToLower(query)
+	personLower := strings.ToLower(personName)
+
+	// Remove the person name
+	result := strings.ReplaceAll(q, personLower, "")
+
+	// Remove common patterns that would be left over
+	patterns := []string{
+		"directed by", "director", "by director",
+		"starring", "with", "featuring", "acted by", "played by",
+		"written by", "screenplay by", "script by", "writer",
+		"produced by", "producer", "from producer",
+		"from studio", "studio", "movies by", "films by",
+	}
+
+	for _, pattern := range patterns {
+		result = strings.ReplaceAll(result, pattern, "")
+	}
+
+	// Clean up extra spaces
+	result = strings.Join(strings.Fields(result), " ")
+	return strings.TrimSpace(result)
+}
+
+// extractSemanticCore extracts the core semantic meaning from a query,
+// removing all filter-like constraints.
+func extractSemanticCore(query string) string {
+	q := strings.ToLower(query)
+
+	// Remove decade references
+	q = removeDecadeFromQuery(q)
+
+	// Remove genre references
+	q = removeGenreFromQuery(q)
+
+	// Remove common filter words
+	filterWords := []string{
+		"movies", "films", "movie", "film", "show", "shows", "series",
+		"directed by", "director", "starring", "with", "featuring",
+		"written by", "produced by", "from studio", "studio",
+		"from the", "in the", "about", "like", "similar to",
+	}
+
+	for _, word := range filterWords {
+		q = strings.ReplaceAll(q, word, "")
+	}
+
+	// Clean up
+	q = strings.Join(strings.Fields(q), " ")
+	q = strings.TrimSpace(q)
+
+	// If we're left with very little, return empty
+	if len(q) < 3 {
+		return ""
+	}
+
+	return q
+}
+
+// =============================================================================
+// Playback Constraint Filtering
+// =============================================================================
+
+// applyPlaybackFilters filters results based on playback constraints (resolution, HDR, subtitles, etc.).
+// This requires fetching media details for each result, so it's applied after ranking.
+func (s *SearchService) applyPlaybackFilters(ctx context.Context, results []SearchResult, constraints *PlaybackConstraints) []SearchResult {
+	if constraints == nil || constraints.IsEmpty() {
+		return results
+	}
+
+	filtered := make([]SearchResult, 0, len(results))
+	for _, r := range results {
+		// Skip non-video entity types (music doesn't have playback constraints)
+		if r.EntityType == EntityMusicArtist || r.EntityType == EntityMusicAlbum || r.EntityType == EntityMusicTrack {
+			filtered = append(filtered, r)
+			continue
+		}
+
+		// For movies and TV episodes, we need to check playback info
+		// TV shows don't have direct playback info (their episodes do)
+		if r.EntityType == EntityTVShow {
+			// For TV shows, we can't filter by playback constraints directly
+			// Include them and let the user filter at episode level
+			filtered = append(filtered, r)
+			continue
+		}
+
+		// Check playback constraints from the embedding text
+		// The embedding text contains resolution, HDR, and other info
+		if s.matchesPlaybackConstraints(r.Text, constraints) {
+			filtered = append(filtered, r)
+		}
+	}
+
+	s.logger.Debug("playback filter applied",
+		"before", len(results),
+		"after", len(filtered),
+		"constraints", constraints)
+
+	return filtered
+}
+
+// matchesPlaybackConstraints checks if the embedding text matches the playback constraints.
+// This parses the text to extract resolution, HDR format, audio, and subtitle info.
+func (s *SearchService) matchesPlaybackConstraints(text string, constraints *PlaybackConstraints) bool {
+	textLower := strings.ToLower(text)
+
+	// Check resolution constraint
+	if constraints.MinResolution != "" {
+		resolutionLine := extractLine(textLower, "resolution:")
+		if resolutionLine == "" {
+			// Also check for resolution in other formats
+			resolutionLine = extractLine(textLower, "quality:")
+		}
+		if !meetsMinResolution(resolutionLine, constraints.MinResolution) {
+			return false
+		}
+	}
+
+	if constraints.MaxResolution != "" {
+		resolutionLine := extractLine(textLower, "resolution:")
+		if resolutionLine == "" {
+			resolutionLine = extractLine(textLower, "quality:")
+		}
+		if !meetsMaxResolution(resolutionLine, constraints.MaxResolution) {
+			return false
+		}
+	}
+
+	// Check HDR format constraint
+	if len(constraints.HDRFormats) > 0 {
+		hdrLine := extractLine(textLower, "hdr:")
+		if hdrLine == "" {
+			// Check if any HDR format is mentioned in the text
+			hasHDR := false
+			for _, format := range constraints.HDRFormats {
+				if strings.Contains(textLower, strings.ToLower(format)) {
+					hasHDR = true
+					break
+				}
+			}
+			if !hasHDR {
+				return false
+			}
+		} else {
+			// Check if the HDR line contains any of the required formats
+			hasFormat := false
+			for _, format := range constraints.HDRFormats {
+				if strings.Contains(hdrLine, strings.ToLower(format)) {
+					hasFormat = true
+					break
+				}
+			}
+			if !hasFormat {
+				return false
+			}
+		}
+	}
+
+	// Check subtitle constraint
+	if constraints.HasSubtitles != nil && *constraints.HasSubtitles {
+		subtitleLine := extractLine(textLower, "subtitles:")
+		if subtitleLine == "" || strings.Contains(subtitleLine, "none") {
+			return false
+		}
+	}
+
+	// Check subtitle language constraint
+	if constraints.SubtitleLanguage != "" {
+		subtitleLine := extractLine(textLower, "subtitles:")
+		if !strings.Contains(subtitleLine, strings.ToLower(constraints.SubtitleLanguage)) {
+			return false
+		}
+	}
+
+	// Check audio format constraint
+	if len(constraints.AudioFormats) > 0 {
+		audioLine := extractLine(textLower, "audio:")
+		hasFormat := false
+		for _, format := range constraints.AudioFormats {
+			if strings.Contains(audioLine, strings.ToLower(format)) ||
+				strings.Contains(textLower, strings.ToLower(format)) {
+				hasFormat = true
+				break
+			}
+		}
+		if !hasFormat {
+			return false
+		}
+	}
+
+	// Check minimum channels constraint
+	if constraints.MinChannels > 0 {
+		audioLine := extractLine(textLower, "audio:")
+		if !meetsMinChannels(audioLine, constraints.MinChannels) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// meetsMinResolution checks if the resolution meets the minimum requirement.
+func meetsMinResolution(resolutionLine, minResolution string) bool {
+	resolutionOrder := map[string]int{
+		"sd":    1,
+		"480p":  1,
+		"720p":  2,
+		"hd":    2,
+		"1080p": 3,
+		"fhd":   3,
+		"4k":    4,
+		"uhd":   4,
+		"2160p": 4,
+		"8k":    5,
+		"4320p": 5,
+	}
+
+	minOrder, ok := resolutionOrder[strings.ToLower(minResolution)]
+	if !ok {
+		return true // Unknown resolution, don't filter
+	}
+
+	// Check if any resolution in the line meets the minimum
+	for res, order := range resolutionOrder {
+		if strings.Contains(resolutionLine, res) && order >= minOrder {
+			return true
+		}
+	}
+
+	return false
+}
+
+// meetsMaxResolution checks if the resolution meets the maximum requirement.
+func meetsMaxResolution(resolutionLine, maxResolution string) bool {
+	resolutionOrder := map[string]int{
+		"sd":    1,
+		"480p":  1,
+		"720p":  2,
+		"hd":    2,
+		"1080p": 3,
+		"fhd":   3,
+		"4k":    4,
+		"uhd":   4,
+		"2160p": 4,
+		"8k":    5,
+		"4320p": 5,
+	}
+
+	maxOrder, ok := resolutionOrder[strings.ToLower(maxResolution)]
+	if !ok {
+		return true // Unknown resolution, don't filter
+	}
+
+	// Check if any resolution in the line exceeds the maximum
+	for res, order := range resolutionOrder {
+		if strings.Contains(resolutionLine, res) && order > maxOrder {
+			return false
+		}
+	}
+
+	return true
+}
+
+// meetsMinChannels checks if the audio has at least the minimum number of channels.
+func meetsMinChannels(audioLine string, minChannels int) bool {
+	// Check for common channel layouts
+	channelPatterns := map[string]int{
+		"atmos":  8,
+		"7.1":    8,
+		"5.1":    6,
+		"stereo": 2,
+		"2.0":    2,
+		"mono":   1,
+		"1.0":    1,
+		"truehd": 8, // TrueHD is typically 7.1
+		"dts-hd": 8, // DTS-HD MA is typically 7.1
+		"dts:x":  8,
+		"eac3":   6, // E-AC3 is typically 5.1
+		"ac3":    6, // AC3 is typically 5.1
+	}
+
+	for pattern, channels := range channelPatterns {
+		if strings.Contains(audioLine, pattern) && channels >= minChannels {
+			return true
+		}
+	}
+
+	// Try to extract channel count from patterns like "6 channels" or "8ch"
+	// This is a simplified check
+	if minChannels <= 2 && (strings.Contains(audioLine, "stereo") || strings.Contains(audioLine, "2.0")) {
+		return true
+	}
+	if minChannels <= 6 && (strings.Contains(audioLine, "5.1") || strings.Contains(audioLine, "6ch")) {
+		return true
+	}
+	if minChannels <= 8 && (strings.Contains(audioLine, "7.1") || strings.Contains(audioLine, "8ch") || strings.Contains(audioLine, "atmos")) {
+		return true
+	}
+
+	return false
 }

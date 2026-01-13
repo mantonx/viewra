@@ -65,6 +65,9 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
   customHeader,
   customEmpty,
   customGridRenderer,
+
+  // Search enhancement
+  searchEnhancement,
 }: MediaBrowsePageProps<T>): ReactNode => {
   const [searchQuery, setSearchQuery] = useState(initialSearch)
   const [sortBy, setSortBy] = useState(initialSort)
@@ -360,6 +363,9 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
             </div>
           </form>
         </div>
+
+        {/* Search enhancement slot (populated by plugins) */}
+        {searchEnhancement && <div className="mt-4">{searchEnhancement}</div>}
       </div>
       </div>
 

@@ -138,6 +138,13 @@ func (s *EmbeddingService) ClearCache() {
 	s.logger.Info("embedding cache cleared")
 }
 
+// IsCached checks if an embedding for the given text is in the cache.
+func (s *EmbeddingService) IsCached(text string) bool {
+	key := normalizeQuery(text)
+	_, found := s.cacheGet(key)
+	return found
+}
+
 // normalizeQuery creates a cache key from a query string.
 // Normalizes to lowercase and collapses whitespace for better hit rate.
 func normalizeQuery(text string) string {

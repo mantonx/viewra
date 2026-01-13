@@ -42,6 +42,7 @@ func ProcessMovie(
 	}
 
 	// Coordinator already parsed the filename - just use the results
+	now := time.Now()
 	movie := &media.Movie{
 		Media: media.Media{
 			LibraryID:       libraryID,
@@ -58,8 +59,10 @@ func ProcessMovie(
 			Bitrate:         result.Bitrate,
 			FrameRate:       result.FrameRate,
 			ContainerFormat: result.ContainerFormat,
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
+			DateAdded:       now,
+			DateModified:    &result.FileMTime,
+			CreatedAt:       now,
+			UpdatedAt:       now,
 		},
 	}
 

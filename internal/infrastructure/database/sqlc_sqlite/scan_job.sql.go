@@ -100,9 +100,10 @@ INSERT INTO scan_jobs (
     started_at,
     phase,
     estimated_total,
-    discovery_done
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count, discovery_errors, discovery_warnings, dirs_scanned, dirs_skipped, files_skipped
+    discovery_done,
+    target_paths
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count, discovery_errors, discovery_warnings, dirs_scanned, dirs_skipped, files_skipped, target_paths
 `
 
 type CreateScanJobParams struct {
@@ -117,6 +118,7 @@ type CreateScanJobParams struct {
 	Phase          sql.NullString  `json:"phase"`
 	EstimatedTotal sql.NullInt64   `json:"estimated_total"`
 	DiscoveryDone  sql.NullInt64   `json:"discovery_done"`
+	TargetPaths    sql.NullString  `json:"target_paths"`
 }
 
 func (q *Queries) CreateScanJob(ctx context.Context, arg CreateScanJobParams) (ScanJob, error) {
@@ -132,6 +134,7 @@ func (q *Queries) CreateScanJob(ctx context.Context, arg CreateScanJobParams) (S
 		arg.Phase,
 		arg.EstimatedTotal,
 		arg.DiscoveryDone,
+		arg.TargetPaths,
 	)
 	var i ScanJob
 	err := row.Scan(
@@ -159,6 +162,7 @@ func (q *Queries) CreateScanJob(ctx context.Context, arg CreateScanJobParams) (S
 		&i.DirsScanned,
 		&i.DirsSkipped,
 		&i.FilesSkipped,
+		&i.TargetPaths,
 	)
 	return i, err
 }
@@ -191,7 +195,7 @@ func (q *Queries) DeleteScanJob(ctx context.Context, id int64) error {
 }
 
 const getLatestScanJobByLibrary = `-- name: GetLatestScanJobByLibrary :one
-SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count, discovery_errors, discovery_warnings, dirs_scanned, dirs_skipped, files_skipped FROM scan_jobs
+SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count, discovery_errors, discovery_warnings, dirs_scanned, dirs_skipped, files_skipped, target_paths FROM scan_jobs
 WHERE library_id = ?
 ORDER BY created_at DESC
 LIMIT 1
@@ -225,12 +229,13 @@ func (q *Queries) GetLatestScanJobByLibrary(ctx context.Context, libraryID int64
 		&i.DirsScanned,
 		&i.DirsSkipped,
 		&i.FilesSkipped,
+		&i.TargetPaths,
 	)
 	return i, err
 }
 
 const getScanJob = `-- name: GetScanJob :one
-SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count, discovery_errors, discovery_warnings, dirs_scanned, dirs_skipped, files_skipped FROM scan_jobs
+SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count, discovery_errors, discovery_warnings, dirs_scanned, dirs_skipped, files_skipped, target_paths FROM scan_jobs
 WHERE id = ?
 `
 
@@ -262,6 +267,7 @@ func (q *Queries) GetScanJob(ctx context.Context, id int64) (ScanJob, error) {
 		&i.DirsScanned,
 		&i.DirsSkipped,
 		&i.FilesSkipped,
+		&i.TargetPaths,
 	)
 	return i, err
 }
@@ -302,7 +308,7 @@ func (q *Queries) GetScanJobStats(ctx context.Context, libraryID int64) (GetScan
 }
 
 const listRunningScanJobs = `-- name: ListRunningScanJobs :many
-SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count, discovery_errors, discovery_warnings, dirs_scanned, dirs_skipped, files_skipped FROM scan_jobs
+SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count, discovery_errors, discovery_warnings, dirs_scanned, dirs_skipped, files_skipped, target_paths FROM scan_jobs
 WHERE status = 'running'
 ORDER BY started_at ASC
 `
@@ -341,6 +347,7 @@ func (q *Queries) ListRunningScanJobs(ctx context.Context) ([]ScanJob, error) {
 			&i.DirsScanned,
 			&i.DirsSkipped,
 			&i.FilesSkipped,
+			&i.TargetPaths,
 		); err != nil {
 			return nil, err
 		}
@@ -356,7 +363,7 @@ func (q *Queries) ListRunningScanJobs(ctx context.Context) ([]ScanJob, error) {
 }
 
 const listScanJobsByLibrary = `-- name: ListScanJobsByLibrary :many
-SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count, discovery_errors, discovery_warnings, dirs_scanned, dirs_skipped, files_skipped FROM scan_jobs
+SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count, discovery_errors, discovery_warnings, dirs_scanned, dirs_skipped, files_skipped, target_paths FROM scan_jobs
 WHERE library_id = ?
 ORDER BY created_at DESC
 LIMIT ?
@@ -401,6 +408,7 @@ func (q *Queries) ListScanJobsByLibrary(ctx context.Context, arg ListScanJobsByL
 			&i.DirsScanned,
 			&i.DirsSkipped,
 			&i.FilesSkipped,
+			&i.TargetPaths,
 		); err != nil {
 			return nil, err
 		}
