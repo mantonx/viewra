@@ -1,5 +1,15 @@
 # Hardware-Accelerated Transcoding
 
+## TL;DR
+
+- **NVENC** (NVIDIA): 5-10x faster, best quality, needs nvidia-smi
+- **QSV** (Intel): 3-5x faster, needs `/dev/dri/renderD128`
+- **VAAPI** (Intel/AMD Linux): 3-5x faster, needs `/dev/dri/renderD128`
+- **VideoToolbox** (macOS): 2-4x faster, built-in
+- **Auto-detection**: ViewRA probes and selects best available encoder
+- **Fallback**: Software encoding (libx264) always available
+- **Config**: Set `VIEWRA_HW_ACCEL=nvenc|qsv|vaapi|videotoolbox|none` to override
+
 ## Overview
 
 ViewRA now supports comprehensive hardware-accelerated video transcoding using GPU encoders. This dramatically improves transcoding performance while reducing CPU usage.

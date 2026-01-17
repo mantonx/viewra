@@ -193,6 +193,10 @@ type Querier interface {
 	FailTranscodeAnalytics(ctx context.Context, arg FailTranscodeAnalyticsParams) error
 	FindAlbumByTitle(ctx context.Context, arg FindAlbumByTitleParams) (MusicAlbum, error)
 	FindArtistByName(ctx context.Context, arg FindArtistByNameParams) (MusicArtist, error)
+	// Finds a movie by normalized title and year for deduplication (file replacement detection)
+	// Used when a new file is detected that might be a replacement for an existing movie
+	// Note: year comparison uses coalesce to handle NULL consistently
+	FindMovieByTitleAndYear(ctx context.Context, arg FindMovieByTitleAndYearParams) (FindMovieByTitleAndYearRow, error)
 	GetAlbumByID(ctx context.Context, id int64) (MusicAlbum, error)
 	GetAlbumByMusicBrainzID(ctx context.Context, musicbrainzAlbumID sql.NullString) (MusicAlbum, error)
 	GetAllFileHashes(ctx context.Context) ([]sql.NullString, error)

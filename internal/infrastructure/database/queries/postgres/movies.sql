@@ -520,3 +520,18 @@ WHERE med.is_extra = 0
   AND TRIM(g.genre) != ''
 ORDER BY TRIM(g.genre)
 LIMIT $1::bigint;
+
+-- name: FindMovieByTitleAndYear :one
+-- Finds a movie by normalized title and year for deduplication (file replacement detection)
+-- Used when a new file is detected that might be a replacement for an existing movie
+-- Note: year comparison uses coalesce to handle NULL consistently
+SELECT
+    m.media_id,
+    med.file_path
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = sqlc.arg(library_id)
+  AND med.is_extra = 0
+  AND LOWER(med.title) = LOWER(sqlc.arg(title))
+  AND COALESCE(m.year, 0) = COALESCE(sqlc.arg(year), 0)
+LIMIT 1;

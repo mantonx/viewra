@@ -2,7 +2,7 @@
 
 Quick reference for coding standards, file naming, and project organization.
 
-**Last Updated**: 2025-11-12
+**Last Updated**: January 17, 2026
 
 ---
 
@@ -414,4 +414,4 @@ Use this checklist before considering any feature complete:
 
 ---
 
-**Last Updated**: December 2, 2025
+**Last Updated**: January 17, 2026

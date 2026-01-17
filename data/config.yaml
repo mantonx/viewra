@@ -1,0 +1,21 @@
+# Viewra Configuration
+# Environment variables take precedence over this file.
+# Password must be set via DB_PASSWORD environment variable.
+
+database:
+    driver: postgres
+    auto_migrate: null
+    sqlite:
+        path: ""
+    postgres:
+        host: localhost
+        port: 5432
+        user: viewra
+        database: viewra
+        ssl_mode: disable
+        max_open_conns: 0
+        max_idle_conns: 0
+        conn_max_lifetime: ""
+        conn_max_idle_time: ""
+server:
+    shutdown_timeout: ""

@@ -1125,6 +1125,14 @@ func (q *Querier) FindArtistByName(ctx context.Context, arg sqlc_sqlite.FindArti
 	return q.sqlite.FindArtistByName(ctx, arg)
 }
 
+func (q *Querier) FindMovieByTitleAndYear(ctx context.Context, arg sqlc_sqlite.FindMovieByTitleAndYearParams) (sqlc_sqlite.FindMovieByTitleAndYearRow, error) {
+	if q.isPostgres {
+		r0, err := q.postgres.FindMovieByTitleAndYear(ctx, sqlc_postgres.FindMovieByTitleAndYearParams(arg))
+		return castValue[sqlc_postgres.FindMovieByTitleAndYearRow, sqlc_sqlite.FindMovieByTitleAndYearRow](r0), err
+	}
+	return q.sqlite.FindMovieByTitleAndYear(ctx, arg)
+}
+
 func (q *Querier) GetAlbumByID(ctx context.Context, id int64) (sqlc_sqlite.MusicAlbum, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.GetAlbumByID(ctx, id)

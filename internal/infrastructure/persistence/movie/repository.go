@@ -242,6 +242,27 @@ func (r *Repository) ListDistinctGenres(ctx context.Context, limit int) ([]strin
 	return r.Q().ListDistinctMovieGenres(ctx, int64(limit))
 }
 
+// FindByTitleAndYear finds a movie by title and year for deduplication.
+// Returns the media ID and file path if found, or (0, "", nil) if not found.
+// This is used to detect file replacements - when a new file matches an existing
+// movie's title/year, we should update the existing record rather than create a duplicate.
+func (r *Repository) FindByTitleAndYear(ctx context.Context, libraryID int64, title string, year *int) (int64, string, error) {
+	var yearParam int64
+	if year != nil {
+		yearParam = int64(*year)
+	}
+
+	row, err := r.Q().FindMovieByTitleAndYear(ctx, unified.FindMovieByTitleAndYearParams{
+		LibraryID: libraryID,
+		Title:     title, // The query applies LOWER() to both sides
+		Year:      common.NullInt64(yearParam),
+	})
+	if err != nil {
+		return 0, "", r.ConvertNotFoundError(err)
+	}
+	return row.MediaID, row.FilePath, nil
+}
+
 // mapSlice converts a slice of one type to another using the provided mapper function.
 func mapSlice[TFrom, TTo any](from []TFrom, mapper func(TFrom) TTo) []TTo {
 	result := make([]TTo, len(from))

@@ -100,6 +100,13 @@ type MovieRepository interface {
 
 	// ListDistinctGenres returns distinct genres across all movies
 	ListDistinctGenres(ctx context.Context, limit int) ([]string, error)
+
+	// FindByTitleAndYear finds a movie by title and year for deduplication.
+	// Returns the media ID, file path, and nil error if found.
+	// Returns 0, "", ErrNotFound if not found.
+	// This is used to detect file replacements - when a new file matches an existing
+	// movie's title/year, we should update the existing record rather than create a duplicate.
+	FindByTitleAndYear(ctx context.Context, libraryID int64, title string, year *int) (int64, string, error)
 }
 
 // TVRepository extends Repository with TV-specific operations

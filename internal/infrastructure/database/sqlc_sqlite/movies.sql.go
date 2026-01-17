@@ -130,6 +130,40 @@ func (q *Queries) DeleteMovie(ctx context.Context, mediaID int64) error {
 	return err
 }
 
+const findMovieByTitleAndYear = `-- name: FindMovieByTitleAndYear :one
+SELECT
+    m.media_id,
+    med.file_path
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = ?1
+  AND med.is_extra = 0
+  AND LOWER(med.title) = LOWER(?2)
+  AND COALESCE(m.year, 0) = COALESCE(?3, 0)
+LIMIT 1
+`
+
+type FindMovieByTitleAndYearParams struct {
+	LibraryID int64         `json:"library_id"`
+	Title     string        `json:"title"`
+	Year      sql.NullInt64 `json:"year"`
+}
+
+type FindMovieByTitleAndYearRow struct {
+	MediaID  int64  `json:"media_id"`
+	FilePath string `json:"file_path"`
+}
+
+// Finds a movie by normalized title and year for deduplication (file replacement detection)
+// Used when a new file is detected that might be a replacement for an existing movie
+// Note: year comparison uses coalesce to handle NULL consistently
+func (q *Queries) FindMovieByTitleAndYear(ctx context.Context, arg FindMovieByTitleAndYearParams) (FindMovieByTitleAndYearRow, error) {
+	row := q.db.QueryRowContext(ctx, findMovieByTitleAndYear, arg.LibraryID, arg.Title, arg.Year)
+	var i FindMovieByTitleAndYearRow
+	err := row.Scan(&i.MediaID, &i.FilePath)
+	return i, err
+}
+
 const getMovieByMediaID = `-- name: GetMovieByMediaID :one
 SELECT
     m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary, m.rating, m.rating_votes,

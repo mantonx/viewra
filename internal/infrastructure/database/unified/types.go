@@ -132,6 +132,7 @@ type (
 	FailTranscodeAnalyticsParams = sqlc_sqlite.FailTranscodeAnalyticsParams
 	FindAlbumByTitleParams = sqlc_sqlite.FindAlbumByTitleParams
 	FindArtistByNameParams = sqlc_sqlite.FindArtistByNameParams
+	FindMovieByTitleAndYearParams = sqlc_sqlite.FindMovieByTitleAndYearParams
 	GetArtistsWithCountsByLibraryPaginatedDescParams = sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedDescParams
 	GetArtistsWithCountsByLibraryPaginatedParams = sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedParams
 	GetBatchWatchProgressByMediaIDsParams = sqlc_sqlite.GetBatchWatchProgressByMediaIDsParams
@@ -315,6 +316,7 @@ type (
 type (
 	CountEnrichmentStatusByStageRow = sqlc_sqlite.CountEnrichmentStatusByStageRow
 	CountLibraryIssuesRow = sqlc_sqlite.CountLibraryIssuesRow
+	FindMovieByTitleAndYearRow = sqlc_sqlite.FindMovieByTitleAndYearRow
 	GetArtistsWithCountsByLibraryPaginatedDescRow = sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedDescRow
 	GetArtistsWithCountsByLibraryPaginatedRow = sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedRow
 	GetArtistsWithCountsByLibraryRow = sqlc_sqlite.GetArtistsWithCountsByLibraryRow

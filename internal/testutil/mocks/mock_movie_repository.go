@@ -19,14 +19,15 @@ type MovieRepository struct {
 	nextID int64
 
 	// Error injection
-	CreateErr             error
-	GetErr                error
-	ListErr               error
-	UpdateErr             error
-	SearchErr             error
-	CountErr              error
-	ListRecentlyAddedErr  error
-	ListDistinctGenresErr error
+	CreateErr              error
+	GetErr                 error
+	ListErr                error
+	UpdateErr              error
+	SearchErr              error
+	CountErr               error
+	ListRecentlyAddedErr   error
+	ListDistinctGenresErr  error
+	FindByTitleAndYearErr  error
 }
 
 // NewMovieRepository creates a new mock movie repository.
@@ -363,4 +364,26 @@ func (m *MovieRepository) ListDistinctGenres(ctx context.Context, limit int) ([]
 	}
 
 	return result, nil
+}
+
+func (m *MovieRepository) FindByTitleAndYear(ctx context.Context, libraryID int64, title string, year *int) (int64, string, error) {
+	if m.FindByTitleAndYearErr != nil {
+		return 0, "", m.FindByTitleAndYearErr
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	titleLower := strings.ToLower(title)
+	for _, movie := range m.movies {
+		if movie.LibraryID == libraryID && strings.ToLower(movie.Title) == titleLower {
+			// Check year match
+			movieYear := movie.Year
+			if (year == nil && movieYear == 0) || (year != nil && movieYear == *year) {
+				return movie.ID, movie.FilePath, nil
+			}
+		}
+	}
+
+	return 0, "", media.ErrMediaNotFound
 }

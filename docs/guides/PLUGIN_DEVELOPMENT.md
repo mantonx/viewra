@@ -2,6 +2,16 @@
 
 This guide covers how to develop enrichment plugins for ViewRA. Plugins extend ViewRA's metadata capabilities by connecting to external services (TMDb, MusicBrainz, Fanart.tv) or processing local files (NFO, embedded images).
 
+## TL;DR
+
+- **Architecture**: HashiCorp go-plugin + gRPC for host-plugin communication
+- **Plugin types**: Enricher, NotificationSink, SubtitleProvider, AnalyticsProvider
+- **Required files**: `plugin.yml` (manifest) + binary
+- **Key interfaces**: `PluginCore` (lifecycle) + `Enricher` (metadata)
+- **ID propagation**: Discovered IDs (IMDB, TMDB) pass to downstream enrichers
+- **Development**: `make build-plugin NAME=myplugin`, `make reload-plugin NAME=myplugin`
+- **SDK**: `pkg/plugin/sdk/` provides base struct, logging, metrics
+
 ## Architecture Overview
 
 ViewRA uses HashiCorp's [go-plugin](https://github.com/hashicorp/go-plugin) library with gRPC for plugin communication:

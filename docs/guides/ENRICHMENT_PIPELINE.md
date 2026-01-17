@@ -2,6 +2,15 @@
 
 This guide explains how ViewRA's enrichment pipeline works, how media flows through enrichment stages, and how to configure the pipeline for your needs.
 
+## TL;DR
+
+- **Purpose**: Fetch metadata from external sources after scanner discovers files
+- **Flow**: Scanner → Enrichment Queue → Pipeline Manager → Plugins → Database
+- **Stages**: NFO → Local Images → TMDb/MusicBrainz → Fanart.tv (configurable order)
+- **Concurrency**: Local enrichers run highly parallel; remote enrichers are rate-limited
+- **ID propagation**: Each stage can discover IDs for downstream stages to use
+- **Configuration**: Settings → Enrichment Pipeline to enable/disable/reorder enrichers
+
 ## Overview
 
 After the library scanner discovers media files, the **enrichment pipeline** fetches metadata from various sources:

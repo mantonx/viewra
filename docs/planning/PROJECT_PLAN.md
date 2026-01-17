@@ -1,6 +1,6 @@
 # ViewRA Project Plan
 
-**Last Updated**: December 3, 2025
+**Last Updated**: January 17, 2026
 
 For current status, see [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
@@ -8,179 +8,141 @@ For current status, see [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
 ## Recently Completed
 
-### ✅ Design System Improvements - All Phases Complete
+### ✅ Plugin System
 
-**Completed**: December 2, 2025
-**ADR**: [031-design-system-improvements.md](../decisions/031-design-system-improvements.md)
+**Completed**: January 2026
+**ADR**: [027-plugin-system-architecture.md](../decisions/027-plugin-system-architecture.md)
 
-Implemented "Cinema at Home" design vision across all phases:
+Full gRPC plugin system with SDK:
 
-- **Phase 1: Foundation** - Atmospheric CSS variables, glass utilities, refined animations
-- **Phase 2: Sidebar** - Glass sidebar with ambient glow, refined nav states
-- **Phase 3: Dashboard** - Cinematic hero with ambient glows, glass stat cards, library counts
-- **Phase 4: Media Cards** - Premium hover effects, glass badges, resolution color hierarchy
-- **Phase 5: Components** - Modal glass treatment, button/input refinements
-- **Phase 6: Micro-interactions** - Modal animations, skeleton shimmer, page transitions
+- Plugin SDK (`pkg/plugin/sdk/`) with base struct, enricher interface, host services
+- Protocol definitions (`api/proto/plugin/`) for core, enricher, search, trending, vector search
+- 8 plugins implemented: TMDb, MusicBrainz, Semantic Search, Recommendations, AI Features, AI Providers
+- Plugin lifecycle management with hot reload (`make reload-plugin`)
+- Event bus integration for real-time updates
 
-### ✅ App Package Restructuring
+### ✅ Semantic Search & Home Screen
 
-**Completed**: December 2, 2025
-**ADR**: [026-app-restructuring-and-auth.md](../decisions/026-app-restructuring-and-auth.md)
+**Completed**: January 2026
 
-Implemented:
+- Intent chips showing detected search intents
+- Autocomplete with tiered ranking
+- Targeted scan support
+- Home screen widgets: Continue Watching, Recently Added, Trending, For You, Because You Watched
+- Widget customization (reorder, hide)
 
-- Created `api.Handlers` aggregate struct - `NewServer` now takes 3 params instead of 43
-- Created `app/repositories/`, `app/services/`, `app/usecases/`, `app/handlers/` packages
-- Moved scheduled task registration to `container.go`
-- Fixed startup to reuse container instead of rebuilding dependencies
-- Extracted business logic from handlers to use cases:
-  - `ServeMasterPlaylistUseCase` - ABR ladder filtering and master playlist generation
-  - `CacheService.GetPresetPath()` - Image cache path construction
-- Fixed FFmpeg process management (Wait race condition, log classification)
+### ✅ External Metadata Integration
+
+**Completed**: January 2026
+
+- TMDb plugin for movies/TV metadata and artwork
+- MusicBrainz plugin for music metadata and cover art
+- Trending content from TMDb for home screen
 
 ### ✅ Settings Infrastructure v2
 
 **Completed**: December 3, 2025
-**ADRs**:
+**ADRs**: [032](../decisions/032-settings-infrastructure-v2.md), [033](../decisions/033-settings-ux-improvements.md)
 
-- [032-settings-infrastructure-v2.md](../decisions/032-settings-infrastructure-v2.md) - Backend
-- [033-settings-ux-improvements.md](../decisions/033-settings-ux-improvements.md) - UX/UI
+- Environment variable awareness with source tracking
+- System profile detection (CPU, memory, GPU)
+- Category-level save with restart badges
+- User preferences page
 
-Implemented comprehensive settings system with environment variable awareness:
+### ✅ Design System Improvements
 
-- **Phase 1**: Enhanced backend with env var awareness, source tracking, read-only display
-- **Phase 2**: System profile integration (CPU, memory, GPU detection)
-- **Phase 3**: Frontend redesign with source badges, system info card
-- **Phase 3.5**: Settings UX improvements - category-level save, visual grouping, restart badges
-- **Phase 4**: User settings preferences page (playback, UI preferences)
-- **Phase 5**: Config integration - dynamic transcoding settings via `ConfigProvider`
+**Completed**: December 2, 2025
+**ADR**: [031-design-system-improvements.md](../decisions/031-design-system-improvements.md)
+
+- "Cinema at Home" aesthetic across all UI
+- Glass morphism, ambient glows, refined animations
+
+### ✅ User Authentication
+
+**Completed**: December 2, 2025
+**ADR**: [028-user-authentication.md](../decisions/028-user-authentication.md)
+
+- JWT-based authentication with sessions
+- Per-user watch progress and ratings
 
 ---
 
 ## Upcoming Work
 
-### 2. Plugin System
+### 1. Multi-Language Audio & Subtitles
 
-**Priority**: Medium
-**Effort**: 26-33 days
-**ADR**: [027-plugin-system-architecture.md](../decisions/027-plugin-system-architecture.md)
-
-Extensible plugin system using Hashicorp go-plugin + gRPC, backed by Event Bus and Enrichment Queue:
-
-**Phase 1: Core Infrastructure (5-6 days)**
-
-- Event Bus with ring buffer, slog integration, WebSocket streaming
-- Enrichment Queue tables and operations (persistent async jobs)
-- Pipeline Manager with user-configurable stages per media type
-- Per-stage worker pools (high concurrency for local, rate-limited for remote)
-
-**Phase 2: Plugin Foundation (4-5 days)**
-
-- Plugin manager and process lifecycle (adaptive warm pool)
-- PluginCore gRPC definitions (identity, lifecycle, settings, events)
-- Enricher interface with single `Enrich()` call and rich capabilities
-- SDK Base struct with compile-time enforcement
-- Host services (HostData, HostStorage)
-- Permission system with category defaults
-
-**Phase 3: First Enrichers (4-5 days)**
-
-- NFO plugin (local file parsing)
-- Local Images plugin (poster.jpg, fanart.jpg detection)
-- Scanner integration (enqueue on discovery)
-- Progress tracking (library-level and item-level)
-- ID propagation between stages
-
-**Phase 4: Remote Enrichers (4-5 days)**
-
-- TMDb plugin for movies/TV
-- MusicBrainz plugin for music
-- Rate limiting and retry logic with exponential backoff
-- Plugin SQLite databases with quotas
-- Remove hardcoded provider code
-
-**Phase 5: Events & Notifications (3-4 days)**
-
-- Event delivery to plugins via OnEvent RPC
-- NotificationSink category
-- Webhook plugin as example
-- Playback events integration
-
-**Phase 6: Observability (3-4 days)**
-
-- Correlation IDs across app/gRPC/plugin boundaries
-- gRPC debug mode (VIEWRA_PLUGIN_DEBUG=1)
-- Plugin health monitoring (healthy/degraded/unhealthy)
-- Error categorization (network, rate_limit, not_found, parsing)
-- Diagnostic export bundles
-
-**Phase 7: UI & Polish (3-4 days)**
-
-- Pipeline configuration UI with apply scopes
-- Progress visibility UI (library + item level)
-- UI extension points (settings, tabs, menus, widgets)
-- Plugin CLI commands (install, update, list)
-- Documentation and template repo
-
-### 3. Multi-Language Audio & Subtitles
-
-**Priority**: Medium
-**Effort**: 8-12 days
+**Priority**: High
 **ADR**: [030-multi-language-audio-subtitles.md](../decisions/030-multi-language-audio-subtitles.md)
 
 Comprehensive audio track and subtitle support:
 
-**Phase 1: Database & Scanning (2-3 days)**
+**Phase 1: Database & Scanning**
 
 - Add `media_audio_tracks` and `media_subtitle_tracks` tables
 - Extend scanner to extract embedded track metadata
 - External subtitle file discovery (.srt, .vtt, .ass)
 
-**Phase 2: API & Track Metadata (1-2 days)**
+**Phase 2: API & Track Metadata**
 
 - Track metadata API endpoints
 - Library language preference settings
 - Extended media response with tracks
 
-**Phase 3: Multi-Audio HLS (2-3 days)**
+**Phase 3: Multi-Audio HLS**
 
 - Multi-audio master playlists with EXT-X-MEDIA tags
 - Separate audio-only playlists per language
 - Frontend audio track selector
 
-**Phase 4: Subtitle Support (3-4 days)**
+**Phase 4: Subtitle Support**
 
 - Subtitle extraction and WebVTT conversion
 - Segmented subtitle playlists for HLS
 - Frontend subtitle selector with SDH/forced indicators
 - Auto-selection based on content language vs. preference
 
+### 2. Hardware Acceleration
+
+**Priority**: Medium
+
+GPU-accelerated transcoding support:
+
+- NVENC (Nvidia) - CUDA-based encoding
+- QuickSync (Intel) - Intel integrated GPU
+- VAAPI (Linux) - VA-API for AMD/Intel on Linux
+- Automatic capability detection
+- Fallback to software encoding
+
+### 3. Advanced Playback
+
+**Priority**: Low
+
+- Chapter markers from MKV/MP4 metadata
+- Intro skip detection and skip button
+- Credits detection
+
 ---
 
 ## Future Features
 
-### Search & Discovery
+### Collections & Watchlists
 
-- Global search across media types
-- Recommendations based on watch history
-- Collections and watchlists
+- User-created collections
+- Watchlist management
+- Sharing between users
 
-### Advanced Playback
+### Deployment & Operations
 
-- Chapter markers
-- Intro skip
-
-### Hardware Acceleration
-
-- NVENC (Nvidia)
-- QuickSync (Intel)
-- VAAPI (Linux)
-
-### Deployment
-
-- Docker Compose setup
+- Docker Compose setup with all dependencies
 - Kubernetes manifests
-- Monitoring with Prometheus/Grafana
+- Prometheus metrics endpoint
+- Grafana dashboards
+
+### Mobile Apps
+
+- iOS app (Swift/SwiftUI)
+- Android app (Kotlin/Compose)
+- Offline playback support
 
 ---
 

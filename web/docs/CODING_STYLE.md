@@ -297,7 +297,7 @@ export { MyComponent, helperFn }
 
 ## References
 
-- [.agent.md](/.agent.md) - Full coding guidelines
+- [CONVENTIONS.md](../../docs/development/CONVENTIONS.md) - Full coding guidelines
 - [ESLint Config](../eslint.config.js) - Linting rules
 - [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html)
 - [React Best Practices](https://react.dev/learn)

@@ -2,7 +2,9 @@ package media
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -77,6 +79,27 @@ func ProcessMovie(
 	// Ensure SortTitle is always set with normalized value
 	if movie.SortTitle == "" {
 		movie.SortTitle = domainCommon.NormalizeSortTitle(movie.Media.Title)
+	}
+
+	// Check for file replacement: if file_path cache misses but title+year matches,
+	// this is likely a file replacement (same movie, different release/filename).
+	// Pre-populate the cache with the existing media ID to trigger an update instead of create.
+	if _, found := existingMediaCache.Load(result.FilePath); !found {
+		existingID, oldPath, err := deps.MediaRepos.Movie.FindByTitleAndYear(ctx, libraryID, result.Title, result.Year)
+		if err == nil && existingID > 0 && oldPath != result.FilePath {
+			// Found existing movie with same title+year but different file path - this is a file replacement
+			deps.Logger.Info("detected file replacement",
+				slog.String("title", result.Title),
+				slog.String("old_path", oldPath),
+				slog.String("new_path", result.FilePath))
+			// Add to cache so ProcessMediaWithCache will update instead of create
+			existingMediaCache.Store(result.FilePath, existingID)
+		} else if err != nil && !errors.Is(err, media.ErrMediaNotFound) {
+			// Log unexpected errors but don't fail the scan
+			deps.Logger.Warn("failed to check for file replacement",
+				slog.String("title", result.Title),
+				slog.Any("error", err))
+		}
 	}
 
 	// Use shared cache-based upsert pattern with race condition handling
