@@ -19,7 +19,7 @@ When a user tries to seek forward in a video:
    - Sometimes jumps 10+ minutes ahead (unpredictable)
    - User cannot reliably seek to any position they want
 
-This is a **critical UX flaw** that makes the video player feel broken and unprofessional compared to industry standards (Plex, Jellyfin, Netflix, YouTube).
+This is a **critical UX flaw** that makes the video player feel broken and unprofessional compared to industry standards.
 
 ### Current Implementation
 
@@ -53,7 +53,7 @@ Our current manifest generation creates a continuous sequence starting from segm
 
 ### Industry Standard Behavior
 
-**Plex/Jellyfin/Netflix:**
+**Standard approach:**
 1. User seeks to any position
 2. Server receives seek position via query parameter
 3. Server starts transcoding from that position
@@ -343,7 +343,7 @@ func (s *CleanupService) CleanupOldSegments(mediaID string, quality string) {
 
 ### Positive
 
-✅ **Dramatically Improved UX**: Users can seek to any position in the video, matching industry standards (Plex, Jellyfin, Netflix)
+✅ **Dramatically Improved UX**: Users can seek to any position in the video, matching industry standards
 
 ✅ **Better Perceived Performance**: Instead of waiting for full file to transcode, users can skip to specific scenes immediately
 
@@ -423,7 +423,7 @@ func (s *CleanupService) CleanupOldSegments(mediaID string, quality string) {
 
 **Reasoning**:
 - Terrible UX - users expect to be able to seek
-- Not competitive with Plex/Jellyfin
+- Not competitive with modern media servers
 - Users will perceive player as "broken"
 
 ### Alternative 3: Fall Back to Direct Streaming for Seeks

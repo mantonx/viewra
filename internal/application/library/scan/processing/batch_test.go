@@ -418,6 +418,7 @@ func TestCompleteScan(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			checkpointRepo := mocks.NewCheckpointRepository(t)
 			jobRepo := mocks.NewScanJobRepository(t)
+			libraryRepo := mocks.NewLibraryRepository(t)
 
 			if tt.setupRepos != nil {
 				tt.setupRepos(checkpointRepo, jobRepo)
@@ -428,7 +429,11 @@ func TestCompleteScan(t *testing.T) {
 				ScanJob:    jobRepo,
 			}
 
-			deps := batchTestDeps(scanRepos, nil, nil)
+			mediaRepos := &scan.MediaRepositories{
+				Library: libraryRepo,
+			}
+
+			deps := batchTestDeps(scanRepos, mediaRepos, nil)
 
 			lib := &library.Library{ID: 1, Path: "/test"}
 			pctx := testCheckpointContext(100, lib, 10, 3)

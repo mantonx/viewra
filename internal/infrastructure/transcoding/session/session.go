@@ -22,8 +22,8 @@ import (
 )
 
 // TranscodeSession represents a long-running FFmpeg process for progressive HLS transcoding.
-// Implements the Jellyfin-style approach where a single FFmpeg process continuously
-// generates segments, and seeking is handled by killing and restarting the process.
+// A single FFmpeg process continuously generates segments, and seeking is handled by
+// killing and restarting the process from the new position.
 type TranscodeSession struct {
 	ID              string
 	MediaID         int64

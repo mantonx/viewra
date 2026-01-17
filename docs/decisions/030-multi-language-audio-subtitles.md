@@ -74,14 +74,14 @@ Analysis of actual ViewRA media libraries reveals:
 - **TV episodes:** ~2,805 external `.srt` files found
 - Pattern: `{filename}.en.srt`, `{filename}.en.hi.srt`
 
-**Industry-standard patterns (Plex/Jellyfin compatibility):**
+**Industry-standard patterns:**
 
 | Pattern | Example | Meaning |
 |---------|---------|---------|
 | `{name}.{lang}.srt` | `Movie.en.srt` | English subtitles |
 | `{name}.{lang}.forced.srt` | `Movie.en.forced.srt` | Forced (foreign dialogue) |
 | `{name}.{lang}.sdh.srt` | `Movie.en.sdh.srt` | SDH (captions for deaf/HoH) |
-| `{name}.{lang}.hi.srt` | `Movie.en.hi.srt` | Hearing impaired (Jellyfin) |
+| `{name}.{lang}.hi.srt` | `Movie.en.hi.srt` | Hearing impaired |
 | `{name}.{lang}.cc.srt` | `Movie.en.cc.srt` | Closed captions |
 
 ## Decision
@@ -348,4 +348,3 @@ function selectDefaultTracks(media, library, audioTracks, subtitleTracks) {
 - [Subtitles, Captions, WebVTT, HLS - Mux](https://www.mux.com/blog/subtitles-captions-webvtt-hls-and-those-magic-flags)
 - [FFmpeg HLS Multiple Audio Languages](https://www.martin-riedl.de/2020/05/31/using-ffmpeg-as-a-hls-streaming-server-part-9-multiple-audio-languages/)
 - [HLS.js Documentation](https://github.com/video-dev/hls.js)
-- [Plex Subtitle Documentation](https://support.plex.tv/articles/200471133-adding-local-subtitles-to-your-media/)

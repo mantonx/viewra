@@ -261,3 +261,192 @@ func TestProgressInitialization(t *testing.T) {
 		t.Error("StartTime should be in the past")
 	}
 }
+
+func TestProgressGetPercentageWithEstimate(t *testing.T) {
+	tests := []struct {
+		name           string
+		filesFound     int64
+		filesProcessed int64
+		estimatedTotal int64
+		discoveryDone  bool
+		expected       float64
+	}{
+		{
+			name:           "discovery not done, uses estimate",
+			filesFound:     50,
+			filesProcessed: 25,
+			estimatedTotal: 100,
+			discoveryDone:  false,
+			expected:       25.0, // 25/100
+		},
+		{
+			name:           "discovery done, uses found",
+			filesFound:     100,
+			filesProcessed: 50,
+			estimatedTotal: 200, // ignored
+			discoveryDone:  true,
+			expected:       50.0, // 50/100
+		},
+		{
+			name:           "estimate less than found, uses found",
+			filesFound:     100,
+			filesProcessed: 50,
+			estimatedTotal: 50, // less than found
+			discoveryDone:  false,
+			expected:       50.0, // 50/100
+		},
+		{
+			name:           "no estimate, uses found",
+			filesFound:     100,
+			filesProcessed: 50,
+			estimatedTotal: 0,
+			discoveryDone:  false,
+			expected:       50.0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := Progress{
+				FilesFound:     tt.filesFound,
+				FilesProcessed: tt.filesProcessed,
+				EstimatedTotal: tt.estimatedTotal,
+				DiscoveryDone:  tt.discoveryDone,
+			}
+			result := p.GetPercentage()
+			if result != tt.expected {
+				t.Errorf("GetPercentage() = %.1f, want %.1f", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestScanPhaseConstants(t *testing.T) {
+	phases := []struct {
+		phase    ScanPhase
+		expected string
+	}{
+		{ScanPhaseDiscovering, "discovering"},
+		{ScanPhaseProcessing, "processing"},
+		{ScanPhaseCompleted, "completed"},
+	}
+
+	for _, tt := range phases {
+		t.Run(string(tt.phase), func(t *testing.T) {
+			if string(tt.phase) != tt.expected {
+				t.Errorf("Expected %s, got %s", tt.expected, tt.phase)
+			}
+		})
+	}
+}
+
+func TestHashingStrategyConstants(t *testing.T) {
+	strategies := []struct {
+		strategy HashingStrategy
+		expected string
+	}{
+		{HashingStrategyAlways, "always"},
+		{HashingStrategyOnConflict, "on_conflict"},
+		{HashingStrategyDisabled, "disabled"},
+	}
+
+	for _, tt := range strategies {
+		t.Run(string(tt.strategy), func(t *testing.T) {
+			if string(tt.strategy) != tt.expected {
+				t.Errorf("Expected %s, got %s", tt.expected, tt.strategy)
+			}
+		})
+	}
+}
+
+func TestFileCacheEntryIsUnchanged(t *testing.T) {
+	now := time.Now()
+	entry := FileCacheEntry{
+		Path:    "/path/to/file.mkv",
+		Size:    1000,
+		ModTime: now,
+		Hash:    "abc123",
+	}
+
+	tests := []struct {
+		name     string
+		modTime  time.Time
+		size     int64
+		expected bool
+	}{
+		{"unchanged", now, 1000, true},
+		{"different size", now, 2000, false},
+		{"different time", now.Add(time.Hour), 1000, false},
+		{"both different", now.Add(time.Hour), 2000, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := entry.IsUnchanged(tt.modTime, tt.size)
+			if result != tt.expected {
+				t.Errorf("IsUnchanged(%v, %d) = %v, want %v", tt.modTime, tt.size, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestScanJobWithTargetPaths(t *testing.T) {
+	job := ScanJob{
+		ID:          1,
+		LibraryID:   100,
+		Status:      ScanStatusRunning,
+		TargetPaths: []string{"/movies/new_movie", "/movies/another_movie"},
+	}
+
+	if len(job.TargetPaths) != 2 {
+		t.Errorf("Expected 2 target paths, got %d", len(job.TargetPaths))
+	}
+	if job.TargetPaths[0] != "/movies/new_movie" {
+		t.Errorf("Expected first target path, got %s", job.TargetPaths[0])
+	}
+}
+
+func TestAudioTrackInfoCreation(t *testing.T) {
+	track := AudioTrackInfo{
+		StreamIndex:   0,
+		Codec:         "aac",
+		CodecProfile:  "LC",
+		Channels:      6,
+		ChannelLayout: "5.1",
+		SampleRate:    48000,
+		BitRate:       384000,
+		Language:      "eng",
+		Title:         "English 5.1",
+		IsDefault:     true,
+		IsCommentary:  false,
+		IsDescriptive: false,
+	}
+
+	if track.Channels != 6 {
+		t.Errorf("Expected Channels=6, got %d", track.Channels)
+	}
+	if !track.IsDefault {
+		t.Error("Expected IsDefault=true")
+	}
+}
+
+func TestSubtitleTrackInfoCreation(t *testing.T) {
+	track := SubtitleTrackInfo{
+		StreamIndex:  0,
+		Codec:        "srt",
+		Language:     "eng",
+		Title:        "English",
+		IsDefault:    false,
+		IsForced:     false,
+		IsSDH:        true,
+		IsCommentary: false,
+		IsBitmap:     false,
+	}
+
+	if !track.IsSDH {
+		t.Error("Expected IsSDH=true")
+	}
+	if track.IsBitmap {
+		t.Error("Expected IsBitmap=false")
+	}
+}

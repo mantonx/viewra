@@ -9,7 +9,7 @@ import (
 	domainCommon "github.com/mantonx/viewra/internal/domain/common"
 )
 
-// MovieNFO represents a Kodi/Plex-compatible movie .nfo file structure
+// MovieNFO represents a Kodi-compatible movie .nfo file structure
 type MovieNFO struct {
 	XMLName xml.Name `xml:"movie"`
 

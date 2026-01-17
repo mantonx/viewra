@@ -217,7 +217,7 @@ type ImageExtractor struct{}
 func (e *ImageExtractor) ExtractMovieImages(movieDir string) []ImageInfo {
     var images []ImageInfo
 
-    // Check for standard Kodi/Plex naming
+    // Check for standard media server naming
     patterns := map[string]string{
         "poster":    "poster.*",
         "fanart":    "fanart.*",
@@ -803,7 +803,7 @@ After evaluation of alternatives, the following decisions have been finalized:
 
 ### 8. Image Fallback Priority
 
-**Decision**: Local first (Plex/Jellyfin style)
+**Decision**: Local first
 
 - Priority: Local files → TMDb download → Placeholder
 - Respects user's existing artwork curation
@@ -860,7 +860,7 @@ See [PHASE_4_1_GAP_ANALYSIS.md](../PHASE_4_1_GAP_ANALYSIS.md) for detailed analy
 2. **Image Extraction** ✅
    - Implement `ImageExtractor` service with metadata extraction
    - Integrate into movie/TV/music scanner
-   - Detect standard Kodi/Plex image files
+   - Detect standard Kodi image files
    - Extract dimensions, hash, MIME type
 
 3. **API Endpoints** ✅
@@ -944,7 +944,7 @@ See [PHASE_4_1_GAP_ANALYSIS.md](../PHASE_4_1_GAP_ANALYSIS.md) for detailed analy
 - Ignores 36,000+ existing local images in media libraries
 - Requires internet for all image serving
 - External APIs have rate limits and may be unavailable
-- Users with existing Kodi/Plex setups expect local images to work
+- Users with existing Kodi setups expect local images to work
 
 ### Alternative 2: Duplicate Images to ViewRA Directory
 
@@ -953,7 +953,7 @@ See [PHASE_4_1_GAP_ANALYSIS.md](../PHASE_4_1_GAP_ANALYSIS.md) for detailed analy
 **Rejected Because**:
 
 - Wastes disk space (duplicate 5GB+ of images)
-- Breaks compatibility with Kodi/Plex/Jellyfin
+- Breaks compatibility with Kodi
 - Users expect images to stay with media files
 - Complicates backup/restore
 
@@ -1003,6 +1003,5 @@ See [PHASE_4_1_GAP_ANALYSIS.md](../PHASE_4_1_GAP_ANALYSIS.md) for detailed analy
 ## References
 
 - Kodi Image Naming: https://kodi.wiki/view/Artwork
-- Plex Image Naming: https://support.plex.tv/articles/200220677-local-media-assets-movies/
 - TMDb Image API: https://developers.themoviedb.org/3/getting-started/images
 - MusicBrainz Cover Art Archive: https://musicbrainz.org/doc/Cover_Art_Archive

@@ -75,6 +75,10 @@ func (m *mockLibraryRepoForScan) ListMonitored(ctx context.Context) ([]*library.
 	return nil, nil
 }
 
+func (m *mockLibraryRepoForScan) UpdateLastScannedAt(ctx context.Context, id int64) error {
+	return nil
+}
+
 func TestScanLibraryUseCase_StartScan(t *testing.T) {
 	now := time.Now()
 

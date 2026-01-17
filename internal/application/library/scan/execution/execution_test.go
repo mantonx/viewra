@@ -60,8 +60,13 @@ func createTestDeps(t *testing.T, scanRepos *scan.ScanRepositories, mediaRepos *
 	// Create minimal media repos if not provided
 	if mediaRepos == nil {
 		mediaRepos = &scan.MediaRepositories{
-			Media: mocks.NewMediaRepository(t),
+			Media:   mocks.NewMediaRepository(t),
+			Library: mocks.NewLibraryRepository(t),
 		}
+	}
+	// Ensure Library is set even if mediaRepos was provided without it
+	if mediaRepos.Library == nil {
+		mediaRepos.Library = mocks.NewLibraryRepository(t)
 	}
 
 	return &Deps{

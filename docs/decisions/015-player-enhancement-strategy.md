@@ -7,7 +7,7 @@
 
 ## Context
 
-After comprehensive analysis of both video and audio players, we've identified that while both have solid technical foundations, they require significant enhancements to reach production quality comparable to industry standards (Plex, Jellyfin, Spotify). This ADR documents the findings and establishes the enhancement strategy.
+After comprehensive analysis of both video and audio players, we've identified that while both have solid technical foundations, they require significant enhancements to reach production quality comparable to industry standards. This ADR documents the findings and establishes the enhancement strategy.
 
 ## Analysis Summary
 
@@ -240,7 +240,7 @@ AudioPlayer/
 ## Consequences
 
 ### Positive
-- **User Experience**: Players match industry standards (Plex, Jellyfin, Spotify)
+- **User Experience**: Players match industry standards
 - **Performance**: 75-90% reduction in re-renders, stable memory usage
 - **Accessibility**: WCAG 2.1 AA compliant, keyboard navigable
 - **Maintainability**: Modular component structure, reduced technical debt
@@ -286,7 +286,7 @@ AudioPlayer/
 - Accessibility: WCAG 2.1 AA compliant (Lighthouse audit)
 - Performance: < 100 re-renders per minute during playback
 - Memory: < 500MB after 1 hour of playback
-- User feedback: Positive comparison to Plex/Jellyfin experience
+- User feedback: Positive comparison to industry standards
 
 ### Audio Player
 - Time to first audio: < 100ms
@@ -306,8 +306,7 @@ AudioPlayer/
 - Visual Quality Audit: WCAG compliance assessment
 
 ### Industry Standards
-- Plex player features and UX patterns
-- Jellyfin player implementation
+
 - Netflix player controls and keyboard shortcuts
 - Spotify audio player design patterns
 - Apple Music interface guidelines

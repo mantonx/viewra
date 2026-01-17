@@ -161,6 +161,14 @@ func (m *MockRepository) ListMonitored(ctx context.Context) ([]*Library, error) 
 	return result, nil
 }
 
+func (m *MockRepository) UpdateLastScannedAt(ctx context.Context, id int64) error {
+	_, exists := m.libraries[id]
+	if !exists {
+		return ErrLibraryNotFound
+	}
+	return nil
+}
+
 func TestNewService(t *testing.T) {
 	repo := NewMockRepository()
 	service := NewService(repo)

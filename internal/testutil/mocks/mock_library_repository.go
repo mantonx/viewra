@@ -28,8 +28,9 @@ type LibraryRepository struct {
 	GetByIDWithTxErr    error
 	DeleteWithTxErr     error
 	ExistsWithTxErr     error
-	UpdateMonitoringErr error
-	ListMonitoredErr    error
+	UpdateMonitoringErr    error
+	ListMonitoredErr       error
+	UpdateLastScannedAtErr error
 }
 
 // NewLibraryRepository creates a new mock library repository.
@@ -278,4 +279,22 @@ func (r *LibraryRepository) ListMonitored(ctx context.Context) ([]*library.Libra
 	}
 
 	return result, nil
+}
+
+// Scan tracking
+
+func (r *LibraryRepository) UpdateLastScannedAt(ctx context.Context, id int64) error {
+	if r.UpdateLastScannedAtErr != nil {
+		return r.UpdateLastScannedAtErr
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, exists := r.libraries[id]; !exists {
+		return library.ErrLibraryNotFound
+	}
+
+	// In mock, we don't need to actually update the timestamp
+	return nil
 }

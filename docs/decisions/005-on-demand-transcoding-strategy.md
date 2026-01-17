@@ -6,7 +6,7 @@
 
 ## Context
 
-ViewRA v2 has complete DASH transcoding infrastructure but requires manual job management. Users expect Plex/Jellyfin-style on-demand transcoding where clicking "Play" automatically starts transcoding if needed.
+ViewRA v2 has complete DASH transcoding infrastructure but requires manual job management. Users expect seamless on-demand transcoding where clicking "Play" automatically starts transcoding if needed.
 
 ### What's Already Built (100% Complete)
 

@@ -24,7 +24,7 @@ func NewExtractor() *Extractor {
 }
 
 // ExtractMovieImages discovers all images for a movie file
-// Supports Kodi/Plex naming conventions:
+// Supports standard media server naming conventions:
 // - poster.jpg, movie-poster.jpg, folder.jpg (poster)
 // - fanart.jpg, movie-fanart.jpg (fanart)
 // - clearlogo.png (clearlogo)

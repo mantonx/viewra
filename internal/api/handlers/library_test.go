@@ -63,11 +63,12 @@ func (m *mockLibraryService) Delete(ctx context.Context, id int64) error {
 }
 
 type mockScanLibraryExecutor struct {
-	startScanFunc      func(ctx context.Context, libraryID int64) (scan.StartScanResponse, error)
-	resumeScanFunc     func(ctx context.Context, jobID int64) error
-	getProgressFunc    func(ctx context.Context, jobID int64) (scan.ScanProgressResponse, error)
-	getLatestScanFunc  func(ctx context.Context, libraryID int64) (scan.ScanProgressResponse, error)
-	getScanHistoryFunc func(ctx context.Context, libraryID int64, limit int32) (scan.ScanHistoryResponse, error)
+	startScanFunc         func(ctx context.Context, libraryID int64) (scan.StartScanResponse, error)
+	startTargetedScanFunc func(ctx context.Context, libraryID int64, targetPaths []string) (interface{}, error)
+	resumeScanFunc        func(ctx context.Context, jobID int64) error
+	getProgressFunc       func(ctx context.Context, jobID int64) (scan.ScanProgressResponse, error)
+	getLatestScanFunc     func(ctx context.Context, libraryID int64) (scan.ScanProgressResponse, error)
+	getScanHistoryFunc    func(ctx context.Context, libraryID int64, limit int32) (scan.ScanHistoryResponse, error)
 }
 
 func (m *mockScanLibraryExecutor) StartScan(ctx context.Context, libraryID int64) (scan.StartScanResponse, error) {
@@ -75,6 +76,13 @@ func (m *mockScanLibraryExecutor) StartScan(ctx context.Context, libraryID int64
 		return m.startScanFunc(ctx, libraryID)
 	}
 	return scan.StartScanResponse{}, nil
+}
+
+func (m *mockScanLibraryExecutor) StartTargetedScan(ctx context.Context, libraryID int64, targetPaths []string) (interface{}, error) {
+	if m.startTargetedScanFunc != nil {
+		return m.startTargetedScanFunc(ctx, libraryID, targetPaths)
+	}
+	return nil, nil
 }
 
 func (m *mockScanLibraryExecutor) ResumeScan(ctx context.Context, jobID int64) error {

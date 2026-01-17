@@ -19,12 +19,14 @@ type MovieRepository struct {
 	nextID int64
 
 	// Error injection
-	CreateErr  error
-	GetErr     error
-	ListErr    error
-	UpdateErr  error
-	SearchErr  error
-	CountErr   error
+	CreateErr             error
+	GetErr                error
+	ListErr               error
+	UpdateErr             error
+	SearchErr             error
+	CountErr              error
+	ListRecentlyAddedErr  error
+	ListDistinctGenresErr error
 }
 
 // NewMovieRepository creates a new mock movie repository.
@@ -314,4 +316,51 @@ func (m *MovieRepository) ListMovieIDsByLibraryPaginated(ctx context.Context, li
 	}
 
 	return allIDs[start:end], nil
+}
+
+func (m *MovieRepository) ListRecentlyAdded(ctx context.Context, limit int) ([]*media.Movie, error) {
+	if m.ListRecentlyAddedErr != nil {
+		return nil, m.ListRecentlyAddedErr
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// Collect all movies and return up to limit
+	var result []*media.Movie
+	for _, movie := range m.movies {
+		result = append(result, movie)
+		if len(result) >= limit {
+			break
+		}
+	}
+
+	return result, nil
+}
+
+func (m *MovieRepository) ListDistinctGenres(ctx context.Context, limit int) ([]string, error) {
+	if m.ListDistinctGenresErr != nil {
+		return nil, m.ListDistinctGenresErr
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// Collect distinct genres from all movies
+	genreSet := make(map[string]struct{})
+	for _, movie := range m.movies {
+		for _, genre := range movie.Genre {
+			genreSet[genre] = struct{}{}
+		}
+	}
+
+	var result []string
+	for genre := range genreSet {
+		result = append(result, genre)
+		if len(result) >= limit {
+			break
+		}
+	}
+
+	return result, nil
 }

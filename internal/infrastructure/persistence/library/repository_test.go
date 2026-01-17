@@ -33,7 +33,8 @@ func setupTestDB(t *testing.T) *sql.DB {
 		preferred_audio_lang TEXT DEFAULT 'eng',
 		preferred_subtitle_lang TEXT DEFAULT 'eng',
 		auto_enable_subtitles TEXT DEFAULT 'foreign_only'
-			CHECK(auto_enable_subtitles IN ('always', 'foreign_only', 'never'))
+			CHECK(auto_enable_subtitles IN ('always', 'foreign_only', 'never')),
+		last_scanned_at DATETIME
 	);
 	`
 
