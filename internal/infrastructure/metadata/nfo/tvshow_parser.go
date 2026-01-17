@@ -11,7 +11,7 @@ import (
 	domainCommon "github.com/mantonx/viewra/internal/domain/common"
 )
 
-// TVShowNFO represents a Kodi/Plex-compatible tvshow.nfo file structure
+// TVShowNFO represents a Kodi-compatible tvshow.nfo file structure
 type TVShowNFO struct {
 	XMLName xml.Name `xml:"tvshow"`
 
@@ -74,7 +74,7 @@ type TVShowNFO struct {
 	Season       int    `xml:"season"` // For season-specific NFOs
 }
 
-// EpisodeNFO represents a Kodi/Plex-compatible episode.nfo file structure
+// EpisodeNFO represents a Kodi-compatible episode.nfo file structure
 type EpisodeNFO struct {
 	XMLName xml.Name `xml:"episodedetails"`
 

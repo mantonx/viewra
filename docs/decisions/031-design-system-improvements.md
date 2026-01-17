@@ -181,7 +181,7 @@ Create reusable glass utility classes for both light and dark modes:
 **Rejected because:**
 - User preference should be respected
 - Light mode is important for accessibility and daylight use
-- Many media apps support both (Netflix, Plex, Jellyfin)
+- Many media apps support both (Netflix, etc.)
 
 ### 3. Full Redesign from Scratch
 

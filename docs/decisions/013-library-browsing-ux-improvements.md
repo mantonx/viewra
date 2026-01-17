@@ -82,7 +82,7 @@ The current library browsing experience has significant performance and UX issue
 
 **Pros:**
 - ✅ Solves root cause: reduces payload sizes by 95%+
-- ✅ Industry standard approach (Netflix, Spotify, Plex, Jellyfin all use this)
+- ✅ Industry standard approach (Netflix, Spotify all use this)
 - ✅ TanStack Query has excellent infinite query support
 - ✅ Backend indexes already exist for efficient pagination
 - ✅ Backward compatible (can default to limit=1000 for old clients)
@@ -893,8 +893,6 @@ Based on comprehensive frontend and backend code audits, the following refactori
 
 - [TanStack Query Infinite Queries](https://tanstack.com/query/latest/docs/react/guides/infinite-queries)
 - [Intersection Observer API](https://developer.mozilla.org/en-US/docs/Web/API/Intersection_Observer_API)
-- [Jellyfin Pagination](https://github.com/jellyfin/jellyfin/blob/master/Jellyfin.Api/Controllers/ItemsController.cs)
-- [Plex Pagination](https://www.plexopedia.com/plex-media-server/api/library/metadata/)
 
 ## Appendix: Current vs Proposed API
 

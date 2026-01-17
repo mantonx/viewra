@@ -14,7 +14,7 @@ func TestExtractEpisodePattern(t *testing.T) {
 		{"mixed case S5e13", "show - S5e13 - title", "S05E13"},
 
 		// Different naming conventions
-		{"Plex style", "Star Trek - Voyager (1995) - S05E13 - Gravity [Bluray-1080p][AC3 5.1][x265]", "S05E13"},
+		{"detailed style", "Star Trek - Voyager (1995) - S05E13 - Gravity [Bluray-1080p][AC3 5.1][x265]", "S05E13"},
 		{"simple format", "ShowS01E01Title", "S01E01"},
 		{"with dots", "Show.S02E05.Title", "S02E05"},
 

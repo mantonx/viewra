@@ -1,4 +1,4 @@
-# ADR 017: Progressive HLS Transcoding (Jellyfin-Style)
+# ADR 017: Progressive HLS Transcoding
 
 ## Status
 
@@ -24,21 +24,21 @@ After implementing and testing segment-based on-demand transcoding (ADR-016), we
 - ✅ Seeking is handled well (can jump to any segment)
 - ❌ Continuous playback fails (generation too slow)
 
-### Jellyfin's Actual Approach
+### Progressive Approach
 
-Research into how Jellyfin really works revealed:
+Research into effective HLS transcoding revealed:
 
 1. **Single long-running FFmpeg process** per transcode session
 2. FFmpeg transcodes continuously and writes segments progressively
 3. Segments become available as FFmpeg generates them
 4. When user seeks, **kill and restart** FFmpeg from new position
-5. Temporary segments in `/var/cache/jellyfin/transcodes/`
+5. Temporary segments stored in a cache directory
 
 This is fundamentally different from what we implemented in ADR-016.
 
 ## Decision
 
-We will implement **Progressive HLS Transcoding** using Jellyfin's proven approach: a single long-running FFmpeg process that continuously generates segments.
+We will implement **Progressive HLS Transcoding** using a single long-running FFmpeg process that continuously generates segments.
 
 ### Core Architecture
 
@@ -435,7 +435,7 @@ func buildFFmpegArgs(
 ### Positive
 
 1. **Continuous playback works**: FFmpeg generates segments faster than playback needs them
-2. **Proven approach**: Jellyfin uses this successfully
+2. **Proven approach**: Industry-standard technique for media servers
 3. **Simple architecture**: Single FFmpeg process per session
 4. **Resource efficient**: One FFmpeg per active user instead of N workers
 5. **Seeking works**: Kill and restart from new position
@@ -476,7 +476,6 @@ func buildFFmpegArgs(
 
 ## References
 
-- [Jellyfin Transcoding Source Code](https://github.com/jellyfin/jellyfin/blob/master/MediaBrowser.Api/Playback/ProgressiveStreamWriter.cs)
 - [FFmpeg HLS Muxer Documentation](https://ffmpeg.org/ffmpeg-formats.html#hls-2)
 - [HLS Specification RFC 8216](https://datatracker.ietf.org/doc/html/rfc8216)
 

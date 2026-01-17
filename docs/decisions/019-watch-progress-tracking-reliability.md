@@ -18,7 +18,7 @@ This ADR documents the **current implementation state**, **identifies critical i
 
 ## Decision Drivers
 
-- **User Experience**: Seamless resume experience (Netflix/Plex standard)
+- **User Experience**: Seamless resume experience
 - **Data Accuracy**: Sub-second precision for smooth resume
 - **Performance**: Minimal server load, batched queries
 - **Reliability**: Handle edge cases (seeks, crashes, network issues)
@@ -192,7 +192,7 @@ func sqliteRowToProgress(row sqlc_sqlite.WatchProgress) *progress.WatchProgress 
 - 0.3 seconds might seem small, but compounds over time
 - User experience: "It feels slightly off when I resume"
 - For precise scenes (dialogue cuts, action sequences), accuracy matters
-- Inconsistent with industry standards (Netflix/Plex use float timestamps)
+- Inconsistent with industry standards (float timestamps are common)
 
 #### Issue #2: No Immediate Seek Progress Save (MEDIUM SEVERITY)
 

@@ -2,9 +2,18 @@
 
 This guide explains how ViewRA's HLS (HTTP Live Streaming) transcoding system works, including the progressive transcoding approach, hardware acceleration, and streaming strategies.
 
+## TL;DR
+
+- **Progressive transcoding**: Single long-running FFmpeg process generates segments ahead of playback
+- **Strategies**: Direct Play → Remux → Transcode (chosen automatically based on source/client)
+- **Hardware acceleration**: NVENC, QuickSync, VAAPI, VideoToolbox (auto-detected)
+- **Quality profiles**: 2160p, 1080p, 720p, 480p with configurable bitrates
+- **Seeking**: Kills current session, restarts FFmpeg from new position
+- **Cleanup**: Sessions expire after 10 minutes idle; orphans cleaned every 30 minutes
+
 ## Architecture Overview
 
-ViewRA uses **progressive HLS transcoding** where a single long-running FFmpeg process generates video segments on-demand. This approach, inspired by Jellyfin, provides smooth playback without buffering.
+ViewRA uses **progressive HLS transcoding** where a single long-running FFmpeg process generates video segments on-demand. This approach provides smooth playback without buffering.
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐

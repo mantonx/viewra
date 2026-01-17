@@ -45,15 +45,18 @@ Create an ADR when making decisions about:
 | [018](018-infinite-scroll-image-loading-architecture.md) | Infinite Scroll Image Loading Architecture | Accepted | 2025-11-XX | frontend, images, performance |
 | [019](019-watch-progress-tracking-reliability.md) | Watch Progress Tracking Reliability | Accepted | 2025-11-XX | progress, backend |
 | [020](020-segment-based-on-demand-transcoding.md) | Segment-Based On-Demand Transcoding | **REJECTED** | 2025-01-20 | transcoding, streaming |
-| [021](021-progressive-hls-transcoding.md) | Progressive HLS Transcoding (Jellyfin-Style) | Proposed | 2025-11-XX | transcoding, streaming |
+| [021](021-progressive-hls-transcoding.md) | Progressive HLS Transcoding | Proposed | 2025-11-XX | transcoding, streaming |
 | [022](022-library-package-refactoring.md) | Library Package Refactoring and Simplification | Proposed | 2025-11-22 | architecture, refactoring, complexity |
 | [025](025-resilient-library-scanner-v2.md) | Resilient Library Scanner V2 - Checkpoint Recovery | Accepted | 2025-11-22 | scanner, reliability |
-| [026](026-app-restructuring-and-auth.md) | App Package Restructuring | Proposed | 2025-12-02 | architecture, refactoring |
-| [027](027-plugin-system-architecture.md) | Plugin System Architecture | Proposed | 2025-12-02 | plugins, metadata, extensibility |
-| [028](028-user-authentication.md) | User Authentication | Proposed | 2025-12-02 | auth, security, users |
-| [029](029-settings-infrastructure.md) | Settings Infrastructure | Proposed | 2025-12-02 | settings, configuration |
+| [026](026-app-restructuring-and-auth.md) | App Package Restructuring | Accepted | 2025-12-02 | architecture, refactoring |
+| [027](027-plugin-system-architecture.md) | Plugin System Architecture | Accepted | 2025-12-02 | plugins, metadata, extensibility |
+| [028](028-user-authentication.md) | User Authentication | Accepted | 2025-12-02 | auth, security, users |
+| [029](029-settings-infrastructure.md) | Settings Infrastructure | Accepted | 2025-12-02 | settings, configuration |
 | [030](030-multi-language-audio-subtitles.md) | Multi-Language Audio & Subtitles | Proposed | 2025-11-26 | playback, subtitles, audio |
-| [031](031-design-system-improvements.md) | Design System Improvements | Proposed | 2025-12-02 | frontend, design, ux |
+| [031](031-design-system-improvements.md) | Design System Improvements | Accepted | 2025-12-02 | frontend, design, ux |
+| [032](032-settings-infrastructure-v2.md) | Settings Infrastructure v2 | Accepted | 2025-12-03 | settings, configuration |
+| [033](033-settings-ux-improvements.md) | Settings UX Improvements | Accepted | 2025-12-03 | frontend, settings, ux |
+| [034](034-library-filesystem-monitoring.md) | Library Filesystem Monitoring | Accepted | 2025-12-XX | scanner, filesystem |
 
 ---
 
@@ -134,7 +137,7 @@ What other options did we evaluate?
 
 ### 1. Find the Next Number
 
-Check the index above for the next available number. Currently: **032**
+Check the index above for the next available number. Currently: **035**
 
 ### 2. Create the File
 
@@ -236,4 +239,4 @@ A: Enough to show you did your homework. 2-3 sentences per alternative is usuall
 
 ---
 
-**Last Updated**: December 2, 2025
+**Last Updated**: January 17, 2026

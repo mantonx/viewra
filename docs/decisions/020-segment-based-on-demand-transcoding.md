@@ -21,7 +21,7 @@ After implementation and testing (2025-01-20), discovered fundamental flaw: **se
 1. **HLS.js buffer behavior**: When player requests manifest, it immediately requests multiple segments to fill buffer (10-20 segments), not gradually
 2. **FFmpeg overhead**: Each individual FFmpeg invocation has startup/seeking overhead (~50-100ms) that adds up
 3. **Worker scaling limits**: Can't run unlimited parallel FFmpeg processes (resource constraints)
-4. **Jellyfin's actual approach**: Uses single long-running FFmpeg process, not individual segment generation
+4. **Progressive approach**: Uses single long-running FFmpeg process, not individual segment generation
 
 This approach works well for:
 
@@ -54,13 +54,13 @@ Analysis of typical video streaming behavior shows:
 
 **YouTube/Netflix**: Pre-transcode entire videos at multiple qualities (storage-heavy, transcoding-heavy)
 
-**Plex**: Linear transcoding with parallel temporary transcodes for seeks (complex coordination)
+**Parallel transcoding**: Linear transcoding with parallel temporary transcodes for seeks (complex coordination)
 
-**Jellyfin**: Segment-based on-demand generation (generates only what's needed)
+**Segment-based**: On-demand segment generation (generates only what's needed)
 
 ## Decision
 
-We will implement **Segment-Based On-Demand Transcoding** inspired by Jellyfin's approach, where individual HLS segments are generated on-demand rather than sequentially.
+We will implement **Segment-Based On-Demand Transcoding** where individual HLS segments are generated on-demand rather than sequentially.
 
 ### Core Principles
 
@@ -385,7 +385,7 @@ CREATE INDEX idx_segment_cache_lru
 
 **Decision:** Rejected - doesn't meet user behavior patterns
 
-### 2. Plex-Style Parallel Transcoding
+### 2. Parallel Transcoding
 
 **Pros:**
 - Keeps main transcode progressing
@@ -438,7 +438,6 @@ CREATE INDEX idx_segment_cache_lru
 
 ## References
 
-- [Jellyfin Transcoding Architecture](https://github.com/jellyfin/jellyfin/wiki/Transcoding)
 - [HLS Specification RFC 8216](https://datatracker.ietf.org/doc/html/rfc8216)
 - [FFmpeg Seeking Documentation](https://trac.ffmpeg.org/wiki/Seeking)
 - [Netflix Encoding Optimizations](https://netflixtechblog.com/high-quality-video-encoding-at-scale-d159db052746)

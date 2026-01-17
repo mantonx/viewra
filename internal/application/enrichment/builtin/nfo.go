@@ -15,7 +15,7 @@ import (
 	"github.com/mantonx/viewra/internal/infrastructure/metadata/nfo"
 )
 
-// NFOEnricher reads metadata from NFO files (Kodi/Plex format).
+// NFOEnricher reads metadata from NFO files (Kodi-compatible format).
 // Supports movies, TV episodes, and TV shows.
 type NFOEnricher struct{}
 

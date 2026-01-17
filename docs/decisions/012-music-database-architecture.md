@@ -118,9 +118,9 @@ for _, track := range tracks {
 - No need to refactor image handling
 
 **6. Industry Alignment** ✅
-- Similar to Jellyfin's virtual entity pattern
+- Uses virtual entity pattern common in media servers
 - Lightweight media servers (Navidrome, Airsonic) use similar approach
-- Plex's normalized approach criticized for slow scans and complexity
+- Normalized approaches often criticized for slow scans and complexity
 
 ### Disadvantages (Acknowledged)
 
@@ -156,14 +156,16 @@ This decision should be revisited if:
 
 ## Comparison: Real-World Systems
 
-### Jellyfin
+### Virtual Entity Pattern (e.g., Navidrome, Airsonic)
+
 - Uses virtual entities for artists/albums
 - Fast library scanning
 - File-based metadata priority
 - **Similar to ViewRA's approach** ✅
 
-### Plex
-- Uses normalized schema (`metadata_items` with hierarchical `parent_id`)
+### Normalized Pattern
+
+- Uses normalized schema with hierarchical parent IDs
 - Slower library scanning
 - Complex database structure
 - More features but higher complexity
@@ -220,7 +222,7 @@ This provides:
 ✅ **File-first alignment** - Metadata from files, not database
 ✅ **Proven at current scale** - Works well with production library
 ✅ **No migration cost** - Keep working code
-✅ **Industry precedent** - Jellyfin, Navidrome use similar patterns
+✅ **Industry precedent** - Navidrome, Airsonic use similar patterns
 
 ### Negative
 
@@ -271,7 +273,6 @@ Track these to know when to reconsider:
 
 - [ADR 008: Music Artist Artwork Extraction](./008-music-artist-artwork-extraction.md) - Uses virtual entity IDs
 - Database Design Best Practices: [StackExchange Discussion](https://dba.stackexchange.com/questions/293822/how-to-design-a-relational-database-schema-for-music-recordings)
-- Jellyfin Music Documentation: [jellyfin.org/docs/general/server/media/music](https://jellyfin.org/docs/general/server/media/music/)
 - Current schema: [migrations/008_music_metadata.sql](../../migrations/008_music_metadata.sql)
 
 ## Decision Log

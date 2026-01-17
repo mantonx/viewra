@@ -12,7 +12,7 @@ import (
 const (
 	// ChunkSize is the size of data to read from start and end of file.
 	// 64KB from start + 64KB from end = 128KB total read.
-	// This is fast and sufficient for duplicate detection (same as Plex/Jellyfin).
+	// This is fast and sufficient for duplicate detection.
 	ChunkSize = 64 * 1024 // 64 KB
 )
 
