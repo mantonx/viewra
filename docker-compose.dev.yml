@@ -1,8 +1,7 @@
 # ViewRA Development Docker Compose
 #
-# Prerequisites:
-#   make build-tools     # Build FFmpeg and subtitle-extractor
-#   make build-plugins   # Build plugins
+# First run builds custom FFmpeg, subtitle-extractor, and plugins automatically.
+# Subsequent runs use cached binaries from the dev-bin volume.
 #
 # Usage:
 #   docker compose -f docker-compose.dev.yml up
@@ -15,6 +14,8 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     container_name: viewra-backend
+    entrypoint: ["/app/docker/entrypoint.dev.sh"]
+    command: ["air", "-c", ".air.toml"]
     volumes:
       # Mount source code for hot-reload
       - .:/app
@@ -22,14 +23,13 @@ services:
       - go-mod-cache:/go/pkg/mod
       # Persist build cache
       - go-build-cache:/root/.cache/go-build
+      # Persist Rust build cache (for subtitle-extractor rebuilds)
+      - rust-cache:/root/.cargo/registry
+      # Persist built binaries (FFmpeg, subtitle-extractor, plugins)
+      - dev-bin:/app/bin
       # Exclude directories that shouldn't be synced
       - /app/web/node_modules
       - /app/tmp
-      # Mount local bin/ with custom FFmpeg, subtitle-extractor, plugins
-      # These are built via `make build-tools` and `make build-plugins`
-      - ./bin:/app/bin:ro
-      # Mount FFmpeg shared libraries
-      - ./bin/ffmpeg-lib:/usr/local/lib/ffmpeg:ro
     ports:
       - "8080:8080"   # API
       - "6060:6060"   # pprof debug
@@ -38,13 +38,6 @@ services:
       - DATA_DIR=/app/data
       - DB_DRIVER=${DB_DRIVER:-sqlite}
       - DB_PATH=/app/data/viewra.db
-      # Use local custom FFmpeg
-      - FFMPEG_PATH=/app/bin/ffmpeg-viewra
-      - FFPROBE_PATH=/app/bin/ffprobe-viewra
-      - SUBTITLE_EXTRACTOR_PATH=/app/bin/subtitle-extractor
-      - PLUGINS_DIR=/app/bin/plugins
-      # Add FFmpeg libs to library path
-      - LD_LIBRARY_PATH=/usr/local/lib/ffmpeg:/usr/local/lib
       # PostgreSQL (when using --profile postgres)
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -105,6 +98,8 @@ services:
 volumes:
   go-mod-cache:
   go-build-cache:
+  rust-cache:
+  dev-bin:
   web-node-modules:
   postgres-dev-data:
   ollama-dev-data:

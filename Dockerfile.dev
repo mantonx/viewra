@@ -1,9 +1,6 @@
 # ViewRA Development Dockerfile
 # Provides hot-reload development environment with Air
-#
-# Prerequisites:
-#   Run `make build-tools` first to build FFmpeg and subtitle-extractor into bin/
-#   Run `make build-plugins` to build plugins into bin/plugins/
+# Builds custom FFmpeg, subtitle-extractor, and plugins on first run
 #
 # Usage:
 #   docker compose -f docker-compose.dev.yml up
@@ -12,7 +9,7 @@ FROM golang:1.25-bookworm
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies (NO system FFmpeg - we use custom build)
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # Build tools
     gcc \
@@ -21,26 +18,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     # protobuf compiler
     protobuf-compiler \
-    # FFmpeg runtime dependencies (for our custom build)
-    libx264-164 \
-    libx265-199 \
-    libvpx9 \
-    libsvtav1enc1d2 \
-    libdav1d7 \
-    libopus0 \
-    libvorbis0a \
-    libvorbisenc2 \
-    libmp3lame0 \
-    libfdk-aac2 \
-    libass9 \
-    libfreetype6 \
-    libfontconfig1 \
-    libssl3t64 \
-    libva2 \
-    libva-drm2 \
-    libvdpau1 \
-    libdrm2 \
+    # FFmpeg build dependencies
+    build-essential pkg-config nasm yasm \
+    libx264-dev libx265-dev libvpx-dev \
+    libsvtav1-dev libsvtav1enc-dev libdav1d-dev \
+    libopus-dev libvorbis-dev libmp3lame-dev libfdk-aac-dev \
+    libass-dev libfreetype-dev libfontconfig1-dev libssl-dev \
+    libva-dev libvdpau-dev libdrm-dev \
+    # FFmpeg runtime dependencies
+    libx264-164 libx265-199 libvpx9 \
+    libsvtav1enc1d2 libdav1d7 \
+    libopus0 libvorbis0a libvorbisenc2 libmp3lame0 libfdk-aac2 \
+    libass9 libfreetype6 libfontconfig1 libssl3t64 \
+    libva2 libva-drm2 libvdpau1 libdrm2 \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Rust for subtitle-extractor
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Install Go tools
 RUN go install github.com/air-verse/air@latest && \
