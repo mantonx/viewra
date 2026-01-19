@@ -168,8 +168,12 @@ jobs:
             name=$(basename "$plugin_dir")
             echo "Building plugin: $name"
             mkdir -p "dist/plugins/${name}"
-            # Build using -C flag to change to plugin directory
-            go build -C "$plugin_dir" -ldflags="-s -w" -o "${GITHUB_WORKSPACE}/dist/plugins/${name}/${name}" .
+            # Build from within plugin directory using subshell
+            # This ensures Go module resolution works correctly with replace directives
+            pushd "$plugin_dir" > /dev/null
+            go mod download
+            go build -ldflags="-s -w" -o "${GITHUB_WORKSPACE}/dist/plugins/${name}/${name}" .
+            popd > /dev/null
             cp "${plugin_dir}/plugin.yml" "dist/plugins/${name}/" 2>/dev/null || true
             cp "${plugin_dir}/config.yml" "dist/plugins/${name}/" 2>/dev/null || true
           done
