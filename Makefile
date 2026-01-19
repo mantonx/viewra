@@ -234,7 +234,7 @@ build-plugins: ## Build all plugins from plugins/ directory
 			name=$$(basename "$$dir"); \
 			echo "Building plugin: $$name"; \
 			mkdir -p "data/plugins/$$name"; \
-			(cd "$$dir" && go build -o "../../data/plugins/$$name/$$name" .); \
+			(cd "$$dir" && go mod download && go build -o "../../data/plugins/$$name/$$name" .); \
 			if [ -f "$$dir/plugin.yml" ]; then \
 				cp "$$dir/plugin.yml" "data/plugins/$$name/"; \
 			fi; \

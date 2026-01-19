@@ -40,6 +40,7 @@ jobs:
           key: ffmpeg-${{ env.FFMPEG_VERSION }}-${{ hashFiles('tools/ffmpeg-viewra/**') }}
 
       - name: Install CUDA toolkit
+        id: cuda-toolkit
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         uses: Jimver/cuda-toolkit@v0.2.18
         with:
@@ -66,7 +67,14 @@ jobs:
 
       - name: Build FFmpeg using Makefile
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
-        run: make build-ffmpeg
+        env:
+          CUDA_PATH: ${{ steps.cuda-toolkit.outputs.CUDA_PATH }}
+        run: |
+          # Ensure CUDA binaries are in PATH
+          export PATH="${CUDA_PATH}/bin:${PATH}"
+          echo "CUDA_PATH: ${CUDA_PATH}"
+          echo "nvcc location: $(which nvcc 2>/dev/null || echo 'not found')"
+          make build-ffmpeg
 
       - name: Package FFmpeg
         run: |
