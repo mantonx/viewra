@@ -159,11 +159,11 @@ jobs:
           for plugin_dir in plugins/*/; do
             name=$(basename "$plugin_dir")
             echo "Building plugin: $name"
-            cd "$plugin_dir"
-            go build -ldflags="-s -w" -o "${GITHUB_WORKSPACE}/dist/plugins/${name}/${name}" .
-            cp plugin.yml "${GITHUB_WORKSPACE}/dist/plugins/${name}/" 2>/dev/null || true
-            cp config.yml "${GITHUB_WORKSPACE}/dist/plugins/${name}/" 2>/dev/null || true
-            cd "${GITHUB_WORKSPACE}"
+            mkdir -p "dist/plugins/${name}"
+            # Build using -C flag to change to plugin directory
+            go build -C "$plugin_dir" -ldflags="-s -w" -o "${GITHUB_WORKSPACE}/dist/plugins/${name}/${name}" .
+            cp "${plugin_dir}/plugin.yml" "dist/plugins/${name}/" 2>/dev/null || true
+            cp "${plugin_dir}/config.yml" "dist/plugins/${name}/" 2>/dev/null || true
           done
 
       - name: Package plugins
