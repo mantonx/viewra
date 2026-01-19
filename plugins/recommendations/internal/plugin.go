@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/mantonx/viewra/pkg/plugin/sdk"
-	"github.com/mantonx/viewra/plugins/recommendations/internal/cf"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,7 +28,7 @@ type RecommendationsPlugin struct {
 	// Services
 	recommendationsService *RecommendationsService
 	userEmbeddingService   *UserEmbeddingService
-	sarService             *cf.SARService
+	sarService             *SARService
 	hybridScorer           *HybridScorer
 	themedRecommendations  *ThemedRecommendations
 
@@ -107,7 +106,7 @@ func (p *RecommendationsPlugin) initializeServices() {
 
 	// Create SAR service for collaborative filtering
 	if p.ratings != nil || p.progress != nil {
-		p.sarService = cf.NewSARService(
+		p.sarService = NewSARService(
 			p.ratings,
 			p.progress,
 			p.data,

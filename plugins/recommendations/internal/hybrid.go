@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/mantonx/viewra/pkg/plugin/sdk"
-	"github.com/mantonx/viewra/plugins/recommendations/internal/cf"
 )
 
 // HybridWeights configures the balance between recommendation strategies.
@@ -58,7 +57,7 @@ type scoredCandidate struct {
 
 // HybridScorer combines multiple recommendation strategies.
 type HybridScorer struct {
-	sarService           *cf.SARService
+	sarService           *SARService
 	userEmbeddingService *UserEmbeddingService
 	ratings              *sdk.RatingsClient
 	progress             *sdk.ProgressClient
@@ -71,7 +70,7 @@ type HybridScorer struct {
 
 // NewHybridScorer creates a new hybrid scorer.
 func NewHybridScorer(
-	sarService *cf.SARService,
+	sarService *SARService,
 	userEmbeddingService *UserEmbeddingService,
 	ratings *sdk.RatingsClient,
 	progress *sdk.ProgressClient,

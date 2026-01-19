@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/mantonx/viewra/pkg/plugin/sdk"
-	"github.com/mantonx/viewra/plugins/recommendations/internal/cf"
 )
 
 // RecommendationsService generates personalized recommendations.
@@ -16,7 +15,7 @@ type RecommendationsService struct {
 	data                 *sdk.DataClient
 	plugins              *sdk.PluginsClient
 	userEmbeddingService *UserEmbeddingService
-	sarService           *cf.SARService
+	sarService           *SARService
 	hybridScorer         *HybridScorer
 	config               Config
 	logger               *slog.Logger
@@ -29,7 +28,7 @@ func NewRecommendationsService(
 	data *sdk.DataClient,
 	plugins *sdk.PluginsClient,
 	userEmbeddingService *UserEmbeddingService,
-	sarService *cf.SARService,
+	sarService *SARService,
 	hybridScorer *HybridScorer,
 	config Config,
 	logger *slog.Logger,
