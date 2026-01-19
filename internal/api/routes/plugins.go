@@ -13,6 +13,7 @@ import (
 func RegisterPluginRoutes(
 	protected *gin.RouterGroup,
 	handler *handlers.PluginHandler,
+	marketplaceHandler *handlers.MarketplaceHandler,
 	proxy *plugins.HTTPProxy,
 	authValidator middleware.AuthValidator,
 ) {
@@ -38,6 +39,20 @@ func RegisterPluginRoutes(
 	admin.POST("/:id/disable", handler.Disable)
 	admin.POST("/:id/restart", handler.Restart)
 	admin.GET("/:id/logs", handler.GetLogs)
+
+	// Marketplace routes
+	if marketplaceHandler != nil {
+		// Marketplace read-only (authenticated users)
+		pluginsGroup.GET("/marketplace", marketplaceHandler.ListAvailable)
+		pluginsGroup.GET("/marketplace/:id", marketplaceHandler.GetDetails)
+		pluginsGroup.GET("/updates", marketplaceHandler.CheckUpdates)
+
+		// Marketplace admin-only
+		admin.POST("/marketplace/refresh", marketplaceHandler.RefreshCatalog)
+		admin.POST("/marketplace/install", marketplaceHandler.Install)
+		admin.POST("/:id/update", marketplaceHandler.Update)
+		admin.DELETE("/:id", marketplaceHandler.Uninstall)
+	}
 
 	// Plugin custom routes - handled by HTTP proxy
 	// These allow plugins to expose their own HTTP endpoints

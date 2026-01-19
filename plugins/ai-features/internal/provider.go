@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -17,7 +18,6 @@ import (
 )
 
 const (
-	defaultBaseURL    = "http://localhost:11434"
 	defaultChatModel  = "llama3.2"
 	defaultEmbedModel = "nomic-embed-text"
 	requestTimeout    = 120 * time.Second
@@ -25,6 +25,14 @@ const (
 	GB = 1024 * 1024 * 1024
 	MB = 1024 * 1024
 )
+
+// getDefaultBaseURL returns the Ollama base URL from OLLAMA_HOST env var or default.
+func getDefaultBaseURL() string {
+	if host := os.Getenv("OLLAMA_HOST"); host != "" {
+		return host
+	}
+	return "http://localhost:11434"
+}
 
 // AIFeaturesPlugin implements the combined AI configuration and Ollama provider plugin.
 type AIFeaturesPlugin struct {
@@ -47,7 +55,7 @@ type AIFeaturesPlugin struct {
 // NewAIFeaturesPlugin creates a new AI Local plugin.
 func NewAIFeaturesPlugin(logger *slog.Logger) *AIFeaturesPlugin {
 	p := &AIFeaturesPlugin{
-		baseURL:        defaultBaseURL,
+		baseURL:        getDefaultBaseURL(),
 		embeddingModel: defaultEmbedModel,
 		chatModel:      defaultChatModel,
 		logger:         logger,
@@ -70,7 +78,7 @@ func (p *AIFeaturesPlugin) SetModels(embeddingModel, chatModel string) {
 // ConfigureClient updates the provider configuration.
 func (p *AIFeaturesPlugin) ConfigureClient(baseURL string) error {
 	if baseURL == "" {
-		baseURL = defaultBaseURL
+		baseURL = getDefaultBaseURL()
 	}
 
 	parsedURL, err := url.Parse(baseURL)

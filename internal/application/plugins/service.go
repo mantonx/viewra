@@ -23,6 +23,7 @@ type PluginQueries interface {
 	EnablePlugin(ctx context.Context, id string) error
 	DisablePlugin(ctx context.Context, id string) error
 	UpsertPlugin(ctx context.Context, p Plugin) error
+	DeletePlugin(ctx context.Context, id string) error
 	GetPluginSettings(ctx context.Context, id string) (string, error)
 	UpdatePluginSettings(ctx context.Context, id string, settings string) error
 	UpdatePluginSettingsSchema(ctx context.Context, id string, schema string) error

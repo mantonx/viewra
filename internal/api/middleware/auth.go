@@ -162,20 +162,21 @@ func OptionalAuth(validator AuthValidator) gin.HandlerFunc {
 	}
 }
 
-// extractBearerToken extracts the token from the Authorization header.
-// Expects format: "Bearer <token>"
+// extractBearerToken extracts the token from the Authorization header or query param.
+// Priority: 1) Authorization header (Bearer scheme), 2) "token" query parameter.
+// The query parameter fallback is needed for <video src="..."> which can't set headers.
 func extractBearerToken(c *gin.Context) string {
+	// Try Authorization header first
 	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" {
-		return ""
+	if authHeader != "" {
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+			return parts[1]
+		}
 	}
 
-	parts := strings.SplitN(authHeader, " ", 2)
-	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-		return ""
-	}
-
-	return parts[1]
+	// Fallback to query parameter (for video streaming)
+	return c.Query("token")
 }
 
 // GetUserID returns the internal user ID from the context.

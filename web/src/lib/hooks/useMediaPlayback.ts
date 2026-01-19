@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { getProgressSeconds } from '../utils'
 import { API_BASE_URL } from '@/lib/config'
 import { logger } from '@/lib/utils/logger'
-import { authFetch } from '@/lib/utils/authFetch'
+import { authFetch, buildAuthenticatedUrl } from '@/lib/utils/authFetch'
 import { detectCodecSupportSync, getSupportedCodecsHeader, detectHDRDisplaySync, getDeviceProfileHash } from '@/lib/capabilities'
 import type { GithubComMantonxViewraInternalApplicationMediaMediaResponse as Media } from '@/lib/api/generated/models'
 
@@ -161,7 +161,7 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
   const [savedPreferences, setSavedPreferences] = useState<SavedPreferences | null>(null)
 
   const fallbackToDirectStream = (id: number) => {
-    const directUrl = `${API_BASE_URL}/api/stream/${id}`
+    const directUrl = buildAuthenticatedUrl(`${API_BASE_URL}/api/stream/${id}`)
     setStreamUrl(directUrl)
     setTranscodeState('direct')
     setIsPlaying(true)
@@ -226,7 +226,7 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
 
       // Direct Play (302 redirect)
       if (response.status === 302 || response.type === 'opaqueredirect') {
-        const directUrl = `${API_BASE_URL}/api/stream/${id}`
+        const directUrl = buildAuthenticatedUrl(`${API_BASE_URL}/api/stream/${id}`)
         setStreamUrl(directUrl)
         setTranscodeState('direct')
         return

@@ -1,41 +1,118 @@
 # ViewRA Development Dockerfile
-# Provides hot-reload development environment with Air
-# Builds custom FFmpeg, subtitle-extractor, and plugins on first run
+# Hot-reload environment using Air for Go and Vite for frontend
+#
+# Uses Ubuntu 24.04 for newer Vulkan headers (required for libplacebo HDR tone mapping)
 #
 # Usage:
 #   docker compose -f docker-compose.dev.yml up
+#
+# First build takes ~10 min (FFmpeg compilation), subsequent builds use cache.
 
-FROM golang:1.25-bookworm
+FROM ubuntu:24.04 AS ffmpeg-builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies
+# Install Go (needed for make build-ffmpeg)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Build tools
-    gcc \
-    make \
-    git \
-    curl \
-    # protobuf compiler
-    protobuf-compiler \
-    # FFmpeg build dependencies
-    build-essential pkg-config nasm yasm \
+    ca-certificates curl && \
+    curl -fsSL https://go.dev/dl/go1.23.4.linux-amd64.tar.gz | tar -C /usr/local -xzf - && \
+    rm -rf /var/lib/apt/lists/*
+ENV PATH="/usr/local/go/bin:/usr/local/cuda-12.6/bin:${PATH}"
+
+# Add NVIDIA CUDA repository
+RUN curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb -o /tmp/cuda-keyring.deb && \
+    dpkg -i /tmp/cuda-keyring.deb && \
+    rm /tmp/cuda-keyring.deb
+
+# Install FFmpeg build dependencies for all hardware acceleration targets
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential pkg-config nasm yasm clang git cmake \
+    # CUDA toolkit for tonemap_cuda
+    cuda-nvcc-12-6 cuda-cudart-dev-12-6 \
+    # Video codecs
     libx264-dev libx265-dev libvpx-dev \
-    libsvtav1-dev libsvtav1enc-dev libdav1d-dev \
-    libopus-dev libvorbis-dev libmp3lame-dev libfdk-aac-dev \
-    libass-dev libfreetype-dev libfontconfig1-dev libssl-dev \
-    libva-dev libvdpau-dev libdrm-dev \
-    # FFmpeg runtime dependencies
-    libx264-164 libx265-199 libvpx9 \
-    libsvtav1enc1d2 libdav1d7 \
-    libopus0 libvorbis0a libvorbisenc2 libmp3lame0 libfdk-aac2 \
-    libass9 libfreetype6 libfontconfig1 libssl3t64 \
-    libva2 libva-drm2 libvdpau1 libdrm2 \
+    # Audio codecs
+    libopus-dev libvorbis-dev \
+    # Subtitle/text rendering
+    libass-dev libfreetype-dev \
+    # SSL/TLS
+    libssl-dev \
+    # VAAPI (Intel/AMD hardware decoding/encoding)
+    libva-dev libdrm-dev \
+    # Intel Quick Sync Video (QSV) via oneVPL
+    libvpl-dev \
+    # Vulkan + libplacebo (HDR tone mapping)
+    libvulkan-dev libplacebo-dev libshaderc-dev \
+    # OpenCL (GPU-accelerated filters)
+    ocl-icd-opencl-dev \
+    # Download tools
+    xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Rust for subtitle-extractor
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
+# Install nv-codec-headers for NVENC/NVDEC support
+RUN git clone --depth 1 https://git.videolan.org/git/ffmpeg/nv-codec-headers.git /tmp/nv-codec-headers && \
+    cd /tmp/nv-codec-headers && make install && \
+    rm -rf /tmp/nv-codec-headers
+
+# Install newer Vulkan headers (FFmpeg 7.x requires >= 1.3.277, Ubuntu 24.04 has 1.3.275)
+RUN git clone --depth 1 --branch v1.3.283 https://github.com/KhronosGroup/Vulkan-Headers.git /tmp/vulkan-headers && \
+    cd /tmp/vulkan-headers && \
+    cmake -B build -DCMAKE_INSTALL_PREFIX=/usr && \
+    cmake --install build && \
+    rm -rf /tmp/vulkan-headers
+
+# Copy project files needed for make build-ffmpeg
+WORKDIR /build
+COPY Makefile /build/
+COPY tools/ffmpeg-viewra/ /build/tools/ffmpeg-viewra/
+
+# Build FFmpeg using make target
+RUN make build-ffmpeg
+
+# Main development image
+FROM ubuntu:24.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install Go
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl && \
+    curl -fsSL https://go.dev/dl/go1.23.4.linux-amd64.tar.gz | tar -C /usr/local -xzf - && \
+    rm -rf /var/lib/apt/lists/*
+ENV PATH="/usr/local/go/bin:/root/go/bin:${PATH}"
+
+# Install runtime dependencies and dev tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc make git bash libsqlite3-dev protobuf-compiler curl \
+    # Video codec runtime libs
+    libx264-164 libx265-199 libvpx9 \
+    # Audio codec runtime libs
+    libopus0 libvorbis0a libvorbisenc2 \
+    # Subtitle/text rendering runtime libs
+    libass9 libfreetype6 \
+    # SSL runtime
+    libssl3t64 \
+    # VAAPI runtime (Intel/AMD)
+    libva2 libva-drm2 libdrm2 \
+    # Intel QSV runtime (oneVPL)
+    libvpl2 \
+    # Vulkan + libplacebo runtime (HDR tone mapping)
+    libvulkan1 libplacebo338 libshaderc1 \
+    # OpenCL runtime
+    ocl-icd-libopencl1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy FFmpeg from builder (make build-ffmpeg outputs to bin/)
+COPY --from=ffmpeg-builder /build/bin/ffmpeg-viewra /usr/local/bin/ffmpeg-viewra
+COPY --from=ffmpeg-builder /build/bin/ffprobe-viewra /usr/local/bin/ffprobe-viewra
+COPY --from=ffmpeg-builder /build/bin/ffmpeg-lib/ /usr/local/lib/ffmpeg/
+
+# Configure library path
+RUN echo "/usr/local/lib/ffmpeg" > /etc/ld.so.conf.d/ffmpeg.conf && ldconfig
+
+# Set FFmpeg environment variables
+ENV VIEWRA_FFMPEG_PATH=/usr/local/bin/ffmpeg-viewra \
+    VIEWRA_FFPROBE_PATH=/usr/local/bin/ffprobe-viewra
 
 # Install Go tools
 RUN go install github.com/air-verse/air@latest && \
@@ -47,11 +124,6 @@ RUN go install github.com/air-verse/air@latest && \
 
 WORKDIR /app
 
-# Copy go.mod first for dependency caching
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Set environment for development
 ENV ENVIRONMENT=development \
     GIN_MODE=debug \
     CGO_ENABLED=1 \
@@ -60,5 +132,4 @@ ENV ENVIRONMENT=development \
 
 EXPOSE 8080 6060
 
-# Default command runs Air for hot-reload
 CMD ["air", "-c", ".air.toml"]

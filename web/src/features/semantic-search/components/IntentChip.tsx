@@ -13,7 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-export interface IntentChip {
+export interface IntentChipType {
   id: string
   type: string
   value: string
@@ -24,7 +24,7 @@ export interface IntentChip {
 }
 
 interface IntentChipProps {
-  chip: IntentChip
+  chip: IntentChipType
   onRemove?: (chipId: string) => void
   onRefine?: (chipId: string, refinement: string) => void
   className?: string

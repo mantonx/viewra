@@ -15,6 +15,7 @@ export interface TVShowSummary {
   content_rating?: string
   season_count?: number
   episode_count?: number
+  created_at?: string
 }
 
 export interface TVShowDetailResponse {

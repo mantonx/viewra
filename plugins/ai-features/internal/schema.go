@@ -74,7 +74,7 @@ func SettingsSchema(opts ModelOptions) *sdk.Schema {
 		Property("base_url", sdk.String().
 			Title("Ollama Server URL").
 			Description("URL of the Ollama server").
-			Default("http://localhost:11434")).
+			Default(getDefaultBaseURL())).
 		Property("embedding_model", embeddingModelProp).
 		Property("chat_model", chatModelProp).
 		// --- Sections ---

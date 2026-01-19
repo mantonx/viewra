@@ -174,11 +174,11 @@ if pkg-config --exists ffnvcodec 2>/dev/null; then
         EXTRA_FLAGS="${EXTRA_FLAGS} --enable-cuda-nvcc"
         CUDA_NVCC_AVAILABLE=1
     else
-        echo "  Missing: nvcc (CUDA-native tone mapping disabled, using libplacebo fallback)"
+        echo "  Missing: nvcc (CUDA-native tone mapping disabled, using libplacebo/OpenCL fallback)"
         echo "           Install: pacman -S cuda (Arch)"
-        echo "                    apt install nvidia-cuda-toolkit (Ubuntu)"
-        # Use clang for basic CUDA support without tonemap_cuda
-        EXTRA_FLAGS="${EXTRA_FLAGS} --enable-cuda-llvm"
+        echo "                    apt install cuda-nvcc-12-6 cuda-cudart-dev-12-6 (Ubuntu)"
+        # NVENC/NVDEC still work via nv-codec-headers, just no tonemap_cuda
+        # Don't use --enable-cuda-llvm as clang can't compile CUDA kernels (missing float3 types)
         CUDA_NVCC_AVAILABLE=0
     fi
 else
@@ -188,11 +188,29 @@ else
     CUDA_NVCC_AVAILABLE=0
 fi
 
+# Hardware acceleration - VAAPI (Intel/AMD)
 if check_lib libva; then
-    echo "  Found: VAAPI"
+    echo "  Found: VAAPI (Intel/AMD hardware encoding)"
     EXTRA_FLAGS="${EXTRA_FLAGS} --enable-vaapi"
+else
+    echo "  Missing: libva (VAAPI disabled)"
 fi
 
+# Hardware acceleration - Intel Quick Sync Video (QSV) via oneVPL
+# Requires: libvpl-dev (oneVPL) - successor to Intel Media SDK
+# On Debian/Ubuntu: apt install libvpl-dev
+# On Arch: pacman -S onevpl
+if check_lib vpl; then
+    echo "  Found: oneVPL (Intel QSV hardware encoding)"
+    EXTRA_FLAGS="${EXTRA_FLAGS} --enable-libvpl"
+else
+    echo "  Missing: oneVPL (Intel QSV disabled)"
+    echo "           Install: apt install libvpl-dev (Debian/Ubuntu)"
+    echo "                    pacman -S onevpl (Arch)"
+fi
+
+# Vulkan - FFmpeg 7.x requires Vulkan >= 1.3.277
+# Ubuntu 24.04 has 1.3.275+ which works, Debian Bookworm is too old
 if check_lib vulkan; then
     echo "  Found: Vulkan"
     EXTRA_FLAGS="${EXTRA_FLAGS} --enable-vulkan"

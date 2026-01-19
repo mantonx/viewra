@@ -52,8 +52,9 @@ tools/subtitle-extractor/target/
 tools/ffmpeg-viewra/build/
 tools/ffmpeg-viewra/dist/
 
-# Documentation (not needed in image)
-docs/
+# Documentation (not needed in image, except swagger)
+docs/*
+!docs/swagger/
 *.md
 !README.md
 

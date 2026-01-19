@@ -122,6 +122,20 @@ export const authFetch = async (
  * @returns Promise<T> - Parsed JSON response
  * @throws Error if response is not ok or JSON parsing fails
  */
+/**
+ * Build a URL with the auth token as a query parameter.
+ * Use this for resources that can't use headers (e.g., <video src="...">).
+ */
+export const buildAuthenticatedUrl = (url: string): string => {
+  const token = getStoredAccessToken()
+  if (!token) {
+    return url
+  }
+
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}token=${encodeURIComponent(token)}`
+}
+
 export const authFetchJson = async <T = unknown>(
   input: string | URL | Request,
   init?: RequestInit

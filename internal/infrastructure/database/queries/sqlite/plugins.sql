@@ -120,3 +120,11 @@ UPDATE plugins SET
     settings_schema = ?,
     updated_at = datetime('now')
 WHERE id = ?;
+
+-- name: UpdatePluginMarketplaceInfo :exec
+UPDATE plugins SET
+    source = ?,
+    source_url = ?,
+    checksum = ?,
+    updated_at = datetime('now')
+WHERE id = ?;

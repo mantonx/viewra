@@ -8,6 +8,7 @@ export interface ArtistSummary {
   name?: string
   album_count?: number
   track_count?: number
+  created_at?: string
 }
 
 export interface AlbumSummary {
@@ -17,6 +18,7 @@ export interface AlbumSummary {
   artist?: string
   year?: number
   track_count?: number
+  created_at?: string
 }
 
 export interface MusicTrackResponse {

@@ -55,7 +55,7 @@ jobs:
             bin/ffmpeg-viewra
             bin/ffprobe-viewra
             bin/ffmpeg-lib
-          key: ffmpeg-v2-${{ env.FFMPEG_VERSION }}-${{ hashFiles('tools/ffmpeg-viewra/**') }}
+          key: ffmpeg-v3-${{ env.FFMPEG_VERSION }}-${{ hashFiles('tools/ffmpeg-viewra/**') }}
 
       - name: Install build dependencies
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
@@ -64,15 +64,20 @@ jobs:
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential pkg-config nasm yasm git curl \
+            build-essential pkg-config nasm yasm git curl cmake \
             libx264-dev libx265-dev libvpx-dev \
             libsvtav1-dev libsvtav1enc-dev libdav1d-dev \
             libopus-dev libvorbis-dev libmp3lame-dev libfdk-aac-dev \
             libass-dev libfreetype-dev libfontconfig1-dev libssl-dev \
             libva-dev libvdpau-dev libdrm-dev ocl-icd-opencl-dev \
+            libvpl-dev libplacebo-dev libshaderc-dev libvulkan-dev \
             cuda-nvcc-12-6 cuda-cudart-dev-12-6
+          # nv-codec-headers for NVENC/NVDEC
           git clone --depth 1 https://github.com/FFmpeg/nv-codec-headers.git
-          cd nv-codec-headers && sudo make install
+          cd nv-codec-headers && sudo make install && cd ..
+          # Newer Vulkan headers (FFmpeg 7.x requires >= 1.3.277, Ubuntu 24.04 has 1.3.275)
+          git clone --depth 1 --branch v1.3.283 https://github.com/KhronosGroup/Vulkan-Headers.git
+          cd Vulkan-Headers && cmake -B build -DCMAKE_INSTALL_PREFIX=/usr && sudo cmake --install build
 
       - name: Build FFmpeg
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
@@ -118,7 +123,8 @@ jobs:
             ### Features
             - **Video:** x264, x265, VP9, SVT-AV1, dav1d
             - **Audio:** Opus, Vorbis, MP3, FDK-AAC
-            - **Hardware:** VAAPI, VDPAU, NVENC/NVDEC, CUDA, OpenCL
+            - **Hardware:** VAAPI, VDPAU, NVENC/NVDEC, CUDA, OpenCL, Intel QSV (oneVPL)
+            - **HDR:** Vulkan + libplacebo tone mapping
             - **Subtitles:** libass, freetype
 
             ### Checksum (SHA256)

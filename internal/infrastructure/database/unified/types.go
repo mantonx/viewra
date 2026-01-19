@@ -272,6 +272,7 @@ type (
 	UpdatePipelineStageParams = sqlc_sqlite.UpdatePipelineStageParams
 	UpdatePipelineStagePositionParams = sqlc_sqlite.UpdatePipelineStagePositionParams
 	UpdatePluginHealthParams = sqlc_sqlite.UpdatePluginHealthParams
+	UpdatePluginMarketplaceInfoParams = sqlc_sqlite.UpdatePluginMarketplaceInfoParams
 	UpdatePluginParams = sqlc_sqlite.UpdatePluginParams
 	UpdatePluginSettingsParams = sqlc_sqlite.UpdatePluginSettingsParams
 	UpdatePluginSettingsSchemaParams = sqlc_sqlite.UpdatePluginSettingsSchemaParams

@@ -566,6 +566,7 @@ type Querier interface {
 	UpdatePipelineStagePosition(ctx context.Context, arg UpdatePipelineStagePositionParams) error
 	UpdatePlugin(ctx context.Context, arg UpdatePluginParams) error
 	UpdatePluginHealth(ctx context.Context, arg UpdatePluginHealthParams) error
+	UpdatePluginMarketplaceInfo(ctx context.Context, arg UpdatePluginMarketplaceInfoParams) error
 	UpdatePluginSettings(ctx context.Context, arg UpdatePluginSettingsParams) error
 	UpdatePluginSettingsSchema(ctx context.Context, arg UpdatePluginSettingsSchemaParams) error
 	// Updates priority for all pending/processing jobs for a media item.

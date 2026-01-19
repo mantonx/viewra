@@ -48,25 +48,31 @@ services:
         condition: service_started
         required: false
 
-    # ===========================================
-    # GPU Configuration (uncomment as needed)
-    # ===========================================
-
-    # AMD/Intel GPU (VAAPI)
-    # devices:
-    #   - /dev/dri:/dev/dri
-
-    # NVIDIA GPU (requires nvidia-container-toolkit)
+    # ─────────────────────────────────────────────────────────────────
+    # GPU Acceleration - uncomment ONE of the following sections:
+    # ─────────────────────────────────────────────────────────────────
+    #
+    # NVIDIA GPU (NVENC/NVDEC) - requires nvidia-container-toolkit:
+    #   Install: sudo pacman -S nvidia-container-toolkit (Arch)
+    #            sudo apt install nvidia-container-toolkit (Ubuntu)
+    #   Configure: sudo nvidia-ctk runtime configure --runtime=docker
+    #              sudo systemctl restart docker
+    #   Docs: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
     # deploy:
     #   resources:
     #     reservations:
     #       devices:
     #         - driver: nvidia
     #           count: all
-    #           capabilities: [gpu, video, compute]
-    # environment:
-    #   - NVIDIA_VISIBLE_DEVICES=all
-    #   - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+    #           capabilities: [gpu, video]
+    #
+    # Intel/AMD GPU (QSV/VAAPI) - requires /dev/dri on host:
+    # devices:
+    #   - /dev/dri:/dev/dri
+    # group_add:
+    #   - video
+    #   - render
+    # ─────────────────────────────────────────────────────────────────
 
   # Optional PostgreSQL database
   postgres:

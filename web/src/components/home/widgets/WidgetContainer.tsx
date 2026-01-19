@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils'
 import { SearchHero } from './SearchHero'
 import { MediaRow } from './MediaRow'
 import { ContinueRow } from './ContinueRow'
-import { WidgetType, type HomeSection, type SearchHeroData, type MediaRowData, type TrendingRowData } from './widget.types'
+import { WidgetType, type HomeSection, type SearchHeroData, type MediaRowData, type TrendingRowData, type ContinueWatchingData } from './widget.types'
 
 interface WidgetContainerProps {
   section: HomeSection
@@ -37,7 +37,7 @@ export const WidgetContainer = ({ section, className }: WidgetContainerProps) =>
     case WidgetType.ContinueRow:
       return (
         <ContinueRow
-          data={section.data as MediaRowData}
+          data={section.data as ContinueWatchingData}
           className={className}
         />
       )

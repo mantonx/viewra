@@ -189,6 +189,7 @@ func BuildHandlers(
 
 	// Plugin handler
 	var pluginHandler *handlers.PluginHandler
+	var marketplaceHandler *handlers.MarketplaceHandler
 	if infra.Repos.Plugin != nil && svcs.PluginManager != nil && svcs.EventBus != nil {
 		pluginService := appplugins.NewService(
 			infra.Repos.Plugin,
@@ -201,6 +202,23 @@ func BuildHandlers(
 			pluginService.SetEncryptor(svcs.Encryptor)
 		}
 		pluginHandler = handlers.NewPluginHandler(pluginService)
+
+		// Marketplace handler (plugin install/update/uninstall from GitHub releases)
+		if infra.Config != nil {
+			marketplaceConfig := appplugins.MarketplaceConfig{
+				Enabled:   true, // Could be made configurable
+				CacheTTL:  appplugins.DefaultCacheTTL,
+				PluginDir: infra.Config.Plugins.Dir,
+				TempDir:   infra.Config.DataDir,
+			}
+			marketplaceService := appplugins.NewMarketplaceService(
+				marketplaceConfig,
+				infra.Repos.Plugin,
+				svcs.PluginManager,
+				logger.With("service", "marketplace"),
+			)
+			marketplaceHandler = handlers.NewMarketplaceHandler(marketplaceService)
+		}
 	}
 
 	// Get the plugin HTTP proxy if plugin manager is available
@@ -355,6 +373,7 @@ func BuildHandlers(
 		LocationSettings: locationSettingsHandler,
 		Enrichment:       enrichmentHandler,
 		Plugins:          pluginHandler,
+		Marketplace:      marketplaceHandler,
 		System:           systemHandler,
 		Home:             homeHandler,
 		Trending:         trendingHandler,

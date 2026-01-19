@@ -97,6 +97,22 @@ func (r *Repository) UpdatePluginSettingsSchema(ctx context.Context, id string, 
 	})
 }
 
+// DeletePlugin removes a plugin from the database.
+// Built-in plugins cannot be deleted (enforced by the SQL query).
+func (r *Repository) DeletePlugin(ctx context.Context, id string) error {
+	return r.Q().DeletePlugin(ctx, id)
+}
+
+// UpdatePluginMarketplaceInfo updates marketplace-related fields for a plugin.
+func (r *Repository) UpdatePluginMarketplaceInfo(ctx context.Context, id, source, sourceURL, checksum string) error {
+	return r.Q().UpdatePluginMarketplaceInfo(ctx, unified.UpdatePluginMarketplaceInfoParams{
+		Source:    source,
+		SourceUrl: sql.NullString{String: sourceURL, Valid: sourceURL != ""},
+		Checksum:  sql.NullString{String: checksum, Valid: checksum != ""},
+		ID:        id,
+	})
+}
+
 // getPluginRowToApp converts a unified GetPluginRow to the application type.
 func getPluginRowToApp(row unified.GetPluginRow) appplugins.Plugin {
 	p := appplugins.Plugin{

@@ -377,6 +377,9 @@ type Plugin struct {
 	UpdatedAt      time.Time      `json:"updated_at"`
 	Settings       sql.NullString `json:"settings"`
 	SettingsSchema sql.NullString `json:"settings_schema"`
+	Source         string         `json:"source"`
+	SourceUrl      sql.NullString `json:"source_url"`
+	Checksum       sql.NullString `json:"checksum"`
 }
 
 type PluginApiKey struct {

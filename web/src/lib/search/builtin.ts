@@ -17,14 +17,15 @@ class BuiltinSearchProvider implements SearchProvider<Movie> {
     try {
       // Use existing movies API search
       const response = await moviesApi.search({
-        search: query,
+        q: query,
         limit: options?.limit || 100,
       })
 
       if (response.status === 200 && response.data) {
+        const movies = response.data.movies ?? []
         return {
-          items: response.data,
-          total: response.data.length,
+          items: movies as Movie[],
+          total: response.data.total ?? movies.length,
           fallback: true, // Indicate this is fallback search
         }
       }

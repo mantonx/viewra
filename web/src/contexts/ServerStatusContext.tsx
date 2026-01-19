@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { flushSync } from 'react-dom'
+import { useAuth } from './AuthContext'
 
 type ServerStatus = 'online' | 'offline' | 'restarting'
 
@@ -32,6 +33,7 @@ interface ServerStatusProviderProps {
 }
 
 const ServerStatusProvider = ({ children }: ServerStatusProviderProps) => {
+  const { isAuthenticated } = useAuth()
   const [_internalStatus, setInternalStatus] = useState<'online' | 'restarting'>('online')
   const [offlineSince, setOfflineSince] = useState<Date | null>(null)
   const isRestartingRef = useRef(false)
@@ -54,7 +56,7 @@ const ServerStatusProvider = ({ children }: ServerStatusProviderProps) => {
   const { connectionState, lastEvent } = useSSE<InternalApiHandlersAdminStatusEvent>(
     '/api/admin/status/stream',
     {
-      enabled: true,
+      enabled: isAuthenticated, // Only connect when authenticated
       maxReconnectAttempts: 0, // Unlimited retries
       reconnectDelay: 1000, // 1 second between attempts
       eventTypes: ['status', 'shutdown'],
@@ -82,8 +84,12 @@ const ServerStatusProvider = ({ children }: ServerStatusProviderProps) => {
   // 1. We explicitly triggered a restart (isRestartingRef.current)
   // 2. SSE is disconnected (server actually down)
   // Do NOT show overlay during maintenance mode - that's intentional
+  // Do NOT show overlay when not authenticated (SSE won't connect)
   let status: ServerStatus
-  if (isRestartingRef.current) {
+  if (!isAuthenticated) {
+    // Not authenticated - SSE won't connect, don't show offline overlay
+    status = 'online'
+  } else if (isRestartingRef.current) {
     // User triggered restart - show overlay immediately and keep showing
     // until server disconnects AND reconnects with ready: true
     const serverCameBack = hasDisconnectedRef.current && isConnected && isReady

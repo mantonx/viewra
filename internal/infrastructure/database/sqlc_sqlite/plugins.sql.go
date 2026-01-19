@@ -467,6 +467,32 @@ func (q *Queries) UpdatePluginHealth(ctx context.Context, arg UpdatePluginHealth
 	return err
 }
 
+const updatePluginMarketplaceInfo = `-- name: UpdatePluginMarketplaceInfo :exec
+UPDATE plugins SET
+    source = ?,
+    source_url = ?,
+    checksum = ?,
+    updated_at = datetime('now')
+WHERE id = ?
+`
+
+type UpdatePluginMarketplaceInfoParams struct {
+	Source    string         `json:"source"`
+	SourceUrl sql.NullString `json:"source_url"`
+	Checksum  sql.NullString `json:"checksum"`
+	ID        string         `json:"id"`
+}
+
+func (q *Queries) UpdatePluginMarketplaceInfo(ctx context.Context, arg UpdatePluginMarketplaceInfoParams) error {
+	_, err := q.db.ExecContext(ctx, updatePluginMarketplaceInfo,
+		arg.Source,
+		arg.SourceUrl,
+		arg.Checksum,
+		arg.ID,
+	)
+	return err
+}
+
 const updatePluginSettings = `-- name: UpdatePluginSettings :exec
 UPDATE plugins SET
     settings = ?,

@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	_ "net/http/pprof" // Register pprof handlers
@@ -20,6 +21,7 @@ import (
 	"github.com/mantonx/viewra/internal/app"
 	appconfig "github.com/mantonx/viewra/internal/app/config"
 	"github.com/mantonx/viewra/internal/pkg/logger"
+	"github.com/mantonx/viewra/internal/version"
 	"github.com/mantonx/viewra/web"
 )
 
@@ -74,13 +76,29 @@ func Initialize() (*Application, error) {
 			lgr.Warn("Frontend embedded but failed to load", "error", err)
 		} else {
 			lgr.Info("Serving embedded frontend at http://localhost:8080/")
-			// Serve frontend files - use NoRoute to catch all non-API routes
 			httpFS := http.FS(distFS)
+
+			// Pre-read index.html for SPA fallback
+			indexHTML, err := distFS.Open("index.html")
+			if err != nil {
+				lgr.Error("Failed to read index.html", "error", err)
+			}
+			indexContent, _ := io.ReadAll(indexHTML)
+			indexHTML.Close()
+
 			container.Server.Router().NoRoute(func(c *gin.Context) {
-				// Serve index.html for root or any path that doesn't look like an API call
-				if c.Request.URL.Path == "/" || !isAPIPath(c.Request.URL.Path) {
-					c.FileFromFS(c.Request.URL.Path, httpFS)
+				path := c.Request.URL.Path
+				// Skip API paths
+				if isAPIPath(path) {
+					return
 				}
+				// Try to serve the file directly (for assets like .js, .css, images)
+				if strings.Contains(path, ".") {
+					c.FileFromFS(path, httpFS)
+					return
+				}
+				// For SPA routes (no extension), serve index.html content directly
+				c.Data(http.StatusOK, "text/html; charset=utf-8", indexContent)
 			})
 		}
 	} else {
@@ -148,6 +166,10 @@ func (a *Application) Run() error {
 	// This ensures the UI is accessible even while heavy tasks run
 	go a.Container.StartBackgroundServices(context.Background())
 
+	// Give server a moment to bind, then log ready status
+	time.Sleep(100 * time.Millisecond)
+	a.logStartupReady()
+
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -173,4 +195,42 @@ func isAPIPath(path string) bool {
 	return strings.HasPrefix(path, "/api/") ||
 		strings.HasPrefix(path, "/swagger/") ||
 		strings.HasPrefix(path, "/health")
+}
+
+// logStartupReady prints a startup banner confirming all services are ready
+func (a *Application) logStartupReady() {
+	port := a.Config.Server.Port
+	feStatus := "embedded"
+	feURL := fmt.Sprintf("http://localhost:%d", port)
+	if !web.IsEmbedded() {
+		feStatus = "external (Vite :5173)"
+		feURL = "http://localhost:5173"
+	}
+
+	// Dev credentials hint (only shown in development mode)
+	devHint := ""
+	if a.Config.Environment == "development" {
+		devHint = "\n  Credentials: dev / devdev00 (auto-created)"
+	}
+
+	fmt.Fprintf(os.Stderr, `
+========================================
+  ViewRA ready
+  Version:  %s
+  Frontend: %s
+  Database: %s%s
+----------------------------------------
+  App:     %s
+  API:     http://localhost:%d/api
+  Swagger: http://localhost:%d/swagger/index.html
+  Health:  http://localhost:%d/health
+========================================
+`,
+		version.Info(),
+		feStatus,
+		a.Config.Database.Driver,
+		devHint,
+		feURL,
+		port, port, port,
+	)
 }

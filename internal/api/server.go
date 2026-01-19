@@ -94,6 +94,7 @@ type Handlers struct {
 	LocationSettings *handlers.LocationSettingsHandler
 	Enrichment       *handlers.EnrichmentHandler
 	Plugins          *handlers.PluginHandler
+	Marketplace      *handlers.MarketplaceHandler
 	System           *handlers.SystemHandler
 
 	// Home screen handler
@@ -219,7 +220,7 @@ func (s *Server) setupRoutes() {
 
 	// Register plugin routes (protected, with admin requirement for mutations)
 	// This also registers plugin custom routes via the HTTP proxy
-	routes.RegisterPluginRoutes(protected, h.Plugins, h.PluginProxy, h.AuthValidator)
+	routes.RegisterPluginRoutes(protected, h.Plugins, h.Marketplace, h.PluginProxy, h.AuthValidator)
 
 	// Register search route with fallback support
 	// SearchHandler checks if semantic_search capability is available and proxies to it,

@@ -3457,6 +3457,13 @@ func (q *Querier) UpdatePluginHealth(ctx context.Context, arg sqlc_sqlite.Update
 	return q.sqlite.UpdatePluginHealth(ctx, arg)
 }
 
+func (q *Querier) UpdatePluginMarketplaceInfo(ctx context.Context, arg sqlc_sqlite.UpdatePluginMarketplaceInfoParams) error {
+	if q.isPostgres {
+		return q.postgres.UpdatePluginMarketplaceInfo(ctx, sqlc_postgres.UpdatePluginMarketplaceInfoParams(arg))
+	}
+	return q.sqlite.UpdatePluginMarketplaceInfo(ctx, arg)
+}
+
 func (q *Querier) UpdatePluginSettings(ctx context.Context, arg sqlc_sqlite.UpdatePluginSettingsParams) error {
 	if q.isPostgres {
 		return q.postgres.UpdatePluginSettings(ctx, sqlc_postgres.UpdatePluginSettingsParams(arg))

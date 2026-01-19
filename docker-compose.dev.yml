@@ -1,12 +1,16 @@
 # ViewRA Development Docker Compose
 #
-# First run builds custom FFmpeg, subtitle-extractor, and plugins automatically.
-# Subsequent runs use cached binaries from the dev-bin volume.
-#
 # Usage:
-#   docker compose -f docker-compose.dev.yml up
-#   docker compose -f docker-compose.dev.yml --profile postgres up
-#   docker compose -f docker-compose.dev.yml --profile ollama up
+#   docker compose -f docker-compose.dev.yml up                     # CPU transcoding
+#   docker compose -f docker-compose.dev.yml --profile postgres up  # With PostgreSQL
+#
+# Ollama is included by default for AI features (semantic search, embeddings).
+# First build takes ~10 min (FFmpeg compilation), subsequent builds use Docker cache.
+#
+# GPU Acceleration:
+#   Uncomment the relevant section in the backend service below:
+#   - NVIDIA: requires nvidia-container-toolkit
+#   - Intel/AMD: requires /dev/dri on host
 
 services:
   backend:
@@ -17,35 +21,34 @@ services:
     entrypoint: ["/app/docker/entrypoint.dev.sh"]
     command: ["air", "-c", ".air.toml"]
     volumes:
-      # Mount source code for hot-reload
       - .:/app
-      # Persist Go module cache
       - go-mod-cache:/go/pkg/mod
-      # Persist build cache
       - go-build-cache:/root/.cache/go-build
-      # Persist Rust build cache (for subtitle-extractor rebuilds)
-      - rust-cache:/root/.cargo/registry
-      # Persist built binaries (FFmpeg, subtitle-extractor, plugins)
-      - dev-bin:/app/bin
-      # Exclude directories that shouldn't be synced
       - /app/web/node_modules
       - /app/tmp
+      - /cifs/fictionalserver/movies:/media/movies:ro
+      - /cifs/fictionalserver/tv:/media/tv:ro
+      - /cifs/fictionalserver/music:/media/music:ro
     ports:
-      - "8080:8080"   # API
-      - "6060:6060"   # pprof debug
+      - "8080:8080"
+      - "6060:6060"
     environment:
       - ENVIRONMENT=development
       - DATA_DIR=/app/data
-      - DB_DRIVER=${DB_DRIVER:-sqlite}
+      - DB_DRIVER=sqlite
       - DB_PATH=/app/data/viewra.db
-      # PostgreSQL (when using --profile postgres)
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=viewra
       - DB_PASSWORD=viewra
       - DB_NAME=viewra
-      # Ollama (when using --profile ollama)
       - OLLAMA_HOST=http://ollama:11434
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
     depends_on:
       postgres:
         condition: service_started
@@ -53,6 +56,31 @@ services:
       ollama:
         condition: service_started
         required: false
+    # ─────────────────────────────────────────────────────────────────
+    # GPU Acceleration - uncomment ONE of the following sections:
+    # ─────────────────────────────────────────────────────────────────
+    #
+    # NVIDIA GPU (NVENC/NVDEC) - requires nvidia-container-toolkit:
+    #   Install: sudo pacman -S nvidia-container-toolkit (Arch)
+    #            sudo apt install nvidia-container-toolkit (Ubuntu)
+    #   Configure: sudo nvidia-ctk runtime configure --runtime=docker
+    #              sudo systemctl restart docker
+    #   Docs: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, video]
+    #
+    # Intel/AMD GPU (QSV/VAAPI) - requires /dev/dri on host:
+    # devices:
+    #   - /dev/dri:/dev/dri
+    # group_add:
+    #   - video
+    #   - render
+    # ─────────────────────────────────────────────────────────────────
 
   frontend:
     image: node:22-alpine
@@ -60,13 +88,16 @@ services:
     working_dir: /app/web
     volumes:
       - ./web:/app/web
-      # Use named volume for node_modules to avoid host sync issues
       - web-node-modules:/app/web/node_modules
     ports:
       - "5173:5173"
+    environment:
+      - VITE_API_URL=http://backend:8080
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      backend:
+        condition: service_healthy
 
-  # Optional PostgreSQL for development
   postgres:
     image: postgres:16-alpine
     container_name: viewra-postgres-dev
@@ -85,21 +116,33 @@ services:
       timeout: 5s
       retries: 5
 
-  # Optional Ollama for AI features
   ollama:
     image: ollama/ollama:latest
     container_name: viewra-ollama-dev
-    profiles: ["ollama"]
     volumes:
       - ollama-dev-data:/root/.ollama
-    ports:
-      - "11434:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  # Pulls required models on first startup (runs once then exits)
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: viewra-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["ollama", "pull", "nomic-embed-text"]
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    restart: "no"
 
 volumes:
   go-mod-cache:
   go-build-cache:
-  rust-cache:
-  dev-bin:
   web-node-modules:
   postgres-dev-data:
   ollama-dev-data:
