@@ -100,7 +100,6 @@ jobs:
           body: |
             ## FFmpeg ${{ env.FFMPEG_VERSION }} with ViewRA patches
 
-            **Build Date:** ${{ github.event.repository.updated_at || 'N/A' }}
             **Commit:** [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
 
             ### Features
@@ -174,7 +173,6 @@ jobs:
 
             Fast subtitle extraction tool written in Rust.
 
-            **Build Date:** ${{ github.event.repository.updated_at || 'N/A' }}
             **Commit:** [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
 
             ### Checksum (SHA256)
@@ -273,7 +271,6 @@ jobs:
 
             ${{ steps.info.outputs.description }}
 
-            **Build Date:** ${{ github.event.repository.updated_at || 'N/A' }}
             **Commit:** [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
 
             ### Installation
