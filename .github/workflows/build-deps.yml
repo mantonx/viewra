@@ -185,11 +185,48 @@ jobs:
           draft: false
           prerelease: false
 
-  build-plugins:
+  # Discover which plugins need to be built
+  detect-plugins:
     runs-on: ubuntu-24.04
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.commits.*.modified, 'plugins/') || contains(github.event.commits.*.modified, 'pkg/plugin/sdk/') || contains(github.event.commits.*.modified, 'api/proto/plugin/')
+    outputs:
+      plugins: ${{ steps.detect.outputs.plugins }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect plugins to build
+        id: detect
+        run: |
+          # On workflow_dispatch or SDK changes, build all plugins
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            PLUGINS=$(ls -d plugins/*/ | xargs -I{} basename {} | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          else
+            # Check if SDK or proto changed (rebuild all)
+            SDK_CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -E '^(pkg/plugin/sdk/|api/proto/plugin/)' || true)
+            if [ -n "$SDK_CHANGED" ]; then
+              PLUGINS=$(ls -d plugins/*/ | xargs -I{} basename {} | jq -R -s -c 'split("\n") | map(select(length > 0))')
+            else
+              # Only build plugins that changed
+              CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '^plugins/' | cut -d'/' -f2 | sort -u)
+              if [ -n "$CHANGED" ]; then
+                PLUGINS=$(echo "$CHANGED" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+              else
+                PLUGINS="[]"
+              fi
+            fi
+          fi
+          echo "plugins=${PLUGINS}" >> $GITHUB_OUTPUT
+          echo "Plugins to build: ${PLUGINS}"
+
+  build-plugin:
+    needs: detect-plugins
+    if: needs.detect-plugins.outputs.plugins != '[]'
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: ${{ fromJson(needs.detect-plugins.outputs.plugins) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -199,50 +236,53 @@ jobs:
           go-version: '1.25'
           cache-dependency-path: |
             go.sum
-            plugins/*/go.sum
+            plugins/${{ matrix.plugin }}/go.sum
 
-      - name: Build all plugins using Makefile
-        run: make build-plugins
+      - name: Build plugin
+        run: make build-plugin NAME=${{ matrix.plugin }}
 
-      - name: List built plugins
-        id: plugins
+      - name: Get plugin info
+        id: info
         run: |
-          PLUGINS=$(ls -1 data/plugins/ | tr '\n' ', ' | sed 's/,$//')
-          COUNT=$(ls -1 data/plugins/ | wc -l)
-          echo "list=${PLUGINS}" >> $GITHUB_OUTPUT
-          echo "count=${COUNT}" >> $GITHUB_OUTPUT
+          # Get description from plugin.yml if exists
+          if [ -f "plugins/${{ matrix.plugin }}/plugin.yml" ]; then
+            DESC=$(grep -E '^description:' "plugins/${{ matrix.plugin }}/plugin.yml" | sed 's/description: *//' | head -1)
+          else
+            DESC="ViewRA plugin"
+          fi
+          echo "description=${DESC}" >> $GITHUB_OUTPUT
 
-      - name: Package plugins
+      - name: Package plugin
         run: |
-          cd data/plugins
-          tar czf "${GITHUB_WORKSPACE}/viewra-plugins-linux-x64.tar.gz" .
+          cd data/plugins/${{ matrix.plugin }}
+          tar czf "${GITHUB_WORKSPACE}/plugin-${{ matrix.plugin }}-linux-x64.tar.gz" .
 
       - name: Generate checksum
         id: checksum
         run: |
-          SHA256=$(sha256sum viewra-plugins-linux-x64.tar.gz | cut -d' ' -f1)
+          SHA256=$(sha256sum plugin-${{ matrix.plugin }}-linux-x64.tar.gz | cut -d' ' -f1)
           echo "sha256=${SHA256}" >> $GITHUB_OUTPUT
 
-      - name: Create plugins release
+      - name: Create plugin release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "plugins-latest"
-          name: "ViewRA Plugins (${{ steps.plugins.outputs.count }} plugins)"
+          tag_name: "plugin-${{ matrix.plugin }}-latest"
+          name: "Plugin: ${{ matrix.plugin }}"
           body: |
-            ## ViewRA Plugins
+            ## ${{ matrix.plugin }}
 
-            Pre-compiled gRPC plugins for ViewRA.
+            ${{ steps.info.outputs.description }}
 
             **Build Date:** ${{ github.event.repository.updated_at || 'N/A' }}
             **Commit:** [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
 
-            ### Included Plugins
-            ${{ steps.plugins.outputs.list }}
+            ### Installation
+            Extract to `data/plugins/${{ matrix.plugin }}/`
 
             ### Checksum (SHA256)
             ```
-            ${{ steps.checksum.outputs.sha256 }}  viewra-plugins-linux-x64.tar.gz
+            ${{ steps.checksum.outputs.sha256 }}  plugin-${{ matrix.plugin }}-linux-x64.tar.gz
             ```
-          files: viewra-plugins-linux-x64.tar.gz
+          files: plugin-${{ matrix.plugin }}-linux-x64.tar.gz
           draft: false
           prerelease: false

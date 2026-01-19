@@ -21,7 +21,8 @@ ARG GITHUB_REPO=mantonx/viewra
 # Each component has its own release tag for independent versioning
 ARG FFMPEG_RELEASE_TAG=ffmpeg-latest
 ARG SUBTITLE_EXTRACTOR_RELEASE_TAG=subtitle-extractor-latest
-ARG PLUGINS_RELEASE_TAG=plugins-latest
+# Plugins to include (space-separated). Each has its own release: plugin-{name}-latest
+ARG PLUGINS="tmdb musicbrainz semantic-search recommendations ai-features ai-provider-anthropic ai-provider-openai ai-provider-voyage"
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -31,9 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /deps
 
-# Download and extract all pre-built dependencies from separate releases
-# Each component can be updated independently
-# Fails if release doesn't exist - run the build-deps GitHub Action first
+# Download FFmpeg and subtitle-extractor
 RUN GITHUB_URL="https://github.com/${GITHUB_REPO}/releases/download" && \
     echo "Downloading FFmpeg from ${FFMPEG_RELEASE_TAG}..." && \
     curl -fSL "${GITHUB_URL}/${FFMPEG_RELEASE_TAG}/ffmpeg-viewra-linux-x64.tar.gz" -o ffmpeg.tar.gz && \
@@ -41,13 +40,21 @@ RUN GITHUB_URL="https://github.com/${GITHUB_REPO}/releases/download" && \
     echo "Downloading subtitle-extractor from ${SUBTITLE_EXTRACTOR_RELEASE_TAG}..." && \
     curl -fSL "${GITHUB_URL}/${SUBTITLE_EXTRACTOR_RELEASE_TAG}/subtitle-extractor-linux-x64.tar.gz" -o subtitle-extractor.tar.gz && \
     mkdir -p subtitle-extractor && tar xzf subtitle-extractor.tar.gz -C subtitle-extractor && rm subtitle-extractor.tar.gz && \
-    echo "Downloading plugins from ${PLUGINS_RELEASE_TAG}..." && \
-    curl -fSL "${GITHUB_URL}/${PLUGINS_RELEASE_TAG}/viewra-plugins-linux-x64.tar.gz" -o plugins.tar.gz && \
-    mkdir -p plugins && tar xzf plugins.tar.gz -C plugins && rm plugins.tar.gz && \
     # Verify critical files exist
     test -f ffmpeg/ffmpeg-viewra || (echo "ERROR: FFmpeg binary not found" && exit 1) && \
-    test -f subtitle-extractor/subtitle-extractor || (echo "ERROR: subtitle-extractor not found" && exit 1) && \
-    echo "All dependencies downloaded successfully"
+    test -f subtitle-extractor/subtitle-extractor || (echo "ERROR: subtitle-extractor not found" && exit 1)
+
+# Download individual plugins (each has its own release)
+RUN GITHUB_URL="https://github.com/${GITHUB_REPO}/releases/download" && \
+    mkdir -p plugins && \
+    for PLUGIN in ${PLUGINS}; do \
+        echo "Downloading plugin: ${PLUGIN}..." && \
+        curl -fSL "${GITHUB_URL}/plugin-${PLUGIN}-latest/plugin-${PLUGIN}-linux-x64.tar.gz" -o plugin.tar.gz && \
+        mkdir -p "plugins/${PLUGIN}" && \
+        tar xzf plugin.tar.gz -C "plugins/${PLUGIN}" && \
+        rm plugin.tar.gz; \
+    done && \
+    echo "All plugins downloaded successfully"
 
 # =============================================================================
 # Stage 2: Build frontend
