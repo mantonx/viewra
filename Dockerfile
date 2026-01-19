@@ -19,7 +19,7 @@ FROM ubuntu:24.04 AS deps-downloader
 
 ARG GITHUB_REPO=mantonx/viewra
 # Dependency versions - update these when releasing new versions
-ARG FFMPEG_VERSION=7.1.0
+ARG FFMPEG_VERSION=7.1.1
 ARG SUBTITLE_EXTRACTOR_VERSION=0.1.0
 # Plugin versions (name:version pairs, space-separated)
 ARG PLUGIN_VERSIONS="tmdb:1.1.0 musicbrainz:1.0.0 semantic-search:1.1.0 recommendations:1.0.0 ai-features:1.0.0 ai-provider-anthropic:1.0.0 ai-provider-openai:1.0.0 ai-provider-voyage:1.0.0"
