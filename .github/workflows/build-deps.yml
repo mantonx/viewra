@@ -37,6 +37,14 @@ jobs:
           path: ffmpeg-dist
           key: ffmpeg-${{ env.FFMPEG_VERSION }}-${{ hashFiles('tools/ffmpeg-viewra/patches/**') }}
 
+      - name: Install CUDA toolkit
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        uses: Jimver/cuda-toolkit@v0.2.18
+        with:
+          cuda: '12.4.0'
+          method: 'network'
+          sub-packages: '["nvcc", "cudart"]'
+
       - name: Install build dependencies
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         run: |
@@ -47,7 +55,7 @@ jobs:
             libsvtav1-dev libsvtav1enc-dev libdav1d-dev \
             libopus-dev libvorbis-dev libmp3lame-dev libfdk-aac-dev \
             libass-dev libfreetype-dev libfontconfig1-dev libssl-dev \
-            libva-dev libvdpau-dev libdrm-dev ocl-icd-opencl-dev
+            libva-dev libvdpau-dev libdrm-dev ocl-icd-opencl-dev clang
           # Install NVIDIA codec headers for NVENC/NVDEC support
           git clone --depth 1 https://github.com/FFmpeg/nv-codec-headers.git
           cd nv-codec-headers
