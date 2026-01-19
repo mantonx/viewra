@@ -18,11 +18,11 @@
 FROM ubuntu:24.04 AS deps-downloader
 
 ARG GITHUB_REPO=mantonx/viewra
-# Each component has its own release tag for independent versioning
-ARG FFMPEG_RELEASE_TAG=ffmpeg-latest
-ARG SUBTITLE_EXTRACTOR_RELEASE_TAG=subtitle-extractor-latest
-# Plugins to include (space-separated). Each has its own release: plugin-{name}-latest
-ARG PLUGINS="tmdb musicbrainz semantic-search recommendations ai-features ai-provider-anthropic ai-provider-openai ai-provider-voyage"
+# Dependency versions - update these when releasing new versions
+ARG FFMPEG_VERSION=7.1.0
+ARG SUBTITLE_EXTRACTOR_VERSION=0.1.0
+# Plugin versions (name:version pairs, space-separated)
+ARG PLUGIN_VERSIONS="tmdb:1.1.0 musicbrainz:1.0.0 semantic-search:1.1.0 recommendations:1.0.0 ai-features:1.0.0 ai-provider-anthropic:1.0.0 ai-provider-openai:1.0.0 ai-provider-voyage:1.0.0"
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -34,22 +34,23 @@ WORKDIR /deps
 
 # Download FFmpeg and subtitle-extractor
 RUN GITHUB_URL="https://github.com/${GITHUB_REPO}/releases/download" && \
-    echo "Downloading FFmpeg from ${FFMPEG_RELEASE_TAG}..." && \
-    curl -fSL "${GITHUB_URL}/${FFMPEG_RELEASE_TAG}/ffmpeg-viewra-linux-x64.tar.gz" -o ffmpeg.tar.gz && \
+    echo "Downloading FFmpeg v${FFMPEG_VERSION}..." && \
+    curl -fSL "${GITHUB_URL}/ffmpeg-v${FFMPEG_VERSION}/ffmpeg-viewra-linux-x64.tar.gz" -o ffmpeg.tar.gz && \
     mkdir -p ffmpeg && tar xzf ffmpeg.tar.gz -C ffmpeg && rm ffmpeg.tar.gz && \
-    echo "Downloading subtitle-extractor from ${SUBTITLE_EXTRACTOR_RELEASE_TAG}..." && \
-    curl -fSL "${GITHUB_URL}/${SUBTITLE_EXTRACTOR_RELEASE_TAG}/subtitle-extractor-linux-x64.tar.gz" -o subtitle-extractor.tar.gz && \
+    echo "Downloading subtitle-extractor v${SUBTITLE_EXTRACTOR_VERSION}..." && \
+    curl -fSL "${GITHUB_URL}/subtitle-extractor-v${SUBTITLE_EXTRACTOR_VERSION}/subtitle-extractor-linux-x64.tar.gz" -o subtitle-extractor.tar.gz && \
     mkdir -p subtitle-extractor && tar xzf subtitle-extractor.tar.gz -C subtitle-extractor && rm subtitle-extractor.tar.gz && \
-    # Verify critical files exist
     test -f ffmpeg/ffmpeg-viewra || (echo "ERROR: FFmpeg binary not found" && exit 1) && \
     test -f subtitle-extractor/subtitle-extractor || (echo "ERROR: subtitle-extractor not found" && exit 1)
 
-# Download individual plugins (each has its own release)
+# Download plugins (each plugin has format name:version)
 RUN GITHUB_URL="https://github.com/${GITHUB_REPO}/releases/download" && \
     mkdir -p plugins && \
-    for PLUGIN in ${PLUGINS}; do \
-        echo "Downloading plugin: ${PLUGIN}..." && \
-        curl -fSL "${GITHUB_URL}/plugin-${PLUGIN}-latest/plugin-${PLUGIN}-linux-x64.tar.gz" -o plugin.tar.gz && \
+    for ENTRY in ${PLUGIN_VERSIONS}; do \
+        PLUGIN="${ENTRY%%:*}"; \
+        VERSION="${ENTRY##*:}"; \
+        echo "Downloading plugin ${PLUGIN} v${VERSION}..." && \
+        curl -fSL "${GITHUB_URL}/plugin-${PLUGIN}-v${VERSION}/plugin-${PLUGIN}-linux-x64.tar.gz" -o plugin.tar.gz && \
         mkdir -p "plugins/${PLUGIN}" && \
         tar xzf plugin.tar.gz -C "plugins/${PLUGIN}" && \
         rm plugin.tar.gz; \

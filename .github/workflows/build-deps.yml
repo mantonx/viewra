@@ -1,10 +1,16 @@
 # Build ViewRA dependencies (FFmpeg, subtitle-extractor, plugins)
-# Creates portable binary archives for use in Docker builds
+# Creates portable binary archives published as GitHub releases.
 #
-# Each component has versioned releases (e.g., ffmpeg-v7.1.3) plus a *-latest tag.
-# Includes auto-generated changelogs from commits since last release.
+# Release naming:
+#   - ffmpeg-v7.1.0, ffmpeg-v7.1.1, etc.
+#   - subtitle-extractor-v0.1.0, v0.1.1, etc.
+#   - plugin-{name}-v1.0.0, v1.0.1, etc.
 #
-# Trigger manually or when source files change
+# Each release includes checksums and auto-generated changelogs.
+#
+# Triggers:
+#   - Manual (workflow_dispatch): builds everything
+#   - Push to main: builds only changed components
 
 name: Build Dependencies
 
@@ -26,6 +32,9 @@ on:
       - main
 
 jobs:
+  # ============================================================================
+  # FFmpeg Build
+  # ============================================================================
   build-ffmpeg:
     runs-on: ubuntu-24.04
     if: github.event_name == 'workflow_dispatch' || contains(github.event.commits.*.modified, 'tools/ffmpeg-viewra/') || contains(github.event.commits.*.added, 'tools/ffmpeg-viewra/')
@@ -36,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for changelog generation
+          fetch-depth: 0
 
       - name: Cache FFmpeg build
         id: cache-ffmpeg
@@ -51,7 +60,6 @@ jobs:
       - name: Install build dependencies
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         run: |
-          # Add NVIDIA CUDA repository for Ubuntu 24.04
           wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
           sudo apt-get update
@@ -63,19 +71,13 @@ jobs:
             libass-dev libfreetype-dev libfontconfig1-dev libssl-dev \
             libva-dev libvdpau-dev libdrm-dev ocl-icd-opencl-dev \
             cuda-nvcc-12-6 cuda-cudart-dev-12-6
-          # Install NVIDIA codec headers for NVENC/NVDEC support
           git clone --depth 1 https://github.com/FFmpeg/nv-codec-headers.git
-          cd nv-codec-headers
-          sudo make install
-          cd .. && rm -rf nv-codec-headers
+          cd nv-codec-headers && sudo make install
 
-      - name: Build FFmpeg using Makefile
+      - name: Build FFmpeg
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         run: |
-          # CUDA installed via apt to /usr/local/cuda-12.6
           export PATH="/usr/local/cuda-12.6/bin:${PATH}"
-          echo "nvcc location: $(which nvcc 2>/dev/null || echo 'not found')"
-          nvcc --version || true
           make build-ffmpeg
 
       - name: Package FFmpeg
@@ -90,83 +92,44 @@ jobs:
           SHA256=$(sha256sum ffmpeg-viewra-linux-x64.tar.gz | cut -d' ' -f1)
           echo "sha256=${SHA256}" >> $GITHUB_OUTPUT
 
-      - name: List applied patches
-        id: patches
-        run: |
-          PATCHES=$(ls -1 tools/ffmpeg-viewra/patches/*.patch 2>/dev/null | xargs -I{} basename {} .patch | tr '\n' ', ' | sed 's/,$//')
-          echo "list=${PATCHES}" >> $GITHUB_OUTPUT
-
-      - name: Calculate version and changelog
+      - name: Calculate version
         id: version
         run: |
-          # Get the latest versioned tag for ffmpeg
-          PREV_TAG=$(git tag -l "ffmpeg-v*" --sort=-v:refname | head -1)
-
-          # Calculate next version: ffmpeg-v{FFMPEG_VERSION}.{patch}
-          if [ -n "$PREV_TAG" ]; then
-            # Extract patch number and increment
-            PATCH=$(echo "$PREV_TAG" | sed -E 's/ffmpeg-v[0-9]+\.[0-9]+\.([0-9]+)/\1/')
-            NEXT_PATCH=$((PATCH + 1))
-            # Generate changelog
-            CHANGELOG=$(git log ${PREV_TAG}..HEAD --oneline -- tools/ffmpeg-viewra/ | head -20)
+          # Find latest ffmpeg release and increment patch
+          LATEST=$(git tag -l "ffmpeg-v${FFMPEG_VERSION}.*" --sort=-v:refname | head -1)
+          if [ -n "$LATEST" ]; then
+            PATCH=$(echo "$LATEST" | sed -E 's/ffmpeg-v[0-9]+\.[0-9]+\.([0-9]+)/\1/')
+            NEXT=$((PATCH + 1))
           else
-            NEXT_PATCH=1
-            CHANGELOG="Initial release"
+            NEXT=0
           fi
+          echo "version=${FFMPEG_VERSION}.${NEXT}" >> $GITHUB_OUTPUT
 
-          VERSION="${FFMPEG_VERSION}.${NEXT_PATCH}"
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "prev_tag=${PREV_TAG:-none}" >> $GITHUB_OUTPUT
-
-          # Handle multiline changelog
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Create versioned FFmpeg release
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "ffmpeg-v${{ steps.version.outputs.version }}"
           name: "FFmpeg ${{ steps.version.outputs.version }}"
           body: |
-            ## FFmpeg ${{ env.FFMPEG_VERSION }} with ViewRA patches (build ${{ steps.version.outputs.version }})
+            ## FFmpeg ${{ steps.version.outputs.version }}
 
-            ### What's Changed
-            ${{ steps.version.outputs.changelog }}
-
-            **Previous release:** ${{ steps.version.outputs.prev_tag }}
-            **Commit:** [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+            Custom FFmpeg build with ViewRA patches for HLS streaming.
 
             ### Features
             - **Video:** x264, x265, VP9, SVT-AV1, dav1d
             - **Audio:** Opus, Vorbis, MP3, FDK-AAC
-            - **Hardware:** VAAPI, VDPAU, NVENC/NVDEC, CUDA tonemap, OpenCL
+            - **Hardware:** VAAPI, VDPAU, NVENC/NVDEC, CUDA, OpenCL
             - **Subtitles:** libass, freetype
-
-            ### Applied Patches
-            ${{ steps.patches.outputs.list }}
 
             ### Checksum (SHA256)
             ```
             ${{ steps.checksum.outputs.sha256 }}  ffmpeg-viewra-linux-x64.tar.gz
             ```
           files: ffmpeg-viewra-linux-x64.tar.gz
-          draft: false
-          prerelease: false
 
-      - name: Update ffmpeg-latest tag
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: "ffmpeg-latest"
-          name: "FFmpeg (Latest)"
-          body: |
-            **Latest stable FFmpeg build.** Currently points to v${{ steps.version.outputs.version }}.
-
-            For changelog and details, see [ffmpeg-v${{ steps.version.outputs.version }}](${{ github.server_url }}/${{ github.repository }}/releases/tag/ffmpeg-v${{ steps.version.outputs.version }}).
-          files: ffmpeg-viewra-linux-x64.tar.gz
-          draft: false
-          prerelease: false
-
+  # ============================================================================
+  # Subtitle Extractor Build
+  # ============================================================================
   build-subtitle-extractor:
     runs-on: ubuntu-24.04
     if: github.event_name == 'workflow_dispatch' || contains(github.event.commits.*.modified, 'tools/subtitle-extractor/') || contains(github.event.commits.*.added, 'tools/subtitle-extractor/')
@@ -190,10 +153,8 @@ jobs:
             ~/.cargo/git/db/
             tools/subtitle-extractor/target/
           key: cargo-${{ runner.os }}-${{ hashFiles('tools/subtitle-extractor/Cargo.lock') }}
-          restore-keys: |
-            cargo-${{ runner.os }}-
 
-      - name: Build subtitle-extractor using Makefile
+      - name: Build subtitle-extractor
         run: make build-tools
 
       - name: Get version from Cargo.toml
@@ -213,77 +174,26 @@ jobs:
           SHA256=$(sha256sum subtitle-extractor-linux-x64.tar.gz | cut -d' ' -f1)
           echo "sha256=${SHA256}" >> $GITHUB_OUTPUT
 
-      - name: Calculate version and changelog
-        id: version
-        run: |
-          CARGO_VER="${{ steps.cargo_version.outputs.version }}"
-          PREV_TAG=$(git tag -l "subtitle-extractor-v*" --sort=-v:refname | head -1)
-
-          if [ -n "$PREV_TAG" ]; then
-            # Check if Cargo version changed
-            PREV_VER=$(echo "$PREV_TAG" | sed 's/subtitle-extractor-v//')
-            if [ "$CARGO_VER" != "$PREV_VER" ]; then
-              # Version bumped in Cargo.toml
-              VERSION="$CARGO_VER"
-            else
-              # Same version, increment build number (e.g., 1.0.0 -> 1.0.0-1)
-              if [[ "$PREV_TAG" =~ -([0-9]+)$ ]]; then
-                BUILD=$((${BASH_REMATCH[1]} + 1))
-                VERSION="${CARGO_VER}-${BUILD}"
-              else
-                VERSION="${CARGO_VER}-1"
-              fi
-            fi
-            CHANGELOG=$(git log ${PREV_TAG}..HEAD --oneline -- tools/subtitle-extractor/ | head -20)
-          else
-            VERSION="$CARGO_VER"
-            CHANGELOG="Initial release"
-          fi
-
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "prev_tag=${PREV_TAG:-none}" >> $GITHUB_OUTPUT
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Create versioned subtitle-extractor release
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "subtitle-extractor-v${{ steps.version.outputs.version }}"
-          name: "subtitle-extractor v${{ steps.version.outputs.version }}"
+          tag_name: "subtitle-extractor-v${{ steps.cargo_version.outputs.version }}"
+          name: "subtitle-extractor ${{ steps.cargo_version.outputs.version }}"
+          make_latest: true
           body: |
-            ## subtitle-extractor v${{ steps.version.outputs.version }}
+            ## subtitle-extractor ${{ steps.cargo_version.outputs.version }}
 
             Fast subtitle extraction tool written in Rust.
-
-            ### What's Changed
-            ${{ steps.version.outputs.changelog }}
-
-            **Previous release:** ${{ steps.version.outputs.prev_tag }}
-            **Commit:** [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
 
             ### Checksum (SHA256)
             ```
             ${{ steps.checksum.outputs.sha256 }}  subtitle-extractor-linux-x64.tar.gz
             ```
           files: subtitle-extractor-linux-x64.tar.gz
-          draft: false
-          prerelease: false
 
-      - name: Update subtitle-extractor-latest tag
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: "subtitle-extractor-latest"
-          name: "subtitle-extractor (Latest)"
-          body: |
-            **Latest stable subtitle-extractor build.** Currently points to v${{ steps.version.outputs.version }}.
-
-            For changelog and details, see [subtitle-extractor-v${{ steps.version.outputs.version }}](${{ github.server_url }}/${{ github.repository }}/releases/tag/subtitle-extractor-v${{ steps.version.outputs.version }}).
-          files: subtitle-extractor-linux-x64.tar.gz
-          draft: false
-          prerelease: false
-
-  # Discover which plugins need to be built
+  # ============================================================================
+  # Plugin Builds
+  # ============================================================================
   detect-plugins:
     runs-on: ubuntu-24.04
     outputs:
@@ -291,21 +201,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Need full history for git diff
+          fetch-depth: 0
 
       - name: Detect plugins to build
         id: detect
         run: |
-          # On workflow_dispatch or SDK changes, build all plugins
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual trigger: build all plugins
             PLUGINS=$(ls -d plugins/*/ | xargs -I{} basename {} | jq -R -s -c 'split("\n") | map(select(length > 0))')
           else
-            # Check if SDK or proto changed (rebuild all)
+            # Push trigger: check what changed
             SDK_CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -E '^(pkg/plugin/sdk/|api/proto/plugin/)' || true)
             if [ -n "$SDK_CHANGED" ]; then
+              # SDK changed: rebuild all plugins
               PLUGINS=$(ls -d plugins/*/ | xargs -I{} basename {} | jq -R -s -c 'split("\n") | map(select(length > 0))')
             else
-              # Only build plugins that changed
+              # Only build changed plugins
               CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '^plugins/' | cut -d'/' -f2 | sort -u)
               if [ -n "$CHANGED" ]; then
                 PLUGINS=$(echo "$CHANGED" | jq -R -s -c 'split("\n") | map(select(length > 0))')
@@ -343,19 +254,18 @@ jobs:
       - name: Build plugin
         run: make build-plugin NAME=${{ matrix.plugin }}
 
-      - name: Get plugin info
+      - name: Get plugin version
         id: info
         run: |
-          # Get description and version from plugin.yml if exists
           if [ -f "plugins/${{ matrix.plugin }}/plugin.yml" ]; then
+            VERSION=$(grep -E '^version:' "plugins/${{ matrix.plugin }}/plugin.yml" | sed 's/version: *//' | head -1)
             DESC=$(grep -E '^description:' "plugins/${{ matrix.plugin }}/plugin.yml" | sed 's/description: *//' | head -1)
-            PLUGIN_VER=$(grep -E '^version:' "plugins/${{ matrix.plugin }}/plugin.yml" | sed 's/version: *//' | head -1)
           else
+            VERSION="1.0.0"
             DESC="ViewRA plugin"
-            PLUGIN_VER="1.0.0"
           fi
-          echo "description=${DESC}" >> $GITHUB_OUTPUT
-          echo "plugin_version=${PLUGIN_VER:-1.0.0}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION:-1.0.0}" >> $GITHUB_OUTPUT
+          echo "description=${DESC:-ViewRA plugin}" >> $GITHUB_OUTPUT
 
       - name: Package plugin
         run: |
@@ -368,72 +278,21 @@ jobs:
           SHA256=$(sha256sum plugin-${{ matrix.plugin }}-linux-x64.tar.gz | cut -d' ' -f1)
           echo "sha256=${SHA256}" >> $GITHUB_OUTPUT
 
-      - name: Calculate version and changelog
-        id: version
-        run: |
-          PLUGIN_VER="${{ steps.info.outputs.plugin_version }}"
-          PREV_TAG=$(git tag -l "plugin-${{ matrix.plugin }}-v*" --sort=-v:refname | head -1)
-
-          if [ -n "$PREV_TAG" ]; then
-            PREV_VER=$(echo "$PREV_TAG" | sed 's/plugin-${{ matrix.plugin }}-v//')
-            if [ "$PLUGIN_VER" != "$PREV_VER" ] && [ "$PLUGIN_VER" != "${PREV_VER%%-*}" ]; then
-              VERSION="$PLUGIN_VER"
-            else
-              if [[ "$PREV_TAG" =~ -([0-9]+)$ ]]; then
-                BUILD=$((${BASH_REMATCH[1]} + 1))
-                VERSION="${PLUGIN_VER}-${BUILD}"
-              else
-                VERSION="${PLUGIN_VER}-1"
-              fi
-            fi
-            CHANGELOG=$(git log ${PREV_TAG}..HEAD --oneline -- plugins/${{ matrix.plugin }}/ pkg/plugin/sdk/ api/proto/plugin/ | head -20)
-          else
-            VERSION="$PLUGIN_VER"
-            CHANGELOG="Initial release"
-          fi
-
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "prev_tag=${PREV_TAG:-none}" >> $GITHUB_OUTPUT
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Create versioned plugin release
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "plugin-${{ matrix.plugin }}-v${{ steps.version.outputs.version }}"
-          name: "${{ matrix.plugin }} v${{ steps.version.outputs.version }}"
+          tag_name: "plugin-${{ matrix.plugin }}-v${{ steps.info.outputs.version }}"
+          name: "${{ matrix.plugin }} ${{ steps.info.outputs.version }}"
           body: |
-            ## ${{ matrix.plugin }} v${{ steps.version.outputs.version }}
+            ## ${{ matrix.plugin }} ${{ steps.info.outputs.version }}
 
             ${{ steps.info.outputs.description }}
 
-            ### What's Changed
-            ${{ steps.version.outputs.changelog }}
-
-            **Previous release:** ${{ steps.version.outputs.prev_tag }}
-            **Commit:** [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
-
             ### Installation
-            Extract to `data/plugins/${{ matrix.plugin }}/`
+            Extract to `plugins/${{ matrix.plugin }}/`
 
             ### Checksum (SHA256)
             ```
             ${{ steps.checksum.outputs.sha256 }}  plugin-${{ matrix.plugin }}-linux-x64.tar.gz
             ```
           files: plugin-${{ matrix.plugin }}-linux-x64.tar.gz
-          draft: false
-          prerelease: false
-
-      - name: Update plugin-latest tag
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: "plugin-${{ matrix.plugin }}-latest"
-          name: "${{ matrix.plugin }} (Latest)"
-          body: |
-            **Latest stable ${{ matrix.plugin }} plugin.** Currently points to v${{ steps.version.outputs.version }}.
-
-            For changelog and details, see [plugin-${{ matrix.plugin }}-v${{ steps.version.outputs.version }}](${{ github.server_url }}/${{ github.repository }}/releases/tag/plugin-${{ matrix.plugin }}-v${{ steps.version.outputs.version }}).
-          files: plugin-${{ matrix.plugin }}-linux-x64.tar.gz
-          draft: false
-          prerelease: false
