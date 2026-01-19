@@ -251,7 +251,7 @@ build-plugin: ## Build a single plugin (usage: make build-plugin NAME=tmdb)
 	@if [ ! -d "plugins/$(NAME)" ]; then echo "❌ Plugin not found: plugins/$(NAME)"; exit 1; fi
 	@echo "Building plugin: $(NAME)"
 	@mkdir -p "data/plugins/$(NAME)"
-	cd "plugins/$(NAME)" && go build -o "../../data/plugins/$(NAME)/$(NAME)" .
+	cd "plugins/$(NAME)" && go mod download && go build -o "../../data/plugins/$(NAME)/$(NAME)" .
 	@if [ -f "plugins/$(NAME)/plugin.yml" ]; then \
 		cp "plugins/$(NAME)/plugin.yml" "data/plugins/$(NAME)/"; \
 	fi
