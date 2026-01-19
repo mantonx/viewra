@@ -1,6 +1,7 @@
 # Build ViewRA dependencies (FFmpeg, subtitle-extractor, plugins)
 # Creates portable binary archives for use in Docker builds
 #
+# Each component has its own release tag (*-latest) that updates independently.
 # Uses the same Makefile targets as local development to stay in sync.
 #
 # Trigger manually or when source files change
@@ -27,6 +28,9 @@ on:
 jobs:
   build-ffmpeg:
     runs-on: ubuntu-24.04
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.commits.*.modified, 'tools/ffmpeg-viewra/') || contains(github.event.commits.*.added, 'tools/ffmpeg-viewra/')
+    permissions:
+      contents: write
     env:
       FFMPEG_VERSION: ${{ github.event.inputs.ffmpeg_version || '7.1' }}
     steps:
@@ -75,14 +79,52 @@ jobs:
           tar czf "${GITHUB_WORKSPACE}/ffmpeg-viewra-linux-x64.tar.gz" \
             ffmpeg-viewra ffprobe-viewra ffmpeg-lib/
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Generate checksum
+        id: checksum
+        run: |
+          SHA256=$(sha256sum ffmpeg-viewra-linux-x64.tar.gz | cut -d' ' -f1)
+          echo "sha256=${SHA256}" >> $GITHUB_OUTPUT
+          echo "SHA256: ${SHA256}"
+
+      - name: List applied patches
+        id: patches
+        run: |
+          PATCHES=$(ls -1 tools/ffmpeg-viewra/patches/*.patch 2>/dev/null | xargs -I{} basename {} .patch | tr '\n' ', ' | sed 's/,$//')
+          echo "list=${PATCHES}" >> $GITHUB_OUTPUT
+
+      - name: Create FFmpeg release
+        uses: softprops/action-gh-release@v2
         with:
-          name: ffmpeg-viewra-linux-x64
-          path: ffmpeg-viewra-linux-x64.tar.gz
+          tag_name: "ffmpeg-latest"
+          name: "FFmpeg ${{ env.FFMPEG_VERSION }} (ViewRA Build)"
+          body: |
+            ## FFmpeg ${{ env.FFMPEG_VERSION }} with ViewRA patches
+
+            **Build Date:** ${{ github.event.repository.updated_at || 'N/A' }}
+            **Commit:** [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+
+            ### Features
+            - **Video:** x264, x265, VP9, SVT-AV1, dav1d
+            - **Audio:** Opus, Vorbis, MP3, FDK-AAC
+            - **Hardware:** VAAPI, VDPAU, NVENC/NVDEC, CUDA tonemap, OpenCL
+            - **Subtitles:** libass, freetype
+
+            ### Applied Patches
+            ${{ steps.patches.outputs.list }}
+
+            ### Checksum (SHA256)
+            ```
+            ${{ steps.checksum.outputs.sha256 }}  ffmpeg-viewra-linux-x64.tar.gz
+            ```
+          files: ffmpeg-viewra-linux-x64.tar.gz
+          draft: false
+          prerelease: false
 
   build-subtitle-extractor:
     runs-on: ubuntu-24.04
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.commits.*.modified, 'tools/subtitle-extractor/') || contains(github.event.commits.*.added, 'tools/subtitle-extractor/')
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -105,19 +147,49 @@ jobs:
       - name: Build subtitle-extractor using Makefile
         run: make build-tools
 
+      - name: Get version from Cargo.toml
+        id: version
+        run: |
+          VERSION=$(grep '^version' tools/subtitle-extractor/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
       - name: Package binary
         run: |
           cd bin
           tar czf "${GITHUB_WORKSPACE}/subtitle-extractor-linux-x64.tar.gz" subtitle-extractor
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Generate checksum
+        id: checksum
+        run: |
+          SHA256=$(sha256sum subtitle-extractor-linux-x64.tar.gz | cut -d' ' -f1)
+          echo "sha256=${SHA256}" >> $GITHUB_OUTPUT
+
+      - name: Create subtitle-extractor release
+        uses: softprops/action-gh-release@v2
         with:
-          name: subtitle-extractor-linux-x64
-          path: subtitle-extractor-linux-x64.tar.gz
+          tag_name: "subtitle-extractor-latest"
+          name: "subtitle-extractor v${{ steps.version.outputs.version }}"
+          body: |
+            ## subtitle-extractor v${{ steps.version.outputs.version }}
+
+            Fast subtitle extraction tool written in Rust.
+
+            **Build Date:** ${{ github.event.repository.updated_at || 'N/A' }}
+            **Commit:** [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+
+            ### Checksum (SHA256)
+            ```
+            ${{ steps.checksum.outputs.sha256 }}  subtitle-extractor-linux-x64.tar.gz
+            ```
+          files: subtitle-extractor-linux-x64.tar.gz
+          draft: false
+          prerelease: false
 
   build-plugins:
     runs-on: ubuntu-24.04
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.commits.*.modified, 'plugins/') || contains(github.event.commits.*.modified, 'pkg/plugin/sdk/') || contains(github.event.commits.*.modified, 'api/proto/plugin/')
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -132,49 +204,45 @@ jobs:
       - name: Build all plugins using Makefile
         run: make build-plugins
 
+      - name: List built plugins
+        id: plugins
+        run: |
+          PLUGINS=$(ls -1 data/plugins/ | tr '\n' ', ' | sed 's/,$//')
+          COUNT=$(ls -1 data/plugins/ | wc -l)
+          echo "list=${PLUGINS}" >> $GITHUB_OUTPUT
+          echo "count=${COUNT}" >> $GITHUB_OUTPUT
+
       - name: Package plugins
         run: |
           cd data/plugins
           tar czf "${GITHUB_WORKSPACE}/viewra-plugins-linux-x64.tar.gz" .
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: viewra-plugins-linux-x64
-          path: viewra-plugins-linux-x64.tar.gz
+      - name: Generate checksum
+        id: checksum
+        run: |
+          SHA256=$(sha256sum viewra-plugins-linux-x64.tar.gz | cut -d' ' -f1)
+          echo "sha256=${SHA256}" >> $GITHUB_OUTPUT
 
-  release:
-    needs: [build-ffmpeg, build-subtitle-extractor, build-plugins]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    permissions:
-      contents: write
-    env:
-      FFMPEG_VERSION: ${{ github.event.inputs.ffmpeg_version || '7.1' }}
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-
-      - name: Create or update release
+      - name: Create plugins release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "deps-latest"
-          name: "ViewRA Dependencies (Latest)"
+          tag_name: "plugins-latest"
+          name: "ViewRA Plugins (${{ steps.plugins.outputs.count }} plugins)"
           body: |
-            Pre-built dependencies for ViewRA Docker builds.
+            ## ViewRA Plugins
 
-            **FFmpeg ${{ env.FFMPEG_VERSION }}** (with ViewRA patches):
-            - Video: x264, x265, VP9, SVT-AV1, dav1d
-            - Audio: Opus, Vorbis, MP3, FDK-AAC
-            - Hardware: VAAPI, VDPAU, NVENC/NVDEC (stubs)
-            - Subtitles: libass, freetype
+            Pre-compiled gRPC plugins for ViewRA.
 
-            **subtitle-extractor**: Fast subtitle extraction tool (Rust)
+            **Build Date:** ${{ github.event.repository.updated_at || 'N/A' }}
+            **Commit:** [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
 
-            **plugins**: All ViewRA plugins pre-compiled
-          files: |
-            ffmpeg-viewra-linux-x64/ffmpeg-viewra-linux-x64.tar.gz
-            subtitle-extractor-linux-x64/subtitle-extractor-linux-x64.tar.gz
-            viewra-plugins-linux-x64/viewra-plugins-linux-x64.tar.gz
+            ### Included Plugins
+            ${{ steps.plugins.outputs.list }}
+
+            ### Checksum (SHA256)
+            ```
+            ${{ steps.checksum.outputs.sha256 }}  viewra-plugins-linux-x64.tar.gz
+            ```
+          files: viewra-plugins-linux-x64.tar.gz
           draft: false
           prerelease: false

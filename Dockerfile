@@ -17,8 +17,11 @@
 # =============================================================================
 FROM ubuntu:24.04 AS deps-downloader
 
-ARG DEPS_RELEASE_TAG=deps-latest
 ARG GITHUB_REPO=mantonx/viewra
+# Each component has its own release tag for independent versioning
+ARG FFMPEG_RELEASE_TAG=ffmpeg-latest
+ARG SUBTITLE_EXTRACTOR_RELEASE_TAG=subtitle-extractor-latest
+ARG PLUGINS_RELEASE_TAG=plugins-latest
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -28,20 +31,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /deps
 
-# Download and extract all pre-built dependencies
+# Download and extract all pre-built dependencies from separate releases
+# Each component can be updated independently
 # Fails if release doesn't exist - run the build-deps GitHub Action first
-RUN RELEASE_URL="https://github.com/${GITHUB_REPO}/releases/download/${DEPS_RELEASE_TAG}" && \
-    echo "Downloading FFmpeg..." && \
-    curl -fSL "${RELEASE_URL}/ffmpeg-viewra-linux-x64.tar.gz" -o ffmpeg.tar.gz && \
+RUN GITHUB_URL="https://github.com/${GITHUB_REPO}/releases/download" && \
+    echo "Downloading FFmpeg from ${FFMPEG_RELEASE_TAG}..." && \
+    curl -fSL "${GITHUB_URL}/${FFMPEG_RELEASE_TAG}/ffmpeg-viewra-linux-x64.tar.gz" -o ffmpeg.tar.gz && \
     mkdir -p ffmpeg && tar xzf ffmpeg.tar.gz -C ffmpeg && rm ffmpeg.tar.gz && \
-    echo "Downloading subtitle-extractor..." && \
-    curl -fSL "${RELEASE_URL}/subtitle-extractor-linux-x64.tar.gz" -o subtitle-extractor.tar.gz && \
+    echo "Downloading subtitle-extractor from ${SUBTITLE_EXTRACTOR_RELEASE_TAG}..." && \
+    curl -fSL "${GITHUB_URL}/${SUBTITLE_EXTRACTOR_RELEASE_TAG}/subtitle-extractor-linux-x64.tar.gz" -o subtitle-extractor.tar.gz && \
     mkdir -p subtitle-extractor && tar xzf subtitle-extractor.tar.gz -C subtitle-extractor && rm subtitle-extractor.tar.gz && \
-    echo "Downloading plugins..." && \
-    curl -fSL "${RELEASE_URL}/viewra-plugins-linux-x64.tar.gz" -o plugins.tar.gz && \
+    echo "Downloading plugins from ${PLUGINS_RELEASE_TAG}..." && \
+    curl -fSL "${GITHUB_URL}/${PLUGINS_RELEASE_TAG}/viewra-plugins-linux-x64.tar.gz" -o plugins.tar.gz && \
     mkdir -p plugins && tar xzf plugins.tar.gz -C plugins && rm plugins.tar.gz && \
     # Verify critical files exist
-    test -f ffmpeg/bin/ffmpeg || (echo "ERROR: FFmpeg binary not found" && exit 1) && \
+    test -f ffmpeg/ffmpeg-viewra || (echo "ERROR: FFmpeg binary not found" && exit 1) && \
     test -f subtitle-extractor/subtitle-extractor || (echo "ERROR: subtitle-extractor not found" && exit 1) && \
     echo "All dependencies downloaded successfully"
 
@@ -134,10 +138,10 @@ RUN useradd -r -u 1000 -m -s /sbin/nologin viewra
 # Create app directory structure
 WORKDIR /app
 
-# Copy pre-built FFmpeg
-COPY --from=deps-downloader /deps/ffmpeg/bin/ffmpeg /usr/local/bin/
-COPY --from=deps-downloader /deps/ffmpeg/bin/ffprobe /usr/local/bin/
-COPY --from=deps-downloader /deps/ffmpeg/lib/lib*.so* /usr/local/lib/
+# Copy pre-built FFmpeg (tar extracts ffmpeg-viewra, ffprobe-viewra, ffmpeg-lib/)
+COPY --from=deps-downloader /deps/ffmpeg/ffmpeg-viewra /usr/local/bin/ffmpeg
+COPY --from=deps-downloader /deps/ffmpeg/ffprobe-viewra /usr/local/bin/ffprobe
+COPY --from=deps-downloader /deps/ffmpeg/ffmpeg-lib/ /usr/local/lib/
 
 # Update library cache
 RUN ldconfig
