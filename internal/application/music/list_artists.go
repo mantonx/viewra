@@ -55,6 +55,7 @@ func (uc *ListArtistsUseCase) Execute(ctx context.Context, libraryID int64) (Lis
 			Name:       artist.Name,
 			AlbumCount: artist.AlbumCount,
 			TrackCount: artist.TrackCount,
+			CreatedAt:  artist.CreatedAt,
 		}
 	}
 
@@ -90,6 +91,7 @@ func (uc *ListArtistsUseCase) ExecuteWithPagination(ctx context.Context, library
 			Name:       artist.Name,
 			AlbumCount: artist.AlbumCount,
 			TrackCount: artist.TrackCount,
+			CreatedAt:  artist.CreatedAt,
 		}
 	}
 
@@ -126,6 +128,7 @@ func (uc *ListArtistsUseCase) ExecuteWithSearch(ctx context.Context, libraryID i
 			Name:       artist.Name,
 			AlbumCount: artist.AlbumCount,
 			TrackCount: artist.TrackCount,
+			CreatedAt:  artist.CreatedAt,
 		}
 	}
 

@@ -21,3 +21,6 @@ semanticSearchProvider.checkAvailability()
 
 // Export for testing/debugging only
 export { semanticSearchProvider }
+
+// Export hooks for use in components
+export { useSemanticSearchChips } from './hooks/useSemanticSearch'

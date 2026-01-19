@@ -6,9 +6,10 @@ import type { AlbumCardProps } from './AlbumCard.types'
 const AlbumCard = ({ album, onClick }: AlbumCardProps) => {
   const { preferences } = useBadgePreferences()
 
-  // Note: created_at not available in AlbumSummary type
-  // TODO: Enable when backend adds created_at field to album summaries
-  const isNew = false
+  const isNew = Boolean(
+    album.created_at &&
+    Date.now() - new Date(album.created_at).getTime() < 7 * 24 * 60 * 60 * 1000
+  )
 
   return (
     <MediaCard

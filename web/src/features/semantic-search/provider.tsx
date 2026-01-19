@@ -12,28 +12,56 @@ import { moviesApi } from '@/lib/api/movies'
 import type { Movie } from '@/lib/types/movies'
 import { logger } from '@/lib/utils/logger'
 
+/**
+ * Callback type for chip removal events.
+ * Used to notify parent components that a chip was removed,
+ * allowing them to trigger a new search with updated exclusions.
+ */
+export type OnChipRemoveCallback = (chipId: string, chipType: string) => void
+
 class SemanticSearchProvider implements SearchProvider<Movie> {
   private available: boolean | null = null
+  private onChipRemoveCallback: OnChipRemoveCallback | null = null
+
+  /**
+   * Register a callback to be notified when a chip is removed.
+   * This allows the search hook to trigger a re-search with exclusions.
+   */
+  setOnChipRemoveCallback(callback: OnChipRemoveCallback | null) {
+    this.onChipRemoveCallback = callback
+  }
 
   async search(query: string, options?: SearchOptions): Promise<SearchResult<Movie>> {
     try {
+      // Extract excluded intents from options
+      const excludeIntents = (options?.extra?.excludeIntents as string[]) || []
+
       // Call semantic search API
       const response = await semanticSearchApi.search({
         query,
         entity_types: options?.entityTypes || ['movie'],
         limit: options?.limit || 100,
+        exclude_intents: excludeIntents.length > 0 ? excludeIntents : undefined,
       })
 
       // Hydrate entity IDs to full Movie objects
       const movies = await this.hydrateMovies(response.results.map((r) => r.entity_id))
 
+      // Filter out chips that have been excluded
+      const visibleChips = response.intent_chips?.filter(
+        (chip) => !excludeIntents.includes(chip.type)
+      ) || []
+
       // Build enhancement UI with intent chips
-      const enhancement = response.intent_chips && response.intent_chips.length > 0 ? (
+      const enhancement = visibleChips.length > 0 ? (
         <IntentChipsBar
-          chips={response.intent_chips}
+          chips={visibleChips}
           onRemoveChip={(chipId) => {
-            // TODO: Implement smart chip removal
-            logger.debug('Remove chip:', chipId)
+            const chip = visibleChips.find((c) => c.id === chipId)
+            if (chip && this.onChipRemoveCallback) {
+              logger.debug('Chip removed:', chip.type, chip.value)
+              this.onChipRemoveCallback(chipId, chip.type)
+            }
           }}
         />
       ) : undefined

@@ -14,17 +14,19 @@ type ArtistSummary struct {
 	Name       string          `json:"name" binding:"required"`
 	AlbumCount int             `json:"album_count"`
 	TrackCount int             `json:"track_count"`
+	CreatedAt  time.Time       `json:"created_at"`
 	Albums     map[string]bool `json:"-"` // Internal use only for aggregation
 }
 
 // AlbumSummary represents an album with aggregated metadata (for list view)
 type AlbumSummary struct {
-	ID         int64  `json:"id"`        // Album entity ID
-	ArtistID   int64  `json:"artist_id"` // Artist entity ID for navigation
-	Album      string `json:"album"`
-	Artist     string `json:"artist"`
-	Year       int    `json:"year,omitempty"`
-	TrackCount int    `json:"track_count"`
+	ID         int64     `json:"id"`        // Album entity ID
+	ArtistID   int64     `json:"artist_id"` // Artist entity ID for navigation
+	Album      string    `json:"album"`
+	Artist     string    `json:"artist"`
+	Year       int       `json:"year,omitempty"`
+	TrackCount int       `json:"track_count"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 // MusicTrackResponse represents a music track with all its metadata

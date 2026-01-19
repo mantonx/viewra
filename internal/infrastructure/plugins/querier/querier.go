@@ -404,3 +404,63 @@ func (q *DBMediaQuerier) listTVShowsByGenre(ctx context.Context, genre string, l
 
 	return result, nil
 }
+
+// ListMediaByDirector returns media items directed by a specific person.
+// mediaType should be "movie" or "tv_show".
+// libraryID=0 means all libraries.
+// excludeIDs are entity IDs to exclude from results.
+func (q *DBMediaQuerier) ListMediaByDirector(ctx context.Context, mediaType, directorName string, libraryID int64, excludeIDs []int64, limit int) ([]*MediaInfo, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	switch mediaType {
+	case "movie":
+		return q.listMoviesByDirector(ctx, directorName, libraryID, excludeIDs, limit)
+	case "tv_show":
+		// TV shows don't typically have directors at the show level
+		// (directors are per-episode), so return empty for now
+		return []*MediaInfo{}, nil
+	default:
+		return nil, errors.New("unsupported media type for director search: " + mediaType)
+	}
+}
+
+// listMoviesByDirector returns movies directed by a specific person.
+func (q *DBMediaQuerier) listMoviesByDirector(ctx context.Context, directorName string, libraryID int64, excludeIDs []int64, limit int) ([]*MediaInfo, error) {
+	// Use a sentinel value (-1) if no exclude IDs
+	if len(excludeIDs) == 0 {
+		excludeIDs = []int64{-1}
+	}
+
+	rows, err := q.querier.ListMoviesByDirector(ctx, unified.ListMoviesByDirectorParams{
+		LibraryID:    libraryID,
+		DirectorName: sql.NullString{String: directorName, Valid: true},
+		ExcludeIds:   excludeIDs,
+		Limit:        int64(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*MediaInfo, len(rows))
+	for i, row := range rows {
+		year := 0
+		if row.Year.Valid {
+			year = int(row.Year.Int64)
+		}
+		result[i] = &MediaInfo{
+			ID:        row.MediaID,
+			MediaType: "movie",
+			Title:     row.Title,
+			Year:      year,
+			LibraryID: row.LibraryID,
+			FilePath:  row.FilePath,
+		}
+	}
+
+	return result, nil
+}

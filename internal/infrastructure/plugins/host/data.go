@@ -51,6 +51,12 @@ type MediaQuerier interface {
 	// libraryID=0 means all libraries.
 	// excludeIDs are entity IDs to exclude from results.
 	ListMediaByGenre(ctx context.Context, mediaType, genre string, libraryID int64, excludeIDs []int64, limit int) ([]*MediaInfo, error)
+
+	// ListMediaByDirector returns media items directed by a specific person.
+	// mediaType should be "movie" or "tv_show".
+	// libraryID=0 means all libraries.
+	// excludeIDs are entity IDs to exclude from results.
+	ListMediaByDirector(ctx context.Context, mediaType, directorName string, libraryID int64, excludeIDs []int64, limit int) ([]*MediaInfo, error)
 }
 
 // DataServer implements the HostData gRPC service.
@@ -379,6 +385,51 @@ func (s *DataServer) ListMediaByGenre(ctx context.Context, req *pluginv1.ListMed
 		s.logger.Error("failed to list media by genre",
 			"media_type", req.MediaType,
 			"genre", req.Genre,
+			"error", err)
+		return nil, err
+	}
+
+	protoItems := make([]*pluginv1.Media, len(items))
+	for i, item := range items {
+		protoItems[i] = mediaInfoToProto(item)
+	}
+
+	return &pluginv1.MediaList{Items: protoItems}, nil
+}
+
+// ListMediaByDirector lists media items directed by a specific person.
+// Used for director-based recommendations and themed collections.
+func (s *DataServer) ListMediaByDirector(ctx context.Context, req *pluginv1.ListMediaByDirectorRequest) (*pluginv1.MediaList, error) {
+	if req.MediaType == "" {
+		return nil, errors.New("media_type is required")
+	}
+	if req.DirectorName == "" {
+		return nil, errors.New("director_name is required")
+	}
+
+	// Validate media type
+	if req.MediaType != "movie" && req.MediaType != "tv_show" {
+		return nil, errors.New("media_type must be 'movie' or 'tv_show'")
+	}
+
+	limit := int(req.Limit)
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	s.logger.Debug("ListMediaByDirector called",
+		"media_type", req.MediaType,
+		"director_name", req.DirectorName,
+		"library_id", req.LibraryId,
+		"exclude_ids_count", len(req.ExcludeIds),
+		"limit", limit,
+	)
+
+	items, err := s.querier.ListMediaByDirector(ctx, req.MediaType, req.DirectorName, req.LibraryId, req.ExcludeIds, limit)
+	if err != nil {
+		s.logger.Error("failed to list media by director",
+			"media_type", req.MediaType,
+			"director_name", req.DirectorName,
 			"error", err)
 		return nil, err
 	}

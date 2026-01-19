@@ -8,8 +8,10 @@ import type { TVShowCardProps } from './TVShowCard.types'
 const TVShowCard = memo(({ show, onClick, onPlay }: TVShowCardProps) => {
   const { preferences } = useBadgePreferences()
 
-  // TODO: Enable isNew when backend adds created_at field
-  const isNew = false
+  const isNew = Boolean(
+    show.created_at &&
+    Date.now() - new Date(show.created_at).getTime() < 7 * 24 * 60 * 60 * 1000
+  )
 
   return (
     <MediaCard

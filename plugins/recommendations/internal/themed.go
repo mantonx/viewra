@@ -396,9 +396,54 @@ func (t *ThemedRecommendations) GetThemedRecommendations(ctx context.Context, ro
 	var items []sdk.MediaItem
 	seen := make(map[int64]bool)
 
-	// Note: Director-based filtering is not currently supported by the SDK.
-	// Director collections will fall through to genre-based querying.
-	// TODO: Add ListMediaByDirector to SDK when needed.
+	// If we have directors, query by director first
+	if len(row.Query.Directors) > 0 {
+		for _, director := range row.Query.Directors {
+			if len(items) >= limit {
+				break
+			}
+			directorItems, err := t.data.ListMediaByDirector(ctx, "movie", director, 0, excludeIDs, limit)
+			if err != nil {
+				t.logger.Debug("director query failed", "director", director, "error", err)
+				continue
+			}
+
+			for _, item := range directorItems {
+				if seen[item.ID] || exclude[item.ID] {
+					continue
+				}
+				// Apply additional filters (year range, rating, etc.)
+				if !t.matchesQuery(item, row.Query) {
+					continue
+				}
+				seen[item.ID] = true
+				reason := row.Subtitle
+				if reason == "" {
+					reason = fmt.Sprintf("Directed by %s", director)
+				}
+				items = append(items, sdk.MediaItem{
+					EntityType: "movie",
+					EntityID:   item.ID,
+					Title:      item.Title,
+					Year:       item.Year,
+					Reason:     reason,
+				})
+				if len(items) >= limit {
+					break
+				}
+			}
+		}
+		if len(items) > 0 {
+			// Shuffle for variety
+			rand.Shuffle(len(items), func(i, j int) {
+				items[i], items[j] = items[j], items[i]
+			})
+			if len(items) > limit {
+				items = items[:limit]
+			}
+			return items, nil
+		}
+	}
 
 	// If we have genres, query by genre
 	if len(row.Query.Genres) > 0 {

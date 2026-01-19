@@ -418,6 +418,12 @@ type Querier interface {
 	ListMovieIDsByLibraryPaginated(ctx context.Context, arg ListMovieIDsByLibraryPaginatedParams) ([]int64, error)
 	// library_id: 0 means all libraries
 	ListMovieIDsByLibraryPaginatedDesc(ctx context.Context, arg ListMovieIDsByLibraryPaginatedDescParams) ([]int64, error)
+	// Lists movies directed by a specific person with optional library filter and exclusion list.
+	// director_name: name to match (case-insensitive LIKE match)
+	// library_id: 0 means all libraries
+	// exclude_ids: array of media IDs to exclude
+	// limit: maximum number of results
+	ListMoviesByDirector(ctx context.Context, arg ListMoviesByDirectorParams) ([]ListMoviesByDirectorRow, error)
 	// Lists movies matching a genre pattern with optional library filter and exclusion list.
 	// library_id: 0 means all libraries
 	// genre: genre pattern to match (will be wrapped in % for LIKE)

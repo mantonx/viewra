@@ -51,6 +51,7 @@ export interface SearchParams {
   query: string
   entity_types?: string[]
   limit?: number
+  exclude_intents?: string[]
   playback_constraints?: {
     min_resolution?: string
     max_resolution?: string

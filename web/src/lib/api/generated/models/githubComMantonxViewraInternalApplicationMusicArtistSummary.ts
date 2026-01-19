@@ -8,6 +8,7 @@
 
 export interface GithubComMantonxViewraInternalApplicationMusicArtistSummary {
   album_count?: number
+  created_at?: string
   /** Representative media_id (first track) */
   id: number
   name: string

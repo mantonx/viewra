@@ -204,6 +204,7 @@ type (
 	ListMediaByTypeParams = sqlc_sqlite.ListMediaByTypeParams
 	ListMovieIDsByLibraryPaginatedDescParams = sqlc_sqlite.ListMovieIDsByLibraryPaginatedDescParams
 	ListMovieIDsByLibraryPaginatedParams = sqlc_sqlite.ListMovieIDsByLibraryPaginatedParams
+	ListMoviesByDirectorParams = sqlc_sqlite.ListMoviesByDirectorParams
 	ListMoviesByGenreParams = sqlc_sqlite.ListMoviesByGenreParams
 	ListMoviesByLibraryPaginatedDescParams = sqlc_sqlite.ListMoviesByLibraryPaginatedDescParams
 	ListMoviesByLibraryPaginatedParams = sqlc_sqlite.ListMoviesByLibraryPaginatedParams
@@ -371,6 +372,7 @@ type (
 	ListAlbumsByLibraryPaginatedDescRow = sqlc_sqlite.ListAlbumsByLibraryPaginatedDescRow
 	ListAlbumsByLibraryPaginatedRow = sqlc_sqlite.ListAlbumsByLibraryPaginatedRow
 	ListEnabledPluginsRow = sqlc_sqlite.ListEnabledPluginsRow
+	ListMoviesByDirectorRow = sqlc_sqlite.ListMoviesByDirectorRow
 	ListMoviesByGenreRow = sqlc_sqlite.ListMoviesByGenreRow
 	ListMoviesByLibraryPaginatedDescRow = sqlc_sqlite.ListMoviesByLibraryPaginatedDescRow
 	ListMoviesByLibraryPaginatedRow = sqlc_sqlite.ListMoviesByLibraryPaginatedRow

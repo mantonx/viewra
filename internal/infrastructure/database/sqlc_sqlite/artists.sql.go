@@ -291,13 +291,14 @@ SELECT
     a.formed_year,
     a.genre,
     a.image_path,
+    a.created_at,
     COUNT(DISTINCT al.id) as album_count,
     COUNT(DISTINCT mt.media_id) as track_count
 FROM music_artists a
 LEFT JOIN music_albums al ON a.id = al.artist_id
 LEFT JOIN music_tracks mt ON a.id = mt.artist_id
 WHERE a.library_id = ?
-GROUP BY a.id, a.library_id, a.name, a.sort_name, a.musicbrainz_artist_id, a.bio, a.country, a.formed_year, a.genre, a.image_path
+GROUP BY a.id, a.library_id, a.name, a.sort_name, a.musicbrainz_artist_id, a.bio, a.country, a.formed_year, a.genre, a.image_path, a.created_at
 ORDER BY COALESCE(a.sort_name, a.name) COLLATE NOCASE ASC
 LIMIT ? OFFSET ?
 `
@@ -319,6 +320,7 @@ type GetArtistsWithCountsByLibraryPaginatedRow struct {
 	FormedYear          sql.NullInt64  `json:"formed_year"`
 	Genre               sql.NullString `json:"genre"`
 	ImagePath           sql.NullString `json:"image_path"`
+	CreatedAt           sql.NullTime   `json:"created_at"`
 	AlbumCount          int64          `json:"album_count"`
 	TrackCount          int64          `json:"track_count"`
 }
@@ -343,6 +345,7 @@ func (q *Queries) GetArtistsWithCountsByLibraryPaginated(ctx context.Context, ar
 			&i.FormedYear,
 			&i.Genre,
 			&i.ImagePath,
+			&i.CreatedAt,
 			&i.AlbumCount,
 			&i.TrackCount,
 		); err != nil {
@@ -371,13 +374,14 @@ SELECT
     a.formed_year,
     a.genre,
     a.image_path,
+    a.created_at,
     COUNT(DISTINCT al.id) as album_count,
     COUNT(DISTINCT mt.media_id) as track_count
 FROM music_artists a
 LEFT JOIN music_albums al ON a.id = al.artist_id
 LEFT JOIN music_tracks mt ON a.id = mt.artist_id
 WHERE a.library_id = ?
-GROUP BY a.id, a.library_id, a.name, a.sort_name, a.musicbrainz_artist_id, a.bio, a.country, a.formed_year, a.genre, a.image_path
+GROUP BY a.id, a.library_id, a.name, a.sort_name, a.musicbrainz_artist_id, a.bio, a.country, a.formed_year, a.genre, a.image_path, a.created_at
 ORDER BY COALESCE(a.sort_name, a.name) COLLATE NOCASE DESC
 LIMIT ? OFFSET ?
 `
@@ -399,6 +403,7 @@ type GetArtistsWithCountsByLibraryPaginatedDescRow struct {
 	FormedYear          sql.NullInt64  `json:"formed_year"`
 	Genre               sql.NullString `json:"genre"`
 	ImagePath           sql.NullString `json:"image_path"`
+	CreatedAt           sql.NullTime   `json:"created_at"`
 	AlbumCount          int64          `json:"album_count"`
 	TrackCount          int64          `json:"track_count"`
 }
@@ -423,6 +428,7 @@ func (q *Queries) GetArtistsWithCountsByLibraryPaginatedDesc(ctx context.Context
 			&i.FormedYear,
 			&i.Genre,
 			&i.ImagePath,
+			&i.CreatedAt,
 			&i.AlbumCount,
 			&i.TrackCount,
 		); err != nil {
@@ -553,6 +559,7 @@ SELECT
     a.formed_year,
     a.genre,
     a.image_path,
+    a.created_at,
     COUNT(DISTINCT al.id) as album_count,
     COUNT(DISTINCT mt.media_id) as track_count
 FROM music_artists a
@@ -560,7 +567,7 @@ LEFT JOIN music_albums al ON a.id = al.artist_id
 LEFT JOIN music_tracks mt ON a.id = mt.artist_id
 WHERE a.library_id = ?
   AND (a.name LIKE ? OR a.sort_name LIKE ?)
-GROUP BY a.id, a.library_id, a.name, a.sort_name, a.musicbrainz_artist_id, a.bio, a.country, a.formed_year, a.genre, a.image_path
+GROUP BY a.id, a.library_id, a.name, a.sort_name, a.musicbrainz_artist_id, a.bio, a.country, a.formed_year, a.genre, a.image_path, a.created_at
 ORDER BY COALESCE(a.sort_name, a.name) COLLATE NOCASE ASC
 LIMIT ? OFFSET ?
 `
@@ -584,6 +591,7 @@ type SearchArtistsWithCountsByNamePaginatedRow struct {
 	FormedYear          sql.NullInt64  `json:"formed_year"`
 	Genre               sql.NullString `json:"genre"`
 	ImagePath           sql.NullString `json:"image_path"`
+	CreatedAt           sql.NullTime   `json:"created_at"`
 	AlbumCount          int64          `json:"album_count"`
 	TrackCount          int64          `json:"track_count"`
 }
@@ -614,6 +622,7 @@ func (q *Queries) SearchArtistsWithCountsByNamePaginated(ctx context.Context, ar
 			&i.FormedYear,
 			&i.Genre,
 			&i.ImagePath,
+			&i.CreatedAt,
 			&i.AlbumCount,
 			&i.TrackCount,
 		); err != nil {

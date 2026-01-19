@@ -328,6 +328,7 @@ func searchArtistWithCountsRowToDomain(row unified.SearchArtistsWithCountsByName
 		Name:       row.Name,
 		AlbumCount: int(row.AlbumCount),
 		TrackCount: int(row.TrackCount),
+		CreatedAt:  row.CreatedAt.Time,
 	}
 }
 
@@ -339,6 +340,7 @@ func artistWithCountsToInternal(row unified.GetArtistsWithCountsByLibraryPaginat
 		Name:       row.Name,
 		AlbumCount: int(row.AlbumCount),
 		TrackCount: int(row.TrackCount),
+		CreatedAt:  row.CreatedAt.Time,
 	}
 }
 
@@ -350,6 +352,7 @@ func artistWithCountsDescToInternal(row unified.GetArtistsWithCountsByLibraryPag
 		Name:       row.Name,
 		AlbumCount: int(row.AlbumCount),
 		TrackCount: int(row.TrackCount),
+		CreatedAt:  row.CreatedAt.Time,
 	}
 }
 

@@ -2583,6 +2583,14 @@ func (q *Querier) ListMovieIDsByLibraryPaginatedDesc(ctx context.Context, arg sq
 	return q.sqlite.ListMovieIDsByLibraryPaginatedDesc(ctx, arg)
 }
 
+func (q *Querier) ListMoviesByDirector(ctx context.Context, arg sqlc_sqlite.ListMoviesByDirectorParams) ([]sqlc_sqlite.ListMoviesByDirectorRow, error) {
+	if q.isPostgres {
+		r0, err := q.postgres.ListMoviesByDirector(ctx, sqlc_postgres.ListMoviesByDirectorParams(arg))
+		return castSlice[sqlc_postgres.ListMoviesByDirectorRow, sqlc_sqlite.ListMoviesByDirectorRow](r0), err
+	}
+	return q.sqlite.ListMoviesByDirector(ctx, arg)
+}
+
 func (q *Querier) ListMoviesByGenre(ctx context.Context, arg sqlc_sqlite.ListMoviesByGenreParams) ([]sqlc_sqlite.ListMoviesByGenreRow, error) {
 	if q.isPostgres {
 		r0, err := q.postgres.ListMoviesByGenre(ctx, sqlc_postgres.ListMoviesByGenreParams(arg))

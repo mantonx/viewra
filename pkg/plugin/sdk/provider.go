@@ -978,9 +978,82 @@ func (s *providerServiceServer) DescribeMethods(ctx context.Context, _ *pluginv1
 }
 
 // isRetryableError determines if an error should be retried.
+// Retryable errors include timeouts, temporary network issues, and rate limits.
 func isRetryableError(err error) bool {
-	// TODO: Implement based on error types (timeout, rate limit, etc.)
+	if err == nil {
+		return false
+	}
+
+	// Check for context deadline exceeded (timeout)
+	if err == context.DeadlineExceeded {
+		return true
+	}
+
+	// Check for common retryable error patterns in error message
+	errMsg := err.Error()
+
+	// Rate limiting patterns
+	if contains(errMsg, "rate limit", "too many requests", "429", "quota exceeded") {
+		return true
+	}
+
+	// Temporary service unavailability
+	if contains(errMsg, "503", "service unavailable", "temporarily unavailable") {
+		return true
+	}
+
+	// Network/connection errors that may be transient
+	if contains(errMsg, "connection refused", "connection reset", "timeout",
+		"i/o timeout", "no such host", "network unreachable", "temporary failure") {
+		return true
+	}
+
+	// Server errors that may be transient
+	if contains(errMsg, "502", "504", "bad gateway", "gateway timeout") {
+		return true
+	}
+
 	return false
+}
+
+// contains checks if s contains any of the substrings (case-insensitive).
+func contains(s string, substrings ...string) bool {
+	lower := toLowerCase(s)
+	for _, sub := range substrings {
+		if indexSubstring(lower, toLowerCase(sub)) >= 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// toLowerCase converts a string to lowercase without importing strings package.
+func toLowerCase(s string) string {
+	b := make([]byte, len(s))
+	for i := range s {
+		c := s[i]
+		if c >= 'A' && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		b[i] = c
+	}
+	return string(b)
+}
+
+// indexSubstring returns the index of substr in s, or -1 if not found.
+func indexSubstring(s, substr string) int {
+	if len(substr) == 0 {
+		return 0
+	}
+	if len(substr) > len(s) {
+		return -1
+	}
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
 }
 
 // --- Helper functions ---

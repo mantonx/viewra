@@ -452,6 +452,217 @@ func (q *Queries) ListMovieIDsByLibraryPaginatedDesc(ctx context.Context, arg Li
 	return items, nil
 }
 
+const listMoviesByDirector = `-- name: ListMoviesByDirector :many
+SELECT DISTINCT
+    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary, m.rating, m.rating_votes,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM movies m
+JOIN media med ON m.media_id = med.id
+JOIN credits c ON c.media_type = 'movie' AND c.entity_id = m.id
+JOIN people p ON c.person_id = p.id
+WHERE (med.library_id = $1::bigint OR $1::bigint = 0)
+  AND med.is_extra = false
+  AND c.credit_type = 'director'
+  AND p.name ILIKE '%' || $2 || '%'
+  AND NOT (med.id = ANY($3::bigint[]))
+ORDER BY COALESCE(m.rating, 0) * LOG(COALESCE(m.rating_votes, 0) + 1) DESC, med.date_added DESC
+LIMIT $4::bigint
+`
+
+type ListMoviesByDirectorParams struct {
+	LibraryID    int64          `json:"library_id"`
+	DirectorName sql.NullString `json:"director_name"`
+	ExcludeIds   []int64        `json:"exclude_ids"`
+	Limit        int64          `json:"limit"`
+}
+
+type ListMoviesByDirectorRow struct {
+	MediaID           int64           `json:"media_id"`
+	Year              sql.NullInt64   `json:"year"`
+	ReleaseDate       sql.NullTime    `json:"release_date"`
+	Genre             sql.NullString  `json:"genre"`
+	Director          sql.NullString  `json:"director"`
+	Cast              sql.NullString  `json:"cast"`
+	ContentRating     sql.NullString  `json:"content_rating"`
+	MaturityRating    sql.NullInt64   `json:"maturity_rating"`
+	ContentAdvisories sql.NullString  `json:"content_advisories"`
+	Plot              sql.NullString  `json:"plot"`
+	Tagline           sql.NullString  `json:"tagline"`
+	OriginalTitle     sql.NullString  `json:"original_title"`
+	SortTitle         sql.NullString  `json:"sort_title"`
+	ImdbID            sql.NullString  `json:"imdb_id"`
+	TmdbID            sql.NullInt64   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt64   `json:"runtime_minutes"`
+	Budget            sql.NullInt64   `json:"budget"`
+	Revenue           sql.NullInt64   `json:"revenue"`
+	OriginalLanguage  sql.NullString  `json:"original_language"`
+	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
+	AwardsSummary     sql.NullString  `json:"awards_summary"`
+	Rating            sql.NullFloat64 `json:"rating"`
+	RatingVotes       sql.NullInt64   `json:"rating_votes"`
+	MediaID_2         int64           `json:"media_id_2"`
+	LibraryID         int64           `json:"library_id"`
+	Title             string          `json:"title"`
+	FilePath          string          `json:"file_path"`
+	FileSize          sql.NullInt64   `json:"file_size"`
+	FileHash          sql.NullString  `json:"file_hash"`
+	ContainerFormat   sql.NullString  `json:"container_format"`
+	Duration          sql.NullFloat64 `json:"duration"`
+	Width             sql.NullInt64   `json:"width"`
+	Height            sql.NullInt64   `json:"height"`
+	AspectRatio       sql.NullString  `json:"aspect_ratio"`
+	Codec             sql.NullString  `json:"codec"`
+	AudioCodec        sql.NullString  `json:"audio_codec"`
+	CodecProfile      sql.NullString  `json:"codec_profile"`
+	BitRate           sql.NullInt64   `json:"bit_rate"`
+	FrameRate         sql.NullFloat64 `json:"frame_rate"`
+	ScanType          sql.NullString  `json:"scan_type"`
+	HdrFormat         sql.NullString  `json:"hdr_format"`
+	ColorSpace        sql.NullString  `json:"color_space"`
+	ColorPrimaries    sql.NullString  `json:"color_primaries"`
+	ThumbnailPath     sql.NullString  `json:"thumbnail_path"`
+	Type              string          `json:"type"`
+	SourceType        sql.NullString  `json:"source_type"`
+	ResolutionLabel   sql.NullString  `json:"resolution_label"`
+	QualityScore      sql.NullInt64   `json:"quality_score"`
+	Is3d              sql.NullInt64   `json:"is_3d"`
+	StereoMode        sql.NullString  `json:"stereo_mode"`
+	HasDash           sql.NullInt64   `json:"has_dash"`
+	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
+	TranscodingStatus sql.NullString  `json:"transcoding_status"`
+	IsExtra           int64           `json:"is_extra"`
+	DateAdded         sql.NullTime    `json:"date_added"`
+	DateModified      sql.NullTime    `json:"date_modified"`
+	CreatedAt         sql.NullTime    `json:"created_at"`
+	UpdatedAt         sql.NullTime    `json:"updated_at"`
+}
+
+// Lists movies directed by a specific person with optional library filter and exclusion list.
+// director_name: name to match (case-insensitive ILIKE match)
+// library_id: 0 means all libraries
+// exclude_ids: array of media IDs to exclude
+// limit: maximum number of results
+func (q *Queries) ListMoviesByDirector(ctx context.Context, arg ListMoviesByDirectorParams) ([]ListMoviesByDirectorRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMoviesByDirector,
+		arg.LibraryID,
+		arg.DirectorName,
+		pq.Array(arg.ExcludeIds),
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMoviesByDirectorRow{}
+	for rows.Next() {
+		var i ListMoviesByDirectorRow
+		if err := rows.Scan(
+			&i.MediaID,
+			&i.Year,
+			&i.ReleaseDate,
+			&i.Genre,
+			&i.Director,
+			&i.Cast,
+			&i.ContentRating,
+			&i.MaturityRating,
+			&i.ContentAdvisories,
+			&i.Plot,
+			&i.Tagline,
+			&i.OriginalTitle,
+			&i.SortTitle,
+			&i.ImdbID,
+			&i.TmdbID,
+			&i.RuntimeMinutes,
+			&i.Budget,
+			&i.Revenue,
+			&i.OriginalLanguage,
+			&i.CountryOfOrigin,
+			&i.AwardsSummary,
+			&i.Rating,
+			&i.RatingVotes,
+			&i.MediaID_2,
+			&i.LibraryID,
+			&i.Title,
+			&i.FilePath,
+			&i.FileSize,
+			&i.FileHash,
+			&i.ContainerFormat,
+			&i.Duration,
+			&i.Width,
+			&i.Height,
+			&i.AspectRatio,
+			&i.Codec,
+			&i.AudioCodec,
+			&i.CodecProfile,
+			&i.BitRate,
+			&i.FrameRate,
+			&i.ScanType,
+			&i.HdrFormat,
+			&i.ColorSpace,
+			&i.ColorPrimaries,
+			&i.ThumbnailPath,
+			&i.Type,
+			&i.SourceType,
+			&i.ResolutionLabel,
+			&i.QualityScore,
+			&i.Is3d,
+			&i.StereoMode,
+			&i.HasDash,
+			&i.DashManifestPath,
+			&i.TranscodingStatus,
+			&i.IsExtra,
+			&i.DateAdded,
+			&i.DateModified,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMoviesByGenre = `-- name: ListMoviesByGenre :many
 SELECT
     m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary, m.rating, m.rating_votes,

@@ -27,6 +27,7 @@ const (
 	HostData_GetLibrary_FullMethodName           = "/viewra.plugin.v1.HostData/GetLibrary"
 	HostData_GetFilePath_FullMethodName          = "/viewra.plugin.v1.HostData/GetFilePath"
 	HostData_ListMediaByGenre_FullMethodName     = "/viewra.plugin.v1.HostData/ListMediaByGenre"
+	HostData_ListMediaByDirector_FullMethodName  = "/viewra.plugin.v1.HostData/ListMediaByDirector"
 )
 
 // HostDataClient is the client API for HostData service.
@@ -54,6 +55,9 @@ type HostDataClient interface {
 	// ListMediaByGenre lists media items matching a genre pattern.
 	// Used for genre-based recommendations when semantic search is unavailable.
 	ListMediaByGenre(ctx context.Context, in *ListMediaByGenreRequest, opts ...grpc.CallOption) (*MediaList, error)
+	// ListMediaByDirector lists media items featuring work by a specific director.
+	// Used for director-based recommendations and themed collections.
+	ListMediaByDirector(ctx context.Context, in *ListMediaByDirectorRequest, opts ...grpc.CallOption) (*MediaList, error)
 }
 
 type hostDataClient struct {
@@ -144,6 +148,16 @@ func (c *hostDataClient) ListMediaByGenre(ctx context.Context, in *ListMediaByGe
 	return out, nil
 }
 
+func (c *hostDataClient) ListMediaByDirector(ctx context.Context, in *ListMediaByDirectorRequest, opts ...grpc.CallOption) (*MediaList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MediaList)
+	err := c.cc.Invoke(ctx, HostData_ListMediaByDirector_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HostDataServer is the server API for HostData service.
 // All implementations must embed UnimplementedHostDataServer
 // for forward compatibility.
@@ -169,6 +183,9 @@ type HostDataServer interface {
 	// ListMediaByGenre lists media items matching a genre pattern.
 	// Used for genre-based recommendations when semantic search is unavailable.
 	ListMediaByGenre(context.Context, *ListMediaByGenreRequest) (*MediaList, error)
+	// ListMediaByDirector lists media items featuring work by a specific director.
+	// Used for director-based recommendations and themed collections.
+	ListMediaByDirector(context.Context, *ListMediaByDirectorRequest) (*MediaList, error)
 	mustEmbedUnimplementedHostDataServer()
 }
 
@@ -202,6 +219,9 @@ func (UnimplementedHostDataServer) GetFilePath(context.Context, *MediaId) (*File
 }
 func (UnimplementedHostDataServer) ListMediaByGenre(context.Context, *ListMediaByGenreRequest) (*MediaList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListMediaByGenre not implemented")
+}
+func (UnimplementedHostDataServer) ListMediaByDirector(context.Context, *ListMediaByDirectorRequest) (*MediaList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListMediaByDirector not implemented")
 }
 func (UnimplementedHostDataServer) mustEmbedUnimplementedHostDataServer() {}
 func (UnimplementedHostDataServer) testEmbeddedByValue()                  {}
@@ -368,6 +388,24 @@ func _HostData_ListMediaByGenre_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HostData_ListMediaByDirector_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMediaByDirectorRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostDataServer).ListMediaByDirector(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostData_ListMediaByDirector_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostDataServer).ListMediaByDirector(ctx, req.(*ListMediaByDirectorRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // HostData_ServiceDesc is the grpc.ServiceDesc for HostData service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -406,6 +444,10 @@ var HostData_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListMediaByGenre",
 			Handler:    _HostData_ListMediaByGenre_Handler,
+		},
+		{
+			MethodName: "ListMediaByDirector",
+			Handler:    _HostData_ListMediaByDirector_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

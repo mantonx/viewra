@@ -7,6 +7,7 @@ import { VideoPlayerContainer } from '@/components/media'
 import { MediaBrowsePage, VirtualMediaGrid } from '@/components/common'
 import { useMediaPlayback, useLibraryFilter, useInfiniteMovies, flattenMovies, BatchImagesProvider, BatchProgressProvider, useDebounce } from '@/lib/hooks'
 import { useSearch } from '@/lib/search'
+import { useSemanticSearchChips } from '@/features/semantic-search'
 import { moviesApi } from '@/lib/api/movies'
 import { logger } from '@/lib/utils/logger'
 import type { FilterState, ViewMode } from '@/components/common'
@@ -134,6 +135,14 @@ const Movies = () => {
   // Debounce search query to avoid too many API calls while typing
   const debouncedSearch = useDebounce(search.q || '', 300)
 
+  // Manage semantic search chip removal state
+  const { searchOptions: chipOptions, clearExcludedIntents } = useSemanticSearchChips()
+
+  // Clear excluded intents when search query changes
+  useEffect(() => {
+    clearExcludedIntents()
+  }, [debouncedSearch, clearExcludedIntents])
+
   // Use search abstraction layer (automatically uses enhanced search if available)
   const {
     data: searchResult,
@@ -142,6 +151,7 @@ const Movies = () => {
   } = useSearch<Movie>(debouncedSearch, {
     entityTypes: ['movie'],
     limit: 100,
+    extra: chipOptions.extra,
   })
 
   // Use infinite scroll for movies when there's no search query

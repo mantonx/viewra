@@ -11,6 +11,7 @@ import (
 	settingsDomain "github.com/mantonx/viewra/internal/domain/settings"
 	"github.com/mantonx/viewra/internal/infrastructure/crypto"
 	"github.com/mantonx/viewra/internal/infrastructure/system"
+	"github.com/mantonx/viewra/internal/version"
 )
 
 // Service handles settings operations with in-memory caching.
@@ -590,7 +591,7 @@ func (s *Service) getDetectedValue(key string) any {
 			return hwAccel
 		}
 	case "server.version":
-		return "0.0.1" // TODO: inject from build
+		return version.Info()
 	case "server.environment":
 		env := os.Getenv("ENVIRONMENT")
 		if env == "" {

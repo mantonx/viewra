@@ -3,6 +3,7 @@ package music
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/mantonx/viewra/internal/domain/media"
 )
@@ -35,6 +36,7 @@ func (uc *ListAlbumsByArtistIDUseCase) Execute(ctx context.Context, artistID int
 	var albumSummaries []AlbumSummary
 	for _, album := range albums {
 		if album.ArtistID == artist.ID {
+			createdAt, _ := time.Parse(time.RFC3339, album.CreatedAt)
 			albumSummaries = append(albumSummaries, AlbumSummary{
 				ID:         album.ID,
 				ArtistID:   album.ArtistID,
@@ -42,6 +44,7 @@ func (uc *ListAlbumsByArtistIDUseCase) Execute(ctx context.Context, artistID int
 				Artist:     album.AlbumArtist,
 				Year:       album.Year,
 				TrackCount: album.TotalTracks,
+				CreatedAt:  createdAt,
 			})
 		}
 	}

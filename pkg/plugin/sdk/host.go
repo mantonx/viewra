@@ -154,6 +154,41 @@ func (c *DataClient) ListMediaByGenre(ctx context.Context, mediaType, genre stri
 	return items, nil
 }
 
+// ListMediaByDirector returns media items directed by a specific person.
+// Used for director-based recommendations and themed collections.
+//
+// Parameters:
+//   - mediaType: "movie" or "tv_show"
+//   - directorName: director name to match (e.g., "Christopher Nolan", "Spielberg")
+//   - libraryID: library to filter by (0 = all libraries)
+//   - excludeIDs: entity IDs to exclude from results
+//   - limit: maximum results (default: 20, max: 100)
+//
+// Example:
+//
+//	items, err := data.ListMediaByDirector(ctx, "movie", "Christopher Nolan", 0, []int64{}, 20)
+//	for _, item := range items {
+//	    fmt.Printf("Found: %s (%d)\n", item.Title, item.Year)
+//	}
+func (c *DataClient) ListMediaByDirector(ctx context.Context, mediaType, directorName string, libraryID int64, excludeIDs []int64, limit int) ([]*Media, error) {
+	resp, err := c.client.ListMediaByDirector(ctx, &pluginv1.ListMediaByDirectorRequest{
+		MediaType:    mediaType,
+		DirectorName: directorName,
+		LibraryId:    libraryID,
+		ExcludeIds:   excludeIDs,
+		Limit:        int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]*Media, len(resp.Items))
+	for i, item := range resp.Items {
+		items[i] = protoToMedia(item)
+	}
+	return items, nil
+}
+
 // Library represents a media library.
 type Library struct {
 	ID        int64

@@ -108,6 +108,7 @@ type SearchParams struct {
 	Query               string
 	EntityTypes         []EntityType
 	Limit               int
+	ExcludeIntents      []string             // Intent types to exclude from results (e.g., "decade", "genre")
 	PlaybackConstraints *PlaybackConstraints // Optional playback filters (4K, HDR, subtitles, etc.)
 }
 
@@ -2853,6 +2854,189 @@ func (s *SearchService) applyQualityBoost(results []SearchResult) []SearchResult
 	return results
 }
 
+// filterExcludedChips removes chips whose type is in the excluded set.
+// This allows users to "remove" an intent chip and have it not appear in the UI.
+func filterExcludedChips(chips []IntentChip, excluded map[string]bool) []IntentChip {
+	if len(excluded) == 0 {
+		return chips
+	}
+
+	filtered := make([]IntentChip, 0, len(chips))
+	for _, chip := range chips {
+		if !excluded[chip.Type] {
+			filtered = append(filtered, chip)
+		}
+	}
+	return filtered
+}
+
+// removeExcludedIntentsFromQuery modifies the query to remove terms associated with excluded intents.
+// This allows the search to proceed without the excluded constraints.
+//
+// Intent type to query term mapping:
+//   - similar_to: "like X", "similar to X", "movies like X"
+//   - person: "directed by X", "starring X", "X movies" (name patterns)
+//   - decade: "90s", "1990s", "from the 90s"
+//   - studio: "pixar", "from studio X"
+//   - language: "french", "korean", nationality adjectives
+//   - collection: "all X movies", "X franchise"
+//   - playback: "4K", "HDR", "with subtitles"
+func (s *SearchService) removeExcludedIntentsFromQuery(query string, excluded map[string]bool) string {
+	if len(excluded) == 0 {
+		return query
+	}
+
+	result := query
+	q := strings.ToLower(query)
+
+	// Remove "similar to" patterns
+	if excluded["similar_to"] {
+		similarPatterns := []string{
+			"movies like ", "films like ", "shows like ", "series like ",
+			"similar to ", "something like ", "anything like ",
+			"like ", // catch-all, but be careful
+		}
+		for _, pattern := range similarPatterns {
+			if idx := strings.Index(q, pattern); idx != -1 {
+				// Remove pattern and everything after it (the title)
+				result = strings.TrimSpace(result[:idx])
+				q = strings.ToLower(result)
+				break
+			}
+		}
+	}
+
+	// Remove person-related patterns
+	if excluded["person"] {
+		personPatterns := []string{
+			"directed by ", "director ", "by director ",
+			"starring ", "with ", "featuring ", "acted by ", "played by ",
+			"written by ", "screenplay by ", "script by ", "writer ",
+			"produced by ", "producer ", "from producer ",
+			"music by ", "score by ", "composed by ", "composer ",
+			"cinematography by ", "shot by ", "dp ", "director of photography ",
+			"films by ", "movies by ",
+		}
+		for _, pattern := range personPatterns {
+			if idx := strings.Index(q, pattern); idx != -1 {
+				// Remove pattern and the name after it
+				afterPattern := idx + len(pattern)
+				// Find the end of the name (before common suffixes or end of string)
+				nameEnd := len(result)
+				for _, suffix := range []string{" films", " movies", " film", " movie", " in ", " from ", " with "} {
+					if suffixIdx := strings.Index(strings.ToLower(result[afterPattern:]), suffix); suffixIdx != -1 {
+						candidateEnd := afterPattern + suffixIdx
+						if candidateEnd < nameEnd {
+							nameEnd = candidateEnd
+						}
+					}
+				}
+				result = strings.TrimSpace(result[:idx] + result[nameEnd:])
+				q = strings.ToLower(result)
+			}
+		}
+		// Also handle "Name movies/films" pattern at the end
+		for _, suffix := range []string{" movies", " films"} {
+			if strings.HasSuffix(q, suffix) {
+				// Check if the part before the suffix looks like a name (capitalized words)
+				beforeSuffix := result[:len(result)-len(suffix)]
+				words := strings.Fields(beforeSuffix)
+				if len(words) > 0 {
+					// Check if last 1-3 words look like a name
+					nameWordCount := 0
+					for i := len(words) - 1; i >= 0 && i >= len(words)-3; i-- {
+						if len(words[i]) > 0 && words[i][0] >= 'A' && words[i][0] <= 'Z' {
+							nameWordCount++
+						} else {
+							break
+						}
+					}
+					if nameWordCount > 0 {
+						// Remove the name and suffix
+						result = strings.TrimSpace(strings.Join(words[:len(words)-nameWordCount], " "))
+						q = strings.ToLower(result)
+					}
+				}
+			}
+		}
+	}
+
+	// Remove decade patterns
+	if excluded["decade"] {
+		decadePatterns := []string{
+			"1920s", "1930s", "1940s", "1950s", "1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s",
+			"20s", "30s", "40s", "50s", "60s", "70s", "80s", "90s",
+			"from the ", "of the ",
+		}
+		for _, pattern := range decadePatterns {
+			result = strings.ReplaceAll(strings.ToLower(result), pattern, " ")
+		}
+		// Clean up extra spaces
+		result = strings.Join(strings.Fields(result), " ")
+		q = strings.ToLower(result)
+	}
+
+	// Remove studio patterns
+	if excluded["studio"] {
+		studioPatterns := []string{"from studio ", "studio "}
+		for _, pattern := range studioPatterns {
+			if idx := strings.Index(q, pattern); idx != -1 {
+				afterPattern := idx + len(pattern)
+				// Find end of studio name
+				nameEnd := len(result)
+				for _, suffix := range []string{" films", " movies", " film", " movie"} {
+					if suffixIdx := strings.Index(strings.ToLower(result[afterPattern:]), suffix); suffixIdx != -1 {
+						candidateEnd := afterPattern + suffixIdx
+						if candidateEnd < nameEnd {
+							nameEnd = candidateEnd
+						}
+					}
+				}
+				result = strings.TrimSpace(result[:idx] + result[nameEnd:])
+				q = strings.ToLower(result)
+			}
+		}
+	}
+
+	// Remove language patterns
+	if excluded["language"] {
+		languagePatterns := getDefaultLanguages()
+		for keyword := range languagePatterns {
+			result = strings.ReplaceAll(strings.ToLower(result), keyword, " ")
+		}
+		result = strings.Join(strings.Fields(result), " ")
+		q = strings.ToLower(result)
+	}
+
+	// Remove collection patterns
+	if excluded["collection"] {
+		collectionPatterns := []string{
+			"all ", " franchise", " saga", " series", " trilogy", " in order", " chronologically",
+		}
+		for _, pattern := range collectionPatterns {
+			result = strings.ReplaceAll(strings.ToLower(result), pattern, " ")
+		}
+		result = strings.Join(strings.Fields(result), " ")
+		q = strings.ToLower(result)
+	}
+
+	// Remove playback patterns
+	if excluded["playback"] {
+		playbackPatterns := []string{
+			"4k", "uhd", "2160p", "1080p", "full hd", "fhd", "720p", "hd", "8k", "4320p",
+			"dolby vision", "dv", "hdr10+", "hdr10", "hdr", "hlg",
+			"atmos", "dolby atmos", "truehd", "dts-hd", "dts:x", "5.1", "7.1", "surround",
+			"with subtitles", "subtitled", "with subs", "has subtitles",
+		}
+		for _, pattern := range playbackPatterns {
+			result = strings.ReplaceAll(strings.ToLower(result), pattern, " ")
+		}
+		result = strings.Join(strings.Fields(result), " ")
+	}
+
+	return strings.TrimSpace(result)
+}
+
 // SearchWithRecovery performs search with progressive relaxation on zero results.
 // It tries the normal search first, then progressively relaxes constraints if no results are found.
 // Recovery is NOT applied for "similar to" queries - they should fail gracefully.
@@ -2861,15 +3045,42 @@ func (s *SearchService) SearchWithRecovery(ctx context.Context, params SearchPar
 		return nil, fmt.Errorf("search service not properly initialized")
 	}
 
-	// Detect query intent to check for "similar to" queries
+	// Build excluded intent set for quick lookup
+	excludedIntents := make(map[string]bool)
+	for _, intent := range params.ExcludeIntents {
+		excludedIntents[intent] = true
+	}
+
+	// Modify query to remove excluded intent terms
+	modifiedQuery := params.Query
+	if len(excludedIntents) > 0 {
+		modifiedQuery = s.removeExcludedIntentsFromQuery(params.Query, excludedIntents)
+		s.logger.Debug("modified query for excluded intents",
+			"original", params.Query,
+			"modified", modifiedQuery,
+			"excluded", params.ExcludeIntents)
+	}
+
+	// Create modified params with the adjusted query
+	searchParams := SearchParams{
+		Query:               modifiedQuery,
+		EntityTypes:         params.EntityTypes,
+		Limit:               params.Limit,
+		ExcludeIntents:      params.ExcludeIntents,
+		PlaybackConstraints: params.PlaybackConstraints,
+	}
+
+	// Detect query intent from the ORIGINAL query (for chip display)
+	// but search with the modified query
 	intent := detectQueryIntent(params.Query)
 
-	// Convert intent to chips for the response
-	intentChips := intent.convertToIntentChips(params.Query)
+	// Convert intent to chips and filter out excluded ones
+	allChips := intent.convertToIntentChips(params.Query)
+	intentChips := filterExcludedChips(allChips, excludedIntents)
 
 	// Don't apply recovery for "similar to" queries - they should fail gracefully
-	if intent.isSimilarSearch {
-		results, err := s.Search(ctx, params)
+	if intent.isSimilarSearch && !excludedIntents["similar_to"] {
+		results, err := s.Search(ctx, searchParams)
 		if err != nil {
 			return nil, err
 		}
@@ -2881,7 +3092,7 @@ func (s *SearchService) SearchWithRecovery(ctx context.Context, params SearchPar
 	}
 
 	// Try normal search first
-	results, err := s.Search(ctx, params)
+	results, err := s.Search(ctx, searchParams)
 	if err != nil {
 		return nil, err
 	}

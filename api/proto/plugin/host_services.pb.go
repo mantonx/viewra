@@ -5583,6 +5583,83 @@ func (x *ListMediaByGenreRequest) GetLibraryId() int64 {
 	return 0
 }
 
+// ListMediaByDirectorRequest requests media items by a specific director.
+type ListMediaByDirectorRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MediaType     string                 `protobuf:"bytes,1,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`            // "movie" or "tv_show"
+	DirectorName  string                 `protobuf:"bytes,2,opt,name=director_name,json=directorName,proto3" json:"director_name,omitempty"`   // Director name to match (e.g., "Christopher Nolan")
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`                                    // Max results (default: 20)
+	ExcludeIds    []int64                `protobuf:"varint,4,rep,packed,name=exclude_ids,json=excludeIds,proto3" json:"exclude_ids,omitempty"` // Entity IDs to exclude from results
+	LibraryId     int64                  `protobuf:"varint,5,opt,name=library_id,json=libraryId,proto3" json:"library_id,omitempty"`           // Optional: 0 means all libraries
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListMediaByDirectorRequest) Reset() {
+	*x = ListMediaByDirectorRequest{}
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[86]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListMediaByDirectorRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListMediaByDirectorRequest) ProtoMessage() {}
+
+func (x *ListMediaByDirectorRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_host_services_proto_msgTypes[86]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListMediaByDirectorRequest.ProtoReflect.Descriptor instead.
+func (*ListMediaByDirectorRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_host_services_proto_rawDescGZIP(), []int{86}
+}
+
+func (x *ListMediaByDirectorRequest) GetMediaType() string {
+	if x != nil {
+		return x.MediaType
+	}
+	return ""
+}
+
+func (x *ListMediaByDirectorRequest) GetDirectorName() string {
+	if x != nil {
+		return x.DirectorName
+	}
+	return ""
+}
+
+func (x *ListMediaByDirectorRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListMediaByDirectorRequest) GetExcludeIds() []int64 {
+	if x != nil {
+		return x.ExcludeIds
+	}
+	return nil
+}
+
+func (x *ListMediaByDirectorRequest) GetLibraryId() int64 {
+	if x != nil {
+		return x.LibraryId
+	}
+	return 0
+}
+
 var File_api_proto_plugin_host_services_proto protoreflect.FileDescriptor
 
 const file_api_proto_plugin_host_services_proto_rawDesc = "" +
@@ -6057,6 +6134,15 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\vexclude_ids\x18\x04 \x03(\x03R\n" +
 	"excludeIds\x12\x1d\n" +
 	"\n" +
+	"library_id\x18\x05 \x01(\x03R\tlibraryId\"\xb6\x01\n" +
+	"\x1aListMediaByDirectorRequest\x12\x1d\n" +
+	"\n" +
+	"media_type\x18\x01 \x01(\tR\tmediaType\x12#\n" +
+	"\rdirector_name\x18\x02 \x01(\tR\fdirectorName\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x1f\n" +
+	"\vexclude_ids\x18\x04 \x03(\x03R\n" +
+	"excludeIds\x12\x1d\n" +
+	"\n" +
 	"library_id\x18\x05 \x01(\x03R\tlibraryId*\xd6\x02\n" +
 	"\x13CapabilityErrorCode\x12 \n" +
 	"\x1cCAPABILITY_ERROR_UNSPECIFIED\x10\x00\x12\x1e\n" +
@@ -6067,7 +6153,7 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\x18CAPABILITY_ERROR_TIMEOUT\x10\x05\x12!\n" +
 	"\x1dCAPABILITY_ERROR_RATE_LIMITED\x10\x06\x12#\n" +
 	"\x1fCAPABILITY_ERROR_NOT_CONFIGURED\x10\a\x12%\n" +
-	"!CAPABILITY_ERROR_VERSION_MISMATCH\x10\b2\x83\x05\n" +
+	"!CAPABILITY_ERROR_VERSION_MISMATCH\x10\b2\xe5\x05\n" +
 	"\bHostData\x12A\n" +
 	"\bGetMedia\x12\x1c.viewra.plugin.v1.MediaQuery\x1a\x17.viewra.plugin.v1.Media\x12O\n" +
 	"\x0fGetMediaDetails\x12\x1c.viewra.plugin.v1.MediaQuery\x1a\x1e.viewra.plugin.v1.MediaDetails\x12R\n" +
@@ -6077,7 +6163,8 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\n" +
 	"GetLibrary\x12\x1b.viewra.plugin.v1.LibraryId\x1a\x19.viewra.plugin.v1.Library\x12D\n" +
 	"\vGetFilePath\x12\x19.viewra.plugin.v1.MediaId\x1a\x1a.viewra.plugin.v1.FilePath\x12Z\n" +
-	"\x10ListMediaByGenre\x12).viewra.plugin.v1.ListMediaByGenreRequest\x1a\x1b.viewra.plugin.v1.MediaList2\xd4\n" +
+	"\x10ListMediaByGenre\x12).viewra.plugin.v1.ListMediaByGenreRequest\x1a\x1b.viewra.plugin.v1.MediaList\x12`\n" +
+	"\x13ListMediaByDirector\x12,.viewra.plugin.v1.ListMediaByDirectorRequest\x1a\x1b.viewra.plugin.v1.MediaList2\xd4\n" +
 	"\n" +
 	"\vHostStorage\x12;\n" +
 	"\x05KVGet\x12\x17.viewra.plugin.v1.KVKey\x1a\x19.viewra.plugin.v1.KVValue\x12;\n" +
@@ -6143,7 +6230,7 @@ func file_api_proto_plugin_host_services_proto_rawDescGZIP() []byte {
 }
 
 var file_api_proto_plugin_host_services_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_proto_plugin_host_services_proto_msgTypes = make([]protoimpl.MessageInfo, 92)
+var file_api_proto_plugin_host_services_proto_msgTypes = make([]protoimpl.MessageInfo, 93)
 var file_api_proto_plugin_host_services_proto_goTypes = []any{
 	(CapabilityErrorCode)(0),               // 0: viewra.plugin.v1.CapabilityErrorCode
 	(*MediaQuery)(nil),                     // 1: viewra.plugin.v1.MediaQuery
@@ -6232,21 +6319,22 @@ var file_api_proto_plugin_host_services_proto_goTypes = []any{
 	(*VectorSearchInvokeRequest)(nil),      // 84: viewra.plugin.v1.VectorSearchInvokeRequest
 	(*VectorSearchInvokeResponse)(nil),     // 85: viewra.plugin.v1.VectorSearchInvokeResponse
 	(*ListMediaByGenreRequest)(nil),        // 86: viewra.plugin.v1.ListMediaByGenreRequest
-	nil,                                    // 87: viewra.plugin.v1.Media.ExternalIdsEntry
-	nil,                                    // 88: viewra.plugin.v1.MediaDetails.ExternalIdsEntry
-	nil,                                    // 89: viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
-	nil,                                    // 90: viewra.plugin.v1.CapabilityPreferencesResponse.PreferencesEntry
-	nil,                                    // 91: viewra.plugin.v1.CapabilityInvokeRequest.MetadataEntry
-	nil,                                    // 92: viewra.plugin.v1.CapabilityInvokeResponse.MetadataEntry
-	(*FindSimilarRequest)(nil),             // 93: viewra.plugin.v1.FindSimilarRequest
-	(*SemanticSearchRequest)(nil),          // 94: viewra.plugin.v1.SemanticSearchRequest
-	(*SemanticSearchResponse)(nil),         // 95: viewra.plugin.v1.SemanticSearchResponse
-	(*Empty)(nil),                          // 96: viewra.plugin.v1.Empty
+	(*ListMediaByDirectorRequest)(nil),     // 87: viewra.plugin.v1.ListMediaByDirectorRequest
+	nil,                                    // 88: viewra.plugin.v1.Media.ExternalIdsEntry
+	nil,                                    // 89: viewra.plugin.v1.MediaDetails.ExternalIdsEntry
+	nil,                                    // 90: viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
+	nil,                                    // 91: viewra.plugin.v1.CapabilityPreferencesResponse.PreferencesEntry
+	nil,                                    // 92: viewra.plugin.v1.CapabilityInvokeRequest.MetadataEntry
+	nil,                                    // 93: viewra.plugin.v1.CapabilityInvokeResponse.MetadataEntry
+	(*FindSimilarRequest)(nil),             // 94: viewra.plugin.v1.FindSimilarRequest
+	(*SemanticSearchRequest)(nil),          // 95: viewra.plugin.v1.SemanticSearchRequest
+	(*SemanticSearchResponse)(nil),         // 96: viewra.plugin.v1.SemanticSearchResponse
+	(*Empty)(nil),                          // 97: viewra.plugin.v1.Empty
 }
 var file_api_proto_plugin_host_services_proto_depIdxs = []int32{
-	87, // 0: viewra.plugin.v1.Media.external_ids:type_name -> viewra.plugin.v1.Media.ExternalIdsEntry
+	88, // 0: viewra.plugin.v1.Media.external_ids:type_name -> viewra.plugin.v1.Media.ExternalIdsEntry
 	5,  // 1: viewra.plugin.v1.MediaList.items:type_name -> viewra.plugin.v1.Media
-	88, // 2: viewra.plugin.v1.MediaDetails.external_ids:type_name -> viewra.plugin.v1.MediaDetails.ExternalIdsEntry
+	89, // 2: viewra.plugin.v1.MediaDetails.external_ids:type_name -> viewra.plugin.v1.MediaDetails.ExternalIdsEntry
 	15, // 3: viewra.plugin.v1.MediaDetails.cast:type_name -> viewra.plugin.v1.MediaCastMember
 	12, // 4: viewra.plugin.v1.MediaDetails.playback_info:type_name -> viewra.plugin.v1.PlaybackInfo
 	13, // 5: viewra.plugin.v1.PlaybackInfo.audio_tracks:type_name -> viewra.plugin.v1.AudioTrack
@@ -6257,25 +6345,25 @@ var file_api_proto_plugin_host_services_proto_depIdxs = []int32{
 	26, // 10: viewra.plugin.v1.SQLRow.values:type_name -> viewra.plugin.v1.SQLValue
 	30, // 11: viewra.plugin.v1.VectorStoreBatchRequest.embeddings:type_name -> viewra.plugin.v1.VectorStoreRequest
 	35, // 12: viewra.plugin.v1.VectorSearchResponse.results:type_name -> viewra.plugin.v1.VectorSearchResult
-	89, // 13: viewra.plugin.v1.NFOMetadata.external_ids:type_name -> viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
+	90, // 13: viewra.plugin.v1.NFOMetadata.external_ids:type_name -> viewra.plugin.v1.NFOMetadata.ExternalIdsEntry
 	48, // 14: viewra.plugin.v1.NFOMetadata.actors:type_name -> viewra.plugin.v1.NFOActor
 	51, // 15: viewra.plugin.v1.ExtractImagesResponse.images:type_name -> viewra.plugin.v1.ExtractedImage
 	56, // 16: viewra.plugin.v1.CapabilityListResponse.capabilities:type_name -> viewra.plugin.v1.CapabilityInfo
 	57, // 17: viewra.plugin.v1.CapabilityInfo.providers:type_name -> viewra.plugin.v1.PluginProviderInfo
 	57, // 18: viewra.plugin.v1.ProviderListResponse.providers:type_name -> viewra.plugin.v1.PluginProviderInfo
-	90, // 19: viewra.plugin.v1.CapabilityPreferencesResponse.preferences:type_name -> viewra.plugin.v1.CapabilityPreferencesResponse.PreferencesEntry
-	91, // 20: viewra.plugin.v1.CapabilityInvokeRequest.metadata:type_name -> viewra.plugin.v1.CapabilityInvokeRequest.MetadataEntry
+	91, // 19: viewra.plugin.v1.CapabilityPreferencesResponse.preferences:type_name -> viewra.plugin.v1.CapabilityPreferencesResponse.PreferencesEntry
+	92, // 20: viewra.plugin.v1.CapabilityInvokeRequest.metadata:type_name -> viewra.plugin.v1.CapabilityInvokeRequest.MetadataEntry
 	63, // 21: viewra.plugin.v1.CapabilityInvokeResponse.error:type_name -> viewra.plugin.v1.CapabilityError
-	92, // 22: viewra.plugin.v1.CapabilityInvokeResponse.metadata:type_name -> viewra.plugin.v1.CapabilityInvokeResponse.MetadataEntry
+	93, // 22: viewra.plugin.v1.CapabilityInvokeResponse.metadata:type_name -> viewra.plugin.v1.CapabilityInvokeResponse.MetadataEntry
 	0,  // 23: viewra.plugin.v1.CapabilityError.code:type_name -> viewra.plugin.v1.CapabilityErrorCode
 	66, // 24: viewra.plugin.v1.DescribeCapabilityResponse.methods:type_name -> viewra.plugin.v1.CapabilityMethodInfo
 	67, // 25: viewra.plugin.v1.DescribeCapabilityResponse.providers:type_name -> viewra.plugin.v1.DescribeCapabilityProviderInfo
 	70, // 26: viewra.plugin.v1.ListRatingsResponse.ratings:type_name -> viewra.plugin.v1.UserRating
 	80, // 27: viewra.plugin.v1.ListWatchedItemsResponse.items:type_name -> viewra.plugin.v1.WatchProgressItem
 	80, // 28: viewra.plugin.v1.ListInProgressItemsResponse.items:type_name -> viewra.plugin.v1.WatchProgressItem
-	93, // 29: viewra.plugin.v1.VectorSearchInvokeRequest.find_similar:type_name -> viewra.plugin.v1.FindSimilarRequest
-	94, // 30: viewra.plugin.v1.VectorSearchInvokeRequest.search:type_name -> viewra.plugin.v1.SemanticSearchRequest
-	95, // 31: viewra.plugin.v1.VectorSearchInvokeResponse.response:type_name -> viewra.plugin.v1.SemanticSearchResponse
+	94, // 29: viewra.plugin.v1.VectorSearchInvokeRequest.find_similar:type_name -> viewra.plugin.v1.FindSimilarRequest
+	95, // 30: viewra.plugin.v1.VectorSearchInvokeRequest.search:type_name -> viewra.plugin.v1.SemanticSearchRequest
+	96, // 31: viewra.plugin.v1.VectorSearchInvokeResponse.response:type_name -> viewra.plugin.v1.SemanticSearchResponse
 	63, // 32: viewra.plugin.v1.VectorSearchInvokeResponse.error:type_name -> viewra.plugin.v1.CapabilityError
 	1,  // 33: viewra.plugin.v1.HostData.GetMedia:input_type -> viewra.plugin.v1.MediaQuery
 	1,  // 34: viewra.plugin.v1.HostData.GetMediaDetails:input_type -> viewra.plugin.v1.MediaQuery
@@ -6285,98 +6373,100 @@ var file_api_proto_plugin_host_services_proto_depIdxs = []int32{
 	7,  // 38: viewra.plugin.v1.HostData.GetLibrary:input_type -> viewra.plugin.v1.LibraryId
 	2,  // 39: viewra.plugin.v1.HostData.GetFilePath:input_type -> viewra.plugin.v1.MediaId
 	86, // 40: viewra.plugin.v1.HostData.ListMediaByGenre:input_type -> viewra.plugin.v1.ListMediaByGenreRequest
-	17, // 41: viewra.plugin.v1.HostStorage.KVGet:input_type -> viewra.plugin.v1.KVKey
-	19, // 42: viewra.plugin.v1.HostStorage.KVSet:input_type -> viewra.plugin.v1.KVEntry
-	17, // 43: viewra.plugin.v1.HostStorage.KVDelete:input_type -> viewra.plugin.v1.KVKey
-	20, // 44: viewra.plugin.v1.HostStorage.KVList:input_type -> viewra.plugin.v1.KVListRequest
-	96, // 45: viewra.plugin.v1.HostStorage.GetDatabasePath:input_type -> viewra.plugin.v1.Empty
-	23, // 46: viewra.plugin.v1.HostStorage.RegisterSchema:input_type -> viewra.plugin.v1.SchemaVersion
-	96, // 47: viewra.plugin.v1.HostStorage.GetDatabaseStats:input_type -> viewra.plugin.v1.Empty
-	25, // 48: viewra.plugin.v1.HostStorage.ExecuteSQL:input_type -> viewra.plugin.v1.SQLRequest
-	25, // 49: viewra.plugin.v1.HostStorage.QuerySQL:input_type -> viewra.plugin.v1.SQLRequest
-	30, // 50: viewra.plugin.v1.HostStorage.VectorStoreEmbedding:input_type -> viewra.plugin.v1.VectorStoreRequest
-	31, // 51: viewra.plugin.v1.HostStorage.VectorStoreBatch:input_type -> viewra.plugin.v1.VectorStoreBatchRequest
-	32, // 52: viewra.plugin.v1.HostStorage.VectorSearch:input_type -> viewra.plugin.v1.VectorSearchRequest
-	33, // 53: viewra.plugin.v1.HostStorage.VectorSearchText:input_type -> viewra.plugin.v1.VectorTextSearchRequest
-	36, // 54: viewra.plugin.v1.HostStorage.VectorGet:input_type -> viewra.plugin.v1.VectorQuery
-	36, // 55: viewra.plugin.v1.HostStorage.VectorDelete:input_type -> viewra.plugin.v1.VectorQuery
-	38, // 56: viewra.plugin.v1.HostStorage.VectorDeleteByType:input_type -> viewra.plugin.v1.VectorTypeQuery
-	38, // 57: viewra.plugin.v1.HostStorage.VectorCount:input_type -> viewra.plugin.v1.VectorTypeQuery
-	42, // 58: viewra.plugin.v1.HostUserMetadata.Get:input_type -> viewra.plugin.v1.UserMetadataKey
-	44, // 59: viewra.plugin.v1.HostUserMetadata.Set:input_type -> viewra.plugin.v1.UserMetadataEntry
-	42, // 60: viewra.plugin.v1.HostUserMetadata.Delete:input_type -> viewra.plugin.v1.UserMetadataKey
-	41, // 61: viewra.plugin.v1.HostUserMetadata.ListKeys:input_type -> viewra.plugin.v1.UserId
-	46, // 62: viewra.plugin.v1.HostFileParser.ParseNFO:input_type -> viewra.plugin.v1.ParseNFORequest
-	49, // 63: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:input_type -> viewra.plugin.v1.ExtractImagesRequest
-	52, // 64: viewra.plugin.v1.HostWeather.GetCurrentWeather:input_type -> viewra.plugin.v1.WeatherRequest
-	68, // 65: viewra.plugin.v1.HostRatings.ListRatings:input_type -> viewra.plugin.v1.ListRatingsRequest
-	71, // 66: viewra.plugin.v1.HostRatings.GetRatedEntityIDs:input_type -> viewra.plugin.v1.GetRatedEntityIDsRequest
-	72, // 67: viewra.plugin.v1.HostRatings.GetPositivelyRatedIDs:input_type -> viewra.plugin.v1.GetPositivelyRatedIDsRequest
-	74, // 68: viewra.plugin.v1.HostRatings.HasRatings:input_type -> viewra.plugin.v1.HasRatingsRequest
-	96, // 69: viewra.plugin.v1.HostPlugins.ListCapabilities:input_type -> viewra.plugin.v1.Empty
-	54, // 70: viewra.plugin.v1.HostPlugins.ListProviders:input_type -> viewra.plugin.v1.CapabilityRequest
-	59, // 71: viewra.plugin.v1.HostPlugins.SetCapabilityPreference:input_type -> viewra.plugin.v1.CapabilityPreferenceRequest
-	59, // 72: viewra.plugin.v1.HostPlugins.ClearCapabilityPreference:input_type -> viewra.plugin.v1.CapabilityPreferenceRequest
-	96, // 73: viewra.plugin.v1.HostPlugins.GetCapabilityPreferences:input_type -> viewra.plugin.v1.Empty
-	61, // 74: viewra.plugin.v1.HostPlugins.InvokeCapability:input_type -> viewra.plugin.v1.CapabilityInvokeRequest
-	61, // 75: viewra.plugin.v1.HostPlugins.InvokeCapabilityStream:input_type -> viewra.plugin.v1.CapabilityInvokeRequest
-	64, // 76: viewra.plugin.v1.HostPlugins.DescribeCapability:input_type -> viewra.plugin.v1.DescribeCapabilityRequest
-	84, // 77: viewra.plugin.v1.HostPlugins.InvokeVectorSearch:input_type -> viewra.plugin.v1.VectorSearchInvokeRequest
-	76, // 78: viewra.plugin.v1.HostProgress.ListWatchedItems:input_type -> viewra.plugin.v1.ListWatchedItemsRequest
-	78, // 79: viewra.plugin.v1.HostProgress.ListInProgressItems:input_type -> viewra.plugin.v1.ListInProgressItemsRequest
-	81, // 80: viewra.plugin.v1.HostProgress.GetWatchedEntityIDs:input_type -> viewra.plugin.v1.GetWatchedEntityIDsRequest
-	82, // 81: viewra.plugin.v1.HostProgress.HasWatchHistory:input_type -> viewra.plugin.v1.HasWatchHistoryRequest
-	5,  // 82: viewra.plugin.v1.HostData.GetMedia:output_type -> viewra.plugin.v1.Media
-	11, // 83: viewra.plugin.v1.HostData.GetMediaDetails:output_type -> viewra.plugin.v1.MediaDetails
-	5,  // 84: viewra.plugin.v1.HostData.GetMediaByExternalId:output_type -> viewra.plugin.v1.Media
-	6,  // 85: viewra.plugin.v1.HostData.SearchMedia:output_type -> viewra.plugin.v1.MediaList
-	16, // 86: viewra.plugin.v1.HostData.ListMediaByLibrary:output_type -> viewra.plugin.v1.MediaDetailsList
-	8,  // 87: viewra.plugin.v1.HostData.GetLibrary:output_type -> viewra.plugin.v1.Library
-	9,  // 88: viewra.plugin.v1.HostData.GetFilePath:output_type -> viewra.plugin.v1.FilePath
-	6,  // 89: viewra.plugin.v1.HostData.ListMediaByGenre:output_type -> viewra.plugin.v1.MediaList
-	18, // 90: viewra.plugin.v1.HostStorage.KVGet:output_type -> viewra.plugin.v1.KVValue
-	96, // 91: viewra.plugin.v1.HostStorage.KVSet:output_type -> viewra.plugin.v1.Empty
-	96, // 92: viewra.plugin.v1.HostStorage.KVDelete:output_type -> viewra.plugin.v1.Empty
-	21, // 93: viewra.plugin.v1.HostStorage.KVList:output_type -> viewra.plugin.v1.KVKeyList
-	22, // 94: viewra.plugin.v1.HostStorage.GetDatabasePath:output_type -> viewra.plugin.v1.DatabasePath
-	96, // 95: viewra.plugin.v1.HostStorage.RegisterSchema:output_type -> viewra.plugin.v1.Empty
-	24, // 96: viewra.plugin.v1.HostStorage.GetDatabaseStats:output_type -> viewra.plugin.v1.DatabaseStats
-	27, // 97: viewra.plugin.v1.HostStorage.ExecuteSQL:output_type -> viewra.plugin.v1.SQLExecResult
-	28, // 98: viewra.plugin.v1.HostStorage.QuerySQL:output_type -> viewra.plugin.v1.SQLQueryResult
-	96, // 99: viewra.plugin.v1.HostStorage.VectorStoreEmbedding:output_type -> viewra.plugin.v1.Empty
-	96, // 100: viewra.plugin.v1.HostStorage.VectorStoreBatch:output_type -> viewra.plugin.v1.Empty
-	34, // 101: viewra.plugin.v1.HostStorage.VectorSearch:output_type -> viewra.plugin.v1.VectorSearchResponse
-	34, // 102: viewra.plugin.v1.HostStorage.VectorSearchText:output_type -> viewra.plugin.v1.VectorSearchResponse
-	37, // 103: viewra.plugin.v1.HostStorage.VectorGet:output_type -> viewra.plugin.v1.VectorGetResponse
-	96, // 104: viewra.plugin.v1.HostStorage.VectorDelete:output_type -> viewra.plugin.v1.Empty
-	39, // 105: viewra.plugin.v1.HostStorage.VectorDeleteByType:output_type -> viewra.plugin.v1.VectorDeleteResponse
-	40, // 106: viewra.plugin.v1.HostStorage.VectorCount:output_type -> viewra.plugin.v1.VectorCountResponse
-	43, // 107: viewra.plugin.v1.HostUserMetadata.Get:output_type -> viewra.plugin.v1.UserMetadataValue
-	96, // 108: viewra.plugin.v1.HostUserMetadata.Set:output_type -> viewra.plugin.v1.Empty
-	96, // 109: viewra.plugin.v1.HostUserMetadata.Delete:output_type -> viewra.plugin.v1.Empty
-	45, // 110: viewra.plugin.v1.HostUserMetadata.ListKeys:output_type -> viewra.plugin.v1.UserMetadataKeyList
-	47, // 111: viewra.plugin.v1.HostFileParser.ParseNFO:output_type -> viewra.plugin.v1.NFOMetadata
-	50, // 112: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:output_type -> viewra.plugin.v1.ExtractImagesResponse
-	53, // 113: viewra.plugin.v1.HostWeather.GetCurrentWeather:output_type -> viewra.plugin.v1.WeatherResponse
-	69, // 114: viewra.plugin.v1.HostRatings.ListRatings:output_type -> viewra.plugin.v1.ListRatingsResponse
-	73, // 115: viewra.plugin.v1.HostRatings.GetRatedEntityIDs:output_type -> viewra.plugin.v1.EntityIDsResponse
-	73, // 116: viewra.plugin.v1.HostRatings.GetPositivelyRatedIDs:output_type -> viewra.plugin.v1.EntityIDsResponse
-	75, // 117: viewra.plugin.v1.HostRatings.HasRatings:output_type -> viewra.plugin.v1.HasRatingsResponse
-	55, // 118: viewra.plugin.v1.HostPlugins.ListCapabilities:output_type -> viewra.plugin.v1.CapabilityListResponse
-	58, // 119: viewra.plugin.v1.HostPlugins.ListProviders:output_type -> viewra.plugin.v1.ProviderListResponse
-	96, // 120: viewra.plugin.v1.HostPlugins.SetCapabilityPreference:output_type -> viewra.plugin.v1.Empty
-	96, // 121: viewra.plugin.v1.HostPlugins.ClearCapabilityPreference:output_type -> viewra.plugin.v1.Empty
-	60, // 122: viewra.plugin.v1.HostPlugins.GetCapabilityPreferences:output_type -> viewra.plugin.v1.CapabilityPreferencesResponse
-	62, // 123: viewra.plugin.v1.HostPlugins.InvokeCapability:output_type -> viewra.plugin.v1.CapabilityInvokeResponse
-	62, // 124: viewra.plugin.v1.HostPlugins.InvokeCapabilityStream:output_type -> viewra.plugin.v1.CapabilityInvokeResponse
-	65, // 125: viewra.plugin.v1.HostPlugins.DescribeCapability:output_type -> viewra.plugin.v1.DescribeCapabilityResponse
-	85, // 126: viewra.plugin.v1.HostPlugins.InvokeVectorSearch:output_type -> viewra.plugin.v1.VectorSearchInvokeResponse
-	77, // 127: viewra.plugin.v1.HostProgress.ListWatchedItems:output_type -> viewra.plugin.v1.ListWatchedItemsResponse
-	79, // 128: viewra.plugin.v1.HostProgress.ListInProgressItems:output_type -> viewra.plugin.v1.ListInProgressItemsResponse
-	73, // 129: viewra.plugin.v1.HostProgress.GetWatchedEntityIDs:output_type -> viewra.plugin.v1.EntityIDsResponse
-	83, // 130: viewra.plugin.v1.HostProgress.HasWatchHistory:output_type -> viewra.plugin.v1.HasWatchHistoryResponse
-	82, // [82:131] is the sub-list for method output_type
-	33, // [33:82] is the sub-list for method input_type
+	87, // 41: viewra.plugin.v1.HostData.ListMediaByDirector:input_type -> viewra.plugin.v1.ListMediaByDirectorRequest
+	17, // 42: viewra.plugin.v1.HostStorage.KVGet:input_type -> viewra.plugin.v1.KVKey
+	19, // 43: viewra.plugin.v1.HostStorage.KVSet:input_type -> viewra.plugin.v1.KVEntry
+	17, // 44: viewra.plugin.v1.HostStorage.KVDelete:input_type -> viewra.plugin.v1.KVKey
+	20, // 45: viewra.plugin.v1.HostStorage.KVList:input_type -> viewra.plugin.v1.KVListRequest
+	97, // 46: viewra.plugin.v1.HostStorage.GetDatabasePath:input_type -> viewra.plugin.v1.Empty
+	23, // 47: viewra.plugin.v1.HostStorage.RegisterSchema:input_type -> viewra.plugin.v1.SchemaVersion
+	97, // 48: viewra.plugin.v1.HostStorage.GetDatabaseStats:input_type -> viewra.plugin.v1.Empty
+	25, // 49: viewra.plugin.v1.HostStorage.ExecuteSQL:input_type -> viewra.plugin.v1.SQLRequest
+	25, // 50: viewra.plugin.v1.HostStorage.QuerySQL:input_type -> viewra.plugin.v1.SQLRequest
+	30, // 51: viewra.plugin.v1.HostStorage.VectorStoreEmbedding:input_type -> viewra.plugin.v1.VectorStoreRequest
+	31, // 52: viewra.plugin.v1.HostStorage.VectorStoreBatch:input_type -> viewra.plugin.v1.VectorStoreBatchRequest
+	32, // 53: viewra.plugin.v1.HostStorage.VectorSearch:input_type -> viewra.plugin.v1.VectorSearchRequest
+	33, // 54: viewra.plugin.v1.HostStorage.VectorSearchText:input_type -> viewra.plugin.v1.VectorTextSearchRequest
+	36, // 55: viewra.plugin.v1.HostStorage.VectorGet:input_type -> viewra.plugin.v1.VectorQuery
+	36, // 56: viewra.plugin.v1.HostStorage.VectorDelete:input_type -> viewra.plugin.v1.VectorQuery
+	38, // 57: viewra.plugin.v1.HostStorage.VectorDeleteByType:input_type -> viewra.plugin.v1.VectorTypeQuery
+	38, // 58: viewra.plugin.v1.HostStorage.VectorCount:input_type -> viewra.plugin.v1.VectorTypeQuery
+	42, // 59: viewra.plugin.v1.HostUserMetadata.Get:input_type -> viewra.plugin.v1.UserMetadataKey
+	44, // 60: viewra.plugin.v1.HostUserMetadata.Set:input_type -> viewra.plugin.v1.UserMetadataEntry
+	42, // 61: viewra.plugin.v1.HostUserMetadata.Delete:input_type -> viewra.plugin.v1.UserMetadataKey
+	41, // 62: viewra.plugin.v1.HostUserMetadata.ListKeys:input_type -> viewra.plugin.v1.UserId
+	46, // 63: viewra.plugin.v1.HostFileParser.ParseNFO:input_type -> viewra.plugin.v1.ParseNFORequest
+	49, // 64: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:input_type -> viewra.plugin.v1.ExtractImagesRequest
+	52, // 65: viewra.plugin.v1.HostWeather.GetCurrentWeather:input_type -> viewra.plugin.v1.WeatherRequest
+	68, // 66: viewra.plugin.v1.HostRatings.ListRatings:input_type -> viewra.plugin.v1.ListRatingsRequest
+	71, // 67: viewra.plugin.v1.HostRatings.GetRatedEntityIDs:input_type -> viewra.plugin.v1.GetRatedEntityIDsRequest
+	72, // 68: viewra.plugin.v1.HostRatings.GetPositivelyRatedIDs:input_type -> viewra.plugin.v1.GetPositivelyRatedIDsRequest
+	74, // 69: viewra.plugin.v1.HostRatings.HasRatings:input_type -> viewra.plugin.v1.HasRatingsRequest
+	97, // 70: viewra.plugin.v1.HostPlugins.ListCapabilities:input_type -> viewra.plugin.v1.Empty
+	54, // 71: viewra.plugin.v1.HostPlugins.ListProviders:input_type -> viewra.plugin.v1.CapabilityRequest
+	59, // 72: viewra.plugin.v1.HostPlugins.SetCapabilityPreference:input_type -> viewra.plugin.v1.CapabilityPreferenceRequest
+	59, // 73: viewra.plugin.v1.HostPlugins.ClearCapabilityPreference:input_type -> viewra.plugin.v1.CapabilityPreferenceRequest
+	97, // 74: viewra.plugin.v1.HostPlugins.GetCapabilityPreferences:input_type -> viewra.plugin.v1.Empty
+	61, // 75: viewra.plugin.v1.HostPlugins.InvokeCapability:input_type -> viewra.plugin.v1.CapabilityInvokeRequest
+	61, // 76: viewra.plugin.v1.HostPlugins.InvokeCapabilityStream:input_type -> viewra.plugin.v1.CapabilityInvokeRequest
+	64, // 77: viewra.plugin.v1.HostPlugins.DescribeCapability:input_type -> viewra.plugin.v1.DescribeCapabilityRequest
+	84, // 78: viewra.plugin.v1.HostPlugins.InvokeVectorSearch:input_type -> viewra.plugin.v1.VectorSearchInvokeRequest
+	76, // 79: viewra.plugin.v1.HostProgress.ListWatchedItems:input_type -> viewra.plugin.v1.ListWatchedItemsRequest
+	78, // 80: viewra.plugin.v1.HostProgress.ListInProgressItems:input_type -> viewra.plugin.v1.ListInProgressItemsRequest
+	81, // 81: viewra.plugin.v1.HostProgress.GetWatchedEntityIDs:input_type -> viewra.plugin.v1.GetWatchedEntityIDsRequest
+	82, // 82: viewra.plugin.v1.HostProgress.HasWatchHistory:input_type -> viewra.plugin.v1.HasWatchHistoryRequest
+	5,  // 83: viewra.plugin.v1.HostData.GetMedia:output_type -> viewra.plugin.v1.Media
+	11, // 84: viewra.plugin.v1.HostData.GetMediaDetails:output_type -> viewra.plugin.v1.MediaDetails
+	5,  // 85: viewra.plugin.v1.HostData.GetMediaByExternalId:output_type -> viewra.plugin.v1.Media
+	6,  // 86: viewra.plugin.v1.HostData.SearchMedia:output_type -> viewra.plugin.v1.MediaList
+	16, // 87: viewra.plugin.v1.HostData.ListMediaByLibrary:output_type -> viewra.plugin.v1.MediaDetailsList
+	8,  // 88: viewra.plugin.v1.HostData.GetLibrary:output_type -> viewra.plugin.v1.Library
+	9,  // 89: viewra.plugin.v1.HostData.GetFilePath:output_type -> viewra.plugin.v1.FilePath
+	6,  // 90: viewra.plugin.v1.HostData.ListMediaByGenre:output_type -> viewra.plugin.v1.MediaList
+	6,  // 91: viewra.plugin.v1.HostData.ListMediaByDirector:output_type -> viewra.plugin.v1.MediaList
+	18, // 92: viewra.plugin.v1.HostStorage.KVGet:output_type -> viewra.plugin.v1.KVValue
+	97, // 93: viewra.plugin.v1.HostStorage.KVSet:output_type -> viewra.plugin.v1.Empty
+	97, // 94: viewra.plugin.v1.HostStorage.KVDelete:output_type -> viewra.plugin.v1.Empty
+	21, // 95: viewra.plugin.v1.HostStorage.KVList:output_type -> viewra.plugin.v1.KVKeyList
+	22, // 96: viewra.plugin.v1.HostStorage.GetDatabasePath:output_type -> viewra.plugin.v1.DatabasePath
+	97, // 97: viewra.plugin.v1.HostStorage.RegisterSchema:output_type -> viewra.plugin.v1.Empty
+	24, // 98: viewra.plugin.v1.HostStorage.GetDatabaseStats:output_type -> viewra.plugin.v1.DatabaseStats
+	27, // 99: viewra.plugin.v1.HostStorage.ExecuteSQL:output_type -> viewra.plugin.v1.SQLExecResult
+	28, // 100: viewra.plugin.v1.HostStorage.QuerySQL:output_type -> viewra.plugin.v1.SQLQueryResult
+	97, // 101: viewra.plugin.v1.HostStorage.VectorStoreEmbedding:output_type -> viewra.plugin.v1.Empty
+	97, // 102: viewra.plugin.v1.HostStorage.VectorStoreBatch:output_type -> viewra.plugin.v1.Empty
+	34, // 103: viewra.plugin.v1.HostStorage.VectorSearch:output_type -> viewra.plugin.v1.VectorSearchResponse
+	34, // 104: viewra.plugin.v1.HostStorage.VectorSearchText:output_type -> viewra.plugin.v1.VectorSearchResponse
+	37, // 105: viewra.plugin.v1.HostStorage.VectorGet:output_type -> viewra.plugin.v1.VectorGetResponse
+	97, // 106: viewra.plugin.v1.HostStorage.VectorDelete:output_type -> viewra.plugin.v1.Empty
+	39, // 107: viewra.plugin.v1.HostStorage.VectorDeleteByType:output_type -> viewra.plugin.v1.VectorDeleteResponse
+	40, // 108: viewra.plugin.v1.HostStorage.VectorCount:output_type -> viewra.plugin.v1.VectorCountResponse
+	43, // 109: viewra.plugin.v1.HostUserMetadata.Get:output_type -> viewra.plugin.v1.UserMetadataValue
+	97, // 110: viewra.plugin.v1.HostUserMetadata.Set:output_type -> viewra.plugin.v1.Empty
+	97, // 111: viewra.plugin.v1.HostUserMetadata.Delete:output_type -> viewra.plugin.v1.Empty
+	45, // 112: viewra.plugin.v1.HostUserMetadata.ListKeys:output_type -> viewra.plugin.v1.UserMetadataKeyList
+	47, // 113: viewra.plugin.v1.HostFileParser.ParseNFO:output_type -> viewra.plugin.v1.NFOMetadata
+	50, // 114: viewra.plugin.v1.HostFileParser.ExtractEmbeddedImages:output_type -> viewra.plugin.v1.ExtractImagesResponse
+	53, // 115: viewra.plugin.v1.HostWeather.GetCurrentWeather:output_type -> viewra.plugin.v1.WeatherResponse
+	69, // 116: viewra.plugin.v1.HostRatings.ListRatings:output_type -> viewra.plugin.v1.ListRatingsResponse
+	73, // 117: viewra.plugin.v1.HostRatings.GetRatedEntityIDs:output_type -> viewra.plugin.v1.EntityIDsResponse
+	73, // 118: viewra.plugin.v1.HostRatings.GetPositivelyRatedIDs:output_type -> viewra.plugin.v1.EntityIDsResponse
+	75, // 119: viewra.plugin.v1.HostRatings.HasRatings:output_type -> viewra.plugin.v1.HasRatingsResponse
+	55, // 120: viewra.plugin.v1.HostPlugins.ListCapabilities:output_type -> viewra.plugin.v1.CapabilityListResponse
+	58, // 121: viewra.plugin.v1.HostPlugins.ListProviders:output_type -> viewra.plugin.v1.ProviderListResponse
+	97, // 122: viewra.plugin.v1.HostPlugins.SetCapabilityPreference:output_type -> viewra.plugin.v1.Empty
+	97, // 123: viewra.plugin.v1.HostPlugins.ClearCapabilityPreference:output_type -> viewra.plugin.v1.Empty
+	60, // 124: viewra.plugin.v1.HostPlugins.GetCapabilityPreferences:output_type -> viewra.plugin.v1.CapabilityPreferencesResponse
+	62, // 125: viewra.plugin.v1.HostPlugins.InvokeCapability:output_type -> viewra.plugin.v1.CapabilityInvokeResponse
+	62, // 126: viewra.plugin.v1.HostPlugins.InvokeCapabilityStream:output_type -> viewra.plugin.v1.CapabilityInvokeResponse
+	65, // 127: viewra.plugin.v1.HostPlugins.DescribeCapability:output_type -> viewra.plugin.v1.DescribeCapabilityResponse
+	85, // 128: viewra.plugin.v1.HostPlugins.InvokeVectorSearch:output_type -> viewra.plugin.v1.VectorSearchInvokeResponse
+	77, // 129: viewra.plugin.v1.HostProgress.ListWatchedItems:output_type -> viewra.plugin.v1.ListWatchedItemsResponse
+	79, // 130: viewra.plugin.v1.HostProgress.ListInProgressItems:output_type -> viewra.plugin.v1.ListInProgressItemsResponse
+	73, // 131: viewra.plugin.v1.HostProgress.GetWatchedEntityIDs:output_type -> viewra.plugin.v1.EntityIDsResponse
+	83, // 132: viewra.plugin.v1.HostProgress.HasWatchHistory:output_type -> viewra.plugin.v1.HasWatchHistoryResponse
+	83, // [83:133] is the sub-list for method output_type
+	33, // [33:83] is the sub-list for method input_type
 	33, // [33:33] is the sub-list for extension type_name
 	33, // [33:33] is the sub-list for extension extendee
 	0,  // [0:33] is the sub-list for field type_name
@@ -6402,7 +6492,7 @@ func file_api_proto_plugin_host_services_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_plugin_host_services_proto_rawDesc), len(file_api_proto_plugin_host_services_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   92,
+			NumMessages:   93,
 			NumExtensions: 0,
 			NumServices:   8,
 		},

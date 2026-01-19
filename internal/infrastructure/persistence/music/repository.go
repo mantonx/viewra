@@ -3,6 +3,7 @@ package music
 import (
 	"context"
 	"fmt"
+	"time"
 
 	domainCommon "github.com/mantonx/viewra/internal/domain/common"
 	"github.com/mantonx/viewra/internal/domain/media"
@@ -414,6 +415,7 @@ type ArtistWithCounts struct {
 	Name       string
 	AlbumCount int
 	TrackCount int
+	CreatedAt  time.Time
 }
 
 // GetArtistsWithCountsByLibraryPaginated retrieves artists with album/track counts using database-level aggregation

@@ -535,3 +535,58 @@ WHERE med.library_id = sqlc.arg(library_id)
   AND LOWER(med.title) = LOWER(sqlc.arg(title))
   AND COALESCE(m.year, 0) = COALESCE(sqlc.arg(year), 0)
 LIMIT 1;
+
+-- name: ListMoviesByDirector :many
+-- Lists movies directed by a specific person with optional library filter and exclusion list.
+-- director_name: name to match (case-insensitive LIKE match)
+-- library_id: 0 means all libraries
+-- exclude_ids: array of media IDs to exclude
+-- limit: maximum number of results
+SELECT DISTINCT
+    m.*,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM movies m
+JOIN media med ON m.media_id = med.id
+JOIN credits c ON c.media_type = 'movie' AND c.entity_id = m.id
+JOIN people p ON c.person_id = p.id
+WHERE (med.library_id = sqlc.arg(library_id) OR sqlc.arg(library_id) = 0)
+  AND med.is_extra = 0
+  AND c.credit_type = 'director'
+  AND p.name LIKE '%' || sqlc.arg(director_name) || '%'
+  AND med.id NOT IN (sqlc.slice('exclude_ids'))
+ORDER BY COALESCE(m.rating, 0) * (COALESCE(m.rating_votes, 0) + 1) DESC, med.date_added DESC
+LIMIT sqlc.arg(limit);

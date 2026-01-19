@@ -749,6 +749,7 @@ func (p *SemanticSearchPlugin) handleSearch(ctx context.Context, req *sdk.HTTPRe
 		Query               string               `json:"query"`
 		EntityTypes         []string             `json:"entity_types,omitempty"`
 		Limit               int                  `json:"limit,omitempty"`
+		ExcludeIntents      []string             `json:"exclude_intents,omitempty"`
 		PlaybackConstraints *PlaybackConstraints `json:"playback_constraints,omitempty"`
 	}
 	if err := json.Unmarshal(req.Body, &searchReq); err != nil {
@@ -812,6 +813,7 @@ func (p *SemanticSearchPlugin) handleSearch(ctx context.Context, req *sdk.HTTPRe
 		Query:               query,
 		EntityTypes:         entityTypes,
 		Limit:               searchReq.Limit,
+		ExcludeIntents:      searchReq.ExcludeIntents,
 		PlaybackConstraints: searchReq.PlaybackConstraints,
 	})
 	if err != nil {

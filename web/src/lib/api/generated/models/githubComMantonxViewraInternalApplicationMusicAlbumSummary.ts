@@ -11,6 +11,7 @@ export interface GithubComMantonxViewraInternalApplicationMusicAlbumSummary {
   artist?: string
   /** Artist entity ID for navigation */
   artist_id?: number
+  created_at?: string
   /** Album entity ID */
   id?: number
   track_count?: number

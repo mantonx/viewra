@@ -29,6 +29,7 @@ import type {
   GithubComMantonxViewraInternalApplicationLibraryStartScanResponse,
   GithubComMantonxViewraInternalApplicationLibraryUpdateLibraryRequest,
   InternalApiHandlersAPIError,
+  InternalApiHandlersTargetedScanRequest,
 } from '.././models'
 
 import { customInstance } from '../../mutator/index'
@@ -809,6 +810,141 @@ export const usePostApiLibrariesIdScan = <TError = InternalApiHandlersAPIError, 
   TContext
 > => {
   const mutationOptions = getPostApiLibrariesIdScanMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Initiates a scan of specific paths within a library
+ * @summary Start a targeted library scan
+ */
+export type postApiLibrariesIdScanTargetedResponse202 = {
+  data: GithubComMantonxViewraInternalApplicationLibraryStartScanResponse
+  status: 202
+}
+
+export type postApiLibrariesIdScanTargetedResponse400 = {
+  data: InternalApiHandlersAPIError
+  status: 400
+}
+
+export type postApiLibrariesIdScanTargetedResponse404 = {
+  data: InternalApiHandlersAPIError
+  status: 404
+}
+
+export type postApiLibrariesIdScanTargetedResponse409 = {
+  data: InternalApiHandlersAPIError
+  status: 409
+}
+
+export type postApiLibrariesIdScanTargetedResponse500 = {
+  data: InternalApiHandlersAPIError
+  status: 500
+}
+
+export type postApiLibrariesIdScanTargetedResponseSuccess =
+  postApiLibrariesIdScanTargetedResponse202 & {
+    headers: Headers
+  }
+export type postApiLibrariesIdScanTargetedResponseError = (
+  | postApiLibrariesIdScanTargetedResponse400
+  | postApiLibrariesIdScanTargetedResponse404
+  | postApiLibrariesIdScanTargetedResponse409
+  | postApiLibrariesIdScanTargetedResponse500
+) & {
+  headers: Headers
+}
+
+export type postApiLibrariesIdScanTargetedResponse =
+  | postApiLibrariesIdScanTargetedResponseSuccess
+  | postApiLibrariesIdScanTargetedResponseError
+
+export const getPostApiLibrariesIdScanTargetedUrl = (id: number) => {
+  return `/api/libraries/${id}/scan/targeted`
+}
+
+export const postApiLibrariesIdScanTargeted = async (
+  id: number,
+  internalApiHandlersTargetedScanRequest: InternalApiHandlersTargetedScanRequest,
+  options?: RequestInit
+): Promise<postApiLibrariesIdScanTargetedResponse> => {
+  return customInstance<postApiLibrariesIdScanTargetedResponse>(
+    getPostApiLibrariesIdScanTargetedUrl(id),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(internalApiHandlersTargetedScanRequest),
+    }
+  )
+}
+
+export const getPostApiLibrariesIdScanTargetedMutationOptions = <
+  TError = InternalApiHandlersAPIError,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiLibrariesIdScanTargeted>>,
+    TError,
+    { id: number; data: InternalApiHandlersTargetedScanRequest },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiLibrariesIdScanTargeted>>,
+  TError,
+  { id: number; data: InternalApiHandlersTargetedScanRequest },
+  TContext
+> => {
+  const mutationKey = ['postApiLibrariesIdScanTargeted']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiLibrariesIdScanTargeted>>,
+    { id: number; data: InternalApiHandlersTargetedScanRequest }
+  > = (props) => {
+    const { id, data } = props ?? {}
+
+    return postApiLibrariesIdScanTargeted(id, data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiLibrariesIdScanTargetedMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiLibrariesIdScanTargeted>>
+>
+export type PostApiLibrariesIdScanTargetedMutationBody = InternalApiHandlersTargetedScanRequest
+export type PostApiLibrariesIdScanTargetedMutationError = InternalApiHandlersAPIError
+
+/**
+ * @summary Start a targeted library scan
+ */
+export const usePostApiLibrariesIdScanTargeted = <
+  TError = InternalApiHandlersAPIError,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiLibrariesIdScanTargeted>>,
+      TError,
+      { id: number; data: InternalApiHandlersTargetedScanRequest },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiLibrariesIdScanTargeted>>,
+  TError,
+  { id: number; data: InternalApiHandlersTargetedScanRequest },
+  TContext
+> => {
+  const mutationOptions = getPostApiLibrariesIdScanTargetedMutationOptions(options)
 
   return useMutation(mutationOptions, queryClient)
 }

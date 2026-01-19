@@ -8,12 +8,18 @@ bin/
 dist/
 build/
 
+# Backup files
+*.bak
+*.backup
+*.orig
+
 # OpenCode config (may contain API keys)
 opencode.json
 
 # Go compiled binaries (prevent re-committing)
 viewra
 viewra-test
+sqlc-gen
 backend/viewra
 backend/viewra-backend
 backend/main
@@ -74,6 +80,10 @@ opencode.json
 *.sqlite3
 data/*.db
 data/*.sqlite
+
+# Runtime config and secrets (use env vars instead)
+data/config.yaml
+data/*.key
 
 # Backup files
 *.backup

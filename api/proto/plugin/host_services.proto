@@ -35,6 +35,10 @@ service HostData {
   // ListMediaByGenre lists media items matching a genre pattern.
   // Used for genre-based recommendations when semantic search is unavailable.
   rpc ListMediaByGenre(ListMediaByGenreRequest) returns (MediaList);
+
+  // ListMediaByDirector lists media items featuring work by a specific director.
+  // Used for director-based recommendations and themed collections.
+  rpc ListMediaByDirector(ListMediaByDirectorRequest) returns (MediaList);
 }
 
 // HostStorage provides plugin-scoped storage.
@@ -859,6 +863,17 @@ message VectorSearchInvokeResponse {
 message ListMediaByGenreRequest {
   string media_type = 1;          // "movie" or "tv_show"
   string genre = 2;               // Genre to match (e.g., "Action", "Comedy")
+  int32 limit = 3;                // Max results (default: 20)
+  repeated int64 exclude_ids = 4; // Entity IDs to exclude from results
+  int64 library_id = 5;           // Optional: 0 means all libraries
+}
+
+// --- ListMediaByDirector Messages ---
+
+// ListMediaByDirectorRequest requests media items by a specific director.
+message ListMediaByDirectorRequest {
+  string media_type = 1;          // "movie" or "tv_show"
+  string director_name = 2;       // Director name to match (e.g., "Christopher Nolan")
   int32 limit = 3;                // Max results (default: 20)
   repeated int64 exclude_ids = 4; // Entity IDs to exclude from results
   int64 library_id = 5;           // Optional: 0 means all libraries
