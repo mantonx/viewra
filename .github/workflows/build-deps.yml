@@ -1,6 +1,8 @@
 # Build ViewRA dependencies (FFmpeg, subtitle-extractor, plugins)
 # Creates portable binary archives for use in Docker builds
 #
+# Uses the same Makefile targets as local development to stay in sync.
+#
 # Trigger manually or when source files change
 
 name: Build Dependencies
@@ -14,7 +16,7 @@ on:
         default: '7.1'
   push:
     paths:
-      - 'tools/ffmpeg-viewra/patches/**'
+      - 'tools/ffmpeg-viewra/**'
       - 'tools/subtitle-extractor/**'
       - 'plugins/**'
       - 'pkg/plugin/sdk/**'
@@ -34,8 +36,8 @@ jobs:
         id: cache-ffmpeg
         uses: actions/cache@v4
         with:
-          path: ffmpeg-dist
-          key: ffmpeg-${{ env.FFMPEG_VERSION }}-${{ hashFiles('tools/ffmpeg-viewra/patches/**') }}
+          path: bin/ffmpeg-viewra
+          key: ffmpeg-${{ env.FFMPEG_VERSION }}-${{ hashFiles('tools/ffmpeg-viewra/**') }}
 
       - name: Install CUDA toolkit
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
@@ -55,53 +57,22 @@ jobs:
             libsvtav1-dev libsvtav1enc-dev libdav1d-dev \
             libopus-dev libvorbis-dev libmp3lame-dev libfdk-aac-dev \
             libass-dev libfreetype-dev libfontconfig1-dev libssl-dev \
-            libva-dev libvdpau-dev libdrm-dev ocl-icd-opencl-dev clang
+            libva-dev libvdpau-dev libdrm-dev ocl-icd-opencl-dev
           # Install NVIDIA codec headers for NVENC/NVDEC support
           git clone --depth 1 https://github.com/FFmpeg/nv-codec-headers.git
           cd nv-codec-headers
           sudo make install
           cd .. && rm -rf nv-codec-headers
 
-      - name: Download FFmpeg source
+      - name: Build FFmpeg using Makefile
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
-        run: |
-          curl -fsSL "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz" -o ffmpeg.tar.xz
-          tar xf ffmpeg.tar.xz
-          mv "ffmpeg-${FFMPEG_VERSION}" ffmpeg
-
-      - name: Apply ViewRA patches
-        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
-        run: |
-          cd ffmpeg
-          for patch in ../tools/ffmpeg-viewra/patches/*.patch; do
-            if [ -f "$patch" ]; then
-              echo "Applying: $(basename "$patch")"
-              patch -p1 < "$patch" || true
-            fi
-          done
-
-      - name: Configure and build FFmpeg
-        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
-        run: |
-          cd ffmpeg
-          ./configure \
-            --prefix=/usr/local \
-            --enable-gpl --enable-version3 --enable-nonfree \
-            --enable-shared --disable-static --disable-debug --disable-doc \
-            --enable-libx264 --enable-libx265 --enable-libvpx \
-            --enable-libsvtav1 --enable-libdav1d \
-            --enable-libopus --enable-libvorbis --enable-libmp3lame --enable-libfdk-aac \
-            --enable-libass --enable-libfreetype --enable-libfontconfig \
-            --enable-openssl \
-            --enable-vaapi --enable-vdpau --enable-libdrm --enable-opencl \
-            --enable-ffnvcodec --enable-cuda-llvm --enable-cuvid --enable-nvenc --enable-nvdec
-          make -j$(nproc)
-          make DESTDIR="${GITHUB_WORKSPACE}/ffmpeg-dist" install
+        run: make build-ffmpeg
 
       - name: Package FFmpeg
         run: |
-          cd "${GITHUB_WORKSPACE}/ffmpeg-dist/usr/local"
-          tar czf "${GITHUB_WORKSPACE}/ffmpeg-viewra-linux-x64.tar.gz" .
+          cd bin
+          tar czf "${GITHUB_WORKSPACE}/ffmpeg-viewra-linux-x64.tar.gz" \
+            ffmpeg-viewra ffprobe-viewra ffmpeg-lib/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -130,16 +101,12 @@ jobs:
           restore-keys: |
             cargo-${{ runner.os }}-
 
-      - name: Build subtitle-extractor
-        run: |
-          cd tools/subtitle-extractor
-          cargo build --release
+      - name: Build subtitle-extractor using Makefile
+        run: make build-tools
 
       - name: Package binary
         run: |
-          mkdir -p dist
-          cp tools/subtitle-extractor/target/release/subtitle-extractor dist/
-          cd dist
+          cd bin
           tar czf "${GITHUB_WORKSPACE}/subtitle-extractor-linux-x64.tar.gz" subtitle-extractor
 
       - name: Upload artifact
@@ -161,26 +128,12 @@ jobs:
             go.sum
             plugins/*/go.sum
 
-      - name: Build all plugins
-        run: |
-          mkdir -p dist/plugins
-          for plugin_dir in plugins/*/; do
-            name=$(basename "$plugin_dir")
-            echo "Building plugin: $name"
-            mkdir -p "dist/plugins/${name}"
-            # Build from within plugin directory using subshell
-            # This ensures Go module resolution works correctly with replace directives
-            pushd "$plugin_dir" > /dev/null
-            go mod download
-            go build -ldflags="-s -w" -o "${GITHUB_WORKSPACE}/dist/plugins/${name}/${name}" .
-            popd > /dev/null
-            cp "${plugin_dir}/plugin.yml" "dist/plugins/${name}/" 2>/dev/null || true
-            cp "${plugin_dir}/config.yml" "dist/plugins/${name}/" 2>/dev/null || true
-          done
+      - name: Build all plugins using Makefile
+        run: make build-plugins
 
       - name: Package plugins
         run: |
-          cd dist/plugins
+          cd data/plugins
           tar czf "${GITHUB_WORKSPACE}/viewra-plugins-linux-x64.tar.gz" .
 
       - name: Upload artifact
