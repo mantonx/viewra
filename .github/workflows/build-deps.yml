@@ -48,6 +48,11 @@ jobs:
             libopus-dev libvorbis-dev libmp3lame-dev libfdk-aac-dev \
             libass-dev libfreetype-dev libfontconfig1-dev libssl-dev \
             libva-dev libvdpau-dev libdrm-dev ocl-icd-opencl-dev
+          # Install NVIDIA codec headers for NVENC/NVDEC support
+          git clone --depth 1 https://github.com/FFmpeg/nv-codec-headers.git
+          cd nv-codec-headers
+          sudo make install
+          cd .. && rm -rf nv-codec-headers
 
       - name: Download FFmpeg source
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
