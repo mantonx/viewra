@@ -1,0 +1,182 @@
+# Build ViewRA dependencies (FFmpeg, subtitle-extractor, plugins)
+# Creates portable binary archives for use in Docker builds
+#
+# Trigger manually or when source files change
+
+name: Build Dependencies
+
+on:
+  workflow_dispatch:
+    inputs:
+      ffmpeg_version:
+        description: 'FFmpeg version to build'
+        required: true
+        default: '7.1'
+  push:
+    paths:
+      - 'tools/ffmpeg-viewra/patches/**'
+      - 'tools/subtitle-extractor/**'
+      - 'plugins/**'
+      - 'pkg/plugin/sdk/**'
+      - 'api/proto/plugin/**'
+    branches:
+      - main
+
+jobs:
+  build-ffmpeg:
+    runs-on: ubuntu-24.04
+    env:
+      FFMPEG_VERSION: ${{ github.event.inputs.ffmpeg_version || '7.1' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config nasm yasm git curl \
+            libx264-dev libx265-dev libvpx-dev \
+            libsvtav1-dev libsvtav1enc-dev libdav1d-dev \
+            libopus-dev libvorbis-dev libmp3lame-dev libfdk-aac-dev \
+            libass-dev libfreetype-dev libfontconfig1-dev libssl-dev \
+            libva-dev libvdpau-dev libdrm-dev ocl-icd-opencl-dev
+
+      - name: Download FFmpeg source
+        run: |
+          curl -fsSL "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz" -o ffmpeg.tar.xz
+          tar xf ffmpeg.tar.xz
+          mv "ffmpeg-${FFMPEG_VERSION}" ffmpeg
+
+      - name: Apply ViewRA patches
+        run: |
+          cd ffmpeg
+          for patch in ../tools/ffmpeg-viewra/patches/*.patch; do
+            if [ -f "$patch" ]; then
+              echo "Applying: $(basename "$patch")"
+              patch -p1 < "$patch" || true
+            fi
+          done
+
+      - name: Configure and build FFmpeg
+        run: |
+          cd ffmpeg
+          ./configure \
+            --prefix=/usr/local \
+            --enable-gpl --enable-version3 --enable-nonfree \
+            --enable-shared --disable-static --disable-debug --disable-doc \
+            --enable-libx264 --enable-libx265 --enable-libvpx \
+            --enable-libsvtav1 --enable-libdav1d \
+            --enable-libopus --enable-libvorbis --enable-libmp3lame --enable-libfdk-aac \
+            --enable-libass --enable-libfreetype --enable-libfontconfig \
+            --enable-openssl \
+            --enable-vaapi --enable-vdpau --enable-libdrm --enable-opencl \
+            --enable-ffnvcodec --enable-cuda-llvm --enable-cuvid --enable-nvenc --enable-nvdec
+          make -j$(nproc)
+          make DESTDIR="${GITHUB_WORKSPACE}/ffmpeg-dist" install
+
+      - name: Package FFmpeg
+        run: |
+          cd "${GITHUB_WORKSPACE}/ffmpeg-dist/usr/local"
+          tar czf "${GITHUB_WORKSPACE}/ffmpeg-viewra-linux-x64.tar.gz" .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-viewra-linux-x64
+          path: ffmpeg-viewra-linux-x64.tar.gz
+
+  build-subtitle-extractor:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Build subtitle-extractor
+        run: |
+          cd tools/subtitle-extractor
+          cargo build --release
+
+      - name: Package binary
+        run: |
+          mkdir -p dist
+          cp tools/subtitle-extractor/target/release/subtitle-extractor dist/
+          cd dist
+          tar czf "${GITHUB_WORKSPACE}/subtitle-extractor-linux-x64.tar.gz" subtitle-extractor
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: subtitle-extractor-linux-x64
+          path: subtitle-extractor-linux-x64.tar.gz
+
+  build-plugins:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Build all plugins
+        run: |
+          mkdir -p dist/plugins
+          for plugin_dir in plugins/*/; do
+            name=$(basename "$plugin_dir")
+            echo "Building plugin: $name"
+            cd "$plugin_dir"
+            go build -ldflags="-s -w" -o "${GITHUB_WORKSPACE}/dist/plugins/${name}/${name}" .
+            cp plugin.yml "${GITHUB_WORKSPACE}/dist/plugins/${name}/" 2>/dev/null || true
+            cp config.yml "${GITHUB_WORKSPACE}/dist/plugins/${name}/" 2>/dev/null || true
+            cd "${GITHUB_WORKSPACE}"
+          done
+
+      - name: Package plugins
+        run: |
+          cd dist/plugins
+          tar czf "${GITHUB_WORKSPACE}/viewra-plugins-linux-x64.tar.gz" .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: viewra-plugins-linux-x64
+          path: viewra-plugins-linux-x64.tar.gz
+
+  release:
+    needs: [build-ffmpeg, build-subtitle-extractor, build-plugins]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    env:
+      FFMPEG_VERSION: ${{ github.event.inputs.ffmpeg_version || '7.1' }}
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "deps-latest"
+          name: "ViewRA Dependencies (Latest)"
+          body: |
+            Pre-built dependencies for ViewRA Docker builds.
+
+            **FFmpeg ${{ env.FFMPEG_VERSION }}** (with ViewRA patches):
+            - Video: x264, x265, VP9, SVT-AV1, dav1d
+            - Audio: Opus, Vorbis, MP3, FDK-AAC
+            - Hardware: VAAPI, VDPAU, NVENC/NVDEC (stubs)
+            - Subtitles: libass, freetype
+
+            **subtitle-extractor**: Fast subtitle extraction tool (Rust)
+
+            **plugins**: All ViewRA plugins pre-compiled
+          files: |
+            ffmpeg-viewra-linux-x64/ffmpeg-viewra-linux-x64.tar.gz
+            subtitle-extractor-linux-x64/subtitle-extractor-linux-x64.tar.gz
+            viewra-plugins-linux-x64/viewra-plugins-linux-x64.tar.gz
+          draft: false
+          prerelease: false

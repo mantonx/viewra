@@ -1,0 +1,95 @@
+# ViewRA Development Docker Compose
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up
+#   docker compose -f docker-compose.dev.yml --profile postgres up
+#   docker compose -f docker-compose.dev.yml --profile ollama up
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: viewra-backend
+    volumes:
+      # Mount source code for hot-reload
+      - .:/app
+      # Persist Go module cache
+      - go-mod-cache:/go/pkg/mod
+      # Persist build cache
+      - go-build-cache:/root/.cache/go-build
+      # Exclude directories that shouldn't be synced
+      - /app/web/node_modules
+      - /app/bin
+      - /app/tmp
+    ports:
+      - "8080:8080"   # API
+      - "6060:6060"   # pprof debug
+    environment:
+      - ENVIRONMENT=development
+      - DATA_DIR=/app/data
+      - DB_DRIVER=${DB_DRIVER:-sqlite}
+      - DB_PATH=/app/data/viewra.db
+      # PostgreSQL (when using --profile postgres)
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=viewra
+      - DB_PASSWORD=viewra
+      - DB_NAME=viewra
+      # Ollama (when using --profile ollama)
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      postgres:
+        condition: service_started
+        required: false
+      ollama:
+        condition: service_started
+        required: false
+
+  frontend:
+    image: node:22-alpine
+    container_name: viewra-frontend
+    working_dir: /app/web
+    volumes:
+      - ./web:/app/web
+      # Use named volume for node_modules to avoid host sync issues
+      - web-node-modules:/app/web/node_modules
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+
+  # Optional PostgreSQL for development
+  postgres:
+    image: postgres:16-alpine
+    container_name: viewra-postgres-dev
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: viewra
+      POSTGRES_PASSWORD: viewra
+      POSTGRES_DB: viewra
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U viewra"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Optional Ollama for AI features
+  ollama:
+    image: ollama/ollama:latest
+    container_name: viewra-ollama-dev
+    profiles: ["ollama"]
+    volumes:
+      - ollama-dev-data:/root/.ollama
+    ports:
+      - "11434:11434"
+
+volumes:
+  go-mod-cache:
+  go-build-cache:
+  web-node-modules:
+  postgres-dev-data:
+  ollama-dev-data:

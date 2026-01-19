@@ -1,0 +1,48 @@
+# ViewRA Development Dockerfile
+# Provides hot-reload development environment with Air
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up
+
+FROM golang:1.25-bookworm
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Build tools
+    gcc \
+    make \
+    git \
+    curl \
+    # FFmpeg (system version for dev - faster than building)
+    ffmpeg \
+    # protobuf compiler
+    protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Go tools
+RUN go install github.com/air-verse/air@latest && \
+    go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest && \
+    go install github.com/swaggo/swag/cmd/swag@latest && \
+    go install -tags 'sqlite3 postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest && \
+    go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+WORKDIR /app
+
+# Copy go.mod first for dependency caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Set environment for development
+ENV ENVIRONMENT=development \
+    GIN_MODE=debug \
+    CGO_ENABLED=1 \
+    DATA_DIR=/app/data \
+    PORT=8080
+
+EXPOSE 8080 6060
+
+# Default command runs Air for hot-reload
+CMD ["air", "-c", ".air.toml"]

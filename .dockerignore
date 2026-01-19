@@ -1,0 +1,79 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE and editor
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Build artifacts
+bin/
+tmp/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Frontend build artifacts (rebuilt in container)
+web/dist/
+web/node_modules/
+
+# Test data and fixtures
+test-data/
+test-integration/
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.m4v
+*.flac
+*.mp3
+*.wav
+*.aac
+*.ogg
+
+# Database and runtime data
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Rust build artifacts
+tools/subtitle-extractor/target/
+
+# FFmpeg build artifacts
+tools/ffmpeg-viewra/build/
+tools/ffmpeg-viewra/dist/
+
+# Documentation (not needed in image)
+docs/
+*.md
+!README.md
+
+# Test coverage
+coverage.*
+*.cover
+*.out
+
+# Logs
+*.log
+logs/
+
+# Environment files (secrets)
+.env
+.env.*
+!.env.example
+
+# Claude/AI artifacts
+.claude/
+
+# Misc
+.DS_Store
+Thumbs.db

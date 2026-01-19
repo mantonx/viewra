@@ -1,0 +1,116 @@
+# ViewRA Production Docker Compose
+#
+# Usage:
+#   docker compose up -d                    # Basic setup
+#   docker compose --profile postgres up -d # With PostgreSQL
+#   docker compose --profile ollama up -d   # With Ollama for AI features
+#
+# GPU Configuration:
+#   For NVIDIA: Uncomment the deploy section and ensure nvidia-container-toolkit is installed
+#   For AMD/Intel: Uncomment the devices section for /dev/dri
+
+services:
+  viewra:
+    build: .
+    image: viewra:latest
+    container_name: viewra
+    restart: unless-stopped
+    user: "1000:1000"
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - viewra-data:/data
+      # Mount your media libraries (add as many as needed)
+      # - /path/to/movies:/media/movies:ro
+      # - /path/to/tv:/media/tv:ro
+      # - /path/to/music:/media/music:ro
+    environment:
+      # Database (SQLite by default)
+      - DB_DRIVER=${DB_DRIVER:-sqlite}
+      # PostgreSQL (when using --profile postgres)
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:-viewra}
+      - DB_PASSWORD=${DB_PASSWORD:-viewra}
+      - DB_NAME=${DB_NAME:-viewra}
+      # Security (required in production)
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      # Ollama (when using --profile ollama)
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama:11434}
+    healthcheck:
+      test: ["CMD", "/app/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    depends_on:
+      ollama:
+        condition: service_started
+        required: false
+
+    # ===========================================
+    # GPU Configuration (uncomment as needed)
+    # ===========================================
+
+    # AMD/Intel GPU (VAAPI)
+    # devices:
+    #   - /dev/dri:/dev/dri
+
+    # NVIDIA GPU (requires nvidia-container-toolkit)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu, video, compute]
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
+    #   - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+
+  # Optional PostgreSQL database
+  postgres:
+    image: postgres:16-alpine
+    container_name: viewra-postgres
+    profiles: ["postgres"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-viewra}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-viewra}
+      POSTGRES_DB: ${DB_NAME:-viewra}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-viewra}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optional Ollama for AI features (embeddings, semantic search)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: viewra-ollama
+    profiles: ["ollama"]
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+    ports:
+      - "11434:11434"
+    # Uncomment for GPU acceleration
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+volumes:
+  viewra-data:
+    driver: local
+  postgres-data:
+    driver: local
+  ollama-data:
+    driver: local
