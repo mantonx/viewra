@@ -386,7 +386,7 @@ type (
 	ListMusicTracksByLibraryPaginatedDescRow = sqlc_sqlite.ListMusicTracksByLibraryPaginatedDescRow
 	ListMusicTracksByLibraryPaginatedRow = sqlc_sqlite.ListMusicTracksByLibraryPaginatedRow
 	ListMusicTracksByLibraryRow = sqlc_sqlite.ListMusicTracksByLibraryRow
-	ListPluginsByCategoryRow = sqlc_sqlite.ListPluginsByCategoryRow
+	ListPluginsByCapabilityRow = sqlc_sqlite.ListPluginsByCapabilityRow
 	ListPluginsRow = sqlc_sqlite.ListPluginsRow
 	ListRecentlyAddedMoviesRow = sqlc_sqlite.ListRecentlyAddedMoviesRow
 	ListRecentlyAddedTVShowsRow = sqlc_sqlite.ListRecentlyAddedTVShowsRow

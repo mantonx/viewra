@@ -2734,12 +2734,12 @@ func (q *Querier) ListPlugins(ctx context.Context) ([]sqlc_sqlite.ListPluginsRow
 	return q.sqlite.ListPlugins(ctx)
 }
 
-func (q *Querier) ListPluginsByCategory(ctx context.Context, category sql.NullString) ([]sqlc_sqlite.ListPluginsByCategoryRow, error) {
+func (q *Querier) ListPluginsByCapability(ctx context.Context, capability sql.NullString) ([]sqlc_sqlite.ListPluginsByCapabilityRow, error) {
 	if q.isPostgres {
-		r0, err := q.postgres.ListPluginsByCategory(ctx, category)
-		return castSlice[sqlc_postgres.ListPluginsByCategoryRow, sqlc_sqlite.ListPluginsByCategoryRow](r0), err
+		r0, err := q.postgres.ListPluginsByCapability(ctx, capability)
+		return castSlice[sqlc_postgres.ListPluginsByCapabilityRow, sqlc_sqlite.ListPluginsByCapabilityRow](r0), err
 	}
-	return q.sqlite.ListPluginsByCategory(ctx, category)
+	return q.sqlite.ListPluginsByCapability(ctx, capability)
 }
 
 func (q *Querier) ListProcessingTranscodeJobs(ctx context.Context) ([]sqlc_sqlite.TranscodeJob, error) {

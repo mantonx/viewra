@@ -6,7 +6,9 @@
  * OpenAPI spec version: 0.0.1
  */
 import type { GithubComMantonxViewraInternalApplicationPluginsPluginSummary } from './githubComMantonxViewraInternalApplicationPluginsPluginSummary'
+import type { GithubComMantonxViewraInternalApplicationPluginsFilterTab } from './githubComMantonxViewraInternalApplicationPluginsFilterTab'
 
 export interface InternalApiHandlersPluginListResponse {
   plugins?: GithubComMantonxViewraInternalApplicationPluginsPluginSummary[]
+  tabs?: GithubComMantonxViewraInternalApplicationPluginsFilterTab[]
 }

@@ -20,7 +20,7 @@
 // Common capabilities include:
 //   - "embedding" - Vector embedding generation
 //   - "chat" - Chat/completion generation
-//   - "semantic_search" - Semantic search over media
+//   - "search" - Search over media
 //
 // Plugins can also define custom capabilities for inter-plugin communication.
 package sdk

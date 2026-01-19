@@ -37,7 +37,7 @@ export const MarketplaceTab = () => {
         p.name?.toLowerCase().includes(query) ||
         p.id?.toLowerCase().includes(query) ||
         p.description?.toLowerCase().includes(query) ||
-        p.categories?.some((c) => c.toLowerCase().includes(query))
+        p.capabilities?.some((c) => c.toLowerCase().includes(query))
     )
   }, [plugins, searchQuery])
 

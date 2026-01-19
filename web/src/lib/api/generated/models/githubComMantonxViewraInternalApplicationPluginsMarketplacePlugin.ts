@@ -8,7 +8,7 @@
 
 export interface GithubComMantonxViewraInternalApplicationPluginsMarketplacePlugin {
   author?: string
-  categories?: string[]
+  capabilities?: string[]
   description?: string
   download_count?: number
   has_update?: boolean

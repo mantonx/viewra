@@ -1,6 +1,4 @@
 # MusicBrainz Plugin Manifest
-# This file describes the plugin - it ships with the plugin binary
-
 id: musicbrainz
 name: MusicBrainz Enricher
 version: 1.0.0
@@ -10,27 +8,24 @@ author: ViewRA Team
 license: MIT
 homepage: https://github.com/mantonx/viewra
 
-# Minimum ViewRA version required
 min_host_version: "0.1.0"
 
-# Plugin capabilities
-categories:
-  - enricher
+# UI grouping (required) - valid values: search, recommendations, enrichers, providers, local, other
+display_category: enrichers
 
-# What this enricher provides
+# What this plugin provides (required)
 capabilities:
-  media_types:
-    - music
-    - music_album
-    - music_artist
-  provides:
-    - metadata
-    - artwork
-    - external_ids
-  is_local: false
-  rate_limit: 60  # MusicBrainz allows ~1 request/second
+  - metadata
+  - artwork
+  - external_ids
 
-# Permissions required
+# Media types this enricher supports
+media_types:
+  - music
+  - music_album
+  - music_artist
+
+# Required permissions
 permissions:
   - network
   - storage:database

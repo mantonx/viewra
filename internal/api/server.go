@@ -109,7 +109,7 @@ type Handlers struct {
 	// PluginProxy proxies HTTP requests to plugin-defined routes.
 	PluginProxy *plugins.HTTPProxy
 
-	// Search handles /api/search with fallback to text search when no plugin provides semantic search.
+	// Search handles /api/search. Plugins can override this via capability routing.
 	Search *handlers.SearchHandler
 
 	// AuthValidator is used by routes to set up auth middleware
@@ -222,9 +222,7 @@ func (s *Server) setupRoutes() {
 	// This also registers plugin custom routes via the HTTP proxy
 	routes.RegisterPluginRoutes(protected, h.Plugins, h.Marketplace, h.PluginProxy, h.AuthValidator)
 
-	// Register search route with fallback support
-	// SearchHandler checks if semantic_search capability is available and proxies to it,
-	// otherwise falls back to basic text search
+	// Register search route (plugins can override via capability routing)
 	routes.RegisterSearchRoutes(protected, h.Search)
 
 	// Register home screen routes (protected)

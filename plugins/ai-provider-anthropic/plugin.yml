@@ -8,19 +8,17 @@ author: ViewRA Team
 license: MIT
 homepage: https://github.com/mantonx/viewra
 
-# Minimum ViewRA version required
 min_host_version: "0.1.0"
 
-# Plugin capabilities
-categories:
-  - provider
+# UI grouping (required) - valid values: search, recommendations, enrichers, providers, local, other
+display_category: providers
 
-# What this plugin provides to other plugins
-provides:
+# What this plugin provides (required)
+capabilities:
   - provider
   - provider:anthropic
   - chat
 
-# Permissions required
+# Required permissions
 permissions:
-  - network  # For Anthropic API calls
+  - network

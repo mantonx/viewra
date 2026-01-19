@@ -28,6 +28,13 @@ export const usePluginsData = () => {
     return data.data.plugins || []
   }, [data])
 
+  const tabs = useMemo(() => {
+    if (data?.status !== 200) {
+      return []
+    }
+    return data.data.tabs || []
+  }, [data])
+
   const enablePlugin = useCallback(
     async (id: string) => {
       try {
@@ -64,6 +71,7 @@ export const usePluginsData = () => {
 
   return {
     plugins,
+    tabs,
     isLoading,
     error,
     refetch,

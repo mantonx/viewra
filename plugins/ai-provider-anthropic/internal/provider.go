@@ -257,6 +257,10 @@ func (p *AnthropicProvider) Configure(settings []byte) error {
 	return nil
 }
 
+func (p *AnthropicProvider) IsConfigured() bool {
+	return p.apiKey != ""
+}
+
 // --- sdk.HTTPProvider implementation ---
 
 func (p *AnthropicProvider) GetRoutes() []sdk.Route {

@@ -25,6 +25,7 @@ func NewPluginHandler(service *plugins.Service) *PluginHandler {
 // PluginListResponse is the response for GET /api/plugins.
 type PluginListResponse struct {
 	Plugins []plugins.PluginSummary `json:"plugins"`
+	Tabs    []plugins.FilterTab     `json:"tabs"`
 }
 
 // UpdatePluginSettingsRequest is the request body for PUT /api/plugins/:id/settings.
@@ -62,7 +63,8 @@ func (h *PluginHandler) List(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, PluginListResponse{Plugins: list})
+	tabs := plugins.ComputeFilterTabs(list)
+	c.JSON(http.StatusOK, PluginListResponse{Plugins: list, Tabs: tabs})
 }
 
 // Get handles GET /api/plugins/:id

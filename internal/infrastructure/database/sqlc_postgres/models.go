@@ -377,7 +377,7 @@ type Plugin struct {
 	Author         sql.NullString `json:"author"`
 	License        sql.NullString `json:"license"`
 	Homepage       sql.NullString `json:"homepage"`
-	Categories     string         `json:"categories"`
+	Capabilities   string         `json:"capabilities"`
 	IsBuiltin      sql.NullInt64  `json:"is_builtin"`
 	Enabled        sql.NullInt64  `json:"enabled"`
 	Path           sql.NullString `json:"path"`

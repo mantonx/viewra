@@ -30,6 +30,7 @@ import (
 type HostPluginsServer interface {
 	RegisterCapability(pluginID, pluginName, capability string)
 	UnregisterPlugin(pluginID string)
+	UpdatePluginStatus(pluginID string, enabled, configured bool)
 	HasCapability(capability string) bool
 }
 

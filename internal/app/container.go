@@ -269,7 +269,6 @@ func seedDevUser(
 
 // loadExternalPlugins discovers, loads, and registers external plugins with the pipeline.
 // External plugins are registered as disabled by default - users must explicitly enable them.
-// It also wires semantic search into the movies use case if available.
 func loadExternalPlugins(ctx context.Context, svcs *services.Services, repos *repositories.Repositories, cases *usecases.UseCases, logger *slog.Logger) {
 	pm := svcs.PluginManager
 	pipeline := svcs.PipelineManager
@@ -299,24 +298,24 @@ func loadExternalPlugins(ctx context.Context, svcs *services.Services, repos *re
 	if repos.Plugin != nil {
 		for _, instance := range pm.GetAllPlugins() {
 			manifest := instance.Manifest
-			categories := "[]"
-			if len(manifest.Categories) > 0 {
+			capabilities := "[]"
+			if len(manifest.Capabilities) > 0 {
 				// Convert to JSON array format using proper marshaling
-				if catBytes, err := json.Marshal(manifest.Categories); err == nil {
-					categories = string(catBytes)
+				if capBytes, err := json.Marshal(manifest.Capabilities); err == nil {
+					capabilities = string(capBytes)
 				}
 			}
 
 			if err := repos.Plugin.UpsertPlugin(ctx, appplugins.Plugin{
-				ID:          instance.ID,
-				Name:        manifest.Name,
-				Version:     manifest.Version,
-				Description: manifest.Description,
-				Author:      manifest.Author,
-				License:     manifest.License,
-				Homepage:    manifest.Homepage,
-				Categories:  categories,
-				Path:        instance.Path,
+				ID:           instance.ID,
+				Name:         manifest.Name,
+				Version:      manifest.Version,
+				Description:  manifest.Description,
+				Author:       manifest.Author,
+				License:      manifest.License,
+				Homepage:     manifest.Homepage,
+				Capabilities: capabilities,
+				Path:         instance.Path,
 			}); err != nil {
 				logger.Error("Failed to persist plugin to database",
 					"plugin", instance.ID,
@@ -360,38 +359,5 @@ func loadExternalPlugins(ctx context.Context, svcs *services.Services, repos *re
 	allPlugins := pm.GetAllPlugins()
 	if len(allPlugins) > 0 {
 		pm.PrintTable(os.Stderr, fmt.Sprintf("Plugins (%d loaded)", len(allPlugins)))
-	}
-
-	// Wire semantic search into movies use case if available
-	// This enables /api/movies?q= to use semantic search when the semantic-search plugin is loaded
-	// Note: We use HostPluginsServer.HasCapability() not CapabilityRegistry.Resolve() because
-	// CapabilityRegistry is for HTTP routes, while HasCapability checks plugin capabilities.
-	//
-	// Also check pm.GetHostPluginsServer() since that's what the loader uses to register capabilities.
-	hasVectorSearch := false
-	if svcs.HostPluginsServer != nil {
-		hasVectorSearch = svcs.HostPluginsServer.HasCapability("vector_search")
-	}
-	// Also try checking via the manager's interface
-	if !hasVectorSearch && pm.GetHostPluginsServer() != nil {
-		hasVectorSearch = pm.GetHostPluginsServer().HasCapability("vector_search")
-	}
-	fmt.Fprintf(os.Stderr, "\n=== SEMANTIC SEARCH WIRING ===\n")
-	fmt.Fprintf(os.Stderr, "svcs.HostPluginsServer: %v\n", svcs.HostPluginsServer != nil)
-	fmt.Fprintf(os.Stderr, "pm.GetHostPluginsServer(): %v\n", pm.GetHostPluginsServer() != nil)
-	fmt.Fprintf(os.Stderr, "vector_search_capability: %v\n", hasVectorSearch)
-
-	if hasVectorSearch {
-		semanticProvider := plugins.NewSemanticSearchProvider(
-			svcs.HostPluginsServer,
-			pm.GetCapabilityRegistry(),
-			logger.With("component", "semantic-search"),
-		)
-		cases.WireSemanticSearch(semanticProvider)
-		fmt.Fprintf(os.Stderr, "SEMANTIC SEARCH WIRED SUCCESSFULLY\n")
-		fmt.Fprintf(os.Stderr, "=================================\n\n")
-	} else {
-		fmt.Fprintf(os.Stderr, "SEMANTIC SEARCH NOT WIRED - conditions not met\n")
-		fmt.Fprintf(os.Stderr, "=================================\n\n")
 	}
 }

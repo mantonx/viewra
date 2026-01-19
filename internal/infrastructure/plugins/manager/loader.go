@@ -93,7 +93,7 @@ func (m *Manager) LoadPlugin(ctx context.Context, path string) (*types.Instance,
 		"id", mf.ID,
 		"name", mf.Name,
 		"version", mf.Version,
-		"categories", mf.Categories,
+		"capabilities", mf.Capabilities,
 	)
 
 	// Post-load registration
@@ -188,7 +188,7 @@ func (m *Manager) createPluginInstance(
 			Status:        pluginv1.HealthStatus_UNKNOWN,
 			LastHeartbeat: time.Now(),
 		},
-		Categories: types.ParseCategories(mf.Categories),
+		Categories: types.InferCategoriesFromCapabilities(mf.Capabilities),
 	}
 
 	// If it's an enricher, get the enricher client
@@ -215,7 +215,7 @@ func (m *Manager) createPluginInstance(
 	}
 
 	// If the plugin provides vector_search capability, get the VectorSearch client
-	if containsString(mf.Provides, "vector_search") {
+	if containsString(mf.Capabilities, "vector_search") {
 		vectorSearchRaw, err := rpcClient.Dispense("vector_search")
 		if err != nil {
 			m.logger.Warn("plugin provides vector_search but dispense failed",
@@ -410,13 +410,13 @@ func (m *Manager) registerPluginServices(ctx context.Context, instance *types.In
 	}
 
 	// Register capabilities from manifest with the HostPluginsServer
-	if m.hostPluginsServer != nil && len(mf.Provides) > 0 {
-		for _, capability := range mf.Provides {
+	if m.hostPluginsServer != nil && len(mf.Capabilities) > 0 {
+		for _, capability := range mf.Capabilities {
 			m.hostPluginsServer.RegisterCapability(mf.ID, mf.Name, capability)
 		}
 		m.logger.Debug("registered plugin capabilities",
 			"plugin", mf.ID,
-			"capabilities", mf.Provides)
+			"capabilities", mf.Capabilities)
 	}
 
 	// Register trending provider if plugin has TrendingClient
@@ -433,7 +433,7 @@ func (m *Manager) registerPluginServices(ctx context.Context, instance *types.In
 			WithData("plugin_id", mf.ID).
 			WithData("name", mf.Name).
 			WithData("version", mf.Version).
-			WithData("categories", mf.Categories).
+			WithData("capabilities", mf.Capabilities).
 			WithData("is_restart", false).
 			Build())
 	}
@@ -466,7 +466,7 @@ func (m *Manager) LoadAllPlugins(ctx context.Context) error {
 	// Phase 2: Build capability -> plugin mapping
 	capabilityProviders := make(map[string][]string) // capability -> []pluginID
 	for pluginID, info := range pluginInfos {
-		for _, capability := range info.manifest.Provides {
+		for _, capability := range info.manifest.Capabilities {
 			capabilityProviders[capability] = append(capabilityProviders[capability], pluginID)
 		}
 	}

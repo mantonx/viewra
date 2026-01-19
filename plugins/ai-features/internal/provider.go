@@ -458,6 +458,12 @@ func (p *AIFeaturesPlugin) Configure(settings []byte) error {
 	return nil
 }
 
+func (p *AIFeaturesPlugin) IsConfigured() bool {
+	// ai-features is configured if Ollama client exists (no API key needed)
+	// and either AI is disabled (config-only mode) or client is available
+	return p.client != nil || !p.enabled
+}
+
 // --- sdk.HTTPProvider implementation ---
 
 func (p *AIFeaturesPlugin) GetRoutes() []sdk.Route {

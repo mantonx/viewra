@@ -605,9 +605,13 @@ func (x *Settings) GetJson() []byte {
 }
 
 type ConfigureResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Success bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error   string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	// Whether the plugin is properly configured (e.g., has required API keys).
+	// Plugins that require configuration should set this to false until configured.
+	// The host uses this to exclude unconfigured providers from capability resolution.
+	IsConfigured  bool `protobuf:"varint,3,opt,name=is_configured,json=isConfigured,proto3" json:"is_configured,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -654,6 +658,13 @@ func (x *ConfigureResponse) GetError() string {
 		return x.Error
 	}
 	return ""
+}
+
+func (x *ConfigureResponse) GetIsConfigured() bool {
+	if x != nil {
+		return x.IsConfigured
+	}
+	return false
 }
 
 type EventSubscriptions struct {
@@ -1363,10 +1374,11 @@ const file_api_proto_plugin_plugin_core_proto_rawDesc = "" +
 	"\vjson_schema\x18\x01 \x01(\fR\n" +
 	"jsonSchema\"\x1e\n" +
 	"\bSettings\x12\x12\n" +
-	"\x04json\x18\x01 \x01(\fR\x04json\"C\n" +
+	"\x04json\x18\x01 \x01(\fR\x04json\"h\n" +
 	"\x11ConfigureResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error\"5\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12#\n" +
+	"\ris_configured\x18\x03 \x01(\bR\fisConfigured\"5\n" +
 	"\x12EventSubscriptions\x12\x1f\n" +
 	"\vevent_types\x18\x01 \x03(\tR\n" +
 	"eventTypes\"\x9b\x01\n" +

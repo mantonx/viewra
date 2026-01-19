@@ -1,6 +1,6 @@
 -- name: GetPlugin :one
 SELECT id, name, version, description, author, license, homepage,
-       categories, is_builtin, enabled, path,
+       capabilities, is_builtin, enabled, path,
        health_status, last_heartbeat, restart_count,
        settings, settings_schema,
        installed_at, updated_at
@@ -9,7 +9,7 @@ WHERE id = $1;
 
 -- name: ListPlugins :many
 SELECT id, name, version, description, author, license, homepage,
-       categories, is_builtin, enabled, path,
+       capabilities, is_builtin, enabled, path,
        health_status, last_heartbeat, restart_count,
        settings, settings_schema,
        installed_at, updated_at
@@ -18,7 +18,7 @@ ORDER BY is_builtin DESC, name;
 
 -- name: ListEnabledPlugins :many
 SELECT id, name, version, description, author, license, homepage,
-       categories, is_builtin, enabled, path,
+       capabilities, is_builtin, enabled, path,
        health_status, last_heartbeat, restart_count,
        settings, settings_schema,
        installed_at, updated_at
@@ -26,20 +26,20 @@ FROM plugins
 WHERE enabled = 1
 ORDER BY is_builtin DESC, name;
 
--- name: ListPluginsByCategory :many
+-- name: ListPluginsByCapability :many
 SELECT id, name, version, description, author, license, homepage,
-       categories, is_builtin, enabled, path,
+       capabilities, is_builtin, enabled, path,
        health_status, last_heartbeat, restart_count,
        settings, settings_schema,
        installed_at, updated_at
 FROM plugins
-WHERE categories ? sqlc.narg('category')
+WHERE capabilities ? sqlc.narg('capability')
 ORDER BY is_builtin DESC, name;
 
 -- name: CreatePlugin :exec
 INSERT INTO plugins (
     id, name, version, description, author, license, homepage,
-    categories, is_builtin, enabled, path,
+    capabilities, is_builtin, enabled, path,
     health_status, last_heartbeat, restart_count,
     installed_at, updated_at
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW());
@@ -52,7 +52,7 @@ UPDATE plugins SET
     author = $4,
     license = $5,
     homepage = $6,
-    categories = $7,
+    capabilities = $7,
     path = $8,
     updated_at = NOW()
 WHERE id = $9;
@@ -91,7 +91,7 @@ SELECT CASE WHEN EXISTS(SELECT 1 FROM plugins WHERE id = $1) THEN 1::bigint ELSE
 -- name: UpsertPlugin :exec
 INSERT INTO plugins (
     id, name, version, description, author, license, homepage,
-    categories, is_builtin, enabled, path,
+    capabilities, is_builtin, enabled, path,
     health_status, restart_count,
     installed_at, updated_at
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, 1, $9, 'unknown', 0, NOW(), NOW())
@@ -102,7 +102,7 @@ ON CONFLICT(id) DO UPDATE SET
     author = EXCLUDED.author,
     license = EXCLUDED.license,
     homepage = EXCLUDED.homepage,
-    categories = EXCLUDED.categories,
+    capabilities = EXCLUDED.capabilities,
     path = EXCLUDED.path,
     updated_at = NOW();
 

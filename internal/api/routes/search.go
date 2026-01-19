@@ -5,9 +5,8 @@ import (
 	"github.com/mantonx/viewra/internal/api/handlers"
 )
 
-// RegisterSearchRoutes registers search routes with fallback support.
-// The SearchHandler checks if a semantic search plugin is available and
-// falls back to basic text search if not.
+// RegisterSearchRoutes registers search routes.
+// Plugins can override /api/search by registering the "search" capability.
 func RegisterSearchRoutes(router *gin.RouterGroup, handler *handlers.SearchHandler) {
 	if handler == nil {
 		return

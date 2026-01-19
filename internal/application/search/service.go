@@ -7,7 +7,7 @@ import (
 	"github.com/mantonx/viewra/internal/domain/search"
 )
 
-// Service provides fallback search when no semantic search plugin is available.
+// Service provides text-based search across media.
 type Service struct {
 	repo   search.Repository
 	logger *slog.Logger
@@ -21,18 +21,16 @@ func NewService(repo search.Repository, logger *slog.Logger) *Service {
 	}
 }
 
-// Search performs a fallback text search across all media.
-// This is used when no semantic search plugin is configured.
+// Search performs text search across all media.
 func (s *Service) Search(ctx context.Context, req *search.Request) (*search.Response, error) {
 	results, err := s.repo.Search(ctx, req)
 	if err != nil {
-		s.logger.Error("fallback search failed", "error", err, "query", req.Query)
+		s.logger.Error("search failed", "error", err, "query", req.Query)
 		return nil, err
 	}
 
 	return &search.Response{
-		Results:  results,
-		Total:    len(results),
-		Fallback: true,
+		Results: results,
+		Total:   len(results),
 	}, nil
 }

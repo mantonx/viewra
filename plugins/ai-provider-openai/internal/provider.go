@@ -376,6 +376,10 @@ func (p *OpenAIProvider) Configure(settings []byte) error {
 	return nil
 }
 
+func (p *OpenAIProvider) IsConfigured() bool {
+	return p.apiKey != ""
+}
+
 // --- sdk.HTTPProvider implementation ---
 
 func (p *OpenAIProvider) GetRoutes() []sdk.Route {

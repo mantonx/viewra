@@ -124,8 +124,8 @@ func (s *MarketplaceService) ListAvailable(ctx context.Context) (*MarketplaceCat
 			mp.HasUpdate = s.hasUpdate(inst.Version, info.LatestVersion)
 			mp.Description = inst.Description
 			mp.Author = inst.Author
-			if inst.Categories != "" {
-				mp.Categories = strings.Split(inst.Categories, ",")
+			if inst.Capabilities != "" {
+				mp.Capabilities = parseCapabilities(inst.Capabilities)
 			}
 		}
 
@@ -231,19 +231,19 @@ func (s *MarketplaceService) Install(ctx context.Context, req InstallRequest, pr
 
 	// Register in database
 	plugin := Plugin{
-		ID:          result.Manifest.ID,
-		Name:        result.Manifest.Name,
-		Version:     result.Manifest.Version,
-		Description: result.Manifest.Description,
-		Author:      result.Manifest.Author,
-		License:     result.Manifest.License,
-		Homepage:    result.Manifest.Homepage,
-		Categories:  strings.Join(result.Manifest.Categories, ","),
-		IsBuiltin:   false,
-		Enabled:     true,
-		Path:        result.PluginDir,
-		InstalledAt: time.Now(),
-		UpdatedAt:   time.Now(),
+		ID:           result.Manifest.ID,
+		Name:         result.Manifest.Name,
+		Version:      result.Manifest.Version,
+		Description:  result.Manifest.Description,
+		Author:       result.Manifest.Author,
+		License:      result.Manifest.License,
+		Homepage:     result.Manifest.Homepage,
+		Capabilities: strings.Join(result.Manifest.Capabilities, ","),
+		IsBuiltin:    false,
+		Enabled:      true,
+		Path:         result.PluginDir,
+		InstalledAt:  time.Now(),
+		UpdatedAt:    time.Now(),
 	}
 
 	if err := s.queries.UpsertPlugin(ctx, plugin); err != nil {
@@ -341,18 +341,18 @@ func (s *MarketplaceService) installInternal(ctx context.Context, req InstallReq
 
 	// Update database
 	plugin := Plugin{
-		ID:          result.Manifest.ID,
-		Name:        result.Manifest.Name,
-		Version:     result.Manifest.Version,
-		Description: result.Manifest.Description,
-		Author:      result.Manifest.Author,
-		License:     result.Manifest.License,
-		Homepage:    result.Manifest.Homepage,
-		Categories:  strings.Join(result.Manifest.Categories, ","),
-		IsBuiltin:   false,
-		Enabled:     true,
-		Path:        result.PluginDir,
-		UpdatedAt:   time.Now(),
+		ID:           result.Manifest.ID,
+		Name:         result.Manifest.Name,
+		Version:      result.Manifest.Version,
+		Description:  result.Manifest.Description,
+		Author:       result.Manifest.Author,
+		License:      result.Manifest.License,
+		Homepage:     result.Manifest.Homepage,
+		Capabilities: strings.Join(result.Manifest.Capabilities, ","),
+		IsBuiltin:    false,
+		Enabled:      true,
+		Path:         result.PluginDir,
+		UpdatedAt:    time.Now(),
 	}
 
 	if err := s.queries.UpsertPlugin(ctx, plugin); err != nil {

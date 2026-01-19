@@ -20,6 +20,9 @@ func TestLoad_ValidYAML(t *testing.T) {
 id: test-plugin
 name: Test Plugin
 version: 1.0.0
+display_category: other
+capabilities:
+  - metadata
 `,
 			validate: func(t *testing.T, m *Manifest) {
 				if m.ID != "test-plugin" {
@@ -30,6 +33,12 @@ version: 1.0.0
 				}
 				if m.Version != "1.0.0" {
 					t.Errorf("expected Version '1.0.0', got %q", m.Version)
+				}
+				if m.DisplayCategory != "other" {
+					t.Errorf("expected DisplayCategory 'other', got %q", m.DisplayCategory)
+				}
+				if len(m.Capabilities) != 1 || m.Capabilities[0] != "metadata" {
+					t.Errorf("expected Capabilities ['metadata'], got %v", m.Capabilities)
 				}
 			},
 		},
@@ -44,34 +53,17 @@ author: Test Author
 license: MIT
 homepage: https://example.com
 min_host_version: 1.0.0
-categories:
-  - enricher
-  - ai
+display_category: providers
 capabilities:
-  media_types:
-    - movie
-    - tv_show
-  provides:
-    - metadata
-    - images
-  is_local: true
-  rate_limit: 100
-service_capabilities:
-  - semantic_search
-  - similar_items
-dependencies:
-  - capability: provider
-    required: true
-  - capability: ai:search
-    required: false
-provides:
-  - search
-  - recommendations
+  - provider
+  - provider:ollama
+  - embedding
+  - chat
 requires:
   - embedding
-type: enricher
 media_types:
   - movie
+  - tv_show
 permissions:
   - network
   - storage
@@ -95,44 +87,17 @@ permissions:
 				if m.MinHostVersion != "1.0.0" {
 					t.Errorf("expected MinHostVersion '1.0.0', got %q", m.MinHostVersion)
 				}
-				if len(m.Categories) != 2 {
-					t.Errorf("expected 2 categories, got %d", len(m.Categories))
+				if m.DisplayCategory != "providers" {
+					t.Errorf("expected DisplayCategory 'providers', got %q", m.DisplayCategory)
 				}
-				if m.Capabilities == nil {
-					t.Fatal("expected Capabilities to be set")
-				}
-				if len(m.Capabilities.MediaTypes) != 2 {
-					t.Errorf("expected 2 media types in capabilities, got %d", len(m.Capabilities.MediaTypes))
-				}
-				if !m.Capabilities.IsLocal {
-					t.Error("expected IsLocal to be true")
-				}
-				if m.Capabilities.RateLimit != 100 {
-					t.Errorf("expected RateLimit 100, got %d", m.Capabilities.RateLimit)
-				}
-				if len(m.ServiceCapabilities) != 2 {
-					t.Errorf("expected 2 service capabilities, got %d", len(m.ServiceCapabilities))
-				}
-				if len(m.Dependencies) != 2 {
-					t.Errorf("expected 2 dependencies, got %d", len(m.Dependencies))
-				}
-				if m.Dependencies[0].Capability != "provider" || !m.Dependencies[0].Required {
-					t.Error("first dependency should be provider (required)")
-				}
-				if m.Dependencies[1].Capability != "ai:search" || m.Dependencies[1].Required {
-					t.Error("second dependency should be ai:search (optional)")
-				}
-				if len(m.Provides) != 2 {
-					t.Errorf("expected 2 provides, got %d", len(m.Provides))
+				if len(m.Capabilities) != 4 {
+					t.Errorf("expected 4 capabilities, got %d", len(m.Capabilities))
 				}
 				if len(m.Requires) != 1 || m.Requires[0] != "embedding" {
-					t.Errorf("expected requires ['embedding'], got %v", m.Requires)
+					t.Errorf("expected Requires ['embedding'], got %v", m.Requires)
 				}
-				if m.Type != "enricher" {
-					t.Errorf("expected Type 'enricher', got %q", m.Type)
-				}
-				if len(m.MediaTypes) != 1 || m.MediaTypes[0] != "movie" {
-					t.Errorf("expected MediaTypes ['movie'], got %v", m.MediaTypes)
+				if len(m.MediaTypes) != 2 {
+					t.Errorf("expected 2 media types, got %d", len(m.MediaTypes))
 				}
 				if len(m.Permissions) != 2 {
 					t.Errorf("expected 2 permissions, got %d", len(m.Permissions))
@@ -140,23 +105,55 @@ permissions:
 			},
 		},
 		{
-			name: "empty optional fields",
+			name: "search plugin",
 			yaml: `
-id: minimal
-name: Minimal
-version: 0.1.0
-categories: []
-permissions: []
+id: semantic-search
+name: Semantic Search
+version: 1.0.0
+display_category: search
+capabilities:
+  - search
+  - vector_search
+  - search_provider
+requires:
+  - embedding
 `,
 			validate: func(t *testing.T, m *Manifest) {
-				if m.Capabilities != nil {
-					t.Error("expected Capabilities to be nil")
+				if m.DisplayCategory != "search" {
+					t.Errorf("expected DisplayCategory 'search', got %q", m.DisplayCategory)
 				}
-				if len(m.Categories) != 0 {
-					t.Errorf("expected empty categories, got %d", len(m.Categories))
+				if len(m.Capabilities) != 3 {
+					t.Errorf("expected 3 capabilities, got %d: %v", len(m.Capabilities), m.Capabilities)
 				}
-				if len(m.Permissions) != 0 {
-					t.Errorf("expected empty permissions, got %d", len(m.Permissions))
+				if len(m.Requires) != 1 {
+					t.Errorf("expected 1 requires, got %d", len(m.Requires))
+				}
+			},
+		},
+		{
+			name: "enricher plugin",
+			yaml: `
+id: tmdb
+name: TMDb Enricher
+version: 1.0.0
+display_category: enrichers
+capabilities:
+  - metadata
+  - artwork
+  - external_ids
+media_types:
+  - movie
+  - tv_show
+`,
+			validate: func(t *testing.T, m *Manifest) {
+				if m.DisplayCategory != "enrichers" {
+					t.Errorf("expected DisplayCategory 'enrichers', got %q", m.DisplayCategory)
+				}
+				if len(m.Capabilities) != 3 {
+					t.Errorf("expected 3 capabilities, got %d", len(m.Capabilities))
+				}
+				if len(m.MediaTypes) != 2 {
+					t.Errorf("expected 2 media types, got %d", len(m.MediaTypes))
 				}
 			},
 		},
@@ -166,6 +163,9 @@ permissions: []
 id: prerelease
 name: Prerelease Plugin
 version: 1.0.0-beta.1
+display_category: other
+capabilities:
+  - metadata
 `,
 			validate: func(t *testing.T, m *Manifest) {
 				if m.Version != "1.0.0-beta.1" {
@@ -174,26 +174,18 @@ version: 1.0.0-beta.1
 			},
 		},
 		{
-			name: "capabilities without provides",
+			name: "local builtin plugin",
 			yaml: `
-id: cap-test
-name: Capabilities Test
+id: local-scanner
+name: Local Scanner
 version: 1.0.0
+display_category: local
 capabilities:
-  media_types:
-    - music
-  is_local: false
-  rate_limit: 50
+  - metadata
 `,
 			validate: func(t *testing.T, m *Manifest) {
-				if m.Capabilities == nil {
-					t.Fatal("expected Capabilities to be set")
-				}
-				if len(m.Capabilities.Provides) != 0 {
-					t.Errorf("expected empty provides in capabilities, got %d", len(m.Capabilities.Provides))
-				}
-				if m.Capabilities.RateLimit != 50 {
-					t.Errorf("expected RateLimit 50, got %d", m.Capabilities.RateLimit)
+				if m.DisplayCategory != "local" {
+					t.Errorf("expected DisplayCategory 'local', got %q", m.DisplayCategory)
 				}
 			},
 		},
@@ -227,42 +219,67 @@ func TestLoad_MissingRequiredFields(t *testing.T) {
 	}{
 		{
 			name:        "missing id",
-			yaml:        "name: Test\nversion: 1.0.0",
+			yaml:        "name: Test\nversion: 1.0.0\ndisplay_category: other\ncapabilities:\n  - metadata",
 			wantErrText: "id is required",
 		},
 		{
 			name:        "empty id",
-			yaml:        "id: \"\"\nname: Test\nversion: 1.0.0",
+			yaml:        "id: \"\"\nname: Test\nversion: 1.0.0\ndisplay_category: other\ncapabilities:\n  - metadata",
 			wantErrText: "id is required",
 		},
 		{
 			name:        "missing name",
-			yaml:        "id: test\nversion: 1.0.0",
+			yaml:        "id: test\nversion: 1.0.0\ndisplay_category: other\ncapabilities:\n  - metadata",
 			wantErrText: "name is required",
 		},
 		{
 			name:        "empty name",
-			yaml:        "id: test\nname: \"\"\nversion: 1.0.0",
+			yaml:        "id: test\nname: \"\"\nversion: 1.0.0\ndisplay_category: other\ncapabilities:\n  - metadata",
 			wantErrText: "name is required",
 		},
 		{
 			name:        "missing version",
-			yaml:        "id: test\nname: Test",
+			yaml:        "id: test\nname: Test\ndisplay_category: other\ncapabilities:\n  - metadata",
 			wantErrText: "version is required",
 		},
 		{
 			name:        "empty version",
-			yaml:        "id: test\nname: Test\nversion: \"\"",
+			yaml:        "id: test\nname: Test\nversion: \"\"\ndisplay_category: other\ncapabilities:\n  - metadata",
 			wantErrText: "version is required",
 		},
 		{
-			name:        "all required fields missing",
-			yaml:        "description: Some description",
-			wantErrText: "id is required",
+			name:        "missing display_category",
+			yaml:        "id: test\nname: Test\nversion: 1.0.0\ncapabilities:\n  - metadata",
+			wantErrText: "display_category is required",
+		},
+		{
+			name:        "invalid display_category",
+			yaml:        "id: test\nname: Test\nversion: 1.0.0\ndisplay_category: invalid_cat\ncapabilities:\n  - metadata",
+			wantErrText: "invalid display_category",
+		},
+		{
+			name:        "missing capabilities",
+			yaml:        "id: test\nname: Test\nversion: 1.0.0\ndisplay_category: other",
+			wantErrText: "capabilities is required",
+		},
+		{
+			name:        "empty capabilities",
+			yaml:        "id: test\nname: Test\nversion: 1.0.0\ndisplay_category: other\ncapabilities: []",
+			wantErrText: "capabilities is required",
+		},
+		{
+			name:        "invalid capability",
+			yaml:        "id: test\nname: Test\nversion: 1.0.0\ndisplay_category: other\ncapabilities:\n  - invalid_cap",
+			wantErrText: "invalid capability",
+		},
+		{
+			name:        "invalid required capability",
+			yaml:        "id: test\nname: Test\nversion: 1.0.0\ndisplay_category: other\ncapabilities:\n  - metadata\nrequires:\n  - invalid_req",
+			wantErrText: "invalid required capability",
 		},
 		{
 			name:        "whitespace only id",
-			yaml:        "id: \"   \"\nname: Test\nversion: 1.0.0",
+			yaml:        "id: \"   \"\nname: Test\nversion: 1.0.0\ndisplay_category: other\ncapabilities:\n  - metadata",
 			wantErrText: "id is required",
 		},
 	}
@@ -306,22 +323,17 @@ func TestLoad_InvalidYAML(t *testing.T) {
 		},
 		{
 			name:        "duplicate key",
-			content:     "id: test\nid: test2\nname: Test\nversion: 1.0.0",
-			wantErrText: "failed to parse plugin.yml",
-		},
-		{
-			name:        "wrong type for categories",
-			content:     "id: test\nname: Test\nversion: 1.0.0\ncategories: not-a-list",
+			content:     "id: test\nid: test2\nname: Test\nversion: 1.0.0\ndisplay_category: other\ncapabilities:\n  - metadata",
 			wantErrText: "failed to parse plugin.yml",
 		},
 		{
 			name:        "wrong type for capabilities",
-			content:     "id: test\nname: Test\nversion: 1.0.0\ncapabilities: not-an-object",
+			content:     "id: test\nname: Test\nversion: 1.0.0\ndisplay_category: other\ncapabilities: not-a-list",
 			wantErrText: "failed to parse plugin.yml",
 		},
 		{
-			name:        "wrong type for dependencies",
-			content:     "id: test\nname: Test\nversion: 1.0.0\ndependencies: not-a-list",
+			name:        "wrong type for requires",
+			content:     "id: test\nname: Test\nversion: 1.0.0\ndisplay_category: other\ncapabilities:\n  - metadata\nrequires: not-a-list",
 			wantErrText: "failed to parse plugin.yml",
 		},
 		{
@@ -426,6 +438,9 @@ func TestLoad_EdgeCases(t *testing.T) {
 id: unicode-plugin
 name: Plugin 日本語 中文 العربية
 version: 1.0.0
+display_category: other
+capabilities:
+  - metadata
 description: Émojis are fine 🎉
 `,
 			validate: func(t *testing.T, m *Manifest, err error) {
@@ -446,6 +461,9 @@ description: Émojis are fine 🎉
 id: extra-fields
 name: Extra Fields Plugin
 version: 1.0.0
+display_category: other
+capabilities:
+  - metadata
 unknown_field: should be ignored
 another_unknown:
   nested: value
@@ -460,49 +478,14 @@ another_unknown:
 			},
 		},
 		{
-			name: "very long values",
-			yaml: `
-id: long-values
-name: ` + string(make([]byte, 1000)) + `
-version: 1.0.0
-`,
-			validate: func(t *testing.T, m *Manifest, err error) {
-				// This should fail validation since name becomes empty null bytes
-				// which get trimmed or cause issues
-				if err == nil && m.Name == "" {
-					t.Error("expected error or non-empty name")
-				}
-			},
-		},
-		{
-			name: "yaml anchors and aliases",
-			yaml: `
-id: anchors
-name: Anchor Test
-version: 1.0.0
-categories: &cats
-  - enricher
-  - ai
-media_types: *cats
-`,
-			validate: func(t *testing.T, m *Manifest, err error) {
-				if err != nil {
-					t.Fatalf("unexpected error: %v", err)
-				}
-				if len(m.Categories) != 2 {
-					t.Errorf("expected 2 categories, got %d", len(m.Categories))
-				}
-				if len(m.MediaTypes) != 2 {
-					t.Errorf("expected 2 media_types (via alias), got %d", len(m.MediaTypes))
-				}
-			},
-		},
-		{
 			name: "multiline description",
 			yaml: `
 id: multiline
 name: Multiline Test
 version: 1.0.0
+display_category: other
+capabilities:
+  - metadata
 description: |
   This is a multiline
   description that spans
@@ -523,8 +506,11 @@ description: |
 id: nulls
 name: Null Test
 version: 1.0.0
+display_category: other
+capabilities:
+  - metadata
 description: ~
-capabilities: null
+requires: null
 `,
 			validate: func(t *testing.T, m *Manifest, err error) {
 				if err != nil {
@@ -533,8 +519,39 @@ capabilities: null
 				if m.Description != "" {
 					t.Errorf("expected empty description for null, got %q", m.Description)
 				}
-				if m.Capabilities != nil {
-					t.Error("expected nil capabilities for null value")
+				if m.Requires != nil && len(m.Requires) > 0 {
+					t.Error("expected nil/empty requires for null value")
+				}
+			},
+		},
+		{
+			name: "dynamic provider capability",
+			yaml: `
+id: ollama-provider
+name: Ollama Provider
+version: 1.0.0
+display_category: providers
+capabilities:
+  - provider
+  - provider:ollama
+  - embedding
+`,
+			validate: func(t *testing.T, m *Manifest, err error) {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if len(m.Capabilities) != 3 {
+					t.Errorf("expected 3 capabilities, got %d", len(m.Capabilities))
+				}
+				found := false
+				for _, cap := range m.Capabilities {
+					if cap == "provider:ollama" {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Error("expected provider:ollama capability")
 				}
 			},
 		},
@@ -551,6 +568,64 @@ capabilities: null
 			m, err := Load(dir)
 			tt.validate(t, m, err)
 		})
+	}
+}
+
+func TestIsValidDisplayCategory(t *testing.T) {
+	t.Parallel()
+
+	valid := []string{"search", "recommendations", "enrichers", "providers", "local", "other"}
+	for _, cat := range valid {
+		if !IsValidDisplayCategory(cat) {
+			t.Errorf("expected %q to be valid", cat)
+		}
+	}
+
+	invalid := []string{"", "invalid", "SEARCH", "Search", "unknown"}
+	for _, cat := range invalid {
+		if IsValidDisplayCategory(cat) {
+			t.Errorf("expected %q to be invalid", cat)
+		}
+	}
+}
+
+func TestIsValidCapability(t *testing.T) {
+	t.Parallel()
+
+	valid := []string{
+		"search", "search_provider", "vector_search",
+		"provider", "embedding", "chat",
+		"metadata", "artwork", "external_ids", "trending",
+		"notification_sink", "recommendations",
+		"provider:ollama", "provider:anthropic", "provider:anything",
+	}
+	for _, cap := range valid {
+		if !IsValidCapability(cap) {
+			t.Errorf("expected %q to be valid", cap)
+		}
+	}
+
+	invalid := []string{"", "invalid", "SEARCH", "Search", "unknown", "provideer"}
+	for _, cap := range invalid {
+		if IsValidCapability(cap) {
+			t.Errorf("expected %q to be invalid", cap)
+		}
+	}
+}
+
+func TestGetDisplayCategory(t *testing.T) {
+	t.Parallel()
+
+	// Valid category
+	cat := GetDisplayCategory("search")
+	if cat.ID != "search" || cat.Label != "Search" || cat.Priority != 1 {
+		t.Errorf("unexpected category: %+v", cat)
+	}
+
+	// Invalid category returns "other"
+	cat = GetDisplayCategory("invalid")
+	if cat.ID != "other" || cat.Label != "Other" || cat.Priority != 99 {
+		t.Errorf("expected 'other' category for invalid input, got %+v", cat)
 	}
 }
 

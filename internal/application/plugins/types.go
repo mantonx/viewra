@@ -13,7 +13,6 @@ type PluginSummary struct {
 	Version     string         `json:"version"`
 	Description string         `json:"description"`
 	Author      string         `json:"author"`
-	Categories  []string       `json:"categories"`
 	Enabled     bool           `json:"enabled"`
 	IsBuiltin   bool           `json:"is_builtin"`
 	Health      string         `json:"health"`                // "healthy", "degraded", "unhealthy", "unknown"
@@ -23,12 +22,17 @@ type PluginSummary struct {
 	// Settings availability
 	HasSettings bool `json:"has_settings"` // Whether this plugin has configurable settings
 
-	// Capabilities this plugin provides (e.g., "semantic_search", "embedding", "chat")
+	// Capabilities this plugin provides (e.g., "search", "embedding", "chat")
 	Capabilities []string `json:"capabilities,omitempty"`
 
 	// Dependencies this plugin requires but are not currently available
 	// Used to show warnings in the UI about missing capabilities
 	MissingDependencies []string `json:"missing_dependencies,omitempty"`
+
+	// DisplayCategory is the computed category for UI grouping
+	// Determined by: builtin → "Local", provider capability → "AI Providers",
+	// search capability → "Search", enricher category → "Enrichers", else "Other"
+	DisplayCategory string `json:"display_category"`
 }
 
 // PluginDetail contains full plugin information.
@@ -42,8 +46,8 @@ type PluginDetail struct {
 	LastHeartbeat time.Time `json:"last_heartbeat"`
 	HealthMessage string    `json:"health_message,omitempty"`
 
-	// Enricher-specific capabilities (nil for non-enrichers)
-	Capabilities *EnricherCapabilities `json:"capabilities,omitempty"`
+	// EnricherCapabilities contains enricher-specific capabilities (nil for non-enrichers)
+	EnricherCapabilities *EnricherCapabilities `json:"enricher_capabilities,omitempty"`
 }
 
 // EnricherCapabilities describes what an enricher plugin provides.
@@ -86,6 +90,13 @@ type LogOptions struct {
 	Limit int       // Max entries to return (default 100)
 	Level string    // Filter by level (e.g., "error", "warn")
 	Since time.Time // Only entries after this time
+}
+
+// FilterTab represents a filter tab for the plugins UI.
+type FilterTab struct {
+	ID    string `json:"id"`    // Tab identifier (e.g., "all", "enrichers")
+	Label string `json:"label"` // Display label
+	Count int    `json:"count"` // Number of plugins matching this filter
 }
 
 // ErrPluginNotFound is returned when a plugin doesn't exist.

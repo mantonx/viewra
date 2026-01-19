@@ -80,21 +80,72 @@ func TestInstance_HasCategory(t *testing.T) {
 	}
 }
 
-func TestParseCategories(t *testing.T) {
-	input := []string{"enricher", "provider", "notification_sink"}
-	result := ParseCategories(input)
+func TestInferCategoriesFromCapabilities(t *testing.T) {
+	tests := []struct {
+		name         string
+		capabilities []string
+		wantCats     []Category
+	}{
+		{
+			name:         "provider capabilities",
+			capabilities: []string{"provider", "embedding"},
+			wantCats:     []Category{CategoryProvider},
+		},
+		{
+			name:         "dynamic provider capability",
+			capabilities: []string{"provider:ollama", "embedding"},
+			wantCats:     []Category{CategoryProvider},
+		},
+		{
+			name:         "enricher capabilities",
+			capabilities: []string{"metadata", "artwork"},
+			wantCats:     []Category{CategoryEnricher},
+		},
+		{
+			name:         "trending capability",
+			capabilities: []string{"trending"},
+			wantCats:     []Category{CategoryTrending},
+		},
+		{
+			name:         "notification sink",
+			capabilities: []string{"notification_sink"},
+			wantCats:     []Category{CategoryNotificationSink},
+		},
+		{
+			name:         "mixed capabilities",
+			capabilities: []string{"provider", "metadata", "trending"},
+			wantCats:     []Category{CategoryProvider, CategoryEnricher, CategoryTrending},
+		},
+		{
+			name:         "search capabilities - no category mapping",
+			capabilities: []string{"search", "vector_search"},
+			wantCats:     []Category{},
+		},
+	}
 
-	if len(result) != 3 {
-		t.Fatalf("expected 3 categories, got %d", len(result))
-	}
-	if result[0] != CategoryEnricher {
-		t.Errorf("expected first category to be enricher, got %v", result[0])
-	}
-	if result[1] != CategoryProvider {
-		t.Errorf("expected second category to be provider, got %v", result[1])
-	}
-	if result[2] != CategoryNotificationSink {
-		t.Errorf("expected third category to be notification_sink, got %v", result[2])
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := InferCategoriesFromCapabilities(tt.capabilities)
+
+			// Check that all expected categories are present
+			for _, wantCat := range tt.wantCats {
+				found := false
+				for _, gotCat := range got {
+					if gotCat == wantCat {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected category %v not found in result %v", wantCat, got)
+				}
+			}
+
+			// Check no extra categories
+			if len(got) != len(tt.wantCats) {
+				t.Errorf("expected %d categories, got %d: %v", len(tt.wantCats), len(got), got)
+			}
+		})
 	}
 }
 

@@ -1,13 +1,7 @@
 import type { GithubComMantonxViewraInternalApplicationPluginsPluginSummary as PluginSummary } from '@/lib/api/generated/models'
+import type { GithubComMantonxViewraInternalApplicationPluginsFilterTab as FilterTab } from '@/lib/api/generated/models'
 
-export type FilterTab = 'all' | 'enrichers' | 'providers' | 'disabled'
-
-export interface TabCounts {
-  all: number
-  enrichers: number
-  providers: number
-  disabled: number
-}
+export type { FilterTab }
 
 export interface PluginGroupInfo {
   id: string

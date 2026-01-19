@@ -1,6 +1,4 @@
 # Recommendations Plugin Manifest
-# Provides personalized recommendations for the home screen
-
 id: recommendations
 name: Recommendations
 version: 1.0.0
@@ -10,23 +8,21 @@ author: ViewRA Team
 license: MIT
 homepage: https://github.com/mantonx/viewra
 
-# Minimum ViewRA version required
 min_host_version: "0.1.0"
 
-# Plugin capabilities
-categories:
+# UI grouping (required) - valid values: search, recommendations, enrichers, providers, local, other
+display_category: recommendations
+
+# What this plugin provides (required)
+capabilities:
   - recommendations
   - widgets
 
-# What this plugin provides
-capabilities:
-  provides:
-    - recommendations
-    - widgets
-  requires:
-    - embedding  # Uses semantic search for "similar to" recommendations
+# What this plugin requires from other plugins
+requires:
+  - embedding
 
-# Permissions required
+# Required permissions
 permissions:
   - storage:database
   - data:media:read

@@ -117,16 +117,32 @@ func (p *Instance) HasCategory(cat Category) bool {
 	return false
 }
 
-// ParseCategories converts string slice to Category slice.
-func ParseCategories(categories []string) []Category {
-	result := make([]Category, len(categories))
-	for i, c := range categories {
-		result[i] = Category(c)
+// InferCategoriesFromCapabilities derives runtime categories from a plugin's capabilities.
+// This maps capability strings to the runtime Category types used for client dispatch.
+func InferCategoriesFromCapabilities(capabilities []string) []Category {
+	categorySet := make(map[Category]bool)
+
+	for _, cap := range capabilities {
+		switch {
+		case cap == "provider" || len(cap) > 9 && cap[:9] == "provider:":
+			categorySet[CategoryProvider] = true
+		case cap == "metadata" || cap == "artwork" || cap == "external_ids":
+			categorySet[CategoryEnricher] = true
+		case cap == "trending":
+			categorySet[CategoryTrending] = true
+		case cap == "notification_sink":
+			categorySet[CategoryNotificationSink] = true
+		}
+	}
+
+	result := make([]Category, 0, len(categorySet))
+	for cat := range categorySet {
+		result = append(result, cat)
 	}
 	return result
 }
 
-// HasCategory checks if a category slice contains a target category.
+// HasCategoryIn checks if a category slice contains a target category.
 func HasCategoryIn(categories []Category, target Category) bool {
 	for _, c := range categories {
 		if c == target {

@@ -17,7 +17,7 @@ type RegisteredRoute struct {
 	Methods     []string // HTTP methods
 	AdminOnly   bool
 	Description string
-	Capability  string // Capability name this route provides (e.g., "semantic_search")
+	Capability  string // Capability name this route provides (e.g., "search", "chat")
 	AliasPath   string // Stable URL alias (e.g., "/api/search"), empty if no alias
 	Streaming   bool
 	RateLimit   *pluginv1.PluginRateLimit

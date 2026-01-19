@@ -189,6 +189,11 @@ func (p *MusicBrainzPlugin) Configure(settings []byte) error {
 	return nil
 }
 
+func (p *MusicBrainzPlugin) IsConfigured() bool {
+	// MusicBrainz doesn't require an API key - always configured
+	return true
+}
+
 func (p *MusicBrainzPlugin) Enrich(ctx context.Context, req *sdk.EnrichRequest) (*sdk.EnrichResponse, error) {
 	p.mu.Lock()
 	p.requestsTotal++

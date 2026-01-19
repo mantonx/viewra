@@ -276,6 +276,10 @@ func (p *VoyageProvider) Configure(settings []byte) error {
 	return nil
 }
 
+func (p *VoyageProvider) IsConfigured() bool {
+	return p.apiKey != ""
+}
+
 // --- sdk.HTTPProvider implementation ---
 
 func (p *VoyageProvider) GetRoutes() []sdk.Route {

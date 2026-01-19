@@ -28,7 +28,7 @@ import { customInstance } from '../../mutator/index'
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
 
 /**
- * Searches for movies, TV shows, and other media. Uses semantic search if available, otherwise falls back to text search.
+ * Searches for movies, TV shows, and other media by text.
  * @summary Search media
  */
 export type getApiSearchResponse200 = {

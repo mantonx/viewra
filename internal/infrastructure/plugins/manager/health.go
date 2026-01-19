@@ -123,7 +123,7 @@ func (m *Manager) restartPlugin(ctx context.Context, p *types.Instance) {
 			WithData("plugin_id", newInstance.ID).
 			WithData("name", newInstance.Manifest.Name).
 			WithData("version", newInstance.Manifest.Version).
-			WithData("categories", newInstance.Manifest.Categories).
+			WithData("capabilities", newInstance.Manifest.Capabilities).
 			WithData("is_restart", true).
 			WithData("restart_count", restartCount).
 			Build())
@@ -165,7 +165,7 @@ func (m *Manager) RestartPlugin(ctx context.Context, pluginID string) error {
 			WithData("plugin_id", newInstance.ID).
 			WithData("name", newInstance.Manifest.Name).
 			WithData("version", newInstance.Manifest.Version).
-			WithData("categories", newInstance.Manifest.Categories).
+			WithData("capabilities", newInstance.Manifest.Capabilities).
 			WithData("is_restart", true).
 			Build())
 	}

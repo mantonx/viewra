@@ -1,6 +1,4 @@
 # TMDb Plugin Manifest
-# This file describes the plugin - it ships with the plugin binary
-
 id: tmdb
 name: TMDb Enricher
 version: 1.1.0
@@ -10,29 +8,25 @@ author: ViewRA Team
 license: MIT
 homepage: https://github.com/mantonx/viewra
 
-# Minimum ViewRA version required
 min_host_version: "0.1.0"
 
-# Plugin capabilities
-categories:
-  - enricher
-  - trending  # Provides trending data for home screen
+# UI grouping (required) - valid values: search, recommendations, enrichers, providers, local, other
+display_category: enrichers
 
-# What this enricher provides
+# What this plugin provides (required)
 capabilities:
-  media_types:
-    - movie
-    - tv
-    - tv_show
-  provides:
-    - metadata
-    - artwork
-    - external_ids
-    - trending  # Trending movies and TV shows
-  is_local: false
-  rate_limit: 40  # requests per 10 seconds
+  - metadata
+  - artwork
+  - external_ids
+  - trending
 
-# Permissions required
+# Media types this enricher supports
+media_types:
+  - movie
+  - tv
+  - tv_show
+
+# Required permissions
 permissions:
   - network
   - storage:database

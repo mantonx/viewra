@@ -33,7 +33,7 @@ type MarketplacePlugin struct {
 	InstalledVersion string   `json:"installed_version,omitempty"`
 	IsInstalled      bool     `json:"is_installed"`
 	HasUpdate        bool     `json:"has_update"`
-	Categories       []string `json:"categories,omitempty"`
+	Capabilities     []string `json:"capabilities,omitempty"`
 	DownloadCount    int64    `json:"download_count,omitempty"`
 	PublishedAt      string   `json:"published_at,omitempty"` // RFC3339
 }

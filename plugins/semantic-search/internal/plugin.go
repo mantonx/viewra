@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -120,6 +121,9 @@ func (p *SemanticSearchPlugin) Initialize(ctx context.Context, dataDir string, c
 	// Initialize services
 	p.initializeServices()
 
+	// Check if embedding provider is available
+	embeddingAvailable := p.plugins != nil && p.plugins.IsAvailable(ctx, "embedding")
+
 	// Log service availability for debugging
 	p.Log().Info("Semantic Search plugin initialized",
 		"auto_index", p.config.Indexing.AutoIndex,
@@ -129,7 +133,12 @@ func (p *SemanticSearchPlugin) Initialize(ctx context.Context, dataDir string, c
 		"has_vector", p.vector != nil,
 		"has_embedding_service", p.embeddingService != nil,
 		"has_indexing_service", p.indexingService != nil,
+		"embedding_available", embeddingAvailable,
 	)
+
+	if !embeddingAvailable {
+		p.Log().Warn("Semantic Search disabled: no embedding provider configured. Configure an AI provider in Settings > AI to enable semantic search.")
+	}
 
 	return nil
 }
@@ -249,6 +258,12 @@ func (p *SemanticSearchPlugin) Configure(settings []byte) error {
 	return nil
 }
 
+func (p *SemanticSearchPlugin) IsConfigured() bool {
+	// Semantic search plugin itself requires no configuration.
+	// Missing embedding providers are handled at runtime with clear error messages.
+	return true
+}
+
 // Shutdown is called before the plugin is unloaded.
 func (p *SemanticSearchPlugin) Shutdown(ctx context.Context) error {
 	p.Log().Debug("shutting down Semantic Search plugin")
@@ -296,6 +311,12 @@ func (p *SemanticSearchPlugin) Enrich(ctx context.Context, req *sdk.EnrichReques
 	// Index the media
 	if err := indexingService.IndexSingle(ctx, entityType, req.MediaID, nil); err != nil {
 		p.RecordError()
+
+		// Check if this is due to missing embedding provider (don't spam logs for expected condition)
+		if isEmbeddingUnavailableError(err) {
+			return sdk.Skip("no embedding provider configured"), nil
+		}
+
 		p.Log().Warn("failed to index media", "id", req.MediaID, "error", err)
 		return sdk.Skip(fmt.Sprintf("indexing failed: %v", err)), nil
 	}
@@ -537,7 +558,7 @@ func (p *SemanticSearchPlugin) GetRoutes() []sdk.Route {
 			Methods:     []string{"POST"},
 			AdminOnly:   false,
 			Description: "Perform semantic search across indexed media",
-			Capability:  "semantic_search",
+			Capability:  "search",
 			AliasPath:   "/api/search",
 		},
 		{
@@ -818,6 +839,15 @@ func (p *SemanticSearchPlugin) handleSearch(ctx context.Context, req *sdk.HTTPRe
 	})
 	if err != nil {
 		p.RecordError()
+
+		// Check if this is a capability error (e.g., no embedding provider)
+		if isEmbeddingUnavailableError(err) {
+			return jsonResponse(http.StatusServiceUnavailable, map[string]any{
+				"error":           "Semantic search is unavailable",
+				"disabled_reason": "No embedding provider configured. Configure an AI provider in Settings > AI to enable semantic search.",
+			})
+		}
+
 		return jsonResponse(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
@@ -890,7 +920,23 @@ func (p *SemanticSearchPlugin) handleStatus(ctx context.Context, req *sdk.HTTPRe
 		return jsonResponse(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
-	return jsonResponse(http.StatusOK, status)
+	// Check if embedding provider is available at runtime
+	embeddingAvailable := p.plugins != nil && p.plugins.IsAvailable(ctx, "embedding")
+
+	// Build response with additional fields
+	response := map[string]any{
+		"is_indexing":          status.IsIndexing,
+		"progress":             status.Progress,
+		"stats":                status.Stats,
+		"total_indexed":        status.TotalIndexed,
+		"embedding_available":  embeddingAvailable,
+	}
+
+	if !embeddingAvailable {
+		response["disabled_reason"] = "No embedding provider configured. Configure an AI provider in Settings > AI to enable semantic search."
+	}
+
+	return jsonResponse(http.StatusOK, response)
 }
 
 func (p *SemanticSearchPlugin) handleIndex(ctx context.Context, req *sdk.HTTPRequest) (*sdk.HTTPResponse, error) {
@@ -1465,6 +1511,15 @@ func jsonResponse(statusCode int, data any) (*sdk.HTTPResponse, error) {
 		ContentType: "application/json",
 		Body:        body,
 	}, nil
+}
+
+// isEmbeddingUnavailableError checks if an error indicates that no embedding provider is configured.
+func isEmbeddingUnavailableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "CAPABILITY_ERROR_NOT_FOUND") && strings.Contains(errStr, "embedding")
 }
 
 func (p *SemanticSearchPlugin) handleAutocomplete(ctx context.Context, req *sdk.HTTPRequest) (*sdk.HTTPResponse, error) {

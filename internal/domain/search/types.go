@@ -19,7 +19,6 @@ type Request struct {
 
 // Response contains search results and metadata.
 type Response struct {
-	Results  []Result `json:"results"`
-	Total    int      `json:"total"`
-	Fallback bool     `json:"fallback"` // True if using fallback search (no semantic search plugin)
+	Results []Result `json:"results"`
+	Total   int      `json:"total"`
 }

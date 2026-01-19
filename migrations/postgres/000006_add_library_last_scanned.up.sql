@@ -1,2 +1,3 @@
 -- Add last_scanned_at column if it doesn't exist (fixes DBs created before this was in init)
-ALTER TABLE libraries ADD COLUMN last_scanned_at DATETIME;
+-- Note: This is a no-op for new databases where init already has this column
+ALTER TABLE libraries ADD COLUMN IF NOT EXISTS last_scanned_at TIMESTAMPTZ;

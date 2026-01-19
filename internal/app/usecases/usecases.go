@@ -40,15 +40,6 @@ type UseCases struct {
 	TranscodeAnalytics *transcodeanalytics.Service
 }
 
-// WireSemanticSearch wires semantic search capability into movie search.
-// This should be called after plugins are initialized, as semantic search
-// depends on the semantic-search plugin being loaded.
-func (uc *UseCases) WireSemanticSearch(provider movies.SemanticSearchProvider) {
-	if uc.Movies != nil && uc.Movies.Search != nil {
-		uc.Movies.Search.WithSemanticSearch(provider)
-	}
-}
-
 // LibraryUseCases holds library-related use cases
 type LibraryUseCases struct {
 	Service *library.LibraryService // Consolidated CRUD operations

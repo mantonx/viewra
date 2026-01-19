@@ -91,6 +91,11 @@ type ConfigurableProvider interface {
 
 	// Configure applies new settings to the provider.
 	Configure(settings []byte) error
+
+	// IsConfigured returns whether the provider is properly configured.
+	// Providers requiring API keys should return false until the key is set.
+	// The host uses this to exclude unconfigured providers from capability resolution.
+	IsConfigured() bool
 }
 
 // PluginsClientAware is an optional interface for providers that need
@@ -383,11 +388,12 @@ func (s *providerCoreServer) GetSettingsSchema(ctx context.Context, _ *pluginv1.
 func (s *providerCoreServer) Configure(ctx context.Context, settings *pluginv1.Settings) (*pluginv1.ConfigureResponse, error) {
 	if configurable, ok := s.impl.(ConfigurableProvider); ok {
 		if err := configurable.Configure(settings.Json); err != nil {
-			return &pluginv1.ConfigureResponse{Success: false, Error: err.Error()}, nil
+			return &pluginv1.ConfigureResponse{Success: false, Error: err.Error(), IsConfigured: false}, nil
 		}
-		return &pluginv1.ConfigureResponse{Success: true}, nil
+		return &pluginv1.ConfigureResponse{Success: true, IsConfigured: configurable.IsConfigured()}, nil
 	}
-	return &pluginv1.ConfigureResponse{Success: true}, nil
+	// Non-configurable providers are always considered configured
+	return &pluginv1.ConfigureResponse{Success: true, IsConfigured: true}, nil
 }
 
 func (s *providerCoreServer) GetSubscriptions(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.EventSubscriptions, error) {

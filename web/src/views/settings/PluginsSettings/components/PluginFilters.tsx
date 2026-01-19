@@ -1,33 +1,26 @@
 import type { Tab } from '@/components/ui/Tabs'
 import { Input, Tabs } from '@/components/ui'
-import type { FilterTab, TabCounts } from '../PluginsSettings.types'
+import type { FilterTab } from '../PluginsSettings.types'
 
 interface PluginFiltersProps {
-  activeTab: FilterTab
-  onTabChange: (tab: FilterTab) => void
-  tabCounts: TabCounts
+  activeTabId: string
+  onTabChange: (tabId: string) => void
+  tabs: FilterTab[]
   searchQuery: string
   onSearchChange: (query: string) => void
 }
 
-const TAB_DEFINITIONS: { id: FilterTab; label: string }[] = [
-  { id: 'all', label: 'All Plugins' },
-  { id: 'enrichers', label: 'Enrichers' },
-  { id: 'providers', label: 'Providers' },
-  { id: 'disabled', label: 'Disabled' },
-]
-
 export const PluginFilters = ({
-  activeTab,
+  activeTabId,
   onTabChange,
-  tabCounts,
+  tabs,
   searchQuery,
   onSearchChange,
 }: PluginFiltersProps) => {
-  const tabs: Tab[] = TAB_DEFINITIONS.map(({ id, label }) => ({
-    id,
-    label,
-    badge: tabCounts[id],
+  const uiTabs: Tab[] = tabs.map((tab) => ({
+    id: tab.id ?? '',
+    label: tab.label ?? '',
+    badge: tab.count,
   }))
 
   return (
@@ -39,9 +32,9 @@ export const PluginFilters = ({
         className="max-w-sm"
       />
       <Tabs
-        tabs={tabs}
-        activeTab={activeTab}
-        onTabChange={(id) => onTabChange(id as FilterTab)}
+        tabs={uiTabs}
+        activeTab={activeTabId}
+        onTabChange={onTabChange}
         variant="underline"
       />
     </div>

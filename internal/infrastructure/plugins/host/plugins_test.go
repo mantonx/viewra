@@ -85,8 +85,8 @@ func TestRegisterCapability(t *testing.T) {
 	if !providers[0].Enabled {
 		t.Error("expected provider to be enabled")
 	}
-	if !providers[0].Configured {
-		t.Error("expected provider to be configured")
+	if providers[0].Configured {
+		t.Error("expected provider to NOT be configured by default (must be set via Configure)")
 	}
 }
 
@@ -416,6 +416,10 @@ func TestResolveProvider(t *testing.T) {
 	// Register capabilities
 	server.RegisterCapability("plugin1", "Plugin One", "embedding")
 	server.RegisterCapability("plugin2", "Plugin Two", "embedding")
+
+	// Mark plugins as configured (default is false after registration)
+	server.UpdatePluginStatus("plugin1", true, true)
+	server.UpdatePluginStatus("plugin2", true, true)
 
 	// Test: resolve with no preference (should return first available)
 	provider, instance, err := server.resolveProvider("embedding", "")

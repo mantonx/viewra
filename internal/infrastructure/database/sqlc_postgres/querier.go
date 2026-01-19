@@ -451,7 +451,7 @@ type Querier interface {
 	ListPluginAPIKeys(ctx context.Context, pluginID string) ([]PluginApiKey, error)
 	ListPluginUserMetadataKeys(ctx context.Context, arg ListPluginUserMetadataKeysParams) ([]string, error)
 	ListPlugins(ctx context.Context) ([]ListPluginsRow, error)
-	ListPluginsByCategory(ctx context.Context, category sql.NullString) ([]ListPluginsByCategoryRow, error)
+	ListPluginsByCapability(ctx context.Context, capability sql.NullString) ([]ListPluginsByCapabilityRow, error)
 	ListProcessingTranscodeJobs(ctx context.Context) ([]TranscodeJob, error)
 	ListQualitySwitchEventsBySessionID(ctx context.Context, sessionID string) ([]QualitySwitchEvent, error)
 	ListQueuedTranscodeJobs(ctx context.Context, limit int64) ([]TranscodeJob, error)

@@ -8,25 +8,25 @@ func TestCapabilityRegistry_RegisterAndResolve(t *testing.T) {
 	registry := NewCapabilityRegistry()
 
 	// Register a capability
-	ok := registry.Register("plugin-a", "semantic_search", "/search")
+	ok := registry.Register("plugin-a", "search", "/search")
 	if !ok {
 		t.Error("first registration should succeed")
 	}
 
 	// Try to register same capability from another plugin
-	ok = registry.Register("plugin-b", "semantic_search", "/my-search")
+	ok = registry.Register("plugin-b", "search", "/my-search")
 	if ok {
 		t.Error("duplicate capability registration should fail")
 	}
 
 	// Same plugin can re-register
-	ok = registry.Register("plugin-a", "semantic_search", "/new-search")
+	ok = registry.Register("plugin-a", "search", "/new-search")
 	if !ok {
 		t.Error("same plugin should be able to update capability")
 	}
 
 	// Resolve the capability
-	mapping := registry.Resolve("semantic_search")
+	mapping := registry.Resolve("search")
 	if mapping == nil {
 		t.Fatal("capability should be resolvable")
 	}
@@ -39,7 +39,7 @@ func TestCapabilityRegistry_RegisterAndResolve(t *testing.T) {
 
 	// Unregister and verify
 	registry.Unregister("plugin-a")
-	if registry.Resolve("semantic_search") != nil {
+	if registry.Resolve("search") != nil {
 		t.Error("capability should be nil after unregister")
 	}
 }
@@ -48,7 +48,7 @@ func TestCapabilityRegistry_GetCapabilitiesForPlugin(t *testing.T) {
 	registry := NewCapabilityRegistry()
 
 	// Register multiple capabilities for a plugin
-	registry.Register("plugin-a", "semantic_search", "/search")
+	registry.Register("plugin-a", "search", "/search")
 	registry.Register("plugin-a", "similar_items", "/similar")
 	registry.Register("plugin-b", "chat", "/chat")
 
@@ -62,8 +62,8 @@ func TestCapabilityRegistry_GetCapabilitiesForPlugin(t *testing.T) {
 	for _, cap := range caps {
 		found[cap] = true
 	}
-	if !found["semantic_search"] {
-		t.Error("missing semantic_search capability")
+	if !found["search"] {
+		t.Error("missing search capability")
 	}
 	if !found["similar_items"] {
 		t.Error("missing similar_items capability")
@@ -73,7 +73,7 @@ func TestCapabilityRegistry_GetCapabilitiesForPlugin(t *testing.T) {
 func TestCapabilityRegistry_ListAll(t *testing.T) {
 	registry := NewCapabilityRegistry()
 
-	registry.Register("plugin-a", "semantic_search", "/search")
+	registry.Register("plugin-a", "search", "/search")
 	registry.Register("plugin-b", "chat", "/chat")
 
 	all := registry.ListAll()
@@ -81,8 +81,8 @@ func TestCapabilityRegistry_ListAll(t *testing.T) {
 		t.Errorf("ListAll() returned %d mappings, want 2", len(all))
 	}
 
-	if _, ok := all["semantic_search"]; !ok {
-		t.Error("ListAll() missing semantic_search")
+	if _, ok := all["search"]; !ok {
+		t.Error("ListAll() missing search")
 	}
 	if _, ok := all["chat"]; !ok {
 		t.Error("ListAll() missing chat")

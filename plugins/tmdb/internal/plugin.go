@@ -201,6 +201,12 @@ func (p *TMDbPlugin) Configure(settings []byte) error {
 	return nil
 }
 
+func (p *TMDbPlugin) IsConfigured() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.config.APIKey != ""
+}
+
 func (p *TMDbPlugin) Enrich(ctx context.Context, req *sdk.EnrichRequest) (*sdk.EnrichResponse, error) {
 	p.mu.Lock()
 	p.requestsTotal++

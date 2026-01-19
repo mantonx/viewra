@@ -167,16 +167,16 @@ func TestRouteRegistry_FindRouteByCapability(t *testing.T) {
 		{
 			Path:       "/search",
 			Methods:    []string{"GET"},
-			Capability: "semantic_search",
+			Capability: "search",
 		},
 	})
 
-	route, found := registry.FindRouteByCapability("semantic_search")
+	route, found := registry.FindRouteByCapability("search")
 	if !found {
 		t.Fatal("FindRouteByCapability() should find the route")
 	}
-	if route.Capability != "semantic_search" {
-		t.Errorf("route.Capability = %s, want semantic_search", route.Capability)
+	if route.Capability != "search" {
+		t.Errorf("route.Capability = %s, want search", route.Capability)
 	}
 
 	// Non-existent capability

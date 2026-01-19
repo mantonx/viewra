@@ -9,10 +9,13 @@ import type { GithubComMantonxViewraInternalApplicationPluginsPluginSummaryMeta 
 
 export interface GithubComMantonxViewraInternalApplicationPluginsPluginSummary {
   author?: string
-  /** Capabilities this plugin provides (e.g., "semantic_search", "embedding", "chat") */
+  /** Capabilities this plugin provides (e.g., "search", "embedding", "chat") */
   capabilities?: string[]
-  categories?: string[]
   description?: string
+  /** DisplayCategory is the computed category for UI grouping
+Determined by: builtin → "Local", provider capability → "AI Providers",
+search capability → "Search", enricher category → "Enrichers", else "Other" */
+  display_category?: string
   enabled?: boolean
   /** Settings availability */
   has_settings?: boolean

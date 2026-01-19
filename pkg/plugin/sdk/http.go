@@ -78,7 +78,7 @@ type Route struct {
 	// Description is human-readable text for API docs
 	Description string
 
-	// Capability is the capability name this route provides (e.g., "semantic_search", "chat")
+	// Capability is the capability name this route provides (e.g., "search", "chat")
 	// Other plugins can invoke this capability via the host plugins service.
 	Capability string
 

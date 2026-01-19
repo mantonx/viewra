@@ -10,11 +10,16 @@ import type { GithubComMantonxViewraInternalApplicationPluginsPluginDetailMeta }
 
 export interface GithubComMantonxViewraInternalApplicationPluginsPluginDetail {
   author?: string
-  /** Enricher-specific capabilities (nil for non-enrichers) */
-  capabilities?: GithubComMantonxViewraInternalApplicationPluginsEnricherCapabilities
-  categories?: string[]
+  /** Capabilities this plugin provides (e.g., "search", "embedding", "chat") */
+  capabilities?: string[]
   description?: string
+  /** DisplayCategory is the computed category for UI grouping
+Determined by: builtin → "Local", provider capability → "AI Providers",
+search capability → "Search", enricher category → "Enrichers", else "Other" */
+  display_category?: string
   enabled?: boolean
+  /** EnricherCapabilities contains enricher-specific capabilities (nil for non-enrichers) */
+  enricher_capabilities?: GithubComMantonxViewraInternalApplicationPluginsEnricherCapabilities
   /** Settings availability */
   has_settings?: boolean
   /** "healthy", "degraded", "unhealthy", "unknown" */

@@ -92,7 +92,6 @@ type Services struct {
 	PluginManager *plugins.Manager
 
 	// HostPluginsServer provides capability-based plugin discovery and invocation.
-	// Stored separately from PluginManager to preserve concrete type for InvokeVectorSearch.
 	HostPluginsServer *plugins.HostPluginsServer
 
 	// Location services for weather context
@@ -102,7 +101,7 @@ type Services struct {
 	// File system monitoring service
 	FileMonitor *monitor.Service
 
-	// Search service for fallback text search when no semantic search plugin is available
+	// Search service for text-based search
 	Search *appSearch.Service
 
 	// Home screen service for aggregating widgets
@@ -406,7 +405,7 @@ func initEnrichmentPipeline(
 }
 
 // initPluginManager initializes the plugin manager and related services.
-// Returns both the manager and the host plugins server (for semantic search invocation).
+// Returns both the manager and the host plugins server (for capability-based plugin routing).
 func initPluginManager(
 	cfg *config.Config,
 	repos *repositories.Repositories,

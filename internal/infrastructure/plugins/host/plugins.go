@@ -92,11 +92,13 @@ func (s *PluginsServer) RegisterCapability(pluginID, pluginName, capability stri
 	}
 
 	// Add new provider
+	// Default Configured to false - plugins must explicitly report configured status
+	// via Configure() response after settings are applied
 	s.capabilities[capability] = append(providers, &CapabilityProvider{
 		PluginID:   pluginID,
 		PluginName: pluginName,
-		Enabled:    true, // Assume enabled when registering
-		Configured: true, // Assume configured when registering
+		Enabled:    true,  // Assume enabled when registering
+		Configured: false, // Default false until Configure() confirms
 	})
 
 	s.logger.Debug("registered capability provider",

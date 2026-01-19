@@ -147,6 +147,10 @@ message Settings {
 message ConfigureResponse {
   bool success = 1;
   string error = 2;
+  // Whether the plugin is properly configured (e.g., has required API keys).
+  // Plugins that require configuration should set this to false until configured.
+  // The host uses this to exclude unconfigured providers from capability resolution.
+  bool is_configured = 3;
 }
 
 message EventSubscriptions {

@@ -14,7 +14,7 @@ import (
 const createPlugin = `-- name: CreatePlugin :exec
 INSERT INTO plugins (
     id, name, version, description, author, license, homepage,
-    categories, is_builtin, enabled, path,
+    capabilities, is_builtin, enabled, path,
     health_status, last_heartbeat, restart_count,
     installed_at, updated_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
@@ -28,7 +28,7 @@ type CreatePluginParams struct {
 	Author        sql.NullString `json:"author"`
 	License       sql.NullString `json:"license"`
 	Homepage      sql.NullString `json:"homepage"`
-	Categories    string         `json:"categories"`
+	Capabilities  string         `json:"capabilities"`
 	IsBuiltin     sql.NullInt64  `json:"is_builtin"`
 	Enabled       sql.NullInt64  `json:"enabled"`
 	Path          sql.NullString `json:"path"`
@@ -46,7 +46,7 @@ func (q *Queries) CreatePlugin(ctx context.Context, arg CreatePluginParams) erro
 		arg.Author,
 		arg.License,
 		arg.Homepage,
-		arg.Categories,
+		arg.Capabilities,
 		arg.IsBuiltin,
 		arg.Enabled,
 		arg.Path,
@@ -86,7 +86,7 @@ func (q *Queries) EnablePlugin(ctx context.Context, id string) error {
 
 const getPlugin = `-- name: GetPlugin :one
 SELECT id, name, version, description, author, license, homepage,
-       categories, is_builtin, enabled, path,
+       capabilities, is_builtin, enabled, path,
        health_status, last_heartbeat, restart_count,
        settings, settings_schema,
        installed_at, updated_at
@@ -102,7 +102,7 @@ type GetPluginRow struct {
 	Author         sql.NullString `json:"author"`
 	License        sql.NullString `json:"license"`
 	Homepage       sql.NullString `json:"homepage"`
-	Categories     string         `json:"categories"`
+	Capabilities   string         `json:"capabilities"`
 	IsBuiltin      sql.NullInt64  `json:"is_builtin"`
 	Enabled        sql.NullInt64  `json:"enabled"`
 	Path           sql.NullString `json:"path"`
@@ -126,7 +126,7 @@ func (q *Queries) GetPlugin(ctx context.Context, id string) (GetPluginRow, error
 		&i.Author,
 		&i.License,
 		&i.Homepage,
-		&i.Categories,
+		&i.Capabilities,
 		&i.IsBuiltin,
 		&i.Enabled,
 		&i.Path,
@@ -166,7 +166,7 @@ func (q *Queries) IncrementPluginRestartCount(ctx context.Context, id string) er
 
 const listEnabledPlugins = `-- name: ListEnabledPlugins :many
 SELECT id, name, version, description, author, license, homepage,
-       categories, is_builtin, enabled, path,
+       capabilities, is_builtin, enabled, path,
        health_status, last_heartbeat, restart_count,
        settings, settings_schema,
        installed_at, updated_at
@@ -183,7 +183,7 @@ type ListEnabledPluginsRow struct {
 	Author         sql.NullString `json:"author"`
 	License        sql.NullString `json:"license"`
 	Homepage       sql.NullString `json:"homepage"`
-	Categories     string         `json:"categories"`
+	Capabilities   string         `json:"capabilities"`
 	IsBuiltin      sql.NullInt64  `json:"is_builtin"`
 	Enabled        sql.NullInt64  `json:"enabled"`
 	Path           sql.NullString `json:"path"`
@@ -213,7 +213,7 @@ func (q *Queries) ListEnabledPlugins(ctx context.Context) ([]ListEnabledPluginsR
 			&i.Author,
 			&i.License,
 			&i.Homepage,
-			&i.Categories,
+			&i.Capabilities,
 			&i.IsBuiltin,
 			&i.Enabled,
 			&i.Path,
@@ -240,7 +240,7 @@ func (q *Queries) ListEnabledPlugins(ctx context.Context) ([]ListEnabledPluginsR
 
 const listPlugins = `-- name: ListPlugins :many
 SELECT id, name, version, description, author, license, homepage,
-       categories, is_builtin, enabled, path,
+       capabilities, is_builtin, enabled, path,
        health_status, last_heartbeat, restart_count,
        settings, settings_schema,
        installed_at, updated_at
@@ -256,7 +256,7 @@ type ListPluginsRow struct {
 	Author         sql.NullString `json:"author"`
 	License        sql.NullString `json:"license"`
 	Homepage       sql.NullString `json:"homepage"`
-	Categories     string         `json:"categories"`
+	Capabilities   string         `json:"capabilities"`
 	IsBuiltin      sql.NullInt64  `json:"is_builtin"`
 	Enabled        sql.NullInt64  `json:"enabled"`
 	Path           sql.NullString `json:"path"`
@@ -286,7 +286,7 @@ func (q *Queries) ListPlugins(ctx context.Context) ([]ListPluginsRow, error) {
 			&i.Author,
 			&i.License,
 			&i.Homepage,
-			&i.Categories,
+			&i.Capabilities,
 			&i.IsBuiltin,
 			&i.Enabled,
 			&i.Path,
@@ -311,18 +311,18 @@ func (q *Queries) ListPlugins(ctx context.Context) ([]ListPluginsRow, error) {
 	return items, nil
 }
 
-const listPluginsByCategory = `-- name: ListPluginsByCategory :many
+const listPluginsByCapability = `-- name: ListPluginsByCapability :many
 SELECT id, name, version, description, author, license, homepage,
-       categories, is_builtin, enabled, path,
+       capabilities, is_builtin, enabled, path,
        health_status, last_heartbeat, restart_count,
        settings, settings_schema,
        installed_at, updated_at
 FROM plugins
-WHERE categories LIKE '%' || ?1 || '%'
+WHERE capabilities LIKE '%' || ?1 || '%'
 ORDER BY is_builtin DESC, name
 `
 
-type ListPluginsByCategoryRow struct {
+type ListPluginsByCapabilityRow struct {
 	ID             string         `json:"id"`
 	Name           string         `json:"name"`
 	Version        string         `json:"version"`
@@ -330,7 +330,7 @@ type ListPluginsByCategoryRow struct {
 	Author         sql.NullString `json:"author"`
 	License        sql.NullString `json:"license"`
 	Homepage       sql.NullString `json:"homepage"`
-	Categories     string         `json:"categories"`
+	Capabilities   string         `json:"capabilities"`
 	IsBuiltin      sql.NullInt64  `json:"is_builtin"`
 	Enabled        sql.NullInt64  `json:"enabled"`
 	Path           sql.NullString `json:"path"`
@@ -343,15 +343,15 @@ type ListPluginsByCategoryRow struct {
 	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
-func (q *Queries) ListPluginsByCategory(ctx context.Context, category sql.NullString) ([]ListPluginsByCategoryRow, error) {
-	rows, err := q.db.QueryContext(ctx, listPluginsByCategory, category)
+func (q *Queries) ListPluginsByCapability(ctx context.Context, capability sql.NullString) ([]ListPluginsByCapabilityRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPluginsByCapability, capability)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListPluginsByCategoryRow{}
+	items := []ListPluginsByCapabilityRow{}
 	for rows.Next() {
-		var i ListPluginsByCategoryRow
+		var i ListPluginsByCapabilityRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -360,7 +360,7 @@ func (q *Queries) ListPluginsByCategory(ctx context.Context, category sql.NullSt
 			&i.Author,
 			&i.License,
 			&i.Homepage,
-			&i.Categories,
+			&i.Capabilities,
 			&i.IsBuiltin,
 			&i.Enabled,
 			&i.Path,
@@ -416,22 +416,22 @@ UPDATE plugins SET
     author = ?,
     license = ?,
     homepage = ?,
-    categories = ?,
+    capabilities = ?,
     path = ?,
     updated_at = datetime('now')
 WHERE id = ?
 `
 
 type UpdatePluginParams struct {
-	Name        string         `json:"name"`
-	Version     string         `json:"version"`
-	Description sql.NullString `json:"description"`
-	Author      sql.NullString `json:"author"`
-	License     sql.NullString `json:"license"`
-	Homepage    sql.NullString `json:"homepage"`
-	Categories  string         `json:"categories"`
-	Path        sql.NullString `json:"path"`
-	ID          string         `json:"id"`
+	Name         string         `json:"name"`
+	Version      string         `json:"version"`
+	Description  sql.NullString `json:"description"`
+	Author       sql.NullString `json:"author"`
+	License      sql.NullString `json:"license"`
+	Homepage     sql.NullString `json:"homepage"`
+	Capabilities string         `json:"capabilities"`
+	Path         sql.NullString `json:"path"`
+	ID           string         `json:"id"`
 }
 
 func (q *Queries) UpdatePlugin(ctx context.Context, arg UpdatePluginParams) error {
@@ -442,7 +442,7 @@ func (q *Queries) UpdatePlugin(ctx context.Context, arg UpdatePluginParams) erro
 		arg.Author,
 		arg.License,
 		arg.Homepage,
-		arg.Categories,
+		arg.Capabilities,
 		arg.Path,
 		arg.ID,
 	)
@@ -530,7 +530,7 @@ func (q *Queries) UpdatePluginSettingsSchema(ctx context.Context, arg UpdatePlug
 const upsertPlugin = `-- name: UpsertPlugin :exec
 INSERT INTO plugins (
     id, name, version, description, author, license, homepage,
-    categories, is_builtin, enabled, path,
+    capabilities, is_builtin, enabled, path,
     health_status, restart_count,
     installed_at, updated_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1, ?, 'unknown', 0, datetime('now'), datetime('now'))
@@ -541,21 +541,21 @@ ON CONFLICT(id) DO UPDATE SET
     author = excluded.author,
     license = excluded.license,
     homepage = excluded.homepage,
-    categories = excluded.categories,
+    capabilities = excluded.capabilities,
     path = excluded.path,
     updated_at = datetime('now')
 `
 
 type UpsertPluginParams struct {
-	ID          string         `json:"id"`
-	Name        string         `json:"name"`
-	Version     string         `json:"version"`
-	Description sql.NullString `json:"description"`
-	Author      sql.NullString `json:"author"`
-	License     sql.NullString `json:"license"`
-	Homepage    sql.NullString `json:"homepage"`
-	Categories  string         `json:"categories"`
-	Path        sql.NullString `json:"path"`
+	ID           string         `json:"id"`
+	Name         string         `json:"name"`
+	Version      string         `json:"version"`
+	Description  sql.NullString `json:"description"`
+	Author       sql.NullString `json:"author"`
+	License      sql.NullString `json:"license"`
+	Homepage     sql.NullString `json:"homepage"`
+	Capabilities string         `json:"capabilities"`
+	Path         sql.NullString `json:"path"`
 }
 
 func (q *Queries) UpsertPlugin(ctx context.Context, arg UpsertPluginParams) error {
@@ -567,7 +567,7 @@ func (q *Queries) UpsertPlugin(ctx context.Context, arg UpsertPluginParams) erro
 		arg.Author,
 		arg.License,
 		arg.Homepage,
-		arg.Categories,
+		arg.Capabilities,
 		arg.Path,
 	)
 	return err

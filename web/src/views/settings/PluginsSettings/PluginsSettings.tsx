@@ -18,6 +18,7 @@ export const PluginsSettings = () => {
 
   const {
     plugins,
+    tabs,
     isLoading,
     error,
     enablePlugin,
@@ -27,13 +28,13 @@ export const PluginsSettings = () => {
   } = usePluginsData()
 
   const {
-    activeTab,
-    setActiveTab,
-    tabCounts,
+    activeTabId,
+    setActiveTabId,
+    tabs: filterTabs,
     searchQuery,
     setSearchQuery,
     groupedPlugins,
-  } = usePluginsFilters(plugins)
+  } = usePluginsFilters(plugins, tabs)
 
   const [configuringPlugin, setConfiguringPlugin] = useState<PluginSummary | null>(null)
 
@@ -76,9 +77,9 @@ export const PluginsSettings = () => {
 
           <SettingsPage.Card>
             <PluginFilters
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              tabCounts={tabCounts}
+              activeTabId={activeTabId}
+              onTabChange={setActiveTabId}
+              tabs={filterTabs}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
             />

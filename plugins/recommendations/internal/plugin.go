@@ -208,6 +208,11 @@ func (p *RecommendationsPlugin) Configure(settings []byte) error {
 	return nil
 }
 
+func (p *RecommendationsPlugin) IsConfigured() bool {
+	// Recommendations plugin doesn't require external API keys - always configured
+	return true
+}
+
 // Shutdown is called before the plugin is unloaded.
 func (p *RecommendationsPlugin) Shutdown(ctx context.Context) error {
 	p.Log().Debug("shutting down Recommendations plugin")

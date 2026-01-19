@@ -69,7 +69,7 @@ func (p *HTTPProxy) HandlePluginRoute(c *gin.Context) {
 }
 
 // HandleCapabilityRoute returns a handler for capability-aliased routes.
-// For example, /api/search is aliased to the semantic_search capability.
+// For example, /api/search is aliased to the "search" capability.
 func (p *HTTPProxy) HandleCapabilityRoute(capability string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Find which plugin provides this capability

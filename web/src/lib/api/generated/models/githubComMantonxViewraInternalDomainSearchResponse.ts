@@ -8,8 +8,6 @@
 import type { GithubComMantonxViewraInternalDomainSearchResult } from './githubComMantonxViewraInternalDomainSearchResult'
 
 export interface GithubComMantonxViewraInternalDomainSearchResponse {
-  /** True if using fallback search (no semantic search plugin) */
-  fallback?: boolean
   results?: GithubComMantonxViewraInternalDomainSearchResult[]
   total?: number
 }

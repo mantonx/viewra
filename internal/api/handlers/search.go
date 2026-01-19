@@ -13,8 +13,7 @@ import (
 )
 
 // SearchHandler handles /api/search requests.
-// It first checks if a semantic search plugin is available, and if not,
-// falls back to basic text search.
+// Plugins can override this endpoint by registering the "search" capability.
 type SearchHandler struct {
 	capabilityRegistry *registry.CapabilityRegistry
 	httpProxy          *plugins.HTTPProxy
@@ -36,7 +35,7 @@ func NewSearchHandler(
 
 // Search handles GET /api/search
 // @Summary Search media
-// @Description Searches for movies, TV shows, and other media. Uses semantic search if available, otherwise falls back to text search.
+// @Description Searches for movies, TV shows, and other media by text.
 // @Tags search
 // @Produce json
 // @Param q query string true "Search query"
@@ -45,14 +44,13 @@ func NewSearchHandler(
 // @Success 200 {object} search.Response
 // @Router /api/search [get]
 func (h *SearchHandler) Search(c *gin.Context) {
-	// Check if semantic search plugin is available
-	if mapping := h.capabilityRegistry.Resolve("semantic_search"); mapping != nil {
-		// Proxy to the plugin
-		h.httpProxy.HandleCapabilityRoute("semantic_search")(c)
+	// Check if a search plugin is available to override
+	if mapping := h.capabilityRegistry.Resolve("search"); mapping != nil {
+		h.httpProxy.HandleCapabilityRoute("search")(c)
 		return
 	}
 
-	// Fallback to basic text search
+	// Text-based search
 	query := c.Query("q")
 	if query == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "query parameter 'q' is required"})

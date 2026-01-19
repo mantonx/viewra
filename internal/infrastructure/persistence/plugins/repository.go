@@ -64,7 +64,7 @@ func (r *Repository) UpsertPlugin(ctx context.Context, p appplugins.Plugin) erro
 		Author:      sql.NullString{String: p.Author, Valid: p.Author != ""},
 		License:     sql.NullString{String: p.License, Valid: p.License != ""},
 		Homepage:    sql.NullString{String: p.Homepage, Valid: p.Homepage != ""},
-		Categories:  p.Categories,
+		Capabilities:  p.Capabilities,
 		Path:        sql.NullString{String: p.Path, Valid: p.Path != ""},
 	})
 }
@@ -119,7 +119,7 @@ func getPluginRowToApp(row unified.GetPluginRow) appplugins.Plugin {
 		ID:          row.ID,
 		Name:        row.Name,
 		Version:     row.Version,
-		Categories:  row.Categories,
+		Capabilities:  row.Capabilities,
 		IsBuiltin:   common.NullInt64ToBool(row.IsBuiltin),
 		Enabled:     common.NullInt64ToBool(row.Enabled),
 		InstalledAt: row.InstalledAt,
@@ -166,7 +166,7 @@ func listPluginsRowToApp(row unified.ListPluginsRow) appplugins.Plugin {
 		ID:          row.ID,
 		Name:        row.Name,
 		Version:     row.Version,
-		Categories:  row.Categories,
+		Capabilities:  row.Capabilities,
 		IsBuiltin:   common.NullInt64ToBool(row.IsBuiltin),
 		Enabled:     common.NullInt64ToBool(row.Enabled),
 		InstalledAt: row.InstalledAt,

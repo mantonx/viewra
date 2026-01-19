@@ -8,24 +8,18 @@ author: ViewRA Team
 license: MIT
 homepage: https://github.com/mantonx/viewra
 
-# Minimum ViewRA version required
 min_host_version: "0.1.0"
 
-# Plugin categories
-categories:
-  - enricher
-  - ai
-  - search_provider  # Provides search for home screen
+# UI grouping (required) - valid values: search, recommendations, enrichers, providers, local, other
+display_category: search
 
-# What capabilities this plugin provides to other plugins
-# Other plugins can depend on these via their 'requires' field
-provides:
+# What this plugin provides (required)
+capabilities:
   - search
-  - search_provider  # Home screen search hero provider
-  - vector_search    # Allows other plugins to call FindSimilar/Search via InvokeVectorSearch
+  - search_provider
+  - vector_search
 
-# What capabilities this plugin requires from other plugins
-# The host will check that at least one enabled plugin provides each capability
+# What this plugin requires from other plugins
 requires:
   - embedding
 
@@ -39,8 +33,8 @@ media_types:
   - music_album
   - music_track
 
-# Permissions required
+# Required permissions
 permissions:
-  - network              # For LLM API calls via provider plugins
-  - data:media:read      # Read media metadata for indexing
-  - weather:read         # Read weather context for query enrichment
+  - network
+  - data:media:read
+  - weather:read

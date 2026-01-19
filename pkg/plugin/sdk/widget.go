@@ -83,6 +83,11 @@ type WidgetPlugin interface {
 	// Configure applies new settings to the plugin.
 	Configure(settings []byte) error
 
+	// IsConfigured returns whether the plugin is properly configured.
+	// Plugins requiring API keys should return false until the key is set.
+	// The host uses this to exclude unconfigured plugins from capability resolution.
+	IsConfigured() bool
+
 	// GetRoutes returns HTTP routes this plugin exposes.
 	GetRoutes() []Route
 
@@ -216,9 +221,9 @@ func (s *widgetGRPCServer) GetSettingsSchema(ctx context.Context, _ *pluginv1.Em
 
 func (s *widgetGRPCServer) Configure(ctx context.Context, settings *pluginv1.Settings) (*pluginv1.ConfigureResponse, error) {
 	if err := s.impl.Configure(settings.Json); err != nil {
-		return &pluginv1.ConfigureResponse{Success: false, Error: err.Error()}, nil
+		return &pluginv1.ConfigureResponse{Success: false, Error: err.Error(), IsConfigured: false}, nil
 	}
-	return &pluginv1.ConfigureResponse{Success: true}, nil
+	return &pluginv1.ConfigureResponse{Success: true, IsConfigured: s.impl.IsConfigured()}, nil
 }
 
 func (s *widgetGRPCServer) GetSubscriptions(ctx context.Context, _ *pluginv1.Empty) (*pluginv1.EventSubscriptions, error) {

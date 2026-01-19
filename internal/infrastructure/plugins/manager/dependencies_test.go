@@ -32,9 +32,9 @@ func TestManager_ResolveLoadOrder(t *testing.T) {
 		{
 			name: "no dependencies - all load",
 			pluginInfos: map[string]*pluginLoadInfo{
-				"plugin-a": {manifest: &manifest.Manifest{ID: "plugin-a"}},
-				"plugin-b": {manifest: &manifest.Manifest{ID: "plugin-b"}},
-				"plugin-c": {manifest: &manifest.Manifest{ID: "plugin-c"}},
+				"plugin-a": {manifest: &manifest.Manifest{ID: "plugin-a", DisplayCategory: "other", Capabilities: []string{"metadata"}}},
+				"plugin-b": {manifest: &manifest.Manifest{ID: "plugin-b", DisplayCategory: "other", Capabilities: []string{"metadata"}}},
+				"plugin-c": {manifest: &manifest.Manifest{ID: "plugin-c", DisplayCategory: "other", Capabilities: []string{"metadata"}}},
 			},
 			capabilityProviders: map[string][]string{},
 			wantOrder:           []string{"plugin-a", "plugin-b", "plugin-c"},
@@ -45,21 +45,22 @@ func TestManager_ResolveLoadOrder(t *testing.T) {
 			pluginInfos: map[string]*pluginLoadInfo{
 				"provider": {
 					manifest: &manifest.Manifest{
-						ID:       "provider",
-						Provides: []string{"ai:embeddings"},
+						ID:              "provider",
+						DisplayCategory: "providers",
+						Capabilities:    []string{"embedding"},
 					},
 				},
 				"consumer": {
 					manifest: &manifest.Manifest{
-						ID: "consumer",
-						Dependencies: []manifest.Dependency{
-							{Capability: "ai:embeddings", Required: true},
-						},
+						ID:              "consumer",
+						DisplayCategory: "search",
+						Capabilities:    []string{"search"},
+						Requires:        []string{"embedding"},
 					},
 				},
 			},
 			capabilityProviders: map[string][]string{
-				"ai:embeddings": {"provider"},
+				"embedding": {"provider"},
 			},
 			wantOrder:   []string{"provider", "consumer"}, // provider must be first
 			wantSkipped: nil,
@@ -69,10 +70,10 @@ func TestManager_ResolveLoadOrder(t *testing.T) {
 			pluginInfos: map[string]*pluginLoadInfo{
 				"consumer": {
 					manifest: &manifest.Manifest{
-						ID: "consumer",
-						Dependencies: []manifest.Dependency{
-							{Capability: "missing-capability", Required: true},
-						},
+						ID:              "consumer",
+						DisplayCategory: "search",
+						Capabilities:    []string{"search"},
+						Requires:        []string{"embedding"},
 					},
 				},
 			},
@@ -81,51 +82,35 @@ func TestManager_ResolveLoadOrder(t *testing.T) {
 			wantSkipped:         []string{"consumer"},
 		},
 		{
-			name: "optional dependency not satisfied - continue",
-			pluginInfos: map[string]*pluginLoadInfo{
-				"consumer": {
-					manifest: &manifest.Manifest{
-						ID: "consumer",
-						Dependencies: []manifest.Dependency{
-							{Capability: "optional-capability", Required: false},
-						},
-					},
-				},
-			},
-			capabilityProviders: map[string][]string{},
-			wantOrder:           []string{"consumer"},
-			wantSkipped:         nil,
-		},
-		{
 			name: "complex dependency graph",
 			pluginInfos: map[string]*pluginLoadInfo{
 				"base": {
 					manifest: &manifest.Manifest{
-						ID:       "base",
-						Provides: []string{"storage"},
+						ID:              "base",
+						DisplayCategory: "providers",
+						Capabilities:    []string{"provider", "embedding"},
 					},
 				},
 				"middle": {
 					manifest: &manifest.Manifest{
-						ID:       "middle",
-						Provides: []string{"api"},
-						Dependencies: []manifest.Dependency{
-							{Capability: "storage", Required: true},
-						},
+						ID:              "middle",
+						DisplayCategory: "search",
+						Capabilities:    []string{"vector_search"},
+						Requires:        []string{"embedding"},
 					},
 				},
 				"top": {
 					manifest: &manifest.Manifest{
-						ID: "top",
-						Dependencies: []manifest.Dependency{
-							{Capability: "api", Required: true},
-						},
+						ID:              "top",
+						DisplayCategory: "recommendations",
+						Capabilities:    []string{"recommendations"},
+						Requires:        []string{"vector_search"},
 					},
 				},
 			},
 			capabilityProviders: map[string][]string{
-				"storage": {"base"},
-				"api":     {"middle"},
+				"embedding":     {"base"},
+				"vector_search": {"middle"},
 			},
 			wantOrder:   []string{"base", "middle", "top"}, // strict ordering
 			wantSkipped: nil,
@@ -135,26 +120,24 @@ func TestManager_ResolveLoadOrder(t *testing.T) {
 			pluginInfos: map[string]*pluginLoadInfo{
 				"plugin-a": {
 					manifest: &manifest.Manifest{
-						ID:       "plugin-a",
-						Provides: []string{"cap-a"},
-						Dependencies: []manifest.Dependency{
-							{Capability: "cap-b", Required: true},
-						},
+						ID:              "plugin-a",
+						DisplayCategory: "other",
+						Capabilities:    []string{"metadata"},
+						Requires:        []string{"artwork"},
 					},
 				},
 				"plugin-b": {
 					manifest: &manifest.Manifest{
-						ID:       "plugin-b",
-						Provides: []string{"cap-b"},
-						Dependencies: []manifest.Dependency{
-							{Capability: "cap-a", Required: true},
-						},
+						ID:              "plugin-b",
+						DisplayCategory: "other",
+						Capabilities:    []string{"artwork"},
+						Requires:        []string{"metadata"},
 					},
 				},
 			},
 			capabilityProviders: map[string][]string{
-				"cap-a": {"plugin-a"},
-				"cap-b": {"plugin-b"},
+				"metadata": {"plugin-a"},
+				"artwork":  {"plugin-b"},
 			},
 			wantOrder:   []string{},
 			wantSkipped: []string{"plugin-a", "plugin-b"},
@@ -195,9 +178,9 @@ func TestManager_ResolveLoadOrder(t *testing.T) {
 						if !ok {
 							continue
 						}
-						for _, dep := range info.manifest.Dependencies {
+						for _, capability := range info.manifest.Requires {
 							// Find the provider of this capability
-							providers := tt.capabilityProviders[dep.Capability]
+							providers := tt.capabilityProviders[capability]
 							for _, providerID := range providers {
 								// Find provider's position
 								providerPos := -1

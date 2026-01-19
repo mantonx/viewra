@@ -258,7 +258,7 @@ func (p *TMDbPlugin) buildMovieResponse(movie *MovieDetails) *sdk.EnrichResponse
 		IsRemote: true,
 	})
 
-	// Additional images from credits
+	// Additional images
 	if movie.Images != nil {
 		for i, img := range movie.Images.Backdrops {
 			if i >= 5 {
@@ -266,6 +266,21 @@ func (p *TMDbPlugin) buildMovieResponse(movie *MovieDetails) *sdk.EnrichResponse
 			}
 			resp.Images = append(resp.Images, sdk.EnrichedImage{
 				Type:     "fanart",
+				Path:     ImageURL(img.FilePath, "original"),
+				IsRemote: true,
+				Width:    img.Width,
+				Height:   img.Height,
+				Language: img.ISO639_1,
+				Rating:   float32(img.VoteAverage),
+			})
+		}
+		// Logos (transparent PNG logos for overlays)
+		for i, img := range movie.Images.Logos {
+			if i >= 3 {
+				break // Limit logos
+			}
+			resp.Images = append(resp.Images, sdk.EnrichedImage{
+				Type:     "clearlogo",
 				Path:     ImageURL(img.FilePath, "original"),
 				IsRemote: true,
 				Width:    img.Width,
@@ -385,6 +400,21 @@ func (p *TMDbPlugin) buildTVResponse(tv *TVDetails) *sdk.EnrichResponse {
 			}
 			resp.Images = append(resp.Images, sdk.EnrichedImage{
 				Type:     "fanart",
+				Path:     ImageURL(img.FilePath, "original"),
+				IsRemote: true,
+				Width:    img.Width,
+				Height:   img.Height,
+				Language: img.ISO639_1,
+				Rating:   float32(img.VoteAverage),
+			})
+		}
+		// Logos (transparent PNG logos for overlays)
+		for i, img := range tv.Images.Logos {
+			if i >= 3 {
+				break
+			}
+			resp.Images = append(resp.Images, sdk.EnrichedImage{
+				Type:     "clearlogo",
 				Path:     ImageURL(img.FilePath, "original"),
 				IsRemote: true,
 				Width:    img.Width,
