@@ -39,18 +39,12 @@ jobs:
           path: bin/ffmpeg-viewra
           key: ffmpeg-${{ env.FFMPEG_VERSION }}-${{ hashFiles('tools/ffmpeg-viewra/**') }}
 
-      - name: Install CUDA toolkit
-        id: cuda-toolkit
-        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
-        uses: Jimver/cuda-toolkit@v0.2.18
-        with:
-          cuda: '12.4.0'
-          method: 'network'
-          sub-packages: '["nvcc", "cudart"]'
-
       - name: Install build dependencies
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         run: |
+          # Add NVIDIA CUDA repository for Ubuntu 24.04
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential pkg-config nasm yasm git curl \
@@ -58,7 +52,8 @@ jobs:
             libsvtav1-dev libsvtav1enc-dev libdav1d-dev \
             libopus-dev libvorbis-dev libmp3lame-dev libfdk-aac-dev \
             libass-dev libfreetype-dev libfontconfig1-dev libssl-dev \
-            libva-dev libvdpau-dev libdrm-dev ocl-icd-opencl-dev
+            libva-dev libvdpau-dev libdrm-dev ocl-icd-opencl-dev \
+            cuda-nvcc-12-6 cuda-cudart-dev-12-6
           # Install NVIDIA codec headers for NVENC/NVDEC support
           git clone --depth 1 https://github.com/FFmpeg/nv-codec-headers.git
           cd nv-codec-headers
@@ -67,13 +62,11 @@ jobs:
 
       - name: Build FFmpeg using Makefile
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
-        env:
-          CUDA_PATH: ${{ steps.cuda-toolkit.outputs.CUDA_PATH }}
         run: |
-          # Ensure CUDA binaries are in PATH
-          export PATH="${CUDA_PATH}/bin:${PATH}"
-          echo "CUDA_PATH: ${CUDA_PATH}"
+          # CUDA installed via apt to /usr/local/cuda-12.6
+          export PATH="/usr/local/cuda-12.6/bin:${PATH}"
           echo "nvcc location: $(which nvcc 2>/dev/null || echo 'not found')"
+          nvcc --version || true
           make build-ffmpeg
 
       - name: Package FFmpeg
