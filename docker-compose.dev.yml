@@ -1,5 +1,9 @@
 # ViewRA Development Docker Compose
 #
+# Prerequisites:
+#   make build-tools     # Build FFmpeg and subtitle-extractor
+#   make build-plugins   # Build plugins
+#
 # Usage:
 #   docker compose -f docker-compose.dev.yml up
 #   docker compose -f docker-compose.dev.yml --profile postgres up
@@ -20,8 +24,12 @@ services:
       - go-build-cache:/root/.cache/go-build
       # Exclude directories that shouldn't be synced
       - /app/web/node_modules
-      - /app/bin
       - /app/tmp
+      # Mount local bin/ with custom FFmpeg, subtitle-extractor, plugins
+      # These are built via `make build-tools` and `make build-plugins`
+      - ./bin:/app/bin:ro
+      # Mount FFmpeg shared libraries
+      - ./bin/ffmpeg-lib:/usr/local/lib/ffmpeg:ro
     ports:
       - "8080:8080"   # API
       - "6060:6060"   # pprof debug
@@ -30,6 +38,13 @@ services:
       - DATA_DIR=/app/data
       - DB_DRIVER=${DB_DRIVER:-sqlite}
       - DB_PATH=/app/data/viewra.db
+      # Use local custom FFmpeg
+      - FFMPEG_PATH=/app/bin/ffmpeg-viewra
+      - FFPROBE_PATH=/app/bin/ffprobe-viewra
+      - SUBTITLE_EXTRACTOR_PATH=/app/bin/subtitle-extractor
+      - PLUGINS_DIR=/app/bin/plugins
+      # Add FFmpeg libs to library path
+      - LD_LIBRARY_PATH=/usr/local/lib/ffmpeg:/usr/local/lib
       # PostgreSQL (when using --profile postgres)
       - DB_HOST=postgres
       - DB_PORT=5432

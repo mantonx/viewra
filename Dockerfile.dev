@@ -1,6 +1,10 @@
 # ViewRA Development Dockerfile
 # Provides hot-reload development environment with Air
 #
+# Prerequisites:
+#   Run `make build-tools` first to build FFmpeg and subtitle-extractor into bin/
+#   Run `make build-plugins` to build plugins into bin/plugins/
+#
 # Usage:
 #   docker compose -f docker-compose.dev.yml up
 
@@ -8,17 +12,34 @@ FROM golang:1.25-bookworm
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies
+# Install system dependencies (NO system FFmpeg - we use custom build)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # Build tools
     gcc \
     make \
     git \
     curl \
-    # FFmpeg (system version for dev - faster than building)
-    ffmpeg \
     # protobuf compiler
     protobuf-compiler \
+    # FFmpeg runtime dependencies (for our custom build)
+    libx264-164 \
+    libx265-199 \
+    libvpx9 \
+    libsvtav1enc1d2 \
+    libdav1d7 \
+    libopus0 \
+    libvorbis0a \
+    libvorbisenc2 \
+    libmp3lame0 \
+    libfdk-aac2 \
+    libass9 \
+    libfreetype6 \
+    libfontconfig1 \
+    libssl3t64 \
+    libva2 \
+    libva-drm2 \
+    libvdpau1 \
+    libdrm2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Go tools
