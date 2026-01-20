@@ -20,6 +20,11 @@ type IndexingService struct {
 	batchSize        int
 	logger           *slog.Logger
 
+	// Optional mood tag service for inline generation
+	moodTagService   *MoodTagService
+	moodTagsEnabled  bool
+	moodTagCallback  func(entityType EntityType, entityID int64, tags []string) error
+
 	// Indexing state
 	mu         sync.RWMutex
 	isIndexing bool
@@ -50,6 +55,8 @@ func NewIndexingService(
 
 // IndexSingle indexes a single entity. Called by the enrichment pipeline.
 // It fetches full media details from the host to build rich searchable text.
+// If mood tag service is configured, it generates mood tags inline and includes
+// them in the embedding text for a single-pass indexing.
 func (s *IndexingService) IndexSingle(ctx context.Context, entityType EntityType, entityID int64, _ *sdk.Media) error {
 	// Fetch full media details from the host, passing the media type
 	// so the host can query the correct table directly
@@ -62,6 +69,30 @@ func (s *IndexingService) IndexSingle(ctx context.Context, entityType EntityType
 	if text == "" {
 		s.logger.Debug("skipping entity with empty text", "type", entityType, "id", entityID)
 		return nil
+	}
+
+	// Generate mood tags inline if enabled and applicable
+	// Only for show-level entities (movies, tv_shows, music_albums, music_artists)
+	var moodTags []string
+	if s.moodTagsEnabled && s.moodTagService != nil && isMoodTaggableType(string(entityType)) {
+		tags, err := s.moodTagService.GenerateForMedia(ctx, details)
+		if err != nil {
+			// Log but continue - mood tags are optional enhancement
+			s.logger.Debug("inline mood tag generation failed",
+				"type", entityType, "id", entityID, "error", err)
+		} else if len(tags) > 0 {
+			moodTags = tags
+			// Append mood tags to the embedding text
+			text = text + fmt.Sprintf("Mood: %s\n", strings.Join(tags, ", "))
+
+			// Call the callback to persist mood tags
+			if s.moodTagCallback != nil {
+				if err := s.moodTagCallback(entityType, entityID, tags); err != nil {
+					s.logger.Debug("mood tag callback failed",
+						"type", entityType, "id", entityID, "error", err)
+				}
+			}
+		}
 	}
 
 	embedding, err := s.embeddingService.EmbedSingle(ctx, text)
@@ -79,8 +110,23 @@ func (s *IndexingService) IndexSingle(ctx context.Context, entityType EntityType
 		return fmt.Errorf("store embedding for %s:%d: %w", entityType, entityID, err)
 	}
 
-	s.logger.Debug("indexed entity", "type", entityType, "id", entityID, "text_len", len(text))
+	if len(moodTags) > 0 {
+		s.logger.Debug("indexed entity with mood tags",
+			"type", entityType, "id", entityID, "text_len", len(text), "mood_tags", moodTags)
+	} else {
+		s.logger.Debug("indexed entity", "type", entityType, "id", entityID, "text_len", len(text))
+	}
 	return nil
+}
+
+// isMoodTaggableType returns true if the media type should have mood tags generated.
+func isMoodTaggableType(mediaType string) bool {
+	switch mediaType {
+	case "movie", "tv_show", "music_album", "music_artist":
+		return true
+	default:
+		return false
+	}
 }
 
 // IndexLibrary indexes all media in a library.
@@ -171,6 +217,19 @@ func (s *IndexingService) Cancel() {
 	if s.cancelFunc != nil {
 		s.cancelFunc()
 	}
+}
+
+// SetMoodTagService enables inline mood tag generation during indexing.
+// When set, mood tags will be generated and included in the embedding text
+// in a single pass, reducing API calls.
+func (s *IndexingService) SetMoodTagService(
+	moodService *MoodTagService,
+	enabled bool,
+	callback func(entityType EntityType, entityID int64, tags []string) error,
+) {
+	s.moodTagService = moodService
+	s.moodTagsEnabled = enabled
+	s.moodTagCallback = callback
 }
 
 // GetProgress returns the current indexing progress.
@@ -342,6 +401,11 @@ func (s *IndexingService) buildMovieText(m *sdk.MediaDetails) string {
 		b.WriteString(fmt.Sprintf("Cinematography by: %s\n", strings.Join(m.Cinematographers, ", ")))
 	}
 
+	// Similar titles (for "movies like X" searches)
+	if len(m.SimilarTitles) > 0 {
+		b.WriteString(fmt.Sprintf("Similar to: %s\n", strings.Join(m.SimilarTitles, ", ")))
+	}
+
 	return b.String()
 }
 
@@ -442,6 +506,11 @@ func (s *IndexingService) buildTVShowText(m *sdk.MediaDetails) string {
 	// Cinematographers (for "shot by Roger Deakins" searches)
 	if len(m.Cinematographers) > 0 {
 		b.WriteString(fmt.Sprintf("Cinematography by: %s\n", strings.Join(m.Cinematographers, ", ")))
+	}
+
+	// Similar titles (for "shows like X" searches)
+	if len(m.SimilarTitles) > 0 {
+		b.WriteString(fmt.Sprintf("Similar to: %s\n", strings.Join(m.SimilarTitles, ", ")))
 	}
 
 	return b.String()

@@ -947,6 +947,13 @@ func (q *Querier) DeleteSessionsByUserID(ctx context.Context, userID int64) erro
 	return q.sqlite.DeleteSessionsByUserID(ctx, userID)
 }
 
+func (q *Querier) DeleteSimilarTitlesByEntity(ctx context.Context, arg sqlc_sqlite.DeleteSimilarTitlesByEntityParams) error {
+	if q.isPostgres {
+		return q.postgres.DeleteSimilarTitlesByEntity(ctx, sqlc_postgres.DeleteSimilarTitlesByEntityParams(arg))
+	}
+	return q.sqlite.DeleteSimilarTitlesByEntity(ctx, arg)
+}
+
 func (q *Querier) DeleteStudio(ctx context.Context, id int64) error {
 	if q.isPostgres {
 		return q.postgres.DeleteStudio(ctx, id)
@@ -2024,6 +2031,13 @@ func (q *Querier) GetSessionsByUserID(ctx context.Context, userID int64) ([]sqlc
 	return q.sqlite.GetSessionsByUserID(ctx, userID)
 }
 
+func (q *Querier) GetSimilarTitlesByEntity(ctx context.Context, arg sqlc_sqlite.GetSimilarTitlesByEntityParams) ([]string, error) {
+	if q.isPostgres {
+		return q.postgres.GetSimilarTitlesByEntity(ctx, sqlc_postgres.GetSimilarTitlesByEntityParams(arg))
+	}
+	return q.sqlite.GetSimilarTitlesByEntity(ctx, arg)
+}
+
 func (q *Querier) GetStudioByExternalID(ctx context.Context, arg sqlc_sqlite.GetStudioByExternalIDParams) (int64, error) {
 	if q.isPostgres {
 		return q.postgres.GetStudioByExternalID(ctx, sqlc_postgres.GetStudioByExternalIDParams(arg))
@@ -2336,6 +2350,13 @@ func (q *Querier) InsertKeyword(ctx context.Context, arg sqlc_sqlite.InsertKeywo
 		return q.postgres.InsertKeyword(ctx, sqlc_postgres.InsertKeywordParams(arg))
 	}
 	return q.sqlite.InsertKeyword(ctx, arg)
+}
+
+func (q *Querier) InsertSimilarTitle(ctx context.Context, arg sqlc_sqlite.InsertSimilarTitleParams) error {
+	if q.isPostgres {
+		return q.postgres.InsertSimilarTitle(ctx, sqlc_postgres.InsertSimilarTitleParams(arg))
+	}
+	return q.sqlite.InsertSimilarTitle(ctx, arg)
 }
 
 func (q *Querier) InsertSubtitleTrack(ctx context.Context, arg sqlc_sqlite.InsertSubtitleTrackParams) (sqlc_sqlite.InsertSubtitleTrackRow, error) {

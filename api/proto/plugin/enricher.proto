@@ -170,6 +170,9 @@ message EnrichedMetadata {
 
   // Keywords/tags from external sources (e.g., TMDB)
   repeated Keyword keywords = 36;
+
+  // Similar/recommended titles (from TMDb recommendations)
+  repeated string similar_titles = 38;
 }
 
 // Keyword represents a tag/keyword from external sources like TMDB.

@@ -269,6 +269,19 @@ func (q *DBMediaQuerier) getThemeKeywordsForEntity(ctx context.Context, mediaTyp
 	return keywords
 }
 
+// getSimilarTitlesForEntity fetches similar/recommended titles for a media entity.
+// These are titles that TMDb recommends as similar content.
+func (q *DBMediaQuerier) getSimilarTitlesForEntity(ctx context.Context, mediaType string, entityID int64) []string {
+	rows, err := q.querier.GetSimilarTitlesByEntity(ctx, unified.GetSimilarTitlesByEntityParams{
+		MediaID:   entityID,
+		MediaType: mediaType,
+	})
+	if err != nil {
+		return nil
+	}
+	return rows
+}
+
 // getPlaybackInfoForMedia fetches playback information (video specs, audio/subtitle tracks) for a media item.
 // This is used for playback constraint filtering (e.g., "4K movies", "Dolby Vision", "movies with subtitles").
 func (q *DBMediaQuerier) getPlaybackInfoForMedia(ctx context.Context, mediaID int64) *PlaybackInfoData {

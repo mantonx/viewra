@@ -370,6 +370,7 @@ func initEnrichmentPipeline(
 			PeopleRepo:         repos.People,
 			StudioRepo:         repos.Studios,
 			KeywordRepo:        repos.Keywords,
+			SimilarTitlesRepo:  repos.SimilarTitles,
 		},
 		&pipeline.TypedMediaRepos{Movie: repos.Movie, TV: repos.TV, Music: repos.Music},
 	)

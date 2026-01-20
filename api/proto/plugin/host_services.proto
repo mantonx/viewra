@@ -308,6 +308,9 @@ message MediaDetails {
   repeated string composers = 43;          // Music composers (Original Music Composer job)
   repeated string cinematographers = 44;   // Directors of Photography (Camera department)
 
+  // Similar/recommended titles (from TMDb recommendations)
+  repeated string similar_titles = 45;     // e.g., ["The Dark Knight", "Iron Man", "Spider-Man"]
+
   // Playback information for filtering by technical specs
   PlaybackInfo playback_info = 50;
 }

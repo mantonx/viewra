@@ -291,6 +291,7 @@ func mediaDetailsToProto(d *MediaDetailsInfo) *pluginv1.MediaDetails {
 		ThemeKeywords:    d.ThemeKeywords,
 		Composers:        d.Composers,
 		Cinematographers: d.Cinematographers,
+		SimilarTitles:    d.SimilarTitles,
 		PlaybackInfo:     playbackInfoToProto(d.PlaybackInfo),
 	}
 }

@@ -103,7 +103,7 @@ func (c *Client) SearchMovies(ctx context.Context, title string, year int) (*Mov
 // GetMovieDetails fetches detailed movie information.
 func (c *Client) GetMovieDetails(ctx context.Context, tmdbID int) (*MovieDetails, error) {
 	params := url.Values{}
-	params.Set("append_to_response", "credits,images,keywords")
+	params.Set("append_to_response", "credits,images,keywords,recommendations")
 
 	var result MovieDetails
 	if err := c.get(ctx, fmt.Sprintf("/movie/%d", tmdbID), params, &result); err != nil {
@@ -130,7 +130,7 @@ func (c *Client) SearchTV(ctx context.Context, title string, year int) (*TVSearc
 // GetTVDetails fetches detailed TV show information.
 func (c *Client) GetTVDetails(ctx context.Context, tmdbID int) (*TVDetails, error) {
 	params := url.Values{}
-	params.Set("append_to_response", "credits,images,external_ids,keywords")
+	params.Set("append_to_response", "credits,images,external_ids,keywords,recommendations")
 
 	var result TVDetails
 	if err := c.get(ctx, fmt.Sprintf("/tv/%d", tmdbID), params, &result); err != nil {

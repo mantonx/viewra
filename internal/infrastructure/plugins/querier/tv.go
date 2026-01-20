@@ -100,6 +100,12 @@ func (q *DBMediaQuerier) getTVShowDetailsDirectly(ctx context.Context, id int64,
 		details.Cinematographers = cinematographers
 	}
 
+	// Fetch similar titles for "shows like X" searches
+	similarTitles := q.getSimilarTitlesForEntity(ctx, "tv_show", id)
+	if len(similarTitles) > 0 {
+		details.SimilarTitles = similarTitles
+	}
+
 	return details, nil
 }
 

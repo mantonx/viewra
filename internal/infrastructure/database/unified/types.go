@@ -29,6 +29,7 @@ type (
 	MediaImage = sqlc_sqlite.MediaImage
 	MediaKeyword = sqlc_sqlite.MediaKeyword
 	MediaMetadataSource = sqlc_sqlite.MediaMetadataSource
+	MediaSimilarTitle = sqlc_sqlite.MediaSimilarTitle
 	MediaStudio = sqlc_sqlite.MediaStudio
 	MediaSubtitleTrack = sqlc_sqlite.MediaSubtitleTrack
 	Medium = sqlc_sqlite.Medium
@@ -125,6 +126,7 @@ type (
 	DeletePlaybackPreferencesParams = sqlc_sqlite.DeletePlaybackPreferencesParams
 	DeletePluginUserMetadataParams = sqlc_sqlite.DeletePluginUserMetadataParams
 	DeleteScanStateByPathParams = sqlc_sqlite.DeleteScanStateByPathParams
+	DeleteSimilarTitlesByEntityParams = sqlc_sqlite.DeleteSimilarTitlesByEntityParams
 	DeleteUserRatingParams = sqlc_sqlite.DeleteUserRatingParams
 	DeleteUserSettingParams = sqlc_sqlite.DeleteUserSettingParams
 	EnqueueEnrichmentJobParams = sqlc_sqlite.EnqueueEnrichmentJobParams
@@ -172,6 +174,7 @@ type (
 	GetScanCheckpointByPathParams = sqlc_sqlite.GetScanCheckpointByPathParams
 	GetScanStateByPathParams = sqlc_sqlite.GetScanStateByPathParams
 	GetScanStateModifiedSinceParams = sqlc_sqlite.GetScanStateModifiedSinceParams
+	GetSimilarTitlesByEntityParams = sqlc_sqlite.GetSimilarTitlesByEntityParams
 	GetStudioByExternalIDParams = sqlc_sqlite.GetStudioByExternalIDParams
 	GetStudiosForEntityParams = sqlc_sqlite.GetStudiosForEntityParams
 	GetTVEpisodeByShowSeasonEpisodeParams = sqlc_sqlite.GetTVEpisodeByShowSeasonEpisodeParams
@@ -188,6 +191,7 @@ type (
 	GetWritersForEntityParams = sqlc_sqlite.GetWritersForEntityParams
 	InsertAudioTrackParams = sqlc_sqlite.InsertAudioTrackParams
 	InsertKeywordParams = sqlc_sqlite.InsertKeywordParams
+	InsertSimilarTitleParams = sqlc_sqlite.InsertSimilarTitleParams
 	InsertSubtitleTrackParams = sqlc_sqlite.InsertSubtitleTrackParams
 	ListAlbumsByArtistParams = sqlc_sqlite.ListAlbumsByArtistParams
 	ListAlbumsByLibraryPaginatedDescParams = sqlc_sqlite.ListAlbumsByLibraryPaginatedDescParams

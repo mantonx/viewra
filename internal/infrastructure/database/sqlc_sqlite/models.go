@@ -147,6 +147,15 @@ type MediaMetadataSource struct {
 	UpdatedAt sql.NullTime   `json:"updated_at"`
 }
 
+type MediaSimilarTitle struct {
+	ID           int64        `json:"id"`
+	MediaID      int64        `json:"media_id"`
+	MediaType    string       `json:"media_type"`
+	SimilarTitle string       `json:"similar_title"`
+	Position     int64        `json:"position"`
+	CreatedAt    sql.NullTime `json:"created_at"`
+}
+
 type MediaStudio struct {
 	MediaType string `json:"media_type"`
 	EntityID  int64  `json:"entity_id"`

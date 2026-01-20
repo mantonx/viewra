@@ -697,6 +697,8 @@ type MediaDetails struct {
 	// Crew credits for specialized searches
 	Composers        []string `protobuf:"bytes,43,rep,name=composers,proto3" json:"composers,omitempty"`               // Music composers (Original Music Composer job)
 	Cinematographers []string `protobuf:"bytes,44,rep,name=cinematographers,proto3" json:"cinematographers,omitempty"` // Directors of Photography (Camera department)
+	// Similar/recommended titles (from TMDb recommendations)
+	SimilarTitles []string `protobuf:"bytes,45,rep,name=similar_titles,json=similarTitles,proto3" json:"similar_titles,omitempty"` // e.g., ["The Dark Knight", "Iron Man", "Spider-Man"]
 	// Playback information for filtering by technical specs
 	PlaybackInfo  *PlaybackInfo `protobuf:"bytes,50,opt,name=playback_info,json=playbackInfo,proto3" json:"playback_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -939,6 +941,13 @@ func (x *MediaDetails) GetComposers() []string {
 func (x *MediaDetails) GetCinematographers() []string {
 	if x != nil {
 		return x.Cinematographers
+	}
+	return nil
+}
+
+func (x *MediaDetails) GetSimilarTitles() []string {
+	if x != nil {
+		return x.SimilarTitles
 	}
 	return nil
 }
@@ -5711,7 +5720,7 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\n" +
 	"library_id\x18\x01 \x01(\x03R\tlibraryId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\x05R\x06offset\"\x9b\t\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\"\xc2\t\n" +
 	"\fMediaDetails\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1d\n" +
 	"\n" +
@@ -5748,7 +5757,8 @@ const file_api_proto_plugin_host_services_proto_rawDesc = "" +
 	"\x11location_keywords\x18) \x03(\tR\x10locationKeywords\x12%\n" +
 	"\x0etheme_keywords\x18* \x03(\tR\rthemeKeywords\x12\x1c\n" +
 	"\tcomposers\x18+ \x03(\tR\tcomposers\x12*\n" +
-	"\x10cinematographers\x18, \x03(\tR\x10cinematographers\x12C\n" +
+	"\x10cinematographers\x18, \x03(\tR\x10cinematographers\x12%\n" +
+	"\x0esimilar_titles\x18- \x03(\tR\rsimilarTitles\x12C\n" +
 	"\rplayback_info\x182 \x01(\v2\x1e.viewra.plugin.v1.PlaybackInfoR\fplaybackInfo\x1a>\n" +
 	"\x10ExternalIdsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +

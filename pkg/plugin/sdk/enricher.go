@@ -179,6 +179,7 @@ type EnrichedMetadata struct {
 	Writers        []string
 	Cast           []CastMember
 	Studios        []string
+	SimilarTitles  []string // Titles of similar/recommended content (from TMDb recommendations)
 
 	// Music-specific fields (for tracks)
 	Artist      *string
@@ -638,6 +639,9 @@ func sdkToProtoEnrichMetadata(md *EnrichedMetadata) *pluginv1.EnrichedMetadata {
 			IsLocation: kw.IsLocation,
 		})
 	}
+
+	// Similar titles (for "movies like X" queries)
+	result.SimilarTitles = md.SimilarTitles
 
 	// Music-specific fields
 	if md.Artist != nil {

@@ -244,6 +244,18 @@ func (p *TMDbPlugin) buildMovieResponse(movie *MovieDetails) *sdk.EnrichResponse
 		}
 	}
 
+	// Similar titles from recommendations (for "movies like X" queries)
+	if movie.Recommendations != nil {
+		for i, rec := range movie.Recommendations.Results {
+			if i >= 10 {
+				break // Limit to top 10 similar titles
+			}
+			if rec.Title != "" {
+				metadata.SimilarTitles = append(metadata.SimilarTitles, rec.Title)
+			}
+		}
+	}
+
 	resp.Metadata = metadata
 
 	// Images
@@ -375,6 +387,18 @@ func (p *TMDbPlugin) buildTVResponse(tv *TVDetails) *sdk.EnrichResponse {
 				Name:       kw.Name,
 				IsLocation: isLocationKeyword(kw.Name),
 			})
+		}
+	}
+
+	// Similar titles from recommendations (for "shows like X" queries)
+	if tv.Recommendations != nil {
+		for i, rec := range tv.Recommendations.Results {
+			if i >= 10 {
+				break // Limit to top 10 similar titles
+			}
+			if rec.Name != "" {
+				metadata.SimilarTitles = append(metadata.SimilarTitles, rec.Name)
+			}
 		}
 	}
 

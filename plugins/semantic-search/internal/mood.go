@@ -306,6 +306,12 @@ func (s *MoodTagService) buildPrompt(details *sdk.MediaDetails) string {
 		if details.Plot != "" {
 			b.WriteString(fmt.Sprintf("Plot: %s\n", details.Plot))
 		}
+		if len(details.Directors) > 0 {
+			b.WriteString(fmt.Sprintf("Director: %s\n", strings.Join(details.Directors, ", ")))
+		}
+		if details.Tagline != "" {
+			b.WriteString(fmt.Sprintf("Tagline: %s\n", details.Tagline))
+		}
 
 	case "tv_show":
 		b.WriteString(fmt.Sprintf("TV Show: %s", details.Title))
@@ -319,6 +325,9 @@ func (s *MoodTagService) buildPrompt(details *sdk.MediaDetails) string {
 		if details.Plot != "" {
 			b.WriteString(fmt.Sprintf("Plot: %s\n", details.Plot))
 		}
+		if details.OriginalLanguage != "" {
+			b.WriteString(fmt.Sprintf("Language: %s\n", details.OriginalLanguage))
+		}
 
 	case "tv_episode":
 		if details.ShowTitle != "" {
@@ -331,7 +340,7 @@ func (s *MoodTagService) buildPrompt(details *sdk.MediaDetails) string {
 		}
 
 	case "music_album":
-		b.WriteString(fmt.Sprintf("Album: %s", details.Title))
+		b.WriteString(fmt.Sprintf("Music Album: %s", details.Title))
 		if details.ArtistName != "" {
 			b.WriteString(fmt.Sprintf(" by %s", details.ArtistName))
 		}
@@ -342,6 +351,25 @@ func (s *MoodTagService) buildPrompt(details *sdk.MediaDetails) string {
 		if len(details.Genres) > 0 {
 			b.WriteString(fmt.Sprintf("Genres: %s\n", strings.Join(details.Genres, ", ")))
 		}
+		if details.ReleaseType != "" {
+			b.WriteString(fmt.Sprintf("Type: %s\n", details.ReleaseType))
+		}
+		b.WriteString("(Use MUSIC-SPECIFIC mood tags from the list)\n")
+
+	case "music_artist":
+		b.WriteString(fmt.Sprintf("Music Artist: %s\n", details.Title))
+		if len(details.Genres) > 0 {
+			b.WriteString(fmt.Sprintf("Genres: %s\n", strings.Join(details.Genres, ", ")))
+		}
+		if details.Biography != "" {
+			// Truncate long biographies
+			bio := details.Biography
+			if len(bio) > 500 {
+				bio = bio[:500] + "..."
+			}
+			b.WriteString(fmt.Sprintf("Bio: %s\n", bio))
+		}
+		b.WriteString("(Use MUSIC-SPECIFIC mood tags from the list)\n")
 
 	default:
 		// For other types, use a generic format
@@ -429,14 +457,73 @@ func (s *MoodTagService) normalizeTags(tags []string) []string {
 // moodTagSystemPrompt is the system prompt for mood tag generation.
 //
 //nolint:lll // Long prompt string is acceptable for LLM system prompts.
-const moodTagSystemPrompt = `You are a media mood analyzer. ` +
-	`Given information about a movie, TV show, or album, ` +
-	`generate 3-5 mood/vibe tags that describe its emotional tone and atmosphere.
+const moodTagSystemPrompt = `You are a media mood expert helping users find what to watch based on their mood.
 
-Focus on:
-- Emotional tone: uplifting, dark, tense, relaxing, heartwarming, melancholic, hopeful, intense
-- Energy level: slow-paced, fast-paced, calm, meditative, energetic, thrilling
-- Themes: thought-provoking, escapist, nostalgic, inspiring, suspenseful, romantic, comedic
+Generate 3-5 SPECIFIC mood tags that capture what makes this content distinctive. Avoid generic tags.
 
-Respond with ONLY a JSON array of lowercase tags, no explanations.
-Example: ["dark", "tense", "thought-provoking", "slow-paced", "atmospheric"]`
+PICK FROM THESE TAGS (use these exact phrases):
+
+EMOTIONAL TONE:
+- cozy, heartwarming, bittersweet, melancholic, hopeful, cathartic
+- dark, bleak, unsettling, eerie, haunting
+- uplifting, feel-good, triumphant, inspiring
+- tearjerker, gut-wrenching, emotional rollercoaster
+- lighthearted, fun, playful, whimsical
+
+PACING & ENERGY:
+- slow-burn, meditative, languid
+- fast-paced, frenetic, relentless, action-packed
+- steady, measured, deliberate
+
+TENSION & THRILLS:
+- edge-of-your-seat, nail-biting, white-knuckle
+- slow-building dread, psychological tension
+- cat-and-mouse, paranoid, twist-ending
+
+COMEDY STYLES:
+- cringe comedy, absurdist, satirical, dry humor, slapstick
+- darkly funny, witty banter, workplace comedy
+- feel-good comedy, buddy comedy, rom-com
+
+INTELLECTUAL ENGAGEMENT:
+- mind-bending, cerebral, thought-provoking
+- morally complex, philosophical, puzzle-box
+
+WORLD & ATMOSPHERE:
+- immersive world, escapist, epic scope
+- gritty, grounded, intimate
+- nostalgic, retro, throwback
+
+SOCIAL VIEWING:
+- comfort watch, binge-worthy, background show
+- watch-with-friends, crowd-pleaser, date night
+- family movie night, late-night viewing
+
+MUSIC-SPECIFIC (for albums/artists only):
+- chill vibes, energetic, anthemic, atmospheric
+- melancholic, euphoric, introspective
+- workout music, study music, party music
+- road trip, summer vibes, rainy day
+
+NEVER USE THESE GENERIC TAGS:
+- dark, tense, intense, comedic, dramatic, suspenseful, thrilling
+- good, bad, interesting, nice, great, amazing, awesome
+- action, drama, comedy, horror (these are genres, not moods)
+- movie, film, show, series, album (these are media types)
+
+BAD EXAMPLES (what NOT to return):
+- "The Matrix" → ["action", "sci-fi", "intense"] ❌ (genres and generic)
+- "Titanic" → ["romantic", "dramatic", "sad"] ❌ (too vague)
+- "any movie" → ["entertaining", "watchable", "good"] ❌ (meaningless)
+
+GOOD EXAMPLES:
+- "The Office" → ["cringe comedy", "workplace comedy", "comfort watch", "heartwarming"]
+- "Breaking Bad" → ["slow-burn", "morally complex", "edge-of-your-seat", "gut-wrenching"]
+- "Fleabag" → ["darkly funny", "bittersweet", "cathartic", "intimate"]
+- "Interstellar" → ["mind-bending", "epic scope", "tearjerker", "immersive world"]
+- "Bridesmaids" → ["feel-good comedy", "watch-with-friends", "crowd-pleaser"]
+- "Stranger Things" → ["nostalgic", "binge-worthy", "edge-of-your-seat", "immersive world"]
+- "Radiohead - OK Computer" → ["melancholic", "atmospheric", "introspective", "cerebral"]
+- "Daft Punk - Discovery" → ["euphoric", "energetic", "nostalgic", "anthemic"]
+
+Respond with ONLY a JSON array of 3-5 tags. No explanations.`

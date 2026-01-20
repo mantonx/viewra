@@ -92,7 +92,7 @@ func (p *SemanticSearchPlugin) Initialize(ctx context.Context, dataDir string, c
 				MinSimilarity: 0.3,
 			},
 			MoodTags: MoodTagConfig{
-				Enabled: false,
+				Enabled: true, // Default enabled; requires chat provider to actually work
 			},
 		}
 	} else {
@@ -285,7 +285,14 @@ func (p *SemanticSearchPlugin) Enrich(ctx context.Context, req *sdk.EnrichReques
 	p.mu.Lock()
 	p.RecordRequest(0) // We'll record actual latency at the end
 	indexingService := p.indexingService
+	moodTagService := p.moodTagService
 	autoIndex := p.config.Indexing.AutoIndex
+	moodTagsEnabled := p.config.MoodTags.Enabled
+	sqlClient := p.sql
+	dataClient := p.data
+	vectorClient := p.vector
+	embeddingService := p.embeddingService
+	logger := p.Log()
 	p.mu.Unlock()
 
 	// Check if auto-indexing is enabled
@@ -299,7 +306,7 @@ func (p *SemanticSearchPlugin) Enrich(ctx context.Context, req *sdk.EnrichReques
 		return sdk.Skip("indexing service not initialized"), nil
 	}
 
-	p.Log().Debug("indexing media",
+	logger.Debug("indexing media",
 		"media_id", req.MediaID,
 		"media_type", req.MediaType,
 		"title", req.Title,
@@ -308,7 +315,7 @@ func (p *SemanticSearchPlugin) Enrich(ctx context.Context, req *sdk.EnrichReques
 	// Convert to our entity type
 	entityType := EntityType(req.MediaType)
 
-	// Index the media
+	// Index the media (generates embedding)
 	if err := indexingService.IndexSingle(ctx, entityType, req.MediaID, nil); err != nil {
 		p.RecordError()
 
@@ -317,8 +324,52 @@ func (p *SemanticSearchPlugin) Enrich(ctx context.Context, req *sdk.EnrichReques
 			return sdk.Skip("no embedding provider configured"), nil
 		}
 
-		p.Log().Warn("failed to index media", "id", req.MediaID, "error", err)
+		logger.Warn("failed to index media", "id", req.MediaID, "error", err)
 		return sdk.Skip(fmt.Sprintf("indexing failed: %v", err)), nil
+	}
+
+	// Generate mood tags if enabled and chat provider is available
+	// Only generate for show-level entities, not episodes
+	if moodTagsEnabled && moodTagService != nil && (req.MediaType == "movie" || req.MediaType == "tv_show") {
+		// Get media details for mood tag generation
+		details, err := dataClient.GetMediaDetails(ctx, req.MediaID, req.MediaType)
+		if err != nil {
+			logger.Debug("skipping mood tags: failed to get details", "id", req.MediaID, "error", err)
+		} else {
+			tags, err := moodTagService.GenerateForMedia(ctx, details)
+			if err != nil {
+				// Don't fail enrichment if mood tags fail - just log and continue
+				logger.Debug("mood tag generation failed", "id", req.MediaID, "error", err)
+			} else if len(tags) > 0 {
+				// Store mood tags in database
+				if sqlClient != nil {
+					for _, tag := range tags {
+						_, _, err := sqlClient.Exec(ctx,
+							`INSERT OR REPLACE INTO mood_tags (entity_type, entity_id, tag, confidence) VALUES (?, ?, ?, ?)`,
+							req.MediaType, req.MediaID, tag, 1.0)
+						if err != nil {
+							logger.Debug("failed to store mood tag", "id", req.MediaID, "tag", tag, "error", err)
+						}
+					}
+				}
+
+				// Re-embed with mood tags included for better semantic search
+				if embeddingService != nil && vectorClient != nil {
+					text := buildTextWithMoodTagsSDK(details, tags)
+					embedding, err := embeddingService.EmbedSingle(ctx, text)
+					if err == nil {
+						_ = vectorClient.Store(ctx, sdk.Embedding{
+							EntityType: req.MediaType,
+							EntityID:   req.MediaID,
+							Vector:     embedding,
+							Text:       text,
+						})
+					}
+				}
+
+				logger.Debug("generated mood tags", "id", req.MediaID, "tags", tags)
+			}
+		}
 	}
 
 	return &sdk.EnrichResponse{
@@ -734,14 +785,41 @@ func (p *SemanticSearchPlugin) initializeServices() {
 		)
 	}
 
-	// Create mood tag service (if enabled)
-	// Note: MoodTagService needs chat capability - disabled for now until refactored
-	if p.config.MoodTags.Enabled && p.plugins != nil && p.data != nil {
+	// Create mood tag service first (requires plugins + data clients)
+	// The service handles chat availability gracefully at runtime
+	if p.plugins != nil && p.data != nil {
 		p.moodTagService = NewMoodTagService(
 			p.plugins,
 			p.data,
 			logger,
 		)
+
+		// Wire mood tag service to indexing service for inline generation
+		if p.indexingService != nil && p.config.MoodTags.Enabled && p.sql != nil {
+			sqlClient := p.sql
+			p.indexingService.SetMoodTagService(
+				p.moodTagService,
+				true,
+				func(entityType EntityType, entityID int64, tags []string) error {
+					// Persist mood tags to database
+					ctx := context.Background()
+					// Delete existing tags for this entity
+					_, _, _ = sqlClient.Exec(ctx,
+						`DELETE FROM mood_tags WHERE entity_type = ? AND entity_id = ?`,
+						string(entityType), entityID)
+					// Insert new tags
+					for _, tag := range tags {
+						_, _, err := sqlClient.Exec(ctx,
+							`INSERT INTO mood_tags (entity_type, entity_id, tag, confidence) VALUES (?, ?, ?, ?)`,
+							string(entityType), entityID, tag, 1.0)
+						if err != nil {
+							return err
+						}
+					}
+					return nil
+				},
+			)
+		}
 	}
 
 	// Create context enricher for location-aware search
@@ -1103,6 +1181,7 @@ func (p *SemanticSearchPlugin) handleMoodTagsGenerate(ctx context.Context, req *
 
 	var genReq struct {
 		LibraryID int64 `json:"library_id"`
+		Force     bool  `json:"force"` // If true, clear all existing mood tags first
 	}
 	if err := json.Unmarshal(req.Body, &genReq); err != nil {
 		return jsonResponse(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
@@ -1112,8 +1191,28 @@ func (p *SemanticSearchPlugin) handleMoodTagsGenerate(ctx context.Context, req *
 		return jsonResponse(http.StatusBadRequest, map[string]string{"error": "library_id is required"})
 	}
 
-	logger.Info("handleMoodTagsGenerate called", "library_id", genReq.LibraryID)
+	logger.Info("handleMoodTagsGenerate called", "library_id", genReq.LibraryID, "force", genReq.Force)
 	libraryID := genReq.LibraryID
+
+	// If force=true, clear all existing mood tags for this library's media
+	if genReq.Force && sqlClient != nil {
+		// Get all media IDs in this library to clear their tags
+		mediaList, err := dataClient.ListMediaByLibrary(ctx, libraryID, 10000, 0)
+		if err != nil {
+			logger.Warn("failed to list media for force clear", "error", err)
+		} else {
+			cleared := 0
+			for _, media := range mediaList.Items {
+				result, _, err := sqlClient.Exec(ctx,
+					`DELETE FROM mood_tags WHERE entity_type = ? AND entity_id = ?`,
+					media.MediaType, media.ID)
+				if err == nil && result > 0 {
+					cleared += int(result)
+				}
+			}
+			logger.Info("cleared existing mood tags", "library_id", libraryID, "tags_cleared", cleared)
+		}
+	}
 
 	go func() {
 		defer func() {
@@ -1173,10 +1272,16 @@ func (p *SemanticSearchPlugin) handleMoodTagsGenerate(ctx context.Context, req *
 		logger.Info("mood tag generation completed", "library_id", libraryID)
 	}()
 
+	message := "mood tag generation started in background"
+	if genReq.Force {
+		message = "cleared existing tags, mood tag generation started in background"
+	}
+
 	return jsonResponse(http.StatusOK, map[string]any{
 		"started":    true,
 		"library_id": genReq.LibraryID,
-		"message":    "mood tag generation started in background",
+		"force":      genReq.Force,
+		"message":    message,
 	})
 }
 

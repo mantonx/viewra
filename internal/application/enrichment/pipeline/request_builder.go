@@ -42,15 +42,7 @@ func (b *RequestBuilder) BuildWithExternalIDs(ctx context.Context, job *enrichme
 	if prefetchedIDs != nil {
 		existingIDs = prefetchedIDs
 	} else {
-		existingIDs = make(map[string]string)
-		if extIDs, err := b.deps.ExternalIDRepo.GetByMedia(ctx, job.MediaID); err != nil {
-			// Non-fatal - continue without existing IDs
-			b.logger.Warn("failed to get external IDs", slog.Int64("media_id", job.MediaID), slog.Any("error", err))
-		} else {
-			for _, extID := range extIDs {
-				existingIDs[extID.Provider] = extID.ExternalID
-			}
-		}
+		existingIDs = b.fetchExternalIDs(ctx, job)
 	}
 
 	// Route based on job.MediaType - this is now explicit, not inferred
@@ -131,6 +123,39 @@ func (b *RequestBuilder) buildMediaEntityRequest(ctx context.Context, job *enric
 	}
 
 	return req, job.MediaType, nil
+}
+
+// fetchExternalIDs retrieves external IDs for a job, using the appropriate query based on media type.
+// Parent entities (TV shows, seasons, albums, artists) use entity-based lookup.
+// Media items (movies, episodes, tracks) use media_id-based lookup.
+func (b *RequestBuilder) fetchExternalIDs(ctx context.Context, job *enrichment.QueueJob) map[string]string {
+	existingIDs := make(map[string]string)
+
+	var extIDs []*enrichment.ExternalID
+	var err error
+
+	// Parent entities use GetByEntity (media_type + entity_id)
+	// Media items use GetByMedia (media_id column)
+	switch job.MediaType {
+	case enrichment.MediaTypeTVShow, enrichment.MediaTypeTVSeason, enrichment.MediaTypeMusicAlbum, enrichment.MediaTypeMusicArtist:
+		extIDs, err = b.deps.ExternalIDRepo.GetByEntity(ctx, job.MediaType, job.MediaID)
+	default:
+		extIDs, err = b.deps.ExternalIDRepo.GetByMedia(ctx, job.MediaID)
+	}
+
+	if err != nil {
+		b.logger.Warn("failed to get external IDs",
+			slog.Int64("media_id", job.MediaID),
+			slog.String("media_type", string(job.MediaType)),
+			slog.Any("error", err))
+		return existingIDs
+	}
+
+	for _, extID := range extIDs {
+		existingIDs[extID.Provider] = extID.ExternalID
+	}
+
+	return existingIDs
 }
 
 // buildTVShowRequest builds a request for TV shows (parent entities in tv_shows table).

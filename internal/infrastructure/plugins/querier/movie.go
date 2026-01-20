@@ -111,6 +111,12 @@ func (q *DBMediaQuerier) getMovieDetailsDirectly(ctx context.Context, id int64, 
 		details.Cinematographers = cinematographers
 	}
 
+	// Fetch similar titles for "movies like X" searches
+	similarTitles := q.getSimilarTitlesForEntity(ctx, "movie", id)
+	if len(similarTitles) > 0 {
+		details.SimilarTitles = similarTitles
+	}
+
 	// Fetch playback info for technical filtering (4K, HDR, subtitles, etc.)
 	details.PlaybackInfo = q.getPlaybackInfoForMedia(ctx, id)
 

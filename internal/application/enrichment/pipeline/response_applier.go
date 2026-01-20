@@ -12,25 +12,27 @@ import (
 
 // ResponseApplier coordinates applying enrichment results to the database.
 type ResponseApplier struct {
-	deps            *Deps
-	metadataApplier *MetadataApplier
-	creditsApplier  *CreditsApplier
-	studiosApplier  *StudiosApplier
-	keywordsApplier *KeywordsApplier
-	imageProcessor  *ImageProcessor
-	logger          *slog.Logger
+	deps                  *Deps
+	metadataApplier       *MetadataApplier
+	creditsApplier        *CreditsApplier
+	studiosApplier        *StudiosApplier
+	keywordsApplier       *KeywordsApplier
+	similarTitlesApplier  *SimilarTitlesApplier
+	imageProcessor        *ImageProcessor
+	logger                *slog.Logger
 }
 
 // NewResponseApplier creates a new ResponseApplier.
-func NewResponseApplier(deps *Deps, metadataApplier *MetadataApplier, creditsApplier *CreditsApplier, studiosApplier *StudiosApplier, keywordsApplier *KeywordsApplier, imageProcessor *ImageProcessor, logger *slog.Logger) *ResponseApplier {
+func NewResponseApplier(deps *Deps, metadataApplier *MetadataApplier, creditsApplier *CreditsApplier, studiosApplier *StudiosApplier, keywordsApplier *KeywordsApplier, similarTitlesApplier *SimilarTitlesApplier, imageProcessor *ImageProcessor, logger *slog.Logger) *ResponseApplier {
 	return &ResponseApplier{
-		deps:            deps,
-		metadataApplier: metadataApplier,
-		creditsApplier:  creditsApplier,
-		studiosApplier:  studiosApplier,
-		keywordsApplier: keywordsApplier,
-		imageProcessor:  imageProcessor,
-		logger:          logger,
+		deps:                  deps,
+		metadataApplier:       metadataApplier,
+		creditsApplier:        creditsApplier,
+		studiosApplier:        studiosApplier,
+		keywordsApplier:       keywordsApplier,
+		similarTitlesApplier:  similarTitlesApplier,
+		imageProcessor:        imageProcessor,
+		logger:                logger,
 	}
 }
 
@@ -78,6 +80,17 @@ func (a *ResponseApplier) Apply(ctx context.Context, job *enrichment.QueueJob, m
 		if err := a.keywordsApplier.Apply(ctx, mediaID, mediaType, resp.Metadata); err != nil {
 			// Log but don't fail - keywords are supplementary data
 			a.logger.Warn("failed to apply keywords",
+				slog.Int64("media_id", mediaID),
+				slog.String("media_type", string(mediaType)),
+				slog.Any("error", err))
+		}
+	}
+
+	// Apply similar titles (for "movies like X" search queries)
+	if resp.Metadata != nil && a.similarTitlesApplier != nil {
+		if err := a.similarTitlesApplier.Apply(ctx, mediaID, mediaType, resp.Metadata); err != nil {
+			// Log but don't fail - similar titles are supplementary data
+			a.logger.Warn("failed to apply similar titles",
 				slog.Int64("media_id", mediaID),
 				slog.String("media_type", string(mediaType)),
 				slog.Any("error", err))

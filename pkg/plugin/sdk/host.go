@@ -234,6 +234,7 @@ type MediaDetails struct {
 	ThemeKeywords    []string
 	Composers        []string // Music composers
 	Cinematographers []string // Directors of Photography
+	SimilarTitles    []string // Similar/recommended titles from TMDb
 
 	// Playback information for filtering by technical specs
 	PlaybackInfo *PlaybackInfo
@@ -340,6 +341,7 @@ func protoToMediaDetails(m *pluginv1.MediaDetails) *MediaDetails {
 		ThemeKeywords:    m.ThemeKeywords,
 		Composers:        m.Composers,
 		Cinematographers: m.Cinematographers,
+		SimilarTitles:    m.SimilarTitles,
 		PlaybackInfo:     protoToPlaybackInfo(m.PlaybackInfo),
 		ShowTitle:        m.ShowTitle,
 		SeasonNumber:     int(m.SeasonNumber),

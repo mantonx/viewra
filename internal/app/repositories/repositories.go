@@ -21,6 +21,7 @@ import (
 	scanJobRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/scanjob"
 	scanStateRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/scanstate"
 	searchRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/search"
+	similarTitlesRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/similartitles"
 	settingsRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/settings"
 	studiosRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/studios"
 	transcodeRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/transcode"
@@ -67,6 +68,9 @@ type Repositories struct {
 
 	// Keywords (location-based and thematic tags)
 	Keywords *keywordsRepo.Repository
+
+	// Similar titles (from TMDb recommendations)
+	SimilarTitles *similarTitlesRepo.Repository
 
 	// Search repository (for fallback search)
 	Search *searchRepo.Repository
@@ -135,6 +139,9 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	// Create keywords repository
 	keywordsRepository := keywordsRepo.NewRepository(baseRepo)
 
+	// Create similar titles repository
+	similarTitlesRepository := similarTitlesRepo.NewRepository(baseRepo)
+
 	// Create search repository
 	searchRepository := searchRepo.NewRepository(baseRepo)
 
@@ -180,6 +187,7 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 		People:                   peopleRepository,
 		Studios:                  studiosRepository,
 		Keywords:                 keywordsRepository,
+		SimilarTitles:            similarTitlesRepository,
 		Search:                   searchRepository,
 		Plugin:                   pluginRepository,
 		PluginMediaQuerier:       pluginMediaQuerier,

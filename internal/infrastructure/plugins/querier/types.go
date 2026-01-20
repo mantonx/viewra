@@ -62,6 +62,9 @@ type MediaDetailsInfo struct {
 	Composers        []string // Music composers
 	Cinematographers []string // Directors of Photography
 
+	// Similar/recommended titles (from TMDb recommendations)
+	SimilarTitles []string
+
 	// Playback information for filtering by technical specs
 	PlaybackInfo *PlaybackInfoData
 }

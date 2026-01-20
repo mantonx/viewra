@@ -532,7 +532,9 @@ type EnrichedMetadata struct {
 	// Artist-specific metadata (for MediaTypeMusicArtist)
 	ArtistMetadata *ArtistMetadata `protobuf:"bytes,35,opt,name=artist_metadata,json=artistMetadata,proto3" json:"artist_metadata,omitempty"`
 	// Keywords/tags from external sources (e.g., TMDB)
-	Keywords      []*Keyword `protobuf:"bytes,36,rep,name=keywords,proto3" json:"keywords,omitempty"`
+	Keywords []*Keyword `protobuf:"bytes,36,rep,name=keywords,proto3" json:"keywords,omitempty"`
+	// Similar/recommended titles (from TMDb recommendations)
+	SimilarTitles []string `protobuf:"bytes,38,rep,name=similar_titles,json=similarTitles,proto3" json:"similar_titles,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -822,6 +824,13 @@ func (x *EnrichedMetadata) GetArtistMetadata() *ArtistMetadata {
 func (x *EnrichedMetadata) GetKeywords() []*Keyword {
 	if x != nil {
 		return x.Keywords
+	}
+	return nil
+}
+
+func (x *EnrichedMetadata) GetSimilarTitles() []string {
+	if x != nil {
+		return x.SimilarTitles
 	}
 	return nil
 }
@@ -1369,7 +1378,7 @@ const file_api_proto_plugin_enricher_proto_rawDesc = "" +
 	"confidence\x1a@\n" +
 	"\x12DiscoveredIdsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x91\x0e\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb8\x0e\n" +
 	"\x10EnrichedMetadata\x12\x19\n" +
 	"\x05title\x18\x01 \x01(\tH\x00R\x05title\x88\x01\x01\x12*\n" +
 	"\x0eoriginal_title\x18\x02 \x01(\tH\x01R\roriginalTitle\x88\x01\x01\x12\"\n" +
@@ -1412,7 +1421,8 @@ const file_api_proto_plugin_enricher_proto_rawDesc = "" +
 	"totalDiscs\x88\x01\x01\x12F\n" +
 	"\x0ealbum_metadata\x18\" \x01(\v2\x1f.viewra.plugin.v1.AlbumMetadataR\ralbumMetadata\x12I\n" +
 	"\x0fartist_metadata\x18# \x01(\v2 .viewra.plugin.v1.ArtistMetadataR\x0eartistMetadata\x125\n" +
-	"\bkeywords\x18$ \x03(\v2\x19.viewra.plugin.v1.KeywordR\bkeywordsB\b\n" +
+	"\bkeywords\x18$ \x03(\v2\x19.viewra.plugin.v1.KeywordR\bkeywords\x12%\n" +
+	"\x0esimilar_titles\x18& \x03(\tR\rsimilarTitlesB\b\n" +
 	"\x06_titleB\x11\n" +
 	"\x0f_original_titleB\r\n" +
 	"\v_sort_titleB\a\n" +

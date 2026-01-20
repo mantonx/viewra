@@ -185,6 +185,10 @@ func BuildHandlers(
 		if infra.Repos.Media != nil {
 			enrichmentHandler.SetMediaListByType(infra.Repos.Media.ListByType)
 		}
+		// Wire up TV show repository for bulk enqueue
+		if infra.Repos.TV != nil {
+			enrichmentHandler.SetTVShowList(infra.Repos.TV.ListTVShowsByLibrary)
+		}
 	}
 
 	// Plugin handler

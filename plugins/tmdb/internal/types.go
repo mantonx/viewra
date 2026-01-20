@@ -48,9 +48,10 @@ type MovieDetails struct {
 	ProductionCountries []ProductionCountry `json:"production_countries"`
 
 	// Appended responses (when using append_to_response)
-	Credits  *Credits  `json:"credits,omitempty"`
-	Images   *Images   `json:"images,omitempty"`
-	Keywords *Keywords `json:"keywords,omitempty"`
+	Credits         *Credits                 `json:"credits,omitempty"`
+	Images          *Images                  `json:"images,omitempty"`
+	Keywords        *Keywords                `json:"keywords,omitempty"`
+	Recommendations *RecommendationsResponse `json:"recommendations,omitempty"`
 }
 
 // TVSearchResult represents a TV show from TMDb search results.
@@ -101,10 +102,11 @@ type TVDetails struct {
 	CreatedBy           []Creator           `json:"created_by"`
 
 	// External IDs (when using append_to_response)
-	ExternalIDs *ExternalIDs `json:"external_ids,omitempty"`
-	Credits     *Credits     `json:"credits,omitempty"`
-	Images      *Images      `json:"images,omitempty"`
-	Keywords    *Keywords    `json:"keywords,omitempty"`
+	ExternalIDs     *ExternalIDs             `json:"external_ids,omitempty"`
+	Credits         *Credits                 `json:"credits,omitempty"`
+	Images          *Images                  `json:"images,omitempty"`
+	Keywords        *Keywords                `json:"keywords,omitempty"`
+	Recommendations *RecommendationsResponse `json:"recommendations,omitempty"`
 }
 
 // Genre represents a genre.
@@ -209,6 +211,25 @@ type Keyword struct {
 type FindByExternalIDResponse struct {
 	MovieResults []MovieSearchResult `json:"movie_results"`
 	TVResults    []TVSearchResult    `json:"tv_results"`
+}
+
+// RecommendationsResponse contains recommended similar titles from TMDb.
+type RecommendationsResponse struct {
+	Page         int                    `json:"page"`
+	TotalPages   int                    `json:"total_pages"`
+	TotalResults int                    `json:"total_results"`
+	Results      []RecommendationResult `json:"results"`
+}
+
+// RecommendationResult represents a recommended movie or TV show.
+type RecommendationResult struct {
+	ID           int     `json:"id"`
+	Title        string  `json:"title,omitempty"`         // Movie title
+	Name         string  `json:"name,omitempty"`          // TV show name
+	MediaType    string  `json:"media_type,omitempty"`    // "movie" or "tv"
+	VoteAverage  float64 `json:"vote_average"`
+	VoteCount    int     `json:"vote_count"`
+	Popularity   float64 `json:"popularity"`
 }
 
 // TrendingResult represents an item from the TMDb trending endpoint.

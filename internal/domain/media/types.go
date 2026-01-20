@@ -8,10 +8,10 @@ const (
 	MediaTypeMovie MediaType = "movie"
 
 	// MediaTypeTV represents a TV episode file
-	MediaTypeTV MediaType = "tv"
+	MediaTypeTV MediaType = "tv_episode"
 
 	// MediaTypeMusic represents a music track file
-	MediaTypeMusic MediaType = "music"
+	MediaTypeMusic MediaType = "music_track"
 )
 
 // IsValid checks if the media type is a valid value

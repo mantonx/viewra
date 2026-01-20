@@ -57,6 +57,9 @@ type Deps struct {
 
 	// KeywordRepo stores keywords/tags discovered during enrichment.
 	KeywordRepo media.KeywordRepository
+
+	// SimilarTitlesRepo stores similar/recommended titles discovered during enrichment.
+	SimilarTitlesRepo media.SimilarTitlesRepository
 }
 
 // MediaRepository is the subset of media repository methods needed by the pipeline.

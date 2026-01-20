@@ -20,6 +20,9 @@ import (
 // MediaListByTypeFunc abstracts listing media by type for bulk enqueueing.
 type MediaListByTypeFunc func(ctx context.Context, libraryID int64, mediaType media.MediaType) ([]*media.Media, error)
 
+// TVShowListFunc abstracts listing TV shows for bulk enqueueing.
+type TVShowListFunc func(ctx context.Context, libraryID int64) ([]media.TVShow, error)
+
 // EnrichmentHandler handles enrichment-related HTTP requests.
 type EnrichmentHandler struct {
 	manager         *pipeline.Manager
@@ -28,6 +31,7 @@ type EnrichmentHandler struct {
 	eventBus        *events.Bus
 	logger          *slog.Logger
 	mediaListByType MediaListByTypeFunc
+	tvShowList      TVShowListFunc
 }
 
 // NewEnrichmentHandler creates a new enrichment handler.
@@ -50,6 +54,11 @@ func NewEnrichmentHandler(
 // SetMediaListByType sets the function to list media by type (for bulk enqueueing).
 func (h *EnrichmentHandler) SetMediaListByType(fn MediaListByTypeFunc) {
 	h.mediaListByType = fn
+}
+
+// SetTVShowList sets the function to list TV shows (for bulk enqueueing).
+func (h *EnrichmentHandler) SetTVShowList(fn TVShowListFunc) {
+	h.tvShowList = fn
 }
 
 // GetStats returns enrichment queue statistics.
@@ -559,6 +568,12 @@ func (h *EnrichmentHandler) BulkEnqueue(c *gin.Context) {
 		return
 	}
 
+	// Handle TV shows separately (they're parent entities, not media items)
+	if req.MediaType == "tv_show" {
+		h.bulkEnqueueTVShows(c, req)
+		return
+	}
+
 	if h.mediaListByType == nil {
 		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Bulk enqueue not configured")
 		return
@@ -578,7 +593,7 @@ func (h *EnrichmentHandler) BulkEnqueue(c *gin.Context) {
 		domainMediaType = media.MediaTypeMusic
 		enrichmentMediaType = enrichment.MediaTypeMusic
 	default:
-		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media_type. Supported: movie, tv_episode, music_track")
+		respondError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid media_type. Supported: movie, tv_episode, tv_show, music_track")
 		return
 	}
 
@@ -620,6 +635,58 @@ func (h *EnrichmentHandler) BulkEnqueue(c *gin.Context) {
 		"stage", req.Stage,
 		"enqueued_count", enqueuedCount,
 		"total_items", len(mediaItems))
+
+	c.JSON(http.StatusAccepted, BulkEnqueueResponse{
+		EnqueuedCount: enqueuedCount,
+		MediaType:     req.MediaType,
+		Stage:         req.Stage,
+		Status:        "queued",
+	})
+}
+
+// bulkEnqueueTVShows handles bulk enqueueing of TV shows (parent entities).
+func (h *EnrichmentHandler) bulkEnqueueTVShows(c *gin.Context, req BulkEnqueueRequest) {
+	if h.tvShowList == nil {
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "TV show bulk enqueue not configured")
+		return
+	}
+
+	// Get all TV shows in the library
+	shows, err := h.tvShowList(c.Request.Context(), req.LibraryID)
+	if err != nil {
+		h.logger.Error("Failed to list TV shows for bulk enqueue",
+			"library_id", req.LibraryID,
+			"error", err)
+		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list TV shows")
+		return
+	}
+
+	// Enqueue each show
+	var enqueuedCount int64
+	for _, show := range shows {
+		err := h.manager.EnqueueStage(
+			c.Request.Context(),
+			show.ID,
+			req.LibraryID,
+			enrichment.MediaTypeTVShow,
+			req.Stage,
+			req.Priority,
+		)
+		if err != nil {
+			h.logger.Warn("Failed to enqueue TV show",
+				"show_id", show.ID,
+				"stage", req.Stage,
+				"error", err)
+			continue
+		}
+		enqueuedCount++
+	}
+
+	h.logger.Info("Bulk enqueue TV shows completed",
+		"library_id", req.LibraryID,
+		"stage", req.Stage,
+		"enqueued_count", enqueuedCount,
+		"total_shows", len(shows))
 
 	c.JSON(http.StatusAccepted, BulkEnqueueResponse{
 		EnqueuedCount: enqueuedCount,

@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# API helper script with auto-authentication
+# Usage: ./scripts/api [METHOD] PATH [JSON_BODY]
+#
+# Examples:
+#   ./scripts/api /health                           # GET (no auth)
+#   ./scripts/api /api/libraries                    # GET with auth
+#   ./scripts/api POST /api/libraries/2/scan        # POST with auth
+#   ./scripts/api POST /api/plugin/semantic-search/mood-tags/generate '{"library_id":2}'
+
+set -euo pipefail
+
+BASE_URL="${VIEWRA_API_URL:-http://localhost:8080}"
+TOKEN_FILE="/tmp/viewra-api-token"
+TOKEN_TTL=600  # 10 minutes
+
+# Default credentials (from container.go)
+USERNAME="${VIEWRA_USER:-dev}"
+PASSWORD="${VIEWRA_PASS:-devdev00}"
+
+get_token() {
+    # Check if cached token is still valid
+    if [[ -f "$TOKEN_FILE" ]]; then
+        local age=$(($(date +%s) - $(stat -c %Y "$TOKEN_FILE" 2>/dev/null || stat -f %m "$TOKEN_FILE")))
+        if [[ $age -lt $TOKEN_TTL ]]; then
+            cat "$TOKEN_FILE"
+            return
+        fi
+    fi
+
+    # Get new token
+    local response
+    response=$(curl -s -X POST "$BASE_URL/api/auth/login" \
+        -H "Content-Type: application/json" \
+        -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\"}")
+
+    local token
+    token=$(echo "$response" | jq -r '.AccessToken // empty')
+
+    if [[ -z "$token" ]]; then
+        echo "Auth failed: $response" >&2
+        exit 1
+    fi
+
+    echo "$token" > "$TOKEN_FILE"
+    echo "$token"
+}
+
+# Parse arguments
+METHOD="GET"
+API_PATH=""
+BODY=""
+
+case "$#" in
+    1)
+        API_PATH="$1"
+        ;;
+    2)
+        if [[ "$1" =~ ^(GET|POST|PUT|DELETE|PATCH)$ ]]; then
+            METHOD="$1"
+            API_PATH="$2"
+        else
+            API_PATH="$1"
+            BODY="$2"
+            METHOD="POST"
+        fi
+        ;;
+    3)
+        METHOD="$1"
+        API_PATH="$2"
+        BODY="$3"
+        ;;
+    *)
+        echo "Usage: $0 [METHOD] PATH [JSON_BODY]" >&2
+        exit 1
+        ;;
+esac
+
+# Build curl args
+CURL_ARGS=(-s -X "$METHOD")
+
+# Add auth header for /api/* paths (except /api/auth/*)
+if [[ "$API_PATH" == /api/* && "$API_PATH" != /api/auth/* ]]; then
+    TOKEN=$(get_token)
+    CURL_ARGS+=(-H "Authorization: Bearer $TOKEN")
+fi
+
+CURL_ARGS+=(-H "Content-Type: application/json")
+
+if [[ -n "$BODY" ]]; then
+    CURL_ARGS+=(-d "$BODY")
+fi
+
+# Execute request
+RESPONSE=$(curl "${CURL_ARGS[@]}" "$BASE_URL$API_PATH")
+
+# Pretty print if jq available and response is JSON
+if command -v jq &>/dev/null && echo "$RESPONSE" | jq . &>/dev/null; then
+    echo "$RESPONSE" | jq .
+else
+    echo "$RESPONSE"
+fi

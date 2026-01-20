@@ -164,6 +164,7 @@ type Querier interface {
 	DeleteScheduledTasksBySourceID(ctx context.Context, sourceID sql.NullString) error
 	DeleteSession(ctx context.Context, id int64) error
 	DeleteSessionsByUserID(ctx context.Context, userID int64) error
+	DeleteSimilarTitlesByEntity(ctx context.Context, arg DeleteSimilarTitlesByEntityParams) error
 	DeleteStudio(ctx context.Context, id int64) error
 	DeleteSubtitleTracksByMediaID(ctx context.Context, mediaID int64) error
 	DeleteSystemSetting(ctx context.Context, key string) error
@@ -333,6 +334,7 @@ type Querier interface {
 	GetSessionByPublicID(ctx context.Context, publicID string) (Session, error)
 	GetSessionByTokenHash(ctx context.Context, refreshTokenHash string) (Session, error)
 	GetSessionsByUserID(ctx context.Context, userID int64) ([]Session, error)
+	GetSimilarTitlesByEntity(ctx context.Context, arg GetSimilarTitlesByEntityParams) ([]string, error)
 	// Looks up a studio by external ID (e.g., TMDb company ID)
 	GetStudioByExternalID(ctx context.Context, arg GetStudioByExternalIDParams) (int64, error)
 	GetStudioByID(ctx context.Context, id int64) (Studio, error)
@@ -383,6 +385,7 @@ type Querier interface {
 	// Audio and subtitle track queries for multi-language support
 	InsertAudioTrack(ctx context.Context, arg InsertAudioTrackParams) (InsertAudioTrackRow, error)
 	InsertKeyword(ctx context.Context, arg InsertKeywordParams) error
+	InsertSimilarTitle(ctx context.Context, arg InsertSimilarTitleParams) error
 	InsertSubtitleTrack(ctx context.Context, arg InsertSubtitleTrackParams) (InsertSubtitleTrackRow, error)
 	LibraryExistsByID(ctx context.Context, id int64) (int64, error)
 	LibraryExistsByPath(ctx context.Context, path string) (int64, error)
