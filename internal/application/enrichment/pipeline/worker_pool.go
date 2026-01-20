@@ -61,6 +61,9 @@ func NewWorkerPool(deps *Deps, enricher appenrich.Enricher, typedRepos *TypedMed
 	if deps.Downloader != nil {
 		imgOpts = append(imgOpts, WithDownloader(deps.Downloader))
 	}
+	if deps.SVGRasterizer != nil {
+		imgOpts = append(imgOpts, WithSVGRasterizer(deps.SVGRasterizer))
+	}
 	imageProcessor := NewImageProcessor(deps.ImageRepo, logger, imgOpts...)
 
 	requestBuilder := NewRequestBuilder(deps, typedRepos, entityCache, logger)

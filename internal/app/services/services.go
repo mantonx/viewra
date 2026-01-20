@@ -351,6 +351,7 @@ func initEnrichmentPipeline(
 	})
 	metadataExtractor := infraimages.NewMetadataExtractor()
 	metadataAdapter := &metadataExtractorAdapter{extractor: metadataExtractor}
+	svgRasterizer := infraimages.NewSVGRasterizer()
 
 	// Create pipeline manager
 	pipelineManager := pipeline.NewManager(
@@ -367,6 +368,7 @@ func initEnrichmentPipeline(
 			MetadataExtractor:  metadataAdapter,
 			Transformer:        imageTransformer,
 			Downloader:         imageDownloader,
+			SVGRasterizer:      svgRasterizer,
 			PeopleRepo:         repos.People,
 			StudioRepo:         repos.Studios,
 			KeywordRepo:        repos.Keywords,

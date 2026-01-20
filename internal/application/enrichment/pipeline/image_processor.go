@@ -3,6 +3,9 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"image"
+	"image/png"
+	"io"
 	"log/slog"
 	"os"
 	"strings"
@@ -18,11 +21,13 @@ import (
 // - Deduplication via file hash
 // - WebP preset generation
 // - Remote image downloading
+// - SVG rasterization (converts vector graphics to raster)
 type ImageProcessor struct {
 	imageRepo         ImageRepository
 	metadataExtractor MetadataExtractor
 	transformer       ImageTransformer
 	downloader        ImageDownloader
+	svgRasterizer     SVGRasterizer
 	logger            *slog.Logger
 }
 
@@ -59,6 +64,11 @@ func WithTransformer(t ImageTransformer) ImageProcessorOption {
 // WithDownloader sets the image downloader for remote images.
 func WithDownloader(d ImageDownloader) ImageProcessorOption {
 	return func(p *ImageProcessor) { p.downloader = d }
+}
+
+// WithSVGRasterizer sets the SVG rasterizer for converting vector graphics.
+func WithSVGRasterizer(r SVGRasterizer) ImageProcessorOption {
+	return func(p *ImageProcessor) { p.svgRasterizer = r }
 }
 
 // Process stores discovered images in the database with full processing.
@@ -211,7 +221,19 @@ func (p *ImageProcessor) processRemoteImage(ctx context.Context, mediaID int64, 
 		return fmt.Errorf("download image: %w", err)
 	}
 
-	// 3. Extract metadata from downloaded file
+	// 3. Handle SVG files - rasterize to PNG for processing
+	if isSVGFile(img.Path) || isSVGFile(localPath) {
+		rasterizedPath, err := p.rasterizeSVG(localPath)
+		if err != nil {
+			os.Remove(localPath)
+			return fmt.Errorf("rasterize svg: %w", err)
+		}
+		// Remove original SVG, use rasterized PNG
+		os.Remove(localPath)
+		localPath = rasterizedPath
+	}
+
+	// 4. Extract metadata from downloaded file
 	var metadata *ImageMetadata
 	if p.metadataExtractor != nil {
 		metadata, err = p.metadataExtractor.ExtractMetadata(localPath)
@@ -222,7 +244,7 @@ func (p *ImageProcessor) processRemoteImage(ctx context.Context, mediaID int64, 
 		}
 	}
 
-	// 4. Generate presets
+	// 5. Generate presets
 	var localCachePath *string
 	if p.transformer != nil && metadata != nil && metadata.FileHash != nil {
 		presetPaths, err := p.generatePresets(localPath, *metadata.FileHash, imgType)
@@ -235,10 +257,10 @@ func (p *ImageProcessor) processRemoteImage(ctx context.Context, mediaID int64, 
 		}
 	}
 
-	// 5. Detect source type from URL
+	// 6. Detect source type from URL
 	sourceType := detectSourceFromURL(img.Path)
 
-	// 6. Store image record with both external URL and local cache path
+	// 7. Store image record with both external URL and local cache path
 	// Only set MediaID for entities that have entries in the media table.
 	var mediaIDPtr *int
 	if hasMediaTableEntry {
@@ -311,4 +333,45 @@ func detectSourceFromURL(url string) images.SourceType {
 	default:
 		return images.SourceTypeLocal
 	}
+}
+
+// isSVGFile checks if a path or URL points to an SVG file.
+func isSVGFile(path string) bool {
+	return strings.HasSuffix(strings.ToLower(path), ".svg")
+}
+
+// rasterizeSVG converts an SVG file to a PNG file for further processing.
+// Returns the path to the rasterized PNG file.
+func (p *ImageProcessor) rasterizeSVG(svgPath string) (string, error) {
+	if p.svgRasterizer == nil {
+		return "", fmt.Errorf("SVG rasterizer not configured")
+	}
+
+	// Rasterize SVG to RGBA image
+	img, err := p.svgRasterizer.RasterizeFile(svgPath)
+	if err != nil {
+		return "", fmt.Errorf("rasterize: %w", err)
+	}
+
+	// Save as PNG (preserves transparency, which WebP also supports)
+	pngPath := strings.TrimSuffix(svgPath, ".svg") + ".png"
+	pngPath = strings.TrimSuffix(pngPath, ".SVG") + ".png"
+
+	f, err := os.Create(pngPath)
+	if err != nil {
+		return "", fmt.Errorf("create png file: %w", err)
+	}
+	defer f.Close()
+
+	if err := encodePNG(f, img); err != nil {
+		os.Remove(pngPath)
+		return "", fmt.Errorf("encode png: %w", err)
+	}
+
+	return pngPath, nil
+}
+
+// encodePNG writes an image to a writer in PNG format.
+func encodePNG(w io.Writer, img image.Image) error {
+	return png.Encode(w, img)
 }

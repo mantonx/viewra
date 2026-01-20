@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"image"
 	"log/slog"
 
 	"github.com/mantonx/viewra/internal/domain/enrichment"
@@ -48,6 +49,9 @@ type Deps struct {
 
 	// Downloader downloads remote images to local cache.
 	Downloader ImageDownloader
+
+	// SVGRasterizer converts SVG vector graphics to raster images.
+	SVGRasterizer SVGRasterizer
 
 	// PeopleRepo stores people and credits discovered during enrichment.
 	PeopleRepo media.PeopleRepository
@@ -134,6 +138,12 @@ type ImageDownloader interface {
 	// Download fetches a remote image and stores it locally.
 	// Returns the local file path.
 	Download(ctx context.Context, url string) (string, error)
+}
+
+// SVGRasterizer converts SVG files to raster images.
+type SVGRasterizer interface {
+	// RasterizeFile converts an SVG file to an RGBA image.
+	RasterizeFile(svgPath string) (*image.RGBA, error)
 }
 
 // TypedMediaRepos provides type-specific repositories for building EnrichRequests.
