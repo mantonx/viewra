@@ -3,7 +3,7 @@ module github.com/mantonx/viewra
 go 1.25.4
 
 require (
-	github.com/anthropics/anthropic-sdk-go v1.19.0
+	github.com/asg017/sqlite-vec-go-bindings v0.1.6
 	github.com/chai2010/webp v1.4.0
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
 	github.com/disintegration/imaging v1.6.2
@@ -20,21 +20,21 @@ require (
 	github.com/mantonx/viewra/pkg/plugin/sdk v0.0.0
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/olekukonko/tablewriter v1.1.2
-	github.com/ollama/ollama v0.13.5
-	github.com/openai/openai-go v1.12.0
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/sqlc-dev/pqtype v0.3.0
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.1
 	github.com/swaggo/swag v1.16.6
+	github.com/tdewolff/canvas v0.0.0-20260109131636-69e1540379c6
 	github.com/zeebo/xxh3 v1.0.2
 	go.jetify.com/typeid v1.3.0
-	golang.org/x/crypto v0.45.0
-	golang.org/x/image v0.33.0
-	golang.org/x/sync v0.18.0
-	golang.org/x/sys v0.38.0
-	golang.org/x/text v0.31.0
+	golang.org/x/crypto v0.48.0
+	golang.org/x/image v0.38.0
+	golang.org/x/mod v0.33.0
+	golang.org/x/sync v0.20.0
+	golang.org/x/sys v0.41.0
+	golang.org/x/text v0.35.0
 	golang.org/x/time v0.14.0
+	golang.org/x/tools v0.42.0
 	google.golang.org/grpc v1.67.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.40.0
@@ -49,7 +49,6 @@ require (
 	github.com/ByteArena/poly2tri-go v0.0.0-20170716161910-d102ad91854f // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
-	github.com/asg017/sqlite-vec-go-bindings v0.1.6 // indirect
 	github.com/benoitkugler/textlayout v0.3.1 // indirect
 	github.com/benoitkugler/textprocessing v0.0.3 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
@@ -105,23 +104,16 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef // indirect
 	github.com/srwiley/scanx v0.0.0-20190309010443-e94503791388 // indirect
-	github.com/tdewolff/canvas v0.0.0-20260109131636-69e1540379c6 // indirect
 	github.com/tdewolff/font v0.0.0-20250902141222-fb72ecc1bc0a // indirect
 	github.com/tdewolff/minify/v2 v2.24.4 // indirect
 	github.com/tdewolff/parse/v2 v2.8.4 // indirect
-	github.com/tidwall/gjson v1.18.0 // indirect
-	github.com/tidwall/match v1.1.1 // indirect
-	github.com/tidwall/pretty v1.2.1 // indirect
-	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
 	github.com/yuin/goldmark v1.7.13 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/arch v0.23.0 // indirect
 	golang.org/x/exp v0.0.0-20251017212417-90e834f514db // indirect
-	golang.org/x/mod v0.30.0 // indirect
-	golang.org/x/net v0.47.0 // indirect
-	golang.org/x/tools v0.38.0 // indirect
+	golang.org/x/net v0.50.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	modernc.org/knuth v0.5.5 // indirect
